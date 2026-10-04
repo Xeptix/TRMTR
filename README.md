@@ -9,7 +9,7 @@ installed. The 1.7.10 edition is built against **GT: New Horizons 2.8.4**.
 
 **One mod, one version number, two editions.** They do the same thing, by the same numbers, and they
 read the same settings file, so a pack can move between Minecraft versions and find its edits where
-it left them. Twenty-six classes are shared between them byte for byte. Where an edition cannot match
+it left them. Twenty-eight classes are shared between them byte for byte. Where an edition cannot match
 the other, it is because the Minecraft version took away what the behaviour was built on, and the
 section it belongs to says so plainly rather than leaving you to find out. Those differences are
 collected in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) as well, if you would rather see them
@@ -1207,7 +1207,7 @@ presets, the server rules, the pricing ledgers and the quest and loot bookkeepin
 types in them and are unit tested by `./gradlew test` — **410 tests across 43 classes on 1.7.10, 347
 across 29 on 1.12.2** — with `CoreStaysPortableTest` there to keep that boundary from eroding.
 
-**Twenty-six of those classes are shared between the editions byte for byte**, and a test in each
+**Twenty-eight of those classes are shared between the editions byte for byte**, and a test in each
 reads both copies and fails the build on any difference, naming the files. In this repository the two
 editions are siblings, so that check runs for anybody who clones it.
 

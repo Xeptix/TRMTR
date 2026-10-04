@@ -356,7 +356,7 @@ Source: https://github.com/Xeptix/TRMTR
 
 #### Kept honest
 
-- **Twenty-six classes are shared with the 1.7.10 edition byte for byte**, and a test in each
+- **Twenty-eight classes are shared with the 1.7.10 edition byte for byte**, and a test in each
   repository compares both copies and fails the build on any difference.
 - A client-only reference scan, so no client class is ever reached from a server path; a two-process
   probe that joins a real dedicated server and reports a verdict per feature; and 347 unit tests that

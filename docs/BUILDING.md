@@ -43,7 +43,7 @@ of this repository and build on its own.
 
 ## Why the portable core is duplicated
 
-Twenty-six classes appear in both editions, byte for byte. They are the ones that name nothing from
+Twenty-eight classes appear in both editions, byte for byte. They are the ones that name nothing from
 Minecraft at all — the storage layer, the wear chain, the texture planners, the surface table codec,
 the quest and loot bookkeeping — and they are duplicated rather than shared for the same reason
 there is no root build: each edition compiles against a different Minecraft with a different
@@ -56,7 +56,7 @@ absent; **here the editions are siblings, so the file is committed with a relati
 runs for anybody who clones this repository.** Run `./gradlew test` in either edition and it is one
 of the tests that runs.
 
-Consequence worth knowing if you are editing: **a change to any of those twenty-six classes has to
+Consequence worth knowing if you are editing: **a change to any of those twenty-eight classes has to
 be made in both editions identically**, and neither edition may reformat them.
 
 Real shared compilation — a `common/` module with loader-specific subprojects — becomes possible
@@ -68,7 +68,7 @@ classpath. That is where it will happen, because that is where it can.
 Beyond `./gradlew build`, which runs the unit tests:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
-  twenty-six classes starts naming a Minecraft type.
+  twenty-eight classes starts naming a Minecraft type.
 - **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds fifty-seven files across
   seven packages that may name Minecraft and may not name Forge, and lists the twelve files outside
   it with what each needs Forge for. It fails both ways, so neither the fence nor the list of
