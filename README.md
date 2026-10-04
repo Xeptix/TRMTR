@@ -1,7 +1,8 @@
+![TRMT Reimagined - terrain wears into paths along the routes you actually walk, and grows back over time when you stop using them. Eighty gradations, half a block deep, no block ever placed](docs/images/03-header.png)
+
 # TRMT Reimagined
 
-Terrain wears into paths along the routes you actually walk, and grows back over time when
-you stop using them.
+![Worn roads running across grass, dirt, sand and stone, each one darker and more sunken along the line that has been walked](docs/images/roads-reel.gif)
 
 Minecraft **1.7.10** and **1.12.2**, on Forge — and it runs on plain Forge with nothing else
 installed. The 1.7.10 edition is built against **GT: New Horizons 2.8.4**.
