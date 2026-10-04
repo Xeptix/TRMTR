@@ -1,0 +1,15 @@
+[
+{
+  "modid": "${modId}",
+  "name": "${modName}",
+  "description": "Terrain wears into paths along the routes you actually walk, and grows back over time when you stop using them.\n\nWear is stored as server-side data and painted client-side only: no block is ever written into the world, so the mod can be switched off per player, disabled server-wide, or removed entirely without altering a single block of terrain. Grass, dirt, sand, gravel, stone, cobblestone, snow, ice, netherrack and end stone are all supported, including modded variants, which wear in their own colours rather than vanilla's because every wear texture is generated from the block's own pixels. Each family has its own pace, its own recovery time and its own cost curve, from snow marking in a couple of crossings and healing in six in-game days to end stone taking five thousand two hundred crossings to wear through and four hundred days to heal.\n\nAlongside the ground itself: hand and chunk tampers for shaping it deliberately, three tamper enchantments that reinforce, ward or light a square, a golem that holds a stretch of road at the level you set, four guide books, and an in-game wear table that draws every look on your own blocks before you pick one.",
+  "version": "${modVersion}",
+  "mcversion": "${minecraftVersion}",
+  "url": "https://github.com/Xeptix/TRMTR",
+  "authorList": ["Xep"],
+  "credits": "This version by Xep. Based on The Roads More Travelled by milkucha (https://github.com/milkucha/trmt), Copyright (c) 2026 milkucha, licensed CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/) - see LICENSE_trmt for the full text and its disclaimer of warranties in Section 5. This is a modified work: ported from Fabric 1.20.1 to Forge 1.7.10 and re-architected so wear is server-side data painted client-side. Unofficial and non-commercial; not produced, endorsed or supported by milkucha. Full notice in LICENSE.md and ATTRIBUTION.md.",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]

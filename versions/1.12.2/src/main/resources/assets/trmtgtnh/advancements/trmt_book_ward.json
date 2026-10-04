@@ -1,0 +1,24 @@
+{
+    "parent": "trmtgtnh:trmt_warding",
+    "display": {
+        "icon": {
+            "item": "minecraft:enchanted_book",
+            "data": 0
+        },
+        "title": {
+            "translate": "achievement.trmtBookWard"
+        },
+        "description": {
+            "translate": "achievement.trmtBookWard.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

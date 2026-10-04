@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.7.11",
+  "package": "com.trmtgtnh.mixin",
+  "refmap": "mixins.trmtgtnh.refmap.json",
+  "target": "@env(DEFAULT)",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

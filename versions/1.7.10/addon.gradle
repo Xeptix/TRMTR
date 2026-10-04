@@ -1,0 +1,35 @@
+// Extra build configuration, applied on top of the GTNH convention.
+
+// The storage-layer tests are JUnit 5. Without this the platform is never engaged and the
+// test task reports "no tests discovered" rather than running them.
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+
+    // Where the 1.12.2 edition's tree is, for the test that compares the two copies of the portable
+    // core. Read from an untracked file rather than written here: a repository that has to be
+    // checked out beside another one to build is a repository nobody else can build, so on a machine
+    // with only this tree the file is simply absent and that test skips.
+    def sibling = rootProject.file('sibling.properties')
+    if (sibling.exists()) {
+        Properties held = new Properties()
+        sibling.withInputStream { held.load(it) }
+        String other = held.getProperty('otherEdition', '').trim()
+        if (!other.isEmpty()) {
+            systemProperty 'trmt.other.edition', other
+        }
+    }
+}
+
+// The three files a redistributor is obliged to ship travel with the jar, copied from the root of
+// the repository rather than kept as a second set beside the source. Two copies meant keeping them
+// in step by remembering to, and what had actually happened is that the record of modifications the
+// licence asks to travel with the work sat a year behind the one anybody would read on the repo.
+// A copy cannot drift.
+processResources {
+    from(rootProject.file('LICENSE.md'))
+    from(rootProject.file('LICENSE_trmt'))
+    from(rootProject.file('ATTRIBUTION.md'))
+}

@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.7.11",
+  "package": "com.trmtgtnh.mixin",
+  "refmap": "mixins.trmtgtnh.refmap.json",
+  "target": "@env(DEFAULT)",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinBlockCollision",
+    "MixinStuckInWornGround",
+    "MixinLibrarianBooks"
+  ],
+  "client": [
+    "MixinGrassTint",
+    "MixinGrassSideOverlay",
+    "MixinTextureMap",
+    "MixinAnimatedSprite",
+    "MixinSpriteFiltering",
+    "MixinSettleOnWornGround",
+    "MixinGhostShaderMaterial",
+    "MixinStairMetadata",
+    "MixinBlockArrivals"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

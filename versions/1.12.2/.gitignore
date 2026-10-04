@@ -1,0 +1,29 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea
+
+# gradle
+build
+.gradle
+
+# kate
+*.kate-swp
+
+# other
+eclipse
+run
+
+# Where the other edition of this mod is checked out on this machine, for the test that compares
+# the two copies of the portable core. Machine-specific, so never committed.
+sibling.properties

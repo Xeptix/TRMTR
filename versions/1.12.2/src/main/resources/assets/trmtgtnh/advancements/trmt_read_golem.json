@@ -1,0 +1,24 @@
+{
+    "parent": "trmtgtnh:trmt_read_mk1",
+    "display": {
+        "icon": {
+            "item": "trmtgtnh:guide_golem",
+            "data": 0
+        },
+        "title": {
+            "translate": "achievement.trmtRead_golem"
+        },
+        "description": {
+            "translate": "achievement.trmtRead_golem.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

@@ -1,0 +1,24 @@
+{
+    "display": {
+        "icon": {
+            "item": "trmtgtnh:tamper",
+            "data": 0
+        },
+        "title": {
+            "translate": "achievement.trmtTamper"
+        },
+        "description": {
+            "translate": "achievement.trmtTamper.desc"
+        },
+        "background": "minecraft:textures/blocks/dirt.png",
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

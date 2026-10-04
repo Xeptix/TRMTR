@@ -1,0 +1,369 @@
+# TRMT Reimagined — changelog
+
+One version number across every edition. 0.9.216 is the same release on Minecraft 1.7.10 and on
+1.12.2, and later releases will carry whatever editions exist then.
+
+## 0.9.216 — 2026-10-03
+
+**First public release, on Minecraft 1.7.10 and 1.12.2.**
+
+Ground wears into paths along the routes that are actually walked, and grows back once they are not.
+
+Wear is kept as server-side data and painted on the client as ghost blocks. No block is ever written
+into the world, so the mod can be switched off for one player, disabled across a server, or deleted
+outright without a single square of terrain having changed. That decision is the oldest one here and
+everything else is built on it.
+
+Neither edition has been published anywhere before, so there is no list of changes since a previous
+release to give. What follows instead is what each of them is, by area. Releases after this one will
+be listed above it, as changes since 0.9.216.
+
+Where the two editions cannot behave identically, every case is named in
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) and in the manual section it belongs to.
+
+Downloads and source: https://github.com/Xeptix/TRMTR
+
+---
+
+### On Minecraft 1.7.10
+
+#### The ground underfoot
+
+- Worn ground is a hollow rather than a picture: it sinks as it wears, down to half a block, with
+  real collision behind a mixin, so the dip that is drawn is the dip that is walked in.
+  An item dropped into a rut lies in it, rather than being flung back out by the game's own
+  escape from a block it was never inside - which is what made drops hop and skitter on a worn road.
+- Eighty gradations of wear per square, each with its own picture, so a road darkens and deepens by
+  degrees rather than in jumps. A position keeps its
+  depth separately from how worn it looks, so sinking never restarts the wear that earned it.
+- A long walk arrives evenly rather than nearly all at once at the end of it, and a long run never
+  replays the same eight pictures.
+- Ground worn the whole way through gives way, and the rut may then go deeper into what was underneath
+   — but never where a sapling or a flower is holding the square, and never at a wear ceiling set
+  below the whole run, neither of which touches a flat, barely-worn path.
+- Explosions scour the ground they do not destroy, scaled to the blast's force, and a hard landing
+  marks what it lands on.
+- Snow lying on a path takes the traffic first, layer by layer, and only then does the ground beneath it
+  begin to mark.
+- Worn stone breaks at the speed the server agrees to. A ghost delegated its hardness to the block beneath
+  but answered the harvest question for itself, so ground a pack gates behind a better pickaxe broke three
+  times too fast on the client and was put straight back by the server.
+
+#### Surfaces, and the ground beneath them
+
+- Grass, dirt and sand were joined by gravel, stone, cobblestone, snow, ice, netherrack and end stone, each
+  a family with its own pace.
+- Surfaces are detected across a whole pack by block class, material and name rather than listed by hand,
+  and what was detected is written into the config so it can be argued with. Blocks that keep
+  state of their own are left alone.
+- A road can wear through into what is under it rather than into more of itself, so stone shows cobble,
+  then gravel, then the earth it was laid on. Grass losing its cover into the earth
+  beneath is how it ships and it takes that earth gradually rather than all at the end, with the
+  grass side fringe receding with the top; the longer chain for stone, cobble and gravel
+  waits on `general.wearThroughToOtherSurfaces`, which ships off, so out of the box a stone road hollows
+  out as stone.
+- Slabs, stairs and Chisel's layered blocks are ground too, and wear in their own shapes — a slab half as
+  deep for exactly as much traffic, a stair blocking light and collision as the stair it stands in for.
+- A block's metadata wears what that metadata is made of, rather than what its neighbour is.
+- Worn ground keeps what the block had: its glow, its particles, its footing, its transparency, whatever
+  showed through its holes, and its shader material until it has worn through.
+
+#### How worn ground looks
+
+- Every wear texture is generated from the block's own pixels, taken out of the running game's atlas, so a
+  modded surface wears in its own colours instead of vanilla's. The authored art was
+  decomposed into a reusable per-pixel coverage sequence to make that possible.
+- Eleven wear looks, each worked entirely from the block's own pixels, for the surfaces nobody drew art
+  for — rubbed, cracked, cracked-and-rubbed and the rest. A picker
+  draws each of them on the player's own blocks before a choice is made.
+- Textures are composed on every core the machine has, and rebuilt when a wear setting moves
+  rather than on the next restart.
+- The atlas is planned into the room it actually measured, with each sprite priced at the size it is
+  stitched at rather than assumed, and every stitch checked against that plan. Each sprite is
+  composed once, at the edge its plan priced, with the border anisotropic filtering wraps round a face
+  cropped away instead of drawn into the block.
+- Wear pictures are filed by the block itself rather than by the id it happened to carry. Forge moves every
+  modded block's id when a world loads and when a client joins a server, so on any world that has outlived
+  a change to its mod list a modded block goes on wearing its own pictures.
+- A moving inner layer — Chisel's lavastone and waterstone — is budgeted for everything it keeps, not for
+  its frames alone, and leaves mipmapping on for the rest of the block atlas while it moves.
+
+#### Recovery
+
+- Healing is lazy: it is worked out from the absolute world clock when a chunk loads, so unloaded ground
+  recovers too, and it holds still while nobody is connected — an empty server is not a server whose roads
+  grow back.
+- Every family has its own recovery time outright, from snow at six in-game days to end stone at four
+  hundred, rather than having it derived from what the family cost to wear.
+- Rain is a discount on recovery for the earthy families, and there is an opt-in gate that makes a surface
+  mend only while precipitation is actually falling on it.
+- The heal sweep loses no time to rounding, and never refuses a gradation that is owed
+  exactly. It also stopped deleting spawn wards, lights and reinforcement it happened to sweep
+  past.
+
+#### Tools
+
+- The hand tamper shapes ground deliberately, with its grades read from config rather than hard-coded.
+  The chunk tamper works an area, carrying its grade in the stack. The magic tamper
+  edits the rules themselves.
+- The Wayfarer's Tamper is the end of the line: its own metal, its own silhouette, a reinforce dial, a flat
+  one-material cost, a tiered recipe, and a place in world-gen loot a pack can move - so it is
+  findable, earnable and craftable even in a pack that cannot make a diamond chunk tamper.
+- Mending costs what it should. Each kind of ground inside a patch pays for itself from material that
+  square would take, rather than the whole patch being priced by the block that was clicked; the chunk
+  tamper charges by the gradation rather than by the square, so a deep mend costs eight times a shallow
+  one; and mending that costs nothing earns no experience, which closed an experience farm.
+- Four per-material tampers were retired in favour of three items, each carrying its grade in its own data.
+- What a reinforcement costs is named per pack rather than built in, and a container named that way
+  hands its empty back through its own rule whether a fluid registry knows about it or not - which is
+  what GT New Horizons' two concrete buckets need, and they are named in the default list.
+
+#### The three tamper modes
+
+- **Reinforcement** blast-proofs a block and holds it against feet. It did not, in
+  fact, withstand a blast until: the rule, the ceilings and the tooltip all existed and nothing
+  asked.
+- **Spawn ward** bars hostile or passive mobs from a square.
+- **Path light** lights it.
+- Each stores its state on the same compact per-position record, each explains itself where somebody is
+  asking, each has an achievement and a craftable unlock book rather than a gamble, and each switches off cleanly — including its book, its quest and its achievement.
+
+#### The Golem of Ways
+
+- A keeper that holds a stretch of ground at the level it is set to, rebuilt from the iron golem
+  so it reads as one, with per-block orders, a screen that tells the truth, and a home of its own.
+- Eleven upgrades — nine that change one thing each, among them Far Ways, Deep, Frugal, Stout, Fierce and
+  Settled, and two that carry the whole set: the Unstable All Ways, which is every upgrade and holds none
+  of them reliably, and the settled All Ways at Once, which does.
+- It carries its tamper rather than merely swinging it, works that tamper by the same rules a player does,
+  walks to work it cannot reach, keeps a list of jobs nearest home first, and will not work ground it
+  cannot show you.
+- It eats what roads are made of, one mouthful at a time, handing the empty container straight back, and
+  lays reinforcing material where it is wanted rather than spitting it on the floor. It eats with both arms up and its head dipping to meet them. A dead
+  golem gives its contents back whatever the loot rules say.
+- Automation may feed it the ground it mends with and nothing else, and take nothing out — a hopper
+  gives back its tamper and its fitted upgrade. Its price follows the chunk tamper's in the
+  same version, and it remembers ground its stores cannot pay for instead of walking every container again
+  each stroke.
+
+#### Plants, cover and trampling
+
+- The plants standing in a route go down with the route, stalks and all, when the ground drops a level
+   — but a plant's roots hold the square it stands on, and that square is drawn and walked
+  at full height on both sides.
+- Trampling wears leaves where they are actually walked on, keeps a tally against a plant that fades at
+  healing's own rate rather than being wiped by every sweep, and scales its threshold once instead of twice.
+  Both trampling switches ship off, because both destroy real blocks.
+- A plant or leaf carrying reinforcement or a spawn ward is never trampled, and keeps what was paid for it.
+
+#### Two draughts
+
+- The Potion of Lightness was carried across with its ingredients intact, made at a bench rather than
+  brewed, because 1.7.10 has no brewing API. The Draught of the Heavy Foot is its opposite,
+  invented on vanilla's own terms in the same version.
+- The two cancel rather than one winning outright, and neither is removed when they overlap.
+- A disagreement about an effect id is survivable: the client is told, and carries on.
+
+#### Maps and other mods
+
+- JourneyMap is handed a colour that travels toward what the ground is becoming rather than saying it has
+  become something else, with an optional desire-path highlight and a depth the player sets.
+- Xaero's Minimap shows worn ground, and is told when it changes — it caches every tile it writes and
+  nothing here sends a block packet to mark one dirty.
+- A path through modded turf stopped reading as a bright green stripe, which it did because that turf's map
+  colour is green before the biome's tint is applied to it. Gravel and end stone stopped reporting
+  the map colour of the wrong material.
+- Waila reads worn ground and unworn ground alike, showing reinforcement and wards on a square that
+  has not yet been stepped on.
+- Every integration — Waila, JourneyMap, Xaero's, Angelica/Iris, Chisel, GregTech, Amazing Trophies,
+  BetterQuesting — sits behind a check that the other mod is present, and none of their code is linked
+  against.
+
+#### Multiplayer and dedicated servers
+
+- A player's subscription follows the rules for as long as they stay connected: `/trmt enable`, a
+  reload, or a switch to real ruts reaches everybody already online rather than waiting for them to
+  reconnect.
+- A client uses its server's surface table, rather than each side building its own out of its own config and
+  nothing compared the two, so a client could draw ground the server was not wearing and collide with a
+  floor the server did not have. The table travels compressed, is used for the visit only, and is handed
+  back on disconnect.
+- Geometry and pricing travel with the rules — the depth of a gradation, each family's ceiling, the
+  successor lists that decide what a road wears through into, and the switches that gate them.
+- Updates go to exactly the players the server has sent that chunk to, ground the server writes over is
+  repainted rather than left as it was drawn, and a square a plant is holding is flat on both sides.
+- A dedicated server with Chisel starts, `/trmt demonstrate` runs on one, and a `/trmt` command arriving
+  from a chat bridge, a web panel or RCon is run on the server thread.
+
+#### Books, achievements, quests and finding the tools
+
+- Four guide books with a reading screen of their own, rebuilt to read as books.
+- Sixteen achievements, none of them offered where the feature behind it is switched off.
+- Quest and trophy definitions written as BetterQuesting's and Amazing Trophies' own data files rather than
+  linked against either, landing where the reader reads and leaving no litter in somebody else's tree.
+  The quest chapter follows the feature switches.
+- The tools and books turn up while exploring, and optional first-join items go to anyone who has never had
+  one rather than only to a fresh spawn.
+
+#### Settings, and the screens that edit them
+
+- Config changes apply without a restart, reach ground that already exists, and show each block's icon
+  beside its entry.
+- A read-only Wear Table became an editable one, in plain language, with editable header figures, a preview
+  of the run it is about to publish, and a hold for the block cycle.
+- Per-family cost curves let the price of a gradation change along a run — turf tears at a touch, snow
+  packs, ice glazes, dressed stone stays flat — normalised so a run's total never moves. The
+  editor quotes a price with the curve it was worked out under, solves against it, and draws all five
+  against one datum.
+- Five preset choosers give ready-made answers that can still be argued with, and a two-slot
+  snapshot tool commits and undoes a whole config. A snapshot survives the server stopping: it is a
+  whole config file, a few hundred kilobytes of it, so it is stored as bytes rather than as an NBT
+  string - which cannot carry more than 65535 of them.
+- An operator can push block lists and settings to a server, cap how worn a world is
+  allowed to get, and keep the family and mobs editors to operators.
+- The magic tamper's "stop this wearing the ground" writes the mob down at nought rather than deleting its
+  name, which no wildcard line overrides.
+
+#### Commands and demonstrations
+
+- `/trmt` reloads, reports, enables, disables, purges and pins.
+- `golem` says why the golem in front of you is not eating what you have thrown at it, down to what the
+  item actually is, what each entry of the material list resolves to, and the line that would join them.
+- `showcase` and `demonstrate` build a complete exhibit of every detected surface, look and golem upgrade,
+  laid out like a page, clearing their own space and always standing in the same one, within walking
+  distance and with the ground loaded first.
+
+#### Old worlds, and removing the mod
+
+- A worn path survives its own rules being changed, and a block broken by accident keeps its
+  record for fifteen minutes in case it comes back.
+- A save that names the four retired per-material tampers opens again. Forge was being asked to register
+  one item under two names and declared the whole world corrupted; the retired names are let go instead,
+  and their ids blocked so nothing later can claim them.
+- Deleting the jar leaves every block as it always was. The mod registers sixty-six cosmetic ghost blocks,
+  so their names are in `level.dat`'s id map and Forge shows its mismatch screen once; nothing was ever
+  placed, and continuing past it is safe.
+
+---
+
+### On Minecraft 1.12.2
+
+#### How a worn square is drawn here
+
+- **One ghost block carries every appearance.** On 1.7.10 a block's appearance is a metadata value
+  and an icon per side, which takes sixty-six block classes to cover sixty-six shapes; here it is a
+  blockstate and a baked model handed the position, so one class covers all of them at eighty
+  gradations each — far more than blockstate variants could reasonably enumerate. Sprites are
+  generated into the block atlas at stitch time, the model chooses one per position, painting into
+  the client's own copy of the world survives threaded chunk rebuilds, and the sunken collision
+  needs no mixin at all.
+- **Three of the 1.7.10 wear pipeline's mixins were not needed** — the atlas, the collision and the
+  grass tint — because Forge 1.12.2 lets a sprite declare dependencies, posts a collision event with
+  the boxes about to be returned, and takes an `IBlockColor` per position.
+
+#### The ground underfoot
+
+- Wear kept per chunk, surviving a restart, and the detection that decides which blocks are
+  ground at all. Ground that wears as time passes and as it is walked on.
+- Wear reaching a client, and then a worn path that can be seen and stood in — the
+  point at which the two halves met.
+- Worn ground drawn in each block's own pixels, every wear pattern,
+  the sides of a rut, and a ghost the shape of whatever it covers.
+- **One ghost block, where the other edition has sixty-six**, because appearance is a blockstate and a
+  model here rather than a class per shape.
+- A worn square repainted the instant the server writes its own block over it, rather than within two
+  seconds. This edition's second mixin, and the rescan behind it stays for the case no packet
+  announces.
+
+#### Tools and the things they do
+
+- The hand tamper and the cube tool. Reinforcement and the spawn ward, the
+  path light, and the Wayfarer's tamper that ends the line.
+- What a tamper costs, asked of the ore dictionary rather than of whether GregTech is installed.
+  The two draughts, the three enchanted books that unlock the modes.
+- The two tools for tuning: a config snapshot and a wear comparison.
+
+#### The Golem of Ways
+
+- The creature as the server knows it and as it is drawn. Its screen. Its
+  eleven upgrades have recipes, and the whole-set tier binds in two steps.
+- 1.12.2 has no render passes, so what was an extra pass is a `LayerRenderer` handed the posed model.
+
+#### Screens
+
+- The tamper's settings, the in-game config screen, the Wear Table, the wear
+  editor, and the guide books with their reading screens.
+- A setting that takes effect when you change it, which on 1.12.2 means a resource reload for
+  anything that lives in the atlas.
+
+#### Books, advancements, quests and trophies
+
+- **The sixteen achievements became sixteen advancements**, which is the one place this
+  edition cannot be 1:1: 1.12 removed the achievement system. Same sixteen, same lang keys, described
+  as JSON. A JSON file cannot be registered conditionally, so every switch an achievement answered to
+  is read where the advancement is granted instead.
+- The quest chapter and the trophy definitions, written as the other mods' own JSON and linking neither.
+  Both file shapes are the other edition's and unverified on 1.12.2; both do nothing when
+  their mod is absent.
+- The chest finds, rebuilt rather than carried, because 1.12.2 replaced Forge's chest categories with
+  loot tables. The other edition needs a special entry to hand over a particular enchanted
+  book; a loot entry here carries the NBT and needs none.
+- The starting items a packmaker can ask for, handed out on any login where that player has never had
+  that item in this save.
+
+#### Reading the world
+
+- The inspection, and the last two of the twenty-one packets. The block tooltip, which is
+  Hwyla here and Waila there.
+- **The two minimap integrations are gone and nothing replaced them**. The other edition
+  carries three hundred and fifty-seven lines of reflection against JourneyMap and a hundred and
+  nineteen against Xaero's, because there a block is asked its colour with nothing but a metadata.
+  1.12.2 hands the position in, so one override answers for every map at once. It found a real gap on
+  the way: the ghost had no `getMapColor` at all, so every worn square painted dirt brown whatever it
+  was made of.
+- A librarian never sells a book for a switched-off unlock. This edition's first mixin.
+
+#### Commands
+
+- The `/trmt` family: status, enable, disable, purge, reload, surfaces, here, golem and mapcolour,
+  then showcase and demonstrate with the yard of pens behind them.
+- `/trmt mapcolour` answers a different question here, because the grey-map bug it was written to find
+  cannot happen: it reports whether the square under your feet draws the same colour as the ground
+  beside it.
+
+#### Settings
+
+- **`TrmtConfig` is the other edition's file, not a translation of it**. Three thousand lines
+  of settings, carried by a script that makes only the renames that are pure renames between the two
+  Forge versions, so a packmaker's edits move between the two editions unchanged.
+- Four of its map settings describe a colour 1.12.2 cannot produce, and the mod names them in the log
+  as it loads rather than ignoring them quietly.
+- **The mod reads and writes its own settings file**, in Forge's format with none of Forge's
+  code. `ConfigFile` is a reader and writer of the same `.cfg` the other edition uses - the same
+  categories, the same `B:`/`I:`/`D:`/`S:` prefixes, the same nesting, the same CRLF - so one settings
+  file is shared by both editions and will be shared by the ones after them. Proved in the running
+  game by a verdict that writes a file with this reader and reads it back with Forge's, which is the
+  one direction no unit test can cover: Forge's `Configuration` reaches for FML's logging in its
+  constructor and throws outside a game. The other direction has fourteen tests against bytes Forge
+  actually wrote, two of them sliced from a real 326 KB config.
+- **The in-game config screen is still Forge's**, behind an adapter. Opening it builds a throwaway
+  Forge config from the real settings; Forge's `GuiConfig` edits that; pressing Done copies the
+  differences back. Forge's screen brings the category navigation, an editor per type, the array
+  editor with its icons per row, the comment tooltips, the two sliders, per-setting and whole-screen
+  reset and the restart warning, and none of that was worth reimplementing on an edition that
+  already works. One file, and the one file a later edition deletes rather than ports.
+
+#### Kept honest
+
+- **Twenty-six classes are shared with the 1.7.10 edition byte for byte**, and a test in each
+  repository compares both copies and fails the build on any difference.
+- A client-only reference scan, so no client class is ever reached from a server path; a two-process
+  probe that joins a real dedicated server and reports a verdict per feature; and 347 unit tests that
+  run with no Minecraft on the classpath.
+- **A second fence beside that one**, drawn where a port to another loader would cut: fifty-seven
+  files across seven packages may name Minecraft and may not name Forge, and the twelve files that
+  sit outside it each say what they need Forge for. It fails both ways, so neither the fence nor the
+  list of exceptions can rot. What those twelve need reduces to five things, which is the number
+  worth knowing: a world by dimension id, chunk persistence, the collision hook and the event bus,
+  asking whether a block is a plant, and asking whether another mod is present.
+

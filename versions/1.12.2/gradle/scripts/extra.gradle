@@ -1,0 +1,64 @@
+// This project's own additions to the template buildscript, applied last.
+//
+// Three things the 1.7.10 edition got from the GTNH convention plugins and this template does not
+// provide: a version taken from the nearest git tag, a jar named for the Minecraft version it is
+// built against, and the licence files carried inside the jar.
+
+apply from: 'gradle/scripts/helpers.gradle'
+
+// The version itself is settled in gradle/scripts/version.gradle, which has to run before this
+// file because the Tags class, mcmod.info and the jar's name all read the property during the
+// template's own configuration.
+
+// ---------------------------------------------------------------------------
+// The jar carries the Minecraft version in its name
+// ---------------------------------------------------------------------------
+//
+// Gradle composes a jar name as <archivesName>-<version>.jar and there is no third slot, so the
+// platform has to ride in the base name: trmtr-1.12.2-0.1.0.jar. The 1.7.10 edition names itself
+// the same way, which is the point - the two sit in a downloads folder together and say which is
+// which without being opened.
+
+base {
+    archivesName.set('trmtr-1.12.2')
+}
+
+// ---------------------------------------------------------------------------
+// The licences travel inside the jar
+// ---------------------------------------------------------------------------
+//
+// Copied from the repository root rather than kept as a second copy under resources, because a
+// second copy is a copy that goes stale. ATTRIBUTION.md in particular is the record of
+// modifications that CC BY-NC 4.0 4(a)(1)(B) requires to travel with the work, so a stale one is a
+// licence matter rather than an untidiness.
+
+processResources {
+    from(rootDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'LICENSE_forgedevenv'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Where the other edition is, for the drift check
+// ---------------------------------------------------------------------------
+//
+// This mod exists twice, and the two share the arithmetic that decides how ground wears. The
+// copies are compared byte for byte by a test, and this is how that test is told where the other
+// tree is. Read from an untracked file rather than written into the repository: a project that has
+// to be checked out beside another one in order to build is a project nobody else can build, so
+// where the file is absent the test simply skips.
+
+def sibling = file('sibling.properties')
+if (sibling.exists()) {
+    Properties held = new Properties()
+    sibling.withInputStream { held.load(it) }
+    String other = held.getProperty('otherEdition', '').trim()
+    if (!other.isEmpty()) {
+        tasks.named('test', Test) {
+            systemProperty 'trmt.other.edition', other
+        }
+    }
+}

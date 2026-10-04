@@ -1,0 +1,31 @@
+// The version is the nearest git tag, and it is decided here because everything else reads it.
+//
+// A jar's name should name a commit somebody can go back to, which is why this is not a number
+// typed into gradle.properties that anybody can forget to raise. `git describe` answers with the
+// tag itself on a tagged commit, and with tag-commits-hash on anything after it, so a jar built
+// from a working tree is visibly not a release.
+//
+// Applied early, before the first use of mod_version, and it rewrites the property rather than just
+// the project's version. That distinction is the whole point: the generated Tags class, mcmod.info,
+// the jar's name and the publishing blocks all ask for the property by name, through
+// helpers.gradle's propertyString, which reads project.findProperty. Setting only `version` left the
+// jar called 0.1.0 while the mod announced itself to the game as 0.0.0 - two answers to one
+// question, which is the exact failure the git tag exists to prevent.
+//
+// Read through the provider API rather than by running git during configuration, so the
+// configuration cache stays usable. A tree with no git, or with no tags in it yet, keeps whatever
+// gradle.properties says: somebody cloning this to look at it should not have to make a tag first.
+
+apply from: 'gradle/scripts/helpers.gradle'
+
+def described = providers.exec {
+    commandLine 'git', 'describe', '--tags', '--always', '--dirty=-dirty'
+    workingDir = rootDir
+    ignoreExitValue = true
+}.standardOutput.asText.map { it.trim() }.getOrElse('')
+
+if (described.isEmpty()) {
+    logger.lifecycle("No git description available; the version stays at ${propertyString('mod_version')} from gradle.properties")
+} else {
+    project.setProperty('mod_version', described)
+}

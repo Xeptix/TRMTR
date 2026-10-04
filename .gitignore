@@ -1,0 +1,39 @@
+# Everything that is produced rather than written.
+
+# The release staging area: built jars, the notes that go with a GitHub release, and the commit
+# notes. Local by design - the jars are attached to a release rather than committed, because a
+# repository that carries its own binaries grows for ever and can never be made smaller.
+/dist/
+
+# Gradle, per edition. Each edition is its own build, so each has its own output.
+build/
+.gradle/
+out/
+
+# The development run directories a build makes when you launch the game from it.
+run/
+run-obf/
+run-client/
+run-server/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+bin/
+*.launch
+.metadata
+eclipse/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code instructions, kept out of the published repository.
+CLAUDE.md
+.claude/
