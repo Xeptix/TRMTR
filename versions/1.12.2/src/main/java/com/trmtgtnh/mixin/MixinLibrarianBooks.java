@@ -43,12 +43,14 @@ import com.trmtgtnh.item.UnlockBooks;
  * and never by a client's copy of the villager.
  *
  * <p>
- * <strong>{@code require = 1}, which is where this edition parts company with the other one.</strong>
- * There the reasoning is that a pack which has replaced this method should get librarians that now and
- * then sell a switched-off book rather than a game that refuses to start. The trouble with it is that
- * a miss leaves <em>nothing</em> in the log: the behaviour quietly reverts and the only way to know is
- * to count a thousand draws. So this one insists on binding, and a pack that has replaced this method
- * is told at startup instead of shipping with a bug nobody can see.
+ * <strong>{@code require = 0}.</strong> A pack that has replaced this method gets librarians which
+ * now and then offer a switched-off book, rather than a game that will not start. That is the right
+ * way round: the failure costs a trade detail, and refusing to launch costs everything else.
+ *
+ * <p>
+ * The cost of choosing it is that a miss is quiet - the behaviour reverts and the only certain way
+ * to notice is to count a thousand draws. Mixin reports a mixin that did not apply, which is where
+ * to look if a librarian ever offers a book this pack has switched off.
  *
  * <p>
  * Nothing about this catches a missing loader, which is a different failure with a different answer:
@@ -59,7 +61,7 @@ import com.trmtgtnh.item.UnlockBooks;
 public abstract class MixinLibrarianBooks {
 
     // The only Enchantment local in the method, and the first thing it does.
-    @ModifyVariable(require = 1, method = "addMerchantRecipe", at = @At("STORE"), ordinal = 0)
+    @ModifyVariable(require = 0, method = "addMerchantRecipe", at = @At("STORE"), ordinal = 0)
     private Enchantment trmt$onlyOfferedBooks(Enchantment drawn, IMerchant merchant, MerchantRecipeList recipes,
         Random random) {
         return UnlockBooks.forLibrarian(drawn, random);

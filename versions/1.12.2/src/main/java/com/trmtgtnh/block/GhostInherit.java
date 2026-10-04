@@ -22,11 +22,12 @@ import com.trmtgtnh.config.TrmtConfig;
  * instead of the block it stands for, so both have to be handed on.
  *
  * <p>
- * The other edition does this from a class of the same name, and keeps a third thing here that this
- * edition cannot: the shader material. There it reaches into the shader pack's own block-material
- * lookup through a mixin; 1.12.2's shaders are a different mod with a different hook, and
- * {@code client.inheritShaderMaterial} therefore does nothing here. It is left in the settings file so
- * a pack can move between the two versions, and the mod names it in the log as it loads.
+ * The other edition does this from a class of the same name and keeps a third thing in it that lives
+ * apart here: the shader material. Both editions have that, and for a while this javadoc said 1.12.2
+ * could not, on the strength of 1.12.2's shaders being a different mod with a different hook. The
+ * first half was true and the second was the wrong conclusion from it - the hook is there, one step
+ * further in than Angelica's - so it moved out to
+ * {@link com.trmtgtnh.client.render.ShaderMaterial} rather than staying here as a thing not done.
  */
 public final class GhostInherit {
 

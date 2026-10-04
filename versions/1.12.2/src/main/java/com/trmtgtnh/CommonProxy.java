@@ -1,5 +1,7 @@
 package com.trmtgtnh;
 
+import net.minecraftforge.fml.client.event.ConfigChangedEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.common.MinecraftForge;
 
 import com.trmtgtnh.erosion.ErosionStore;
@@ -20,6 +22,10 @@ public class CommonProxy {
         // is persisted: it rides inside each chunk's own NBT rather than in a file of its own, so it
         // loads and unloads with the chunk that owns it and an uninstalled mod leaves an unread tag
         // behind rather than a broken world.
+        // The config screen's Done button, which until now nothing listened for. Forge posts
+        // OnConfigChangedEvent on this bus and delivers it to registered handlers only, so without
+        // this line the screen wrote nothing, reloaded nothing and said nothing about it.
+        MinecraftForge.EVENT_BUS.register(new ConfigScreenListener());
         MinecraftForge.EVENT_BUS.register(ErosionStore.get());
         // And what drives it: footfalls, the tick the sweep runs on, and blocks coming and going.
         MinecraftForge.EVENT_BUS.register(com.trmtgtnh.server.ServerEvents.get());
@@ -264,4 +270,29 @@ public class CommonProxy {
     public int ghostOriginAt(int x, int y, int z) {
         return -1;
     }
+
+    /**
+     * Picks up edits made through Forge's in-game config screen.
+     *
+     * <p>
+     * Here rather than beside the settings it reloads, because it is the one part of the settings
+     * layer that has to name a loader: the event is Forge's, the annotation is Forge's, and the bus
+     * it arrives on is Forge's. Everything it calls is not.
+     *
+     * <p>
+     * Two steps, in this order. The screen edits a throwaway Forge config built from the real
+     * settings, and this event is posted after those edits have been written into it and before
+     * anything reloads - so the copy is read back first and the reload second. Reversing them would
+     * reload the settings as they were before the screen was opened.
+     */
+    public static final class ConfigScreenListener {
+
+        @SubscribeEvent
+        public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
+            if (!Trmt.MODID.equals(event.getModID())) return;
+            Trmt.proxy.readConfigScreenEdits();
+            com.trmtgtnh.config.ConfigReload.fromGuiDeferred();
+        }
+    }
+
 }

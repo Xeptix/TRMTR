@@ -37,13 +37,16 @@ import com.trmtgtnh.client.OverlayPainter;
  * else.
  *
  * <p>
- * <strong>{@code require = 1}, where the other edition uses 0.</strong> There the reasoning is that a
- * renderer or network change which moved these methods should cost only the repaint rather than the
- * launch. The trouble is that it costs the repaint <em>silently</em>: worn ground would go back to
- * flickering for two seconds whenever anybody swung at it, and nothing would say why. So all three
- * insist on binding. The rescan behind them is still there and still earns its place - it covers a
- * chunk that was cached out of overlay range and has since come back into it, which no packet
- * announces - but it is no longer the thing quietly carrying the feature.
+ * <strong>{@code require = 0}.</strong> A renderer or network change that moved these methods costs
+ * the repaint, not the launch. What is lost is two seconds of a worn path reading as plain ground
+ * after somebody swings at it, and the rescan behind these hooks covers the same ground more slowly
+ * - it is there anyway for a chunk that was cached out of overlay range and has come back into it,
+ * which no packet announces either.
+ *
+ * <p>
+ * Refusing to start would be aimed at the wrong person. A player whose pack contains something that
+ * moved a packet handler did not choose it and cannot fix it, and would lose the whole game rather
+ * than a repaint.
  *
  * <p>
  * The painter still says once in the log, the first time one of these runs, that they are in place.
@@ -56,7 +59,7 @@ import com.trmtgtnh.client.OverlayPainter;
 @Mixin(NetHandlerPlayClient.class)
 public class MixinBlockArrivals {
 
-    @Inject(method = "handleChunkData", at = @At("TAIL"), require = 1)
+    @Inject(method = "handleChunkData", at = @At("TAIL"), require = 0)
     private void trmt$chunkWrittenOver(SPacketChunkData packet, CallbackInfo ci) {
         OverlayPainter.get()
             .chunkArrived(packet.getChunkX(), packet.getChunkZ());
@@ -71,7 +74,7 @@ public class MixinBlockArrivals {
      * the packet is for. Queued as a chunk rather than block by block, as the other edition does it: a
      * burst of changes then costs one pass.
      */
-    @Inject(method = "handleMultiBlockChange", at = @At("TAIL"), require = 1)
+    @Inject(method = "handleMultiBlockChange", at = @At("TAIL"), require = 0)
     private void trmt$blocksWrittenOver(SPacketMultiBlockChange packet, CallbackInfo ci) {
         SPacketMultiBlockChange.BlockUpdateData[] changed = packet.getChangedBlocks();
         if (changed == null || changed.length == 0 || changed[0] == null) return;
@@ -81,7 +84,7 @@ public class MixinBlockArrivals {
             .chunkArrived(first.getX() >> 4, first.getZ() >> 4);
     }
 
-    @Inject(method = "handleBlockChange", at = @At("TAIL"), require = 1)
+    @Inject(method = "handleBlockChange", at = @At("TAIL"), require = 0)
     private void trmt$blockWrittenOver(SPacketBlockChange packet, CallbackInfo ci) {
         BlockPos at = packet.getBlockPosition();
         if (at == null) return;

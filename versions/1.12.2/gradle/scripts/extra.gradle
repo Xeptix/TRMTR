@@ -14,13 +14,30 @@ apply from: 'gradle/scripts/helpers.gradle'
 // The jar carries the Minecraft version in its name
 // ---------------------------------------------------------------------------
 //
-// Gradle composes a jar name as <archivesName>-<version>.jar and there is no third slot, so the
-// platform has to ride in the base name: trmtr-1.12.2-0.1.0.jar. The 1.7.10 edition names itself
-// the same way, which is the point - the two sit in a downloads folder together and say which is
-// which without being opened.
+// Gradle composes a jar name as <archivesName>-<version>-<classifier>.jar, so the Minecraft version
+// rides in the base name and the loader in the classifier: trmtr-1.12.2-0.9.217-forge.jar. The point
+// is that several of these sit in a downloads folder together and say which is which without being
+// opened - and from 1.16.5 on that matters more than it did, because one body of code there produces
+// a Forge jar and a Fabric jar which cannot both be called the same thing.
+//
+// The loader suffix arrived at 0.9.217. 0.9.216 was published without it.
 
 base {
     archivesName.set('trmtr-1.12.2')
+}
+
+// On the reobfuscated jar and not on `jar`, which was the first attempt and was wrong. `jar` produces
+// the development jar, against readable names; `reobfJar` takes that and writes the one a player
+// installs. Classifying `jar` renamed the intermediate and left the shippable one unclassified, which
+// was caught only by noticing that the unclassified jar was byte-for-byte the size of the one already
+// published. So the loader goes on the artifact that ships, and the intermediate is labelled `dev` so
+// the two can never be confused in build/libs again.
+jar {
+    archiveClassifier.set('dev')
+}
+
+reobfJar {
+    archiveClassifier.set('forge')
 }
 
 // ---------------------------------------------------------------------------

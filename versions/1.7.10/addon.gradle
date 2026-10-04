@@ -33,3 +33,27 @@ processResources {
     from(rootProject.file('LICENSE_trmt'))
     from(rootProject.file('ATTRIBUTION.md'))
 }
+
+// The loader rides in the jar's name from 0.9.217 on.
+//
+// Gradle composes <archivesName>-<version>-<classifier>.jar, so the Minecraft version stays in the
+// base name set by customArchiveBaseName and the loader goes in the classifier:
+// trmtr-1.7.10-0.9.217-forge.jar. The point is that several of these sit in a downloads folder
+// together and say which is which without being opened - and from the 1.16.5 edition on it stops
+// being a convenience, because one body of code there produces a Forge jar and a Fabric jar that
+// cannot both be called the same thing.
+//
+// 0.9.216 was published without it.
+//
+// On the reobfuscated jar and not on `jar`, which was the first attempt and was wrong. `jar` produces
+// the development jar, against readable names; `reobfJar` takes that and writes the one a player
+// installs. Classifying `jar` renamed the intermediate and left the shippable one unclassified -
+// caught only by noticing that the unclassified jar was the exact size of the one already published.
+// The intermediate is labelled `dev` so the two cannot be confused in build/libs again.
+jar {
+    archiveClassifier.set('dev')
+}
+
+reobfJar {
+    archiveClassifier.set('forge')
+}

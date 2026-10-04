@@ -82,14 +82,18 @@ class LoaderNeutralTest {
         { "com/trmtgtnh/erosion/WearDrops.java", "ForgeHooks and IPlantable" },
         { "com/trmtgtnh/surface/SurfaceRegistry.java", "IPlantable" },
 
-        // 5. Reading the settings file. Answered, and taken: ConfigFile is the mod's own reader and
-        // writer of Forge's format, so FamilySettings and Presets have left this list entirely and
-        // TrmtConfig's three thousand lines of settings name no Forge config type either. What keeps
-        // it here is the event it listens to and the annotation it listens with - the config screen
-        // reports a change through Forge's bus, and Forge's bus is not a settings problem.
-        { "com/trmtgtnh/config/TrmtConfig.java", "the config-changed event, @SubscribeEvent and Loader.isModLoaded" },
+        // Reading the settings file used to be the fifth kind of problem on this list and is no
+        // longer any kind at all. ConfigFile is the mod's own reader and writer of Forge's format;
+        // FamilySettings and Presets crossed over when it arrived; and TrmtConfig's three thousand
+        // lines now name no loader either - its config-screen listener moved to CommonProxy, where
+        // a Forge event belongs, and its four mod-presence questions go through ModsPresent. Both
+        // of those live outside the fence on purpose.
+        //
+        // That matters beyond tidiness: the portable core reads TrmtConfig, so while the settings
+        // named Forge the core could not compile without it. It can now, which is what the 1.16.5
+        // port needed and could not have.
 
-        // 6. Asking whether another mod is present, and talking to it. Every loader has an answer.
+        // 5. Asking whether another mod is present, and talking to it. Every loader has an answer.
         { "com/trmtgtnh/compat/QuestbookCompat.java", "Loader.isModLoaded" },
         { "com/trmtgtnh/compat/TrophyCompat.java", "Loader.isModLoaded" },
         { "com/trmtgtnh/compat/WailaCompat.java", "Loader.isModLoaded and inter-mod messaging" },

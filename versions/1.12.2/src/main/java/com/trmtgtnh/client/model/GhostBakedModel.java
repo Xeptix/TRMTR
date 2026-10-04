@@ -104,6 +104,11 @@ public class GhostBakedModel implements IBakedModel {
 
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
+        // Said before any of this square's vertices are written, and only ever heard while the seat is
+        // a ghost's: the block underneath while its own surface is still showing, and the earth it has
+        // worn into once it is not. The same answer decides the claim and the picture, which is the
+        // whole of why the shine goes as the road breaks up rather than the moment it is walked on.
+        com.trmtgtnh.client.render.ShaderMaterial.claim(top == null ? -1 : origin);
         if (top == null) top = earth;
         // Only grass takes the biome's colour. Worn through to dirt, a square has no grass left to
         // tint, and a dirt rut washed green by a jungle would be a very strange road.

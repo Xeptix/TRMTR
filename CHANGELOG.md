@@ -1,7 +1,32 @@
 # TRMT Reimagined — changelog
 
-One version number across every edition. 0.9.216 is the same release on Minecraft 1.7.10 and on
-1.12.2, and later releases will carry whatever editions exist then.
+One version number across every edition. 0.9.217 is the same release on Minecraft 1.7.10 and on
+1.12.2, and later releases will carry whatever editions exist then. A change in one edition moves the
+number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.217 — 2026-10-04
+
+**Worn ground inherits its shader material on 1.12.2 too.** That was the last thing the two editions
+did not share, and the 1.7.10 jar is unchanged: the number moves because a release is one number
+across every edition.
+
+Under a shader pack a ghost was in nobody's block-material table, so a worn stone road did not merely
+lose its polish - it lost every property the unworn block had and fell back on whatever the pack does
+with a stranger. On 1.12.2 it now claims the block it is covering while it still shows that block's
+surface, and the earth it has worn into once it does not, so the shine leaves as the road breaks up
+rather than the moment somebody walks on it.
+
+It needs **Oculus** on 1.12.2 and **Angelica** on 1.7.10, does nothing without one or without a
+shader pack loaded, and adds nothing to what either edition requires.
+
+**On 1.12.2 this is new and has not yet been seen running** on a client carrying Oculus, Vintagium and
+a shader pack. Every shape it reaches for was read from Oculus's own source, and both ways it can be
+wrong switch the feature off rather than break a frame - but that is not the same as having watched it
+work, and [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) says how to tell.
+
+Two things the 1.12.2 manual had inherited from the 1.7.10 edition and never had re-derived are also
+corrected: the mixin count, which claimed thirteen and described ten client mixins that edition does
+not have, and the integration table, which named Angelica on a version Angelica does not run on.
 
 ## 0.9.216 — 2026-10-03
 

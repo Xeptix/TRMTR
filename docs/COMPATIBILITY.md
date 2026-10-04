@@ -76,9 +76,20 @@ either way — none of those blocks is ever placed in the saved world.
 
 ### Shaders
 
-`client.inheritShaderMaterial` works on **1.7.10 only**. It works by reaching into the shader mod's
-own block-material lookup, and 1.12.2's shaders are a different mod with a different hook. Named in
-the log as the mod loads if you have changed it.
+`client.inheritShaderMaterial` works on both, through a different mod and a different seam on each.
+1.7.10 calls `Iris.setShaderMaterialOverride`, a pair of methods **Angelica** added for this and which
+no Iris and no Oculus has. 1.12.2 reaches what that pair is a convenience for, one step further in:
+the holder **Oculus** leaves a block's resolved shader id on for its own vertex writer to read. So
+1.7.10 wants Angelica, 1.12.2 wants Oculus, and neither does anything without a shader pack loaded.
+
+**On 1.12.2 this is new in 0.9.217 and has not yet been seen running** on a client carrying Oculus,
+Vintagium and a shader pack. If you are not sure whether it is working, the mod answers by silence:
+the line
+
+    Worn ground will keep the shader material of the block it covers
+
+is printed as the mod loads, and only once the seam has actually been found. No line means the
+feature is off and nothing else is wrong.
 
 ### Companion mods
 
@@ -99,11 +110,11 @@ either format against the 1.12.2 versions of those two mods.
 | | 1.7.10 | 1.12.2 |
 |---|---|---|
 | Count | 3 client | 1 common, 1 client |
-| On failing to bind | fails quietly | **refuses to start** (`require = 1`) |
 
-The editions disagree here on purpose, and 1.12.2 has the better answer. Letting a mixin fail
-quietly means losing the behaviour *silently*, and a feature nobody can see has failed is worse than
-one that says so at startup.
+A mixin that cannot bind - because something else in the pack has moved what it attaches to - costs
+the behaviour it carries and not the launch, in both editions. Nothing either of them hooks can
+damage a world, so refusing to start would be aimed at a player who did not choose the conflict and
+cannot fix it.
 
 1.12.2 needs three fewer mixins than 1.7.10's wear pipeline, because Forge there lets a sprite
 declare dependencies, posts a collision event with the boxes about to be returned, and takes an

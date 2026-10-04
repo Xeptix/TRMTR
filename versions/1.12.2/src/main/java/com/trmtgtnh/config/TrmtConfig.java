@@ -9,9 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import net.minecraftforge.fml.client.event.ConfigChangedEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-
+import com.trmtgtnh.ModsPresent;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.ConfigFile.Category;
 import com.trmtgtnh.config.ConfigFile.Setting;
@@ -1387,7 +1385,7 @@ public final class TrmtConfig {
         Setting enhanced = config.get(
             CATEGORY_INTEGRATION,
             "gtnhEnhanced",
-            net.minecraftforge.fml.common.Loader.isModLoaded("gregtech"),
+            ModsPresent.has("gregtech"),
             "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map colouring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
         gtnhEnhanced = enhanced.getBoolean();
         dimensionListIsWhitelist = config.getBoolean(
@@ -1523,7 +1521,7 @@ public final class TrmtConfig {
             "inheritShaderMaterial",
             CATEGORY_CLIENT,
             true,
-            "Keep the shader material of the block underneath, so worn ground does not lose every property a shader pack gives it. A pack decides how a block behaves under light by looking it up by name in its own table, and the blocks this mod paints are in nobody's table - so with shaders on, a worn stone road was not merely duller, it was a stranger. This tells the shader pipeline to treat it as the block it is covering while it is still that material, and as whatever it has worn through into once it is not, so the shine goes as the road breaks up rather than the moment anybody walks on it. Needs Angelica, and does nothing at all without it or without a shader pack loaded: it is one boolean read on a client that is not using them, and no Angelica class is named unless the mod is actually there.");
+            "Keep the shader material of the block underneath, so worn ground does not lose every property a shader pack gives it. A pack decides how a block behaves under light by looking it up by name in its own table, and the blocks this mod paints are in nobody's table - so with shaders on, a worn stone road was not merely duller, it was a stranger. This tells the shader pipeline to treat it as the block it is covering while it is still that material, and as whatever it has worn through into once it is not, so the shine goes as the road breaks up rather than the moment anybody walks on it. Needs a shader loader of the Iris family - Angelica on 1.7.10, Oculus here - and does nothing at all without one, or with one and no shader pack loaded: it is then one boolean read on a client that is not using them. Nothing of that mod is named unless it is actually installed, and the seam that reaches it is refused outright when it is not.");
         inheritAmbientParticles = config.getBoolean(
             "inheritAmbientParticles",
             CATEGORY_CLIENT,
@@ -2210,7 +2208,7 @@ public final class TrmtConfig {
         trophies = config.getBoolean(
             "trophies",
             CATEGORY_INTEGRATION,
-            net.minecraftforge.fml.common.Loader.isModLoaded("amazingtrophies"),
+            ModsPresent.has("amazingtrophies"),
             "Whether trophy definitions are written into config/amazingtrophies/trophies/trmtgtnh for Amazing Trophies to pick up - seven of them, one each for the Wayfarer, each of the three unlock enchantments bound into a book, standing a golem up, the All Ways upgrade, and reading every guide book. Fewer where a pack has no part for one: a trophy whose achievement does not exist, because its feature is switched off, its item never registered or its enchantment found no free id, is left out rather than written unearnable. Inside that mod's own folder because that is the only place it looks, in a subfolder of this mod's own so nothing written here can collide with the pack's; it reads the whole tree and ignores anything that is not a .json. While trophies are being written the folder carries a fingerprint of what was written and is rewritten whenever that changes, so the list cannot go stale. The GTNH enhancements above are not asked, so a pack with them off still gets every trophy. Requires the achievements above, since every trophy is earned by earning one, and Amazing Trophies to be installed; on without either, nothing is written. Turning this off, or the achievements, stops the writing and takes nothing back: a folder an earlier launch wrote stays where it is and Amazing Trophies goes on reading it, trophies whose achievements no longer exist included, so delete that folder as well to take them away. The default is decided the first time this file is written - on when Amazing Trophies is installed - and then kept, so a pack that ran once before Amazing Trophies was added has this set false and writes nothing until it is turned on here.");
         graceSeconds = config.getInt(
             "blockBreakGraceSeconds",
@@ -2683,7 +2681,7 @@ public final class TrmtConfig {
         liftLayeredBlockShell = config.getBoolean(
             "liftLayeredBlockShell",
             CATEGORY_CLIENT,
-            net.minecraftforge.fml.common.Loader.isModLoaded("chisel"),
+            ModsPresent.has("chisel"),
             "Stops the lava and water inside Chisel's lavastone and waterstone from flickering against the carved stone drawn over it. Those blocks are two full cubes occupying exactly the same space - the liquid first, the stone over it - and two surfaces at the same depth give a graphics card no way to say which is in front. On a plain client that settles itself, because both are worked out from the same corners and so come to the same depth; what unsettles it is the crack fix that comes with the modern chunk builder, which grows every full-cube face a thousandth of a block sideways to hide the seams between chunks and does it in only the first of the two passes. The liquid's face moves, the stone's does not, and the two argue pixel by pixel. This lifts the stone a hair proud of the liquid so the argument cannot arise. Purely visual and yours alone: it changes nothing about where the block is, what it collides with, how it is lit, which of its faces are drawn, or what anybody else sees. Defaults on when Chisel is installed, does nothing whatever when it is not, and is quietly skipped if a future Chisel draws these blocks some other way - the log says once, at the first one drawn, whether it is doing anything.");
         layeredBlockShellLift = config.get(
             CATEGORY_CLIENT,
@@ -2702,7 +2700,7 @@ public final class TrmtConfig {
         seeThroughInnerLayers = config.getBoolean(
             "seeThroughInnerLayers",
             CATEGORY_CLIENT,
-            net.minecraftforge.fml.common.Loader.isModLoaded("chisel"),
+            ModsPresent.has("chisel"),
             "Let the layer behind a worn block be seen through, where it has any transparency of its own. Chisel's waterstone is stone with water behind it, and vanilla's water is drawn with about a third of its light coming from whatever is on the other side - but the block it belongs to is solid, and so is the worn ground this mod paints over it, so that third has nowhere to come from and the water reads as blue stone. On, the gaps a carving leaves are left genuinely open: the carved stone stays solid, and only the holes let anything through. It is a deliberate departure from what the block looks like unworn rather than a correction to it, which is why it asks first. How much comes through depends entirely on which chiselling it is, and on three of the seven it is almost nothing. The gaps in a carved face run from a thirty-second of it to three eighths, and vanilla's water is never less than two thirds solid in any of its thirty-two frames - so across a whole face the light arriving from behind is about one part in a hundred on the cobble, black and creeper carvings, one in thirty on the tiled, one in twenty on the chaotic, and one in nine on the plain panel, which is the only one where it is plainly a different block. Turning this on and looking at a worn cobble waterstone shows nothing whatever, and that is the setting working rather than failing; the panel and the chaotic are the ones to look at. Nothing at all is drawn through where the layer is solid, so lava is untouched by this and always will be. Costs nothing when off, and nothing at all without a mod that has such a block. Takes effect on the next resource reload.");
         animateInnerLayers = config.getBoolean(
             "animateInnerLayers",
@@ -3052,22 +3050,4 @@ public final class TrmtConfig {
         return dimensionListIsWhitelist == listed;
     }
 
-    /**
-     * Picks up edits made through Forge's in-game config screen.
-     *
-     * <p>
-     * Two steps now that the settings are the mod's own. The screen edits a throwaway Forge config
-     * built from them, and this event is posted after those edits have been written into it and
-     * before anything reloads - so the copy is read back first, and the reload second. Reversing the
-     * two would reload the settings as they were before the screen was opened.
-     */
-    public static final class ChangeListener {
-
-        @SubscribeEvent
-        public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
-            if (!Trmt.MODID.equals(event.getModID())) return;
-            Trmt.proxy.readConfigScreenEdits();
-            ConfigReload.fromGuiDeferred();
-        }
-    }
 }

@@ -115,12 +115,6 @@ server. That is the only file you need; the `-dev` and `-sources` jars are for d
   the same manifest attribute, but nobody has run this jar under it, so it is not claimed — and with
   the dependency declared it would have to be installed alongside rather than instead.
 
-**The two editions disagree about what a mixin should do when it cannot bind**, and it is worth
-knowing which you have. 1.12.2 has two mixins and **both insist** (`require = 1`), so a pack that has
-moved either target is told at startup. 1.7.10 lets its mixins fail quietly, on the reasoning that
-losing a behaviour beats losing the launch. The trouble with that reasoning is that it loses the
-behaviour *silently*, and a feature nobody can see has failed is worse than one that says so.
-
 Nothing else is required. Every integration listed under
 [Optional integrations](#optional-integrations) is behind a mod-loaded check and the whole mod
 works with none of them present.
@@ -193,8 +187,9 @@ A ghost mirrors the block it is covering wherever anything but rendering can tel
 - middle-click gives you the real block;
 - mining hardness is the real block's, so nothing breaks early and snaps back;
 - Waila, or Hwyla on 1.12.2, names the real block and offers the right tool;
-- under **Angelica/Iris** it inherits the covered block's shader material, so a worn granite road
-  is still granite to your shader pack — **1.7.10 only**, see below;
+- under **Angelica/Iris** on 1.7.10, and **Oculus** on 1.12.2, it inherits the covered block's
+  shader material, so a worn granite road is still granite to your shader pack — and becomes the
+  earth it has worn into once it is granite no longer;
 - it goes on scattering the covered block's ambient particles;
 - it goes on doing whatever the covered block does to something standing inside it, so **Chisel**'s
   cloud still breaks a fall when it is worn;
@@ -203,10 +198,13 @@ A ghost mirrors the block it is covering wherever anything but rendering can tel
 
 Those are each their own `client` setting and all of them ship on.
 
-**Shader-material inheritance is 1.7.10 only.** It works by reaching into the shader mod's own
-block-material lookup, and 1.12.2's shaders are a different mod with a different hook, so
-`client.inheritShaderMaterial` does nothing in that edition. It is left in the settings file so a
-pack can move between versions, and the mod names it in the log as it loads if you have changed it.
+**Shader-material inheritance reaches a different mod on each edition.** 1.7.10 calls a pair of
+methods Angelica added for exactly this purpose; no Iris and no Oculus has that pair. What it is a
+convenience for does exist in all of them, one step further in - the holder a block's resolved shader
+id is left on for the shader mod's own vertex writer to read - and that is where the 1.12.2 edition
+says a ghost is something else. Either way `client.inheritShaderMaterial` wants a shader loader of
+the Iris family, does nothing without one or without a shader pack loaded, and names itself in the
+log when it is going to do anything.
 
 A block placed directly on worn ground stops the ground dipping under it
 (`general.hideWearUnderBlocks`, on by default). What that means is decided by
@@ -1063,7 +1061,7 @@ wear table and the config screen.
 | **Waila** (1.7.10) / **Hwyla** (1.12.2) | the wear readout on the tooltip, and a golem provider |
 | **JourneyMap** | per-position map colouring and the desire-path highlight — *1.7.10; on 1.12.2 every map is served without naming it* |
 | **Xaero's Minimap** | worn ground drawn darker as it wears, and the map told when a square changes — *1.7.10 only, same reason* |
-| **Angelica / Iris** | worn ground inherits the covered block's shader material |
+| **Angelica / Iris** (1.7.10), **Oculus** (1.12.2) | worn ground inherits the covered block's shader material |
 | **Chisel** | layered-block shell lift, and the liquid layer painted into worn textures |
 | **GregTech** | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **Amazing Trophies** | seven trophy definitions written into its own config folder |
@@ -1125,16 +1123,21 @@ Beyond being a port:
   before you choose.
 - **`/trmt demonstrate`** builds a complete exhibit of every detected surface, every look and
   every golem upgrade in the sky, for judging a change at a glance.
-- **Bytecode injection is limited to thirteen mixins, and only three of them run on a server**: the
-  collision hook and the one beside it, both live only under `physicalDecay = real` - the first gives
-  worn ground its hollow, the second stops the game deciding that something lying in that hollow is
-  buried in the floor and flinging it out - and a hook on a librarian's new trades, which keeps an
-  unlock the pack has switched off from being offered for sale. The other ten are
-  client-side — grass tinting and its side overlay, sprite generation in the one window where every
-  block's pixels exist, sprite filtering, letting a generated sprite declare itself animated, stair
-  metadata, settling on worn ground, shader-material inheritance, hearing the blocks a server
-  writes over painted ground, and a Chisel shell lift added only when Chisel is present. Every
-  other server-side hook upstream mixes in for has a Forge event instead.
+- **Bytecode injection is limited to thirteen mixins on 1.7.10 and three on 1.12.2.** On 1.7.10
+  three of them run on a server: the collision hook and the one beside it, both live only under
+  `physicalDecay = real` - the first gives worn ground its hollow, the second stops the game deciding
+  that something lying in that hollow is buried in the floor and flinging it out - and a hook on a
+  librarian's new trades, which keeps an unlock the pack has switched off from being offered for
+  sale. The other ten are client-side — grass tinting and its side overlay, sprite generation in the
+  one window where every block's pixels exist, sprite filtering, letting a generated sprite declare
+  itself animated, stair metadata, settling on worn ground, shader-material inheritance, hearing the
+  blocks a server writes over painted ground, and a Chisel shell lift added only when Chisel is
+  present. On 1.12.2 there are three, one of which runs on a server: the librarian hook, and
+  client-side the arrival of blocks a server writes over painted ground and the seat a ghost claims
+  its shader material from, that last applied only on a client that has Oculus. Ten of the other
+  edition's thirteen target `RenderBlocks`, which 1.8 deleted, and a baked model, a block override or
+  a Forge event does each of those jobs instead - the hollow under worn ground among them. Every
+  server-side hook upstream mixes in for has a Forge event in both editions.
 - **Brush-based sand recovery is removed** (there is no brush item in either version). The
   **Draught of Lightness** is here with the original's own ingredients, mixed at a bench rather
   than brewed in a stand for the reasons under [Draughts](#draughts), and a
