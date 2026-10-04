@@ -19,8 +19,9 @@ by *milkucha*, licensed CC BY-NC 4.0. This version by **Xep**. Unofficial: not p
 endorsed or supported by milkucha. See [`LICENSE.md`](LICENSE.md) and
 [`ATTRIBUTION.md`](ATTRIBUTION.md).
 
-**Downloads and source** — [GitHub](https://github.com/Xeptix/TRMTR). Bug reports and feature requests
-belong on the GitHub tracker; a version's own notes are in [`CHANGELOG.md`](CHANGELOG.md).
+**Downloads** — [CurseForge](https://www.curseforge.com/minecraft/mc-mods/trmt-reimagined) or [Modrinth](https://modrinth.com/mod/trmtr).
+**Source** — [GitHub](https://github.com/Xeptix/TRMTR), where bug reports and feature requests belong; a version's own notes are
+in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 

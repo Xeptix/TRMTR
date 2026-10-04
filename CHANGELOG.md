@@ -21,7 +21,8 @@ be listed above it, as changes since 0.9.216.
 Where the two editions cannot behave identically, every case is named in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) and in the manual section it belongs to.
 
-Downloads and source: https://github.com/Xeptix/TRMTR
+Downloads: https://www.curseforge.com/minecraft/mc-mods/trmt-reimagined or https://modrinth.com/mod/trmtr
+Source: https://github.com/Xeptix/TRMTR
 
 ---
 
