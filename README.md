@@ -23,6 +23,10 @@ endorsed or supported by milkucha. See [`LICENSE.md`](LICENSE.md) and
 **Source** — [GitHub](https://github.com/Xeptix/TRMTR), where bug reports and feature requests belong; a version's own notes are
 in [`CHANGELOG.md`](CHANGELOG.md).
 
+The mod is free and always will be. If you would like to put something in the hat:
+
+[![Support the mod on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F6L1285ROA)
+
 ---
 
 ## Contents
