@@ -1233,7 +1233,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested by `./gradlew test` — **410 tests on 1.7.10, 351 on 1.12.2 and 342
+types in them and are unit tested by `./gradlew test` — **416 tests on 1.7.10, 360 on 1.12.2 and 351
 on 1.16.5** — with `CoreStaysPortableTest` there to keep that boundary from eroding.
 
 **Twenty-eight of those classes are shared between the editions byte for byte**, and a test in each
