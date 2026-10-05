@@ -93,9 +93,9 @@ a golem that will hold a stretch of road at a wear level you choose while you ar
 
 ## Install
 
-Drop the jar for your Minecraft version — `trmtr-1.7.10-<version>.jar`,
-`trmtr-1.12.2-<version>.jar`, or `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar` — into your
-pack's `mods` folder, on **both** the client and the server. That is the only file you need; the
+Drop the jar for your Minecraft version and loader — `trmtr-1.7.10-<version>-forge.jar`,
+`trmtr-1.12.2-<version>-forge.jar`, or `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar` — into
+your pack's `mods` folder, on **both** the client and the server. That is the only file you need; the
 `-dev` and `-sources` jars are for development.
 
 **Requirements, 1.7.10**
@@ -133,9 +133,9 @@ Nothing else is required. Every integration listed under
 works with none of them present.
 
 A client with the mod can join a server that does not have it. The other way round is not
-possible: a server with the mod has registered its blocks and items, and Forge refuses
-any client missing them before it reaches a world - so a server running it needs it on every
-client. See [Servers](#servers) for what a visit actually looks like.
+possible: a server with the mod has registered its blocks and items, so a server running it needs it
+on every client. On the Forge editions that is enforced for you, and the client is refused before it
+reaches a world. See [Servers](#servers) for what a visit actually looks like.
 
 ## How a path forms
 
@@ -1022,9 +1022,9 @@ wholesale, and the tooltip reports it.
 **Install it on both sides.** This mod's own network check accepts any remote version, but Forge's
 check is the one that decides, and the two halves are not symmetrical:
 
-- **Server has it, client does not** — the client never reaches the world. A server running this
-  has registered its blocks and items, and Forge refuses any client missing them at the
-  handshake, so every player on such a server needs the jar. See [Install](#install).
+- **Server has it, client does not** — every player on such a server needs the jar. A server
+  running this has registered its blocks and items; on Forge the client is refused at the registry
+  handshake and never reaches the world. See [Install](#install).
 - **Client has it, server does not** — fine. Nothing wears, ever, because wear only accumulates
   server-side, and nothing is sent, so the client simply never sees anything happen.
 
