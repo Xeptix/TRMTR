@@ -30,7 +30,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 | Gradle | wrapper, GTNH conventions over RetroFuturaGradle | wrapper, 9.7.0, RetroFuturaGradle 2.x | wrapper, 8.8, Architectury Loom |
 | Loader | Forge 10.13.4.1614 | Forge 14.23.5.2847 | Forge 36.2.34 **and** Fabric, from one build |
 | Network | `nexus.gtnewhorizons.com` | Cleanroom's repository and CurseMaven | Fabric, Architectury, Mojang, shedaniel and CurseMaven |
-| Tests | 416 | 360 | 351 |
+| Tests | 416 | 360 | 352 |
 
 The first build of either downloads and decompiles Minecraft and takes several minutes. After that
 it is quick.
