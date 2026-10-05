@@ -27,8 +27,11 @@ nobody's block-material table, so a worn stone road did not merely lose its poli
 property the unworn block had and fell back on whatever the pack does with a stranger. It now claims
 the block it is covering while it still shows that block's surface, and the earth it has worn into
 once it does not, so the shine leaves as the road breaks up rather than the moment somebody walks on
-it. It needs **[Angelica](https://github.com/GTNewHorizons/Angelica)** on 1.7.10 and **[Oculus](https://github.com/Asek3/Oculus)** on 1.12.2 and 1.16.5, does nothing
-without one or without a shader pack loaded, and adds nothing to what any edition requires.
+it. It needs a shader loader of the Iris family - **[Angelica](https://github.com/GTNewHorizons/Angelica)** on 1.7.10,
+**[Oculus](https://github.com/Asek3/Oculus)** on 1.16.5 Forge, **[Iris](https://github.com/IrisShaders/Iris)** itself on 1.16.5 Fabric - and does nothing without
+one or without a shader pack loaded. **On 1.12.2 there is no such loader published**: the seam is
+there, no Oculus is released for that version, and Optifine is a different lineage with nothing to
+claim. It adds nothing to what any edition requires.
 
 **Fourteen lines of text on 1.12.2 were showing their own keys.** Twelve of them are the whole of a
 golem's block tooltip, so looking at one through Hwyla read `trmtgtnh.golem.waila.idle` where it

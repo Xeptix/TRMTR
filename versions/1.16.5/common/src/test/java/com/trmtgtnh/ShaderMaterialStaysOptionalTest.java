@@ -161,6 +161,29 @@ class ShaderMaterialStaysOptionalTest {
     }
 
     @Test
+    void both_loaders_carry_the_config_the_gate_lives_in() throws IOException {
+        // What makes Iris work on Fabric. Oculus is a fork of Iris that kept the upstream packages,
+        // so the one seam answers for Oculus on Forge and Iris on Fabric - but only while the
+        // gated mixin travels in the config both loaders declare. Moving it into the Forge module,
+        // which is where a reader would expect anything named after Oculus to live, would take
+        // Fabric shader support away and nothing else would notice.
+        String fabric = read(new File(SourceTree.repoRoot(), "fabric/src/main/resources/fabric.mod.json"));
+        assertTrue(
+            fabric.contains("trmtgtnh-common.mixins.json"),
+            "the Fabric jar has to declare the common mixin config, or the shader seam never "
+                + "applies there and Iris support is a claim with nothing behind it");
+
+        File forge = new File(SourceTree.repoRoot(), "forge/src/main/resources/META-INF/mods.toml");
+        assertTrue(forge.isFile(), forge.getAbsolutePath() + " is not there");
+
+        // And the mixin itself stays in common, which is what lets one copy answer for both.
+        assertTrue(
+            new File(SourceTree.mainJava(), "com/trmtgtnh/mixin/MixinOculusBlockContext.java").isFile(),
+            "the gated mixin belongs in the shared module; a loader-specific copy would have to be "
+                + "kept in step by hand");
+    }
+
+    @Test
     void nothing_in_any_module_names_oculus_at_compile_time() throws IOException {
         List<String> offenders = new ArrayList<String>();
         for (File file : everySource()) {
@@ -260,6 +283,12 @@ class ShaderMaterialStaysOptionalTest {
 
     private static String text(String relative) throws IOException {
         return String.join("\n", SourceTree.lines(relative));
+    }
+
+    /** One file read whole, named by an absolute path rather than relative to the source root. */
+    private static String read(File file) throws IOException {
+        assertTrue(file.isFile(), file.getAbsolutePath() + " is not there");
+        return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
     }
 
     /**

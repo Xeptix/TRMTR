@@ -99,11 +99,18 @@ Forge ships those tags. Fabric does not, so the Fabric jar ships the vanilla one
 
 ### Shaders
 
-`client.inheritShaderMaterial` works on all three, through a different mod and a different seam on
-each. 1.7.10 calls `Iris.setShaderMaterialOverride`, a pair of methods **Angelica** added for this.
-1.12.2 reaches what that pair is a convenience for, one step further in, through **Oculus**. 1.16.5
-is the straightforward one, because Oculus is a 1.16.5 mod rather than a backport. None of them does
-anything without a shader pack loaded.
+`client.inheritShaderMaterial` is written for all three and reachable on two. 1.7.10 calls
+`Iris.setShaderMaterialOverride`, a pair of methods **Angelica** added for this. The later editions
+reach what that pair is a convenience for, one step further in: the per-block holder a shader mod's
+own vertex writer reads. **Oculus** provides it on 1.16.5 Forge and **Iris** provides it on 1.16.5
+Fabric - Oculus being a fork of Iris that kept the upstream packages, so one seam answers for both.
+
+**1.12.2 has the seam and no loader to use it.** No public Oculus build exists for that version; the
+releases begin at 1.16.5. So the setting is one boolean read there until one does. **Optifine is not
+of the Iris family** and cannot stand in: its shader material comes from the shader pack's own
+`block.properties` at load time, and nothing in it lets a mod claim a block at render time.
+
+None of this does anything without a shader pack loaded.
 
 ### Companion mods
 

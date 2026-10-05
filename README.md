@@ -200,9 +200,9 @@ A ghost mirrors the block it is covering wherever anything but rendering can tel
 - middle-click gives you the real block;
 - mining hardness is the real block's, so nothing breaks early and snaps back;
 - Waila, or Hwyla on 1.12.2, names the real block and offers the right tool;
-- under **Angelica/Iris** on 1.7.10, and **Oculus** on 1.12.2, it inherits the covered block's
-  shader material, so a worn granite road is still granite to your shader pack — and becomes the
-  earth it has worn into once it is granite no longer;
+- under **Angelica** on 1.7.10, **Oculus** on 1.16.5 Forge and **Iris** on 1.16.5 Fabric, it
+  inherits the covered block's shader material, so a worn granite road is still granite to your
+  shader pack — and becomes the earth it has worn into once it is granite no longer;
 - it goes on scattering the covered block's ambient particles;
 - it goes on doing whatever the covered block does to something standing inside it, so **Chisel**'s
   cloud still breaks a fall when it is worn;
@@ -214,10 +214,16 @@ Those are each their own `client` setting and all of them ship on.
 **Shader-material inheritance reaches a different mod on each edition.** 1.7.10 calls a pair of
 methods Angelica added for exactly this purpose; no Iris and no Oculus has that pair. What it is a
 convenience for does exist in all of them, one step further in - the holder a block's resolved shader
-id is left on for the shader mod's own vertex writer to read - and that is where the 1.12.2 and
-1.16.5 editions say a ghost is something else. Either way `client.inheritShaderMaterial` wants a shader loader of
-the Iris family, does nothing without one or without a shader pack loaded, and names itself in the
-log when it is going to do anything.
+id is left on for the shader mod's own vertex writer to read - and that is where the later editions
+say a ghost is something else. Oculus is a fork of Iris and kept its packages, so one seam answers
+for **Oculus on 1.16.5 Forge** and **Iris on 1.16.5 Fabric** alike.
+
+**On 1.12.2 that seam has nothing to reach yet.** It is written against the same holder, but no
+public Oculus build exists for that version - the releases begin at 1.16.5 - so
+`client.inheritShaderMaterial` is one boolean read there and nothing more. **Optifine is not of that
+family**: its shader material comes from the pack's own `block.properties` at load time, with no
+runtime seam for a mod to claim a block, so it cannot stand in. Everywhere it does work, the setting
+wants a shader pack loaded as well, and names itself in the log when it is going to do anything.
 
 A block placed directly on worn ground stops the ground dipping under it
 (`general.hideWearUnderBlocks`, on by default). What that means is decided by
@@ -1083,7 +1089,7 @@ wear table and the config screen.
 | **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5) | the wear readout on the tooltip, and a golem provider |
 | **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map colouring and the desire-path highlight — *1.7.10; on 1.12.2 every map is served without naming it* |
 | **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | worn ground drawn darker as it wears, and the map told when a square changes — *1.7.10 only, same reason* |
-| **[Angelica](https://github.com/GTNewHorizons/Angelica) / [Iris](https://github.com/IrisShaders/Iris)** (1.7.10), **[Oculus](https://github.com/Asek3/Oculus)** (1.12.2 and 1.16.5) | worn ground inherits the covered block's shader material |
+| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material. The 1.12.2 edition has the same seam, but no Oculus is published for that version |
 | **[Chisel](https://github.com/Chisel-Team/Chisel)** | layered-block shell lift, and the liquid layer painted into worn textures |
 | **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **[Amazing Trophies](https://github.com/GTNewHorizons/Amazing-Trophies)** | seven trophy definitions written into its own config folder |
@@ -1157,7 +1163,7 @@ Beyond being a port:
   blocks a server writes over painted ground, and a Chisel shell lift added only when Chisel is
   present. On 1.12.2 there are three, one of which runs on a server: the librarian hook, and
   client-side the arrival of blocks a server writes over painted ground and the seat a ghost claims
-  its shader material from, that last applied only on a client that has Oculus. Ten of the other
+  its shader material from, that last applied only where an Iris-family loader is installed. Ten of the other
   edition's thirteen target `RenderBlocks`, which 1.8 deleted, and a baked model, a block override or
   a Forge event does each of those jobs instead - the hollow under worn ground among them. Every
   server-side hook upstream mixes in for has a Forge event in the Forge editions, and a mixin of its
