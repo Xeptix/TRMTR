@@ -102,7 +102,7 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
 
 - Minecraft 1.7.10 with Forge 10.13.4.1614 or newer.
 - **[UniMixins](https://github.com/LegacyModdingMC/UniMixins)**, or the older
-  **[GTNHMixins](https://www.curseforge.com/minecraft/mc-mods/gtnhmixins)** that it supersedes —
+  **[GTNHMixins](https://github.com/GTNH-Museum/GTNHMixins)** that it supersedes —
   archived at the end of 2024, still working, and still what GT: New Horizons ships, so a pack that
   already has either one needs nothing. The jar's manifest asks for the Mixin tweaker, and three
   client mixins use MixinExtras, which UniMixins bundles. Nothing in the jar declares this as a
@@ -111,7 +111,7 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
 **Requirements, 1.12.2**
 
 - Minecraft 1.12.2 with Forge 14.23.5.2847 or newer.
-- **[MixinBooter](https://www.curseforge.com/minecraft/mc-mods/mixin-booter).** The jar's manifest declares its mixin config the way MixinBooter documents, and
+- **[MixinBooter](https://github.com/CleanroomMC/MixinBooter).** The jar's manifest declares its mixin config the way MixinBooter documents, and
   the mod declares `required-after:mixinbooter`, so a pack without it is told at the loading screen
   rather than left to wonder why. **UniMixins** states partial 1.12.2 support and is expected to read
   the same manifest attribute, but nobody has run this jar under it, so it is not claimed — and with
@@ -120,13 +120,13 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
 **Requirements, 1.16.5**
 
 - Minecraft 1.16.5 with Forge 36.2.34 or newer, **or** Fabric Loader 0.14 or newer.
-- **[Cloth Config](https://www.curseforge.com/minecraft/mc-mods/cloth-config)**, on either loader.
+- **[Cloth Config](https://github.com/shedaniel/cloth-config)**, on either loader.
   Forge's own config screen was removed after 1.12.2 and vanilla has never had one, so this is what
   the settings screen is built on — the one dependency this mod takes that is not a loader. The jar
   declares it, so a pack without it is told rather than left to find out by pressing Config.
-- On Fabric, **Fabric API** as well, and **Mod Menu** if you want to reach the settings screen in
-  game: Fabric has no mod list with a Config button of its own. Without Mod Menu the settings file
-  and `/trmt reload` still work.
+- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** as well, and **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** if you want to reach the settings
+  screen in game: Fabric has no mod list with a Config button of its own. Without Mod Menu the
+  settings file and `/trmt reload` still work.
 
 Nothing else is required. Every integration listed under
 [Optional integrations](#optional-integrations) is behind a mod-loaded check and the whole mod
@@ -1080,16 +1080,16 @@ wear table and the config screen.
 
 | Mod | What it adds |
 |---|---|
-| **Waila** (1.7.10) / **Hwyla** (1.12.2) / **Jade** or **WTHIT** (1.16.5) | the wear readout on the tooltip, and a golem provider |
-| **JourneyMap** | per-position map colouring and the desire-path highlight — *1.7.10; on 1.12.2 every map is served without naming it* |
-| **Xaero's Minimap** | worn ground drawn darker as it wears, and the map told when a square changes — *1.7.10 only, same reason* |
-| **Angelica / Iris** (1.7.10), **Oculus** (1.12.2 and 1.16.5) | worn ground inherits the covered block's shader material |
-| **Chisel** | layered-block shell lift, and the liquid layer painted into worn textures |
-| **GregTech** | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
-| **Amazing Trophies** | seven trophy definitions written into its own config folder |
-| **BetterQuesting** | a chapter of up to seventeen quests, written additively into `DefaultQuests` |
-| **Et Futurum Requiem** | two registry names in default block lists, and nothing more |
-| **Mod Menu** (1.16.5, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
+| **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5) | the wear readout on the tooltip, and a golem provider |
+| **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map colouring and the desire-path highlight — *1.7.10; on 1.12.2 every map is served without naming it* |
+| **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | worn ground drawn darker as it wears, and the map told when a square changes — *1.7.10 only, same reason* |
+| **[Angelica](https://github.com/GTNewHorizons/Angelica) / [Iris](https://github.com/IrisShaders/Iris)** (1.7.10), **[Oculus](https://github.com/Asek3/Oculus)** (1.12.2 and 1.16.5) | worn ground inherits the covered block's shader material |
+| **[Chisel](https://github.com/Chisel-Team/Chisel)** | layered-block shell lift, and the liquid layer painted into worn textures |
+| **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
+| **[Amazing Trophies](https://github.com/GTNewHorizons/Amazing-Trophies)** | seven trophy definitions written into its own config folder |
+| **[BetterQuesting](https://github.com/Funwayguy/BetterQuesting)** | a chapter of up to seventeen quests, written additively into `DefaultQuests` |
+| **[Et Futurum Requiem](https://github.com/Roadhog360/Et-Futurum-Requiem)** | two registry names in default block lists, and nothing more |
+| **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
 
 `integration.gtnhEnhanced` flips on when GregTech is present and switches the mod to pack-tuned
 recipes; without it, plain recipes, a golem built from vanilla blocks, a Wayfarer that no longer

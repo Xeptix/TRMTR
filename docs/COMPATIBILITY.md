@@ -12,9 +12,9 @@ moving a pack from one to the other.
 
 | Minecraft | Loader | Status | Needs |
 |---|---|---|---|
-| **1.7.10** | Forge 10.13.4.1614+ | released | [UniMixins](https://github.com/LegacyModdingMC/UniMixins), or the older [GTNHMixins](https://www.curseforge.com/minecraft/mc-mods/gtnhmixins) |
-| **1.12.2** | Forge 14.23.5.2847+ | released | [MixinBooter](https://www.curseforge.com/minecraft/mc-mods/mixin-booter) |
-| **1.16.5** | Forge 36.2.34+ **or** Fabric | released | [Cloth Config](https://www.curseforge.com/minecraft/mc-mods/cloth-config); on Fabric also Fabric API, and Mod Menu to reach the settings screen |
+| **1.7.10** | Forge 10.13.4.1614+ | released | [UniMixins](https://github.com/LegacyModdingMC/UniMixins), or the older [GTNHMixins](https://github.com/GTNH-Museum/GTNHMixins) |
+| **1.12.2** | Forge 14.23.5.2847+ | released | [MixinBooter](https://github.com/CleanroomMC/MixinBooter) |
+| **1.16.5** | Forge 36.2.34+ **or** Fabric | released | [Cloth Config](https://github.com/shedaniel/cloth-config); on Fabric also [Fabric API](https://github.com/FabricMC/fabric-api), and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
 
 All three run on plain Forge — or plain Fabric — with nothing else installed. Every other
 integration is behind a mod-loaded check.

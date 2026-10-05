@@ -11,8 +11,8 @@ mod as the other two - the same behaviour, the same numbers, the same settings f
 1.7.10 edition does, this one does, except where the game itself has changed underneath it; every one
 of those is named in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
 
-It needs [Cloth Config](https://www.curseforge.com/minecraft/mc-mods/cloth-config) on both loaders,
-Fabric API on Fabric, and Mod Menu if you want to reach the settings screen there. Nothing else.
+It needs [Cloth Config](https://github.com/shedaniel/cloth-config) on both loaders, [Fabric API](https://github.com/FabricMC/fabric-api) on Fabric, and
+[Mod Menu](https://github.com/TerraformersMC/ModMenu) if you want to reach the settings screen there. Nothing else.
 
 **A road is visible on a map again, on 1.12.2 and 1.16.5.** Both of those read one vanilla answer for
 a block's map colour, out of sixty-four fixed palette entries, so there is no fraction to darken by -
@@ -27,8 +27,8 @@ nobody's block-material table, so a worn stone road did not merely lose its poli
 property the unworn block had and fell back on whatever the pack does with a stranger. It now claims
 the block it is covering while it still shows that block's surface, and the earth it has worn into
 once it does not, so the shine leaves as the road breaks up rather than the moment somebody walks on
-it. It needs **Angelica** on 1.7.10 and **Oculus** on 1.12.2 and 1.16.5, does nothing without one or
-without a shader pack loaded, and adds nothing to what any edition requires.
+it. It needs **[Angelica](https://github.com/GTNewHorizons/Angelica)** on 1.7.10 and **[Oculus](https://github.com/Asek3/Oculus)** on 1.12.2 and 1.16.5, does nothing
+without one or without a shader pack loaded, and adds nothing to what any edition requires.
 
 **Fourteen lines of text on 1.12.2 were showing their own keys.** Twelve of them are the whole of a
 golem's block tooltip, so looking at one through Hwyla read `trmtgtnh.golem.waila.idle` where it
