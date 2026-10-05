@@ -1197,19 +1197,24 @@ public final class TrmtConfig {
      * Says once when a map setting has been set to something this edition cannot do.
      *
      * <p>
-     * Three of the map settings describe a colour this version has no way to produce. 1.7.10 reaches
-     * into JourneyMap's own colour lookup and hands it an RGB value, so it can darken a road by any
-     * fraction and blend a route toward a violet that is not a material at all. Every map here reads
-     * one vanilla answer instead - {@code getMapColor}, which is handed the position, which is the
-     * whole reason this edition needs no map integration at all - and that answer is one of
-     * sixty-four fixed palette entries. There is no darker sibling to pick, and the shade a map
-     * actually draws is chosen from the terrain's height rather than by the block.
+     * Two of the map settings describe a colour this version has no way to produce. 1.7.10 reaches
+     * into JourneyMap's own colour lookup and hands it an RGB value per position, so it can tint a
+     * square by any fraction and blend a route toward a violet that is not a material at all. Every
+     * map here reads one vanilla answer instead - {@code getMapColor}, which is handed the position,
+     * which is the whole reason this edition needs no map integration at all - and that answer is one
+     * of sixty-four fixed palette entries. A per-position tint and a highlight colour are both
+     * fractions of a colour, and there are no fractions here.
      *
      * <p>
-     * What does work, and needs no setting: a worn square reports the colour of whatever it is
-     * standing in for, so a path travels from green to earth as it wears through, because by then the
-     * square's appearance really is earth. That is the part of {@code mapTracksWear} that survives,
-     * and it cannot be switched off.
+     * Darkening is not one of the two, and this method used to say it was. A palette entry can be
+     * picked for being darker even though it cannot be dimmed, so a worn square reports the nearest
+     * entry to its own colour darkened by {@code mapWearDarkening} - one colour rather than a shade
+     * per gradation. A road is visible on a map; how worn it is, is not. See {@code GhostMapColour}.
+     *
+     * <p>
+     * What needs no setting at all: a worn square reports the colour of whatever it is standing in
+     * for, so a path travels from green to earth as it wears through, because by then the square's
+     * appearance really is earth.
      *
      * <p>
      * Said once per load, at info, naming each setting - and said rather than fixed, because the
@@ -1219,9 +1224,7 @@ public final class TrmtConfig {
      */
     private static void sayWhatMapsCannotDo() {
         java.util.List<String> idle = new java.util.ArrayList<String>();
-        if (mapWearDarkening != 0f) idle.add("surfaces.mapWearDarkening");
         if (desirePathHighlight != 0f) idle.add("client.desirePathHighlight");
-        if (!mapTracksWear) idle.add("surfaces.mapTracksWear");
         if (!mapWearThroughTint) idle.add("client.mapWearThroughTint");
         if (idle.isEmpty()) return;
 
@@ -1231,7 +1234,7 @@ public final class TrmtConfig {
             named.append(one);
         }
         com.trmtgtnh.Trmt.LOG.info(
-            "These map settings do nothing on 1.12.2 and are left in the file so a pack can move between versions: {}. Every map here reads one vanilla answer, which is a choice of sixty-four fixed palette entries with no darker sibling to pick, so wear cannot darken a road or tint it toward a highlight. What does work needs no setting: a worn square reports the colour of whatever it stands in for, so a path travels from green to earth as it wears through.",
+            "These map settings do nothing on 1.12.2 and are left in the file so a pack can move between versions: {}. Every map here reads one vanilla answer, which is a choice of sixty-four fixed palette entries, so there is no per-position tint to give and no highlight colour to travel toward. What does work: a worn square reports the colour of whatever it stands in for, darkened by surfaces.mapWearDarkening to the nearest entry the palette has - one colour rather than a shade per gradation, so a road is visible on a map but how worn it is is not.",
             named);
     }
 
@@ -2055,12 +2058,12 @@ public final class TrmtConfig {
             "mapTracksWear",
             CATEGORY_SURFACES,
             true,
-            "Whether a map draws worn ground differently from ground nobody has crossed. On, a worn square is drawn in a colour that has travelled toward whatever that ground is turning into - a turf path leaves green and arrives at earth in step with how far along its run it has walked - and darkened by how heavily it has been used. Which is a map that answers 'where do people go' as well as 'what is this made of', and it is why a road shows up on a minimap at all. Off, every square is drawn as the material it started as, and the darkening a world-reading map is given through client.mapWearThroughTint goes with it. One correction still reaches such a map with this off, because it is not wear: a modded turf has its tint put right, so a path through it does not read as a green stripe. What a map with no per-position colour handler can do is coarser and cannot be helped: the vanilla map item works from a fixed palette of sixty-four colours with no darker sibling to pick, so it is given the right material and nothing about how worn it is. JourneyMap is asked per position and gets all of it; a map that reads the world, Xaero's Minimap among them, gets the darkening.");
+            "Whether a map draws worn ground differently from ground nobody has crossed. <strong>Reduced at this version, and worth knowing how.</strong> Every map here reads one vanilla answer - getMapColor, handed the position - and that answer is one of sixty-four fixed palette entries, so there is no shade per gradation to give: a worn square that shows at all is drawn in the palette entry nearest its own colour darkened by surfaces.mapWearDarkening, and does not darken further as it wears. A road is visible on the map; how worn it is, is not. Where the palette holds nothing darker than a particular ground, that ground keeps its colour and the log says so once. What follows is what this setting means where a colour can be dimmed by a fraction. On, a worn square is drawn in a colour that has travelled toward whatever that ground is turning into - a turf path leaves green and arrives at earth in step with how far along its run it has walked - and darkened by how heavily it has been used. Which is a map that answers 'where do people go' as well as 'what is this made of', and it is why a road shows up on a minimap at all. Off, every square is drawn as the material it started as, and the darkening a world-reading map is given through client.mapWearThroughTint goes with it. One correction still reaches such a map with this off, because it is not wear: a modded turf has its tint put right, so a path through it does not read as a green stripe. What a map with no per-position colour handler can do is coarser and cannot be helped: the vanilla map item works from a fixed palette of sixty-four colours with no darker sibling to pick, so it is given the right material and nothing about how worn it is. JourneyMap is asked per position and gets all of it; a map that reads the world, Xaero's Minimap among them, gets the darkening.");
         mapWearDarkening = (float) config.get(
             CATEGORY_SURFACES,
             "mapWearDarkening",
             0.62d,
-            "How far a fully worn square is darkened on a map, as a fraction of the colour it would otherwise be. The darkening is spread evenly over every gradation the ground has - eighty for most families - so this also sets how much one step of wear is worth: at the default, about eight tenths of one per cent each. Raise it to tell the levels apart more easily, at the cost of a worn road reading as a darker material rather than as the same material worn. There is a floor on what can be shown either way: eight-bit colour has only so many values between a block's own shade and a fraction of it, and on already-dark ground several gradations will land on the same one however wide this is set. Nought means no darkening at all, and now genuinely does: it used to be read as a request for the default, so a pack that turned this off silently got it back.",
+            "How far a worn square is darkened on a map, as a fraction of the colour it would otherwise be. <strong>Read once at full strength here rather than spread over the run</strong>: this version has sixty-four fixed palette entries to draw a map with and no fraction to apply, so what this figure decides is which entry is picked - the nearest one to the ground's colour darkened by this much - and every square that shows wear is drawn in it. Raising it reaches for a darker entry and may land on the same one; at nought the square keeps its own colour. What follows is the run-long easing this means on 1.7.10. The darkening is spread evenly over every gradation the ground has - eighty for most families - so this also sets how much one step of wear is worth: at the default, about eight tenths of one per cent each. Raise it to tell the levels apart more easily, at the cost of a worn road reading as a darker material rather than as the same material worn. There is a floor on what can be shown either way: eight-bit colour has only so many values between a block's own shade and a fraction of it, and on already-dark ground several gradations will land on the same one however wide this is set. Nought means no darkening at all, and now genuinely does: it used to be read as a request for the default, so a pack that turned this off silently got it back.",
             0.0d,
             0.9d)
             .getDouble();

@@ -1,0 +1,93 @@
+// The Forge jar. The Fabric module's opposite number, and deliberately the same shape.
+
+plugins {
+    id "com.github.johnrengelman.shadow"
+}
+
+architectury {
+    forge()
+}
+
+// The first mixin, which is the one the rendering spike said would be needed and is not the one it
+// expected: it is not about drawing at all. PackRepository takes its sources when it is built and
+// offers no way to add one afterwards, so this is how the generated wear textures reach the atlas.
+// The config lives in the common module because the change is identical on both loaders.
+loom {
+    forge {
+        // Needed: without it the shipped jar carries no MixinConfigs manifest entry and the mixin
+        // never loads in a real install. The dev launcher passes the config on the command line as
+        // well, so runClient logs one INFO line about a duplicate - which is the dev environment
+        // saying it has it twice, not a fault.
+        mixinConfig "trmtgtnh-common.mixins.json"
+        // And this module's own, which holds the one that tells the ghost model which square it
+        // is drawing. It is here rather than in common because a mixin naming a method has that
+        // name written into a refmap, and common's processor writes one Forge will not read.
+        mixinConfig "trmtgtnh-forge.mixins.json"
+    }
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-forge-refmap.json"
+    }
+}
+
+configurations {
+    common
+    shadowBundle
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentForge.extendsFrom common
+}
+
+dependencies {
+    forge "net.minecraftforge:forge:${rootProject.minecraft_version}-${rootProject.forge_version}"
+
+    // The block tooltip this mod writes a line into. Jade is Hwyla's successor on this version and
+    // keeps its package name, so what is implemented here is the same family of interfaces the
+    // 1.12.2 edition implements - a different shape, but the same idea and the same package.
+    //
+    // compileOnly, as it is there: this is an optional integration and the mod is never required.
+    // Nothing of Jade is named outside this module, and the plugin class is only looked at by Jade
+    // itself, which is not there to look when it is not installed.
+    modCompileOnly "curse.maven:jade-324717:3910873"
+
+    // Cloth Config, which is this port's one deliberate new dependency and is required rather
+    // than optional: Forge's own config screen is gone at this version and there is nothing in
+    // vanilla to replace it, so without this there is no settings screen at all. See ConfigScreen.
+    modImplementation("me.shedaniel.cloth:cloth-config-forge:4.17.132") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowBundle project(path: ":common", configuration: "transformProductionForge")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("META-INF/mods.toml") {
+        expand version: project.version
+    }
+
+    // The licences travel in the jar, copied from the repository root rather than kept as a second
+    // copy under resources, because a second copy is a copy that goes stale. ATTRIBUTION.md in
+    // particular is the record of modifications that CC BY-NC 4.0 4(a)(1)(B) requires to travel with
+    // the work, so a stale one is a licence matter rather than an untidiness.
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = "forge"
+}

@@ -1,0 +1,266 @@
+{
+    "parent": "item/handheld",
+    "textures": {
+        "layer0": "trmtgtnh:item/chunk_tamper"
+    },
+    "overrides": [
+        {
+            "predicate": {
+                "trmtgtnh:grade": 0
+            },
+            "model": "trmtgtnh:item/chunk_tamper_aluminium"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 1
+            },
+            "model": "trmtgtnh:item/chunk_tamper_bluesteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 2
+            },
+            "model": "trmtgtnh:item/chunk_tamper_brass"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 3
+            },
+            "model": "trmtgtnh:item/chunk_tamper_bronze"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 4
+            },
+            "model": "trmtgtnh:item/chunk_tamper_chrome"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 5
+            },
+            "model": "trmtgtnh:item/chunk_tamper_cobalt"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 6
+            },
+            "model": "trmtgtnh:item/chunk_tamper_copper"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 7
+            },
+            "model": "trmtgtnh:item/chunk_tamper_cupronickel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 8
+            },
+            "model": "trmtgtnh:item/chunk_tamper_damascussteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 9
+            },
+            "model": "trmtgtnh:item/chunk_tamper_darksteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 10
+            },
+            "model": "trmtgtnh:item/chunk_tamper_diamond"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 11
+            },
+            "model": "trmtgtnh:item/chunk_tamper_electrum"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 12
+            },
+            "model": "trmtgtnh:item/chunk_tamper_gold"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 13
+            },
+            "model": "trmtgtnh:item/chunk_tamper_hsse"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 14
+            },
+            "model": "trmtgtnh:item/chunk_tamper_hssg"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 15
+            },
+            "model": "trmtgtnh:item/chunk_tamper_hsss"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 16
+            },
+            "model": "trmtgtnh:item/chunk_tamper_invar"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 17
+            },
+            "model": "trmtgtnh:item/chunk_tamper_iridium"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 18
+            },
+            "model": "trmtgtnh:item/chunk_tamper_iron"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 19
+            },
+            "model": "trmtgtnh:item/chunk_tamper_kanthal"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 20
+            },
+            "model": "trmtgtnh:item/chunk_tamper_lead"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 21
+            },
+            "model": "trmtgtnh:item/chunk_tamper_manganese"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 22
+            },
+            "model": "trmtgtnh:item/chunk_tamper_molybdenum"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 23
+            },
+            "model": "trmtgtnh:item/chunk_tamper_netherite"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 24
+            },
+            "model": "trmtgtnh:item/chunk_tamper_neutronium"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 25
+            },
+            "model": "trmtgtnh:item/chunk_tamper_nichrome"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 26
+            },
+            "model": "trmtgtnh:item/chunk_tamper_nickel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 27
+            },
+            "model": "trmtgtnh:item/chunk_tamper_osmium"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 28
+            },
+            "model": "trmtgtnh:item/chunk_tamper_palladium"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 29
+            },
+            "model": "trmtgtnh:item/chunk_tamper_platinum"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 30
+            },
+            "model": "trmtgtnh:item/chunk_tamper_redsteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 31
+            },
+            "model": "trmtgtnh:item/chunk_tamper_silver"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 32
+            },
+            "model": "trmtgtnh:item/chunk_tamper_stainlesssteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 33
+            },
+            "model": "trmtgtnh:item/chunk_tamper_steel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 34
+            },
+            "model": "trmtgtnh:item/chunk_tamper_tantalum"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 35
+            },
+            "model": "trmtgtnh:item/chunk_tamper_tin"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 36
+            },
+            "model": "trmtgtnh:item/chunk_tamper_titanium"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 37
+            },
+            "model": "trmtgtnh:item/chunk_tamper_tungsten"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 38
+            },
+            "model": "trmtgtnh:item/chunk_tamper_tungstencarbide"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 39
+            },
+            "model": "trmtgtnh:item/chunk_tamper_tungstensteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 40
+            },
+            "model": "trmtgtnh:item/chunk_tamper_vanadiumsteel"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 41
+            },
+            "model": "trmtgtnh:item/chunk_tamper_wroughtiron"
+        },
+        {
+            "predicate": {
+                "trmtgtnh:grade": 42
+            },
+            "model": "trmtgtnh:item/chunk_tamper_zinc"
+        }
+    ]
+}

@@ -1,0 +1,103 @@
+// The Fabric jar.
+//
+// Holds the entry point and the answers the common module cannot reach for itself, and nothing else.
+// Everything that is the mod lives next door.
+
+plugins {
+    id "com.github.johnrengelman.shadow"
+}
+
+architectury {
+    fabric()
+}
+
+// This module has a mixin of its own now - the atlas stitch, which Forge takes from an event and
+// Fabric has no API for at this version. It is here rather than in common because a mixin naming a
+// method has that name written into a refmap, and common's processor writes one in intermediary
+// names that Forge then refuses. See MixinTextureAtlas.
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-fabric-refmap.json"
+    }
+    // One private vanilla method opened, so a tamper can be drawn as the metal it is made of. Forge
+    // patches the same method public and needs nothing of the sort; this is Fabric's way of saying
+    // it. The file itself says which method and why, and it is one method rather than the class.
+    accessWidenerPath = file("src/main/resources/trmtgtnh.accesswidener")
+}
+
+configurations {
+    common
+    shadowBundle
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+
+    // Fabric API brings a loader of its own along - the one it was published against - and two
+    // loaders on the classpath is not a warning but a refusal: the client dies before the title
+    // screen with "duplicate fabric loader classes found on classpath". Found by running it.
+    // The loader this edition uses is the one named in gradle.properties and nothing else.
+    modApi("net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}") {
+        exclude group: "net.fabricmc", module: "fabric-loader"
+    }
+
+    // The same block tooltip, under the name it goes by on this loader. WTHIT is the Fabric side of
+    // the same family and keeps the same package; see the Forge module for the rest of the argument.
+    modCompileOnly "curse.maven:wthit-440979:3831594"
+
+    // Cloth Config, which is this port's one deliberate new dependency and is required rather
+    // than optional: Forge's own config screen is gone at this version and there is nothing in
+    // vanilla to replace it, so without this there is no settings screen at all. See ConfigScreen.
+    // Mod Menu, which is the only way a Fabric player reaches a mod's settings screen - there is
+    // no mod list with a Config button on this loader. Compile only, unlike Cloth: without Mod Menu
+    // there is simply nowhere to put the button, and a screen nobody can open from the menu is still
+    // opened by the mod itself. The entrypoint in fabric.mod.json is read only by Mod Menu, which is
+    // not there to read it when it is absent.
+    modCompileOnly("com.terraformersmc:modmenu:1.16.9") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    modImplementation("me.shedaniel.cloth:cloth-config-fabric:4.17.132") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowBundle project(path: ":common", configuration: "transformProductionFabric")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand version: project.version
+    }
+
+    // The licences travel in the jar, copied from the repository root rather than kept as a second
+    // copy under resources, because a second copy is a copy that goes stale. ATTRIBUTION.md in
+    // particular is the record of modifications that CC BY-NC 4.0 4(a)(1)(B) requires to travel with
+    // the work, so a stale one is a licence matter rather than an untidiness.
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+// The three steps every Architectury jar goes through: compile this module, fold the common module
+// in, then remap the lot to the names the game actually runs under. Leaving the middle step out
+// produces a jar that loads and then cannot find a single class of the mod.
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = "fabric"
+}
+

@@ -433,6 +433,7 @@ public class BlockGhost extends Block {
      */
     @Override
     public MapColor getMapColor(IBlockState state, IBlockAccess world, BlockPos pos) {
+        short record = Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
         int packed = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         if (packed >= 0) {
             IBlockState origin = Block.getStateById(packed);
@@ -440,7 +441,10 @@ public class BlockGhost extends Block {
                 try {
                     MapColor own = origin.getBlock()
                         .getMapColor(origin, world, pos);
-                    if (own != null) return own;
+                    // Darkened, so there is a road on the map rather than only a change of material
+                    // where one has worn through. One colour rather than a shade per gradation,
+                    // which is all sixty-four fixed palette entries can carry - see GhostMapColour.
+                    if (own != null) return shows(record) ? GhostMapColour.worn(own) : own;
                 } catch (RuntimeException hostileBlock) {
                     // A block of somebody else's asked about a position it does not own. Its family's
                     // stand-in below is a better answer than taking the map down.
@@ -448,11 +452,12 @@ public class BlockGhost extends Block {
             }
         }
         // No record, or a block that would not say: the family this square is drawn as.
-        return com.trmtgtnh.erosion.ErosionState
-            .familyOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) == null
-                ? super.getMapColor(state, world, pos)
-                : net.minecraft.init.Blocks.DIRT.getDefaultState()
-                    .getMapColor(world, pos);
+        if (com.trmtgtnh.erosion.ErosionState.familyOf(record) == null) {
+            return super.getMapColor(state, world, pos);
+        }
+        MapColor earth = net.minecraft.init.Blocks.DIRT.getDefaultState()
+            .getMapColor(world, pos);
+        return shows(record) ? GhostMapColour.worn(earth) : earth;
     }
 
     /**

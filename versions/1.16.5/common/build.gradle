@@ -1,0 +1,87 @@
+// The code that names Minecraft but no loader. Most of the mod belongs here.
+//
+// The 1.12.2 edition's LoaderNeutralTest already drew this line and measured it: fifty-seven files
+// across seven packages name Minecraft and not Forge. Those are the files that come here first.
+
+architectury {
+    common("fabric", "forge")
+}
+
+// The mixin the texture pipeline needs, and the first in this edition. It lives here rather than in
+// a loader module because what it touches - PackRepository - is vanilla's, and both loaders need the
+// identical change. Each loader names this same config, and Loom writes a refmap per loader so the
+// one set of named references resolves in both.
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-common-refmap.json"
+    }
+}
+
+dependencies {
+    // Compiled against Fabric's loader so the common module can be annotated for both sides; the
+    // produced classes are loader-agnostic and are not shipped from here.
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+
+    // Cloth Config, so the one settings screen can live here rather than once per loader. Compile
+    // only: each loader module brings its own build of it along at run time, and what is named here
+    // is the same API in both. See ConfigScreen for why this dependency exists at all.
+    modCompileOnly "me.shedaniel.cloth:cloth-config-fabric:4.17.132"
+
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The portable core's tests, and they run here for the reason the core exists: not one of the
+// twenty-eight classes names Minecraft, so none of them needs the game on the classpath to load.
+// That is what lets this module's tests run as ordinary JUnit rather than through a game harness,
+// and it is why this port could begin with something already proven rather than with a rewrite.
+test {
+    useJUnitPlatform()
+
+    // Several of these tests read the tree rather than running it: which module may name the game,
+    // which keys the mod asks for, whether the verification harness is still gated. Gradle cannot
+    // see that from a classpath, so a change to a loader module or to a resource left this task
+    // UP-TO-DATE and the guard simply did not run - watched happen with the harness gate deliberately
+    // removed, where the test passed because nothing it compiles had changed. A test that quietly
+    // does not run is worse than no test, so the trees those tests read are inputs of this task.
+    inputs.files(
+        fileTree(rootProject.projectDir) {
+            include 'common/src/main/**'
+            include 'forge/src/main/**'
+            include 'fabric/src/main/**'
+        })
+        .withPropertyName('theSourceTheseTestsRead')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// ---------------------------------------------------------------------------
+// Where another edition is, for the drift check
+// ---------------------------------------------------------------------------
+//
+// The core is the same file in every edition and a test compares the copies byte for byte. This is
+// how that test is told where to find another tree. Read from an untracked file at the repository
+// root rather than written into the build: a project that has to be checked out beside another one
+// in order to build is a project nobody else can build, so where the file is absent the test skips.
+//
+// Read from the root rather than from this module, because it is a fact about the machine and not
+// about the common module, and the loader modules will want it too if they ever grow a check of
+// their own.
+def sibling = rootProject.file('sibling.properties')
+if (sibling.exists()) {
+    Properties held = new Properties()
+    sibling.withInputStream { held.load(it) }
+    String other = held.getProperty('otherEdition', '').trim()
+    if (!other.isEmpty()) {
+        // Resolved here rather than handed over as it stands. A test runs with its working
+        // directory set to the module - common - so a relative path written against the edition
+        // root misses by one level, the test finds nothing where the other edition should be, and
+        // skips: the drift check then passes by proving nothing. The single-module editions never
+        // showed it, because for them the module is the root. Found in the public repository, which
+        // is the only place the path is relative.
+        String resolved = rootProject.file(other).absolutePath
+        tasks.named('test', Test) {
+            systemProperty 'trmt.other.edition', resolved
+        }
+    }
+}

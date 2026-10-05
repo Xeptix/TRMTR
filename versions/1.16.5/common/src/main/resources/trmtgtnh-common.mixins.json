@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "trmtgtnh-common-refmap.json",
+  "plugin": "com.trmtgtnh.mixin.OculusGate",
+  "mixins": [
+    "MixinOculusBlockContext",
+    "MixinPackRepository"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

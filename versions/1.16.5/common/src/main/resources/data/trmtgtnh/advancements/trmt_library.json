@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_read_mk1",
+    "display": {
+        "icon": {
+            "item": "minecraft:bookshelf"
+        },
+        "title": {
+            "translate": "achievement.trmtLibrary"
+        },
+        "description": {
+            "translate": "achievement.trmtLibrary.desc"
+        },
+        "frame": "challenge",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

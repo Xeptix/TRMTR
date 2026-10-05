@@ -1,0 +1,48 @@
+modLoader = "javafml"
+loaderVersion = "[36,)"
+license = "CC BY-NC 4.0"
+issueTrackerURL = "https://github.com/Xeptix/TRMTR/issues"
+
+[[mods]]
+modId = "trmtgtnh"
+version = "${version}"
+displayName = "TRMT Reimagined"
+displayURL = "https://github.com/Xeptix/TRMTR"
+authors = "Xeptix"
+description = '''
+Ground wears into paths along the routes you actually walk, and grows back once you stop using them.
+
+Wear is kept as server-side data and painted on your client as ghost blocks. No block is ever written
+into the world, so this can be switched off for one player, disabled across a server, or deleted
+outright without a square of terrain having changed.
+'''
+
+[[dependencies.trmtgtnh]]
+    modId = "forge"
+    mandatory = true
+    versionRange = "[36,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.trmtgtnh]]
+    modId = "minecraft"
+    mandatory = true
+    versionRange = "[1.16.5,1.17)"
+    ordering = "NONE"
+    side = "BOTH"
+
+# Cloth Config, which the settings screen is built on. Forge dropped GuiConfig at 1.13 and vanilla
+# has never had a settings screen for a mod, so this is the port's one deliberate new dependency -
+# and declaring it is the difference between a loader that says what is missing and a Config button
+# that throws NoClassDefFoundError when it is pressed.
+#
+# CLIENT rather than BOTH, because nothing outside the screen names it: a dedicated server needs
+# neither the screen nor this mod. The Fabric side has no way to say that - its depends apply to
+# both environments - so it declares cloth-config2 outright, which is safe because that mod is not
+# client-only and loads on a dedicated server.
+[[dependencies.trmtgtnh]]
+    modId = "cloth-config"
+    mandatory = true
+    versionRange = "[4.17,)"
+    ordering = "NONE"
+    side = "CLIENT"

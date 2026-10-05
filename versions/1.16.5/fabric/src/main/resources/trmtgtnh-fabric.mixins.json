@@ -1,0 +1,30 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.fabric.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "trmtgtnh-fabric-refmap.json",
+  "mixins": [
+    "BucketItemAccessor",
+    "MixinBlockItem",
+    "MixinChunkMap",
+    "MixinExplosion",
+    "MixinGhostMapColour",
+    "MixinItemStack",
+    "MixinLivingEntity",
+    "MixinLootArrivals",
+    "MixinMob",
+    "MixinRecipeArrivals",
+    "MixinRepairItemRecipe",
+    "MixinServerPlayer",
+    "MixinWornCollision"
+  ],
+  "client": [
+    "MixinAirSwing",
+    "MixinBlockArrivals",
+    "MixinTextureAtlas"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

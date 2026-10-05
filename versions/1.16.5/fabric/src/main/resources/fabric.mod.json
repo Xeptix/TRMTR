@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "trmtgtnh",
+  "version": "${version}",
+  "name": "TRMT Reimagined",
+  "description": "Ground wears into paths along the routes you actually walk, and grows back once you stop using them. Wear is server-side data painted on the client as ghost blocks; no block is ever written into the world.",
+  "authors": [ "Xeptix" ],
+  "contact": {
+    "homepage": "https://github.com/Xeptix/TRMTR",
+    "sources": "https://github.com/Xeptix/TRMTR",
+    "issues": "https://github.com/Xeptix/TRMTR/issues"
+  },
+  "license": "CC-BY-NC-4.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": [ "com.trmtgtnh.fabric.TrmtFabric" ],
+    "client": [ "com.trmtgtnh.fabric.TrmtFabricClient" ],
+    "modmenu": [ "com.trmtgtnh.fabric.FabricModMenu" ]
+  },
+  "mixins": [ "trmtgtnh-common.mixins.json", "trmtgtnh-fabric.mixins.json" ],
+  "accessWidener": "trmtgtnh.accesswidener",
+  "custom": {
+    "waila:plugins": [
+      { "id": "trmtgtnh:wear", "initializer": "com.trmtgtnh.fabric.WthitTooltip" }
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "fabric": "*",
+    "minecraft": "1.16.5",
+    "cloth-config2": ">=4.17.132"
+  },
+  "recommends": {
+    "modmenu": "*"
+  }
+}

@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_tamper",
+    "display": {
+        "icon": {
+            "item": "trmtgtnh:golem_egg"
+        },
+        "title": {
+            "translate": "achievement.trmtGolem"
+        },
+        "description": {
+            "translate": "achievement.trmtGolem.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

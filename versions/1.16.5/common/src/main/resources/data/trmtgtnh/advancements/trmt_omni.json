@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_golem",
+    "display": {
+        "icon": {
+            "item": "trmtgtnh:golem_upgrade_omni"
+        },
+        "title": {
+            "translate": "achievement.trmtOmni"
+        },
+        "description": {
+            "translate": "achievement.trmtOmni.desc"
+        },
+        "frame": "goal",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

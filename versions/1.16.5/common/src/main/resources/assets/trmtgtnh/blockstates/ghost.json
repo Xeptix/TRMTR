@@ -1,0 +1,52 @@
+{
+  "variants": {
+    "light=0": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=1": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=2": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=3": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=4": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=5": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=6": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=7": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=8": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=9": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=10": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=11": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=12": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=13": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=14": {
+      "model": "trmtgtnh:block/ghost"
+    },
+    "light=15": {
+      "model": "trmtgtnh:block/ghost"
+    }
+  }
+}

@@ -4,16 +4,17 @@
 
 ![Worn roads running across grass, dirt, sand and stone, each one darker and more sunken along the line that has been walked](docs/images/roads-reel.gif)
 
-Minecraft **1.7.10** and **1.12.2**, on Forge — and it runs on plain Forge with nothing else
-installed. The 1.7.10 edition is built against **GT: New Horizons 2.8.4**.
+Minecraft **1.7.10**, **1.12.2** and **1.16.5** — on Forge, and on Fabric for 1.16.5. It runs on a
+plain loader with nothing else installed, except that 1.16.5 wants Cloth Config for its settings
+screen. The 1.7.10 edition is built against **GT: New Horizons 2.8.4**.
 
-**One mod, one version number, two editions.** They do the same thing, by the same numbers, and they
-read the same settings file, so a pack can move between Minecraft versions and find its edits where
-it left them. Twenty-eight classes are shared between them byte for byte. Where an edition cannot match
-the other, it is because the Minecraft version took away what the behaviour was built on, and the
-section it belongs to says so plainly rather than leaving you to find out. Those differences are
-collected in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) as well, if you would rather see them
-all at once.
+**One mod, one version number, three editions.** They do the same thing, by the same numbers, and
+they read the same settings file, so a pack can move between Minecraft versions and find its edits
+where it left them. Twenty-eight classes are shared between them byte for byte. Where an edition
+cannot match the others, it is because the Minecraft version took away what the behaviour was built
+on, and the section it belongs to says so plainly rather than leaving you to find out. Those
+differences are collected in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) as well, if you would
+rather see them all at once.
 
 Inspired by — and derived from — **[The Roads More Travelled](https://github.com/milkucha/trmt)**
 by *milkucha*, licensed CC BY-NC 4.0. This version by **Xep**. Unofficial: not produced,
@@ -92,9 +93,10 @@ a golem that will hold a stretch of road at a wear level you choose while you ar
 
 ## Install
 
-Drop the jar for your Minecraft version — `trmtr-1.7.10-<version>.jar` or
-`trmtr-1.12.2-<version>.jar` — into your pack's `mods` folder, on **both** the client and the
-server. That is the only file you need; the `-dev` and `-sources` jars are for development.
+Drop the jar for your Minecraft version — `trmtr-1.7.10-<version>.jar`,
+`trmtr-1.12.2-<version>.jar`, or `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar` — into your
+pack's `mods` folder, on **both** the client and the server. That is the only file you need; the
+`-dev` and `-sources` jars are for development.
 
 **Requirements, 1.7.10**
 
@@ -114,6 +116,17 @@ server. That is the only file you need; the `-dev` and `-sources` jars are for d
   rather than left to wonder why. **UniMixins** states partial 1.12.2 support and is expected to read
   the same manifest attribute, but nobody has run this jar under it, so it is not claimed — and with
   the dependency declared it would have to be installed alongside rather than instead.
+
+**Requirements, 1.16.5**
+
+- Minecraft 1.16.5 with Forge 36.2.34 or newer, **or** Fabric Loader 0.14 or newer.
+- **[Cloth Config](https://www.curseforge.com/minecraft/mc-mods/cloth-config)**, on either loader.
+  Forge's own config screen was removed after 1.12.2 and vanilla has never had one, so this is what
+  the settings screen is built on — the one dependency this mod takes that is not a loader. The jar
+  declares it, so a pack without it is told rather than left to find out by pressing Config.
+- On Fabric, **Fabric API** as well, and **Mod Menu** if you want to reach the settings screen in
+  game: Fabric has no mod list with a Config button of its own. Without Mod Menu the settings file
+  and `/trmt reload` still work.
 
 Nothing else is required. Every integration listed under
 [Optional integrations](#optional-integrations) is behind a mod-loaded check and the whole mod
@@ -166,8 +179,8 @@ marks the patch it lands on the same way at a much smaller scale.
 The server never changes the block. Instead it tells your client which positions are worn and
 how far, and your client writes a **ghost block** over its own copy of the world at each one.
 
-**How many ghosts there are is the single largest difference between the two editions**, and it is
-a consequence of how each Minecraft version decides what a block looks like.
+**How many ghosts there are is the largest difference between the editions**, and it is a
+consequence of how each Minecraft version decides what a block looks like.
 
 On **1.7.10** a block's appearance is a metadata value and an icon per side, so there are
 **sixty-six** ghosts. That is not sixty-six pictures — it is one block class per shape and per
@@ -201,8 +214,8 @@ Those are each their own `client` setting and all of them ship on.
 **Shader-material inheritance reaches a different mod on each edition.** 1.7.10 calls a pair of
 methods Angelica added for exactly this purpose; no Iris and no Oculus has that pair. What it is a
 convenience for does exist in all of them, one step further in - the holder a block's resolved shader
-id is left on for the shader mod's own vertex writer to read - and that is where the 1.12.2 edition
-says a ghost is something else. Either way `client.inheritShaderMaterial` wants a shader loader of
+id is left on for the shader mod's own vertex writer to read - and that is where the 1.12.2 and
+1.16.5 editions say a ghost is something else. Either way `client.inheritShaderMaterial` wants a shader loader of
 the Iris family, does nothing without one or without a shader pack loaded, and names itself in the
 log when it is going to do anything.
 
@@ -722,7 +735,7 @@ turning its enchantment off. All of these are read as the game starts.
 
 **They are not as rare as they sound, and the measured figure is worth having**: this mod's
 seventeen dungeon entries come to 35 against vanilla's 127 — about a fifth of what a dungeon chest
-gives out — and 28 against 71 in a mineshaft. The same holds in both editions, whose chest pools are
+gives out — and 28 against 71 in a mineshaft. The same holds in every edition, whose chest pools are
 the same size. Divide the weights by five if you want this to be a genuine rarity.
 
 Separately, items can be handed to a player on arrival in a world — every one of those ships off.
@@ -732,14 +745,22 @@ turning one on reaches people already playing, and turning it off and on again h
 ## Maps
 
 **Worn ground is coloured per position from the real block underneath**, rather than every modded
-dirt collapsing to one flat brown. Both editions do that, and they do it by completely different
+dirt collapsing to one flat brown. Every edition does that, and they do it by completely different
 means — which decides what each one can and cannot offer.
 
-On **1.12.2** no map mod is named anywhere. A block is asked its colour with the position in hand, so
-one override answers for every map at once: the vanilla map item, JourneyMap, Xaero's Minimap and
-anything else that draws the world at a distance all read the same answer, and a worn path travels
-from green to earth as it wears through because by then the square's appearance really is earth.
-There is nothing to switch off when a map mod changes its internals, and nothing to go stale.
+On **1.12.2 and 1.16.5** no map mod is named anywhere. A block is asked its colour with the position
+in hand, so one override answers for every map at once: JourneyMap, Xaero's Minimap and anything
+else that reads the world all get the same answer, and a worn path travels from green to earth as it
+wears through because by then the square's appearance really is earth. There is nothing to switch off
+when a map mod changes its internals, and nothing to go stale.
+
+Those two editions also **darken a worn square**, to one colour. The palette a map draws with is
+sixty-four fixed entries, so there is no fraction to dim by — but an entry can be picked for being
+darker, and that is what `surfaces.mapWearDarkening` decides there: the nearest entry to the ground's
+own colour darkened by that much. Grass at `#7fb238` is drawn as `#392923`. A square that shows any
+wear at all is drawn in it and does not darken further, so **a road is visible on the map and how
+worn it is is not**. Where a pack's ground has nothing darker in the palette worth picking it keeps
+its colour, and the log says so once, by name.
 
 On **1.7.10** a block is asked its colour with nothing but a metadata value: a worn square cannot
 tell which position is being asked about, and can answer only from the family its class stands for.
@@ -748,7 +769,7 @@ internals and a hundred and nineteen more against Xaero's to achieve the same pa
 exchange it can do things 1.12.2 cannot, because it hands those mods a real RGB value rather than one
 of vanilla's sixty-four fixed palette entries.
 
-### What 1.7.10 can do with that, and 1.12.2 cannot
+### What 1.7.10 can do with that, and the later editions cannot
 
 With **JourneyMap** installed, two things happen to the colour:
 
@@ -762,7 +783,8 @@ the material it started as and the darkening a world-reading map gets through th
 it; the tint correction that stops a modded turf reading as a green stripe stays, because that is
 not wear. How far a fully worn square darkens is `surfaces.mapWearDarkening`, 0.62 by default,
 spread evenly over every gradation the ground has — about eight tenths of one per cent a step on a
-family with eighty of them.
+family with eighty of them. The later editions read the same figure and can only pick a colour with
+it, as above.
 
 Optionally — `client.desirePathHighlight`, **off as shipped** — a worn square can also be pulled
 toward a colour that is not a material at all, so routes stand out on the minimap. At a half the
@@ -786,20 +808,20 @@ when its own *Biomes in Vanilla Color Mode* is on as well. With both off it take
 colour and hands it back without asking anything about the position, so a path then shows only
 where the ground has worn through into a different material.
 
-Vanilla map items get the family's own colour and no more, because vanilla's palette is
-sixty-four fixed entries with no darker sibling to pick — there is no honest way to vary it by
-wear.
+**The vanilla map item never shows wear, in any edition.** It is drawn from the server's own blocks,
+and no worn square exists there: this mod paints them into each client's copy of the world and writes
+nothing into the save. Minimaps read the client's world, which is why they show the path.
 
-**On 1.12.2, `surfaces.mapWearDarkening`, `client.desirePathHighlight` and
-`client.mapWearThroughTint` do nothing, and `surfaces.mapTracksWear` cannot be switched off.** That
-is the same limit as the vanilla map item above, applied to every map: the palette has sixty-four
-entries and the shade a map draws is chosen from the terrain's height rather than by the block, so
-there is nothing to darken and no violet to reach for. They are left in the settings file so a pack
-can move between the two versions and find its edits where it left them, and the mod names any of
-them you have changed, once, as it loads.
+**On 1.12.2 and 1.16.5, `client.desirePathHighlight` and `client.mapWearThroughTint` do nothing.**
+Both are fractions of a colour, and a palette entry cannot be dimmed by a fraction — there is no
+violet to reach toward and no tint to withhold. They are left in the settings file so a pack can move
+between versions and find its edits where it left them, and the mod names any of them you have
+changed, once, as it loads.
 
-`/trmt mapcolour` lists what a map mod makes of every ghost on 1.7.10; on 1.12.2 it tells you what a
-map makes of the square under your feet, and whether it agrees with the untouched ground beside it.
+`/trmt mapcolour` lists what a map mod makes of every ghost on 1.7.10. On the later editions it tells
+you what the square under your feet is drawn as, what the untouched ground beside it is drawn as, and
+what a worn square there reports once it is darkened — three answers, because a map item and a
+minimap are reading two different things.
 
 ## Waila and Hwyla
 
@@ -1058,15 +1080,16 @@ wear table and the config screen.
 
 | Mod | What it adds |
 |---|---|
-| **Waila** (1.7.10) / **Hwyla** (1.12.2) | the wear readout on the tooltip, and a golem provider |
+| **Waila** (1.7.10) / **Hwyla** (1.12.2) / **Jade** or **WTHIT** (1.16.5) | the wear readout on the tooltip, and a golem provider |
 | **JourneyMap** | per-position map colouring and the desire-path highlight — *1.7.10; on 1.12.2 every map is served without naming it* |
 | **Xaero's Minimap** | worn ground drawn darker as it wears, and the map told when a square changes — *1.7.10 only, same reason* |
-| **Angelica / Iris** (1.7.10), **Oculus** (1.12.2) | worn ground inherits the covered block's shader material |
+| **Angelica / Iris** (1.7.10), **Oculus** (1.12.2 and 1.16.5) | worn ground inherits the covered block's shader material |
 | **Chisel** | layered-block shell lift, and the liquid layer painted into worn textures |
 | **GregTech** | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **Amazing Trophies** | seven trophy definitions written into its own config folder |
 | **BetterQuesting** | a chapter of up to seventeen quests, written additively into `DefaultQuests` |
 | **Et Futurum Requiem** | two registry names in default block lists, and nothing more |
+| **Mod Menu** (1.16.5, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
 
 `integration.gtnhEnhanced` flips on when GregTech is present and switches the mod to pack-tuned
 recipes; without it, plain recipes, a golem built from vanilla blocks, a Wayfarer that no longer
@@ -1137,7 +1160,8 @@ Beyond being a port:
   its shader material from, that last applied only on a client that has Oculus. Ten of the other
   edition's thirteen target `RenderBlocks`, which 1.8 deleted, and a baked model, a block override or
   a Forge event does each of those jobs instead - the hollow under worn ground among them. Every
-  server-side hook upstream mixes in for has a Forge event in both editions.
+  server-side hook upstream mixes in for has a Forge event in the Forge editions, and a mixin of its
+  own on Fabric.
 - **Brush-based sand recovery is removed** (there is no brush item in either version). The
   **Draught of Lightness** is here with the original's own ingredients, mixed at a bench rather
   than brewed in a stand for the reasons under [Draughts](#draughts), and a
@@ -1157,7 +1181,7 @@ nothing to retire.
 
 Config files carry forward in both. A key that has been renamed is read under its old name and its
 figure kept rather than reset, and a retired wear-look id lands on the rub rather than being refused.
-The settings file is deliberately the same file both editions read, so a pack moving between
+The settings file is deliberately the same file every edition reads, so a pack moving between
 Minecraft versions keeps its edits, including the few that only one version can act on; the mod names
 those in the log.
 
@@ -1194,27 +1218,31 @@ There are sixty-six such names on 1.7.10 and **one** on 1.12.2, for the reason u
 ./gradlew build
 ```
 
-from `versions/1.7.10` or `versions/1.12.2`. Each edition is its own Gradle build; there is no
-root build, because the two cannot share one — see
+from `versions/1.7.10`, `versions/1.12.2` or `versions/1.16.5`. Each edition is its own Gradle build;
+there is no root build, because they cannot share one — see
 [`docs/BUILDING.md`](docs/BUILDING.md), which also covers what each needs.
 
 **1.7.10** needs JDK 25 (the GTNH Gradle plugin requires it) and network access to
 `https://nexus.gtnewhorizons.com/repository/public/`. **1.12.2** builds on RetroFuturaGradle with
 Gradle 9.7.0, Forge 14.23.5.2847 and MixinBooter 11.13, and needs neither. Both compile to Java 8
-bytecode.
+bytecode. **1.16.5** is three Gradle modules under Architectury Loom — `common`, `forge`, `fabric` —
+and one `./gradlew build` produces both jars; it compiles to Java 8 bytecode as well, and needs
+network access for Cloth Config and the loaders' own repositories.
 
 Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested by `./gradlew test` — **410 tests across 43 classes on 1.7.10, 347
-across 29 on 1.12.2** — with `CoreStaysPortableTest` there to keep that boundary from eroding.
+types in them and are unit tested by `./gradlew test` — **410 tests on 1.7.10, 351 on 1.12.2 and 342
+on 1.16.5** — with `CoreStaysPortableTest` there to keep that boundary from eroding.
 
 **Twenty-eight of those classes are shared between the editions byte for byte**, and a test in each
-reads both copies and fails the build on any difference, naming the files. In this repository the two
-editions are siblings, so that check runs for anybody who clones it.
+reads its own copy and the one in the edition it was carried from, failing the build on any
+difference and naming the files. In this repository the editions are siblings, so that check runs for
+anybody who clones it.
 
-The built jar is `build/libs/trmtr-<mc version>-<version>.jar`.
+The built jar is `build/libs/trmtr-<mc version>-<version>.jar`; on 1.16.5 there are two, one per
+loader, under `forge/build/libs` and `fabric/build/libs`.
 
 ## Licence
 

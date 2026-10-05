@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_tamper",
+    "display": {
+        "icon": {
+            "item": "trmtgtnh:chunk_tamper"
+        },
+        "title": {
+            "translate": "achievement.trmtChunkTamper"
+        },
+        "description": {
+            "translate": "achievement.trmtChunkTamper.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

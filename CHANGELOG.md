@@ -1,32 +1,64 @@
 # TRMT Reimagined — changelog
 
-One version number across every edition. 0.9.217 is the same release on Minecraft 1.7.10 and on
-1.12.2, and later releases will carry whatever editions exist then. A change in one edition moves the
-number for all of them, so an edition's entry saying nothing changed is saying something true.
+One version number across every edition. 0.9.217 is the same release on Minecraft 1.7.10, 1.12.2
+and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
+moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
 
-## 0.9.217 — 2026-10-04
+## 0.9.217 — 2026-10-05
 
-**Worn ground inherits its shader material on 1.12.2 too.** That was the last thing the two editions
-did not share, and the 1.7.10 jar is unchanged: the number moves because a release is one number
-across every edition.
+**A third edition: Minecraft 1.16.5, on Forge and on Fabric.** One codebase, two jars, and the same
+mod as the other two - the same behaviour, the same numbers, the same settings file. Everything the
+1.7.10 edition does, this one does, except where the game itself has changed underneath it; every one
+of those is named in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
 
-Under a shader pack a ghost was in nobody's block-material table, so a worn stone road did not merely
-lose its polish - it lost every property the unworn block had and fell back on whatever the pack does
-with a stranger. On 1.12.2 it now claims the block it is covering while it still shows that block's
-surface, and the earth it has worn into once it does not, so the shine leaves as the road breaks up
-rather than the moment somebody walks on it.
+It needs [Cloth Config](https://www.curseforge.com/minecraft/mc-mods/cloth-config) on both loaders,
+Fabric API on Fabric, and Mod Menu if you want to reach the settings screen there. Nothing else.
 
-It needs **Oculus** on 1.12.2 and **Angelica** on 1.7.10, does nothing without one or without a
-shader pack loaded, and adds nothing to what either edition requires.
+**A road is visible on a map again, on 1.12.2 and 1.16.5.** Both of those read one vanilla answer for
+a block's map colour, out of sixty-four fixed palette entries, so there is no fraction to darken by -
+and both had therefore given the darkening up, which left a path showing on a minimap only once it
+had worn through into another material. A palette entry can be picked for being darker even though a
+colour cannot be dimmed, so a worn square now reports the nearest entry to its own colour darkened by
+`surfaces.mapWearDarkening`. Grass is drawn as dark earth. The road is there; how worn it is cannot be
+read off the map, and the setting, the log and the manual all say so.
 
-**On 1.12.2 this is new and has not yet been seen running** on a client carrying Oculus, Vintagium and
-a shader pack. Every shape it reaches for was read from Oculus's own source, and both ways it can be
-wrong switch the feature off rather than break a frame - but that is not the same as having watched it
-work, and [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) says how to tell.
+**Worn ground inherits its shader material on 1.12.2 too.** Under a shader pack a ghost was in
+nobody's block-material table, so a worn stone road did not merely lose its polish - it lost every
+property the unworn block had and fell back on whatever the pack does with a stranger. It now claims
+the block it is covering while it still shows that block's surface, and the earth it has worn into
+once it does not, so the shine leaves as the road breaks up rather than the moment somebody walks on
+it. It needs **Angelica** on 1.7.10 and **Oculus** on 1.12.2 and 1.16.5, does nothing without one or
+without a shader pack loaded, and adds nothing to what any edition requires.
 
-Two things the 1.12.2 manual had inherited from the 1.7.10 edition and never had re-derived are also
-corrected: the mixin count, which claimed thirteen and described ten client mixins that edition does
-not have, and the integration table, which named Angelica on a version Angelica does not run on.
+**Fourteen lines of text on 1.12.2 were showing their own keys.** Twelve of them are the whole of a
+golem's block tooltip, so looking at one through Hwyla read `trmtgtnh.golem.waila.idle` where it
+should have said "Nothing to do here". One was the chunk tamper's settings screen, and one was the
+name of a worn square itself. A missing translation is not an error and nothing logs it, so this had
+been true for as long as the golem has existed on that version. A test in each edition now reads the
+source for every key it asks for and insists the language file has it.
+
+The 1.7.10 jar is unchanged in this release. The number moves because a release is one number across
+every edition.
+
+---
+
+### On Minecraft 1.16.5, which is new
+
+- **Both loaders from one codebase.** A shared module holds the mod; a Forge module and a Fabric
+  module hold an entry point each. The two jars are built from the same source and behave the same.
+- Everything the other editions have: eighty gradations of wear, physical sinking with real
+  collision, healing by elapsed world time, weather, snow, bone meal, wearing through into other
+  surfaces, all three tampers, reinforcement, warding, path light, the Golem of Ways and its eleven
+  upgrades, both draughts, all four guide books, the sixteen advancements, world-gen loot, every
+  command, the wear table and its editor, presets and snapshots.
+- **Wear textures are generated from each block's own pixels**, as everywhere else: 12,800 of them
+  composed as the game loads, into a resource pack of the mod's own.
+- The settings screen is built on Cloth Config, because Forge's own was removed after 1.12.2 and
+  vanilla has never had one. On Fabric it is reached through Mod Menu.
+- Materials are read from item tags rather than the ore dictionary, which no longer exists. The
+  settings keep their ore-dictionary spelling and are translated to tags; the Fabric jar ships the
+  vanilla tags itself, because nothing on that loader does.
+- Advancements rather than achievements, as on 1.12.2: the same sixteen, the same translation keys.
 
 ## 0.9.216 — 2026-10-03
 

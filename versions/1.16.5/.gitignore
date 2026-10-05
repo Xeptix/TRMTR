@@ -1,0 +1,42 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea
+
+# gradle
+build
+.gradle
+
+# kate
+*.kate-swp
+
+# other
+eclipse
+run
+
+# Where the other edition of this mod is checked out on this machine, for the test that compares
+# the two copies of the portable core. Machine-specific, so never committed.
+sibling.properties
+
+# Architectury Loom
+run/
+.architectury-transformer/
+
+# Game logs. The test task runs log4j, which writes these beside whichever module ran; they are
+# output, not source, and one of them was committed once before this line existed.
+logs/
+*.log
+*.log.gz
+
+# Regenerable previews, written beside the generator that makes them.
+tools/*-preview.png

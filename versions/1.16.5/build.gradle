@@ -1,0 +1,111 @@
+// Root build for the 1.16.5 edition.
+//
+// Architectury Loom rather than the loaders' own plugins, because this version has to produce two
+// jars from one body of code. Loom is the only toolchain that sets up Fabric and Forge side by side
+// at 1.16.5; NeoForge does not exist this far back, and ModDevGradle starts at 1.21.
+//
+// Whether current Loom still handles a 2021 Minecraft is the first thing this build answers. Its
+// own documentation says "tested with 1.14.4 and upwards", which is a claim rather than a promise,
+// and reading further would not settle it.
+
+plugins {
+    id "architectury-plugin" version "3.4-SNAPSHOT"
+    id "dev.architectury.loom" version "1.7-SNAPSHOT" apply false
+    // Each loader's jar has to carry the common module's classes inside it: `common` is published
+    // nowhere and a player installs one jar. Shadow folds them in. Declared here and applied in the
+    // loader modules, which is what `apply false` is for.
+    id "com.github.johnrengelman.shadow" version "8.1.1" apply false
+}
+
+architectury {
+    minecraft = project.minecraft_version
+}
+
+subprojects {
+    apply plugin: "dev.architectury.loom"
+
+    loom {
+        silentMojangMappingsLicense()
+
+        // The verification harness is off in a plain run and has to be asked for, which is the whole
+        // point of its being gated: `-Pspike` sets the property its gate reads, and `-Ppaint` adds
+        // the fake patch of ghosts on top of that. Both are passed by the scripts in tools/ rather
+        // than typed. See ForgeSpikeRun, which is where the gate is and why it is there.
+        runs {
+            configureEach {
+                if (project.hasProperty("spike")) property("trmt.spike", "true")
+                if (project.hasProperty("paint")) property("trmt.spike.paint", "true")
+            }
+        }
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+        // Mojang's own names. See the note in gradle.properties.
+        mappings loom.officialMojangMappings()
+    }
+}
+
+allprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
+    apply plugin: "maven-publish"
+
+    archivesBaseName = "trmtr-${rootProject.minecraft_version}"
+    version = rootProject.mod_version
+    group = rootProject.mod_group
+
+    repositories {
+        maven { url = "https://maven.parchmentmc.org" }
+        // Where the block-tooltip mods come from. Narrowed to its own group: a repository that is
+        // asked for every dependency is a repository that can slow or break a build it has nothing
+        // to do with, and this one has exactly two artifacts to offer.
+        maven {
+            url = "https://cursemaven.com"
+            content { includeGroup "curse.maven" }
+        }
+        // Where Cloth Config comes from, narrowed the same way. See ConfigScreen for why this mod
+        // takes a dependency it refuses everywhere else.
+        maven {
+            url = "https://maven.shedaniel.me/"
+            content { includeGroup "me.shedaniel.cloth" }
+        }
+        // Mod Menu, which is how a Fabric player reaches a mod's settings screen. Compile only and
+        // narrowed the same way; see TrmtFabric for why it is optional where Cloth is not.
+        maven {
+            url = "https://maven.terraformersmc.com/releases"
+            content { includeGroup "com.terraformersmc" }
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release = 8
+    }
+
+    java {
+        withSourcesJar()
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    // The JVM the game runs on, which is deliberately not the one Gradle runs on.
+    //
+    // Mixin here is 0.8.x carrying ASM 9.0, which reads class files up to version 61 - Java 17.
+    // Gradle runs on 21, and a run that inherited it crashed the moment a mixin handler named
+    // java.util.Random in its signature: ASM could not read Java 21's copy of that class, Mixin
+    // could not transform the handler's local variable table without it, and the mixin was refused
+    // outright. The message names the class and the version and says nothing about the JVM, so it
+    // reads like a fault in the mixin. Two features had already been written round it - once by
+    // moving a HashSet out of a mixin, once by hunting for a different injection point - before the
+    // cause was understood, which is the real cost of leaving this unset.
+    //
+    // Seventeen rather than eight, which is what 1.16.5 shipped on: Fabric Loader 0.19.5 will not
+    // start on eight, and seventeen is the newest ASM 9.0 can read, so it is the one version that
+    // satisfies both. This is a development setting and says nothing about what a player needs.
+    tasks.withType(JavaExec).configureEach {
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+}
