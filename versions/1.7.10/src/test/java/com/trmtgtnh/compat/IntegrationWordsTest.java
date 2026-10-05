@@ -8,6 +8,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -46,6 +48,9 @@ class IntegrationWordsTest {
     private static final String[] WORDS = { "no", "one", "two", "three", "four", "five", "six", "seven", "eight",
         "nine", "ten", "eleven", "twelve" };
 
+    /** The store copy, which lives in this tree and not in the published repository. */
+    private static final String[] STORE_PAGES = { "docs/CURSEFORGE.md", "docs/MODRINTH.md" };
+
     @Test
     void every_trophy_defined_has_a_name_and_every_name_a_trophy() throws IOException {
         assertEquals(
@@ -60,12 +65,18 @@ class IntegrationWordsTest {
         assertTrue(count < WORDS.length, "TrophyCompat.define names " + count + "; add words to this test");
         String word = WORDS[count];
         assertTrue(
-            line(read("README.md"), "| **Amazing Trophies** |").contains(" " + word + " "),
+            row(read("README.md"), "Amazing Trophies").contains(" " + word + " "),
             "README.md's Amazing Trophies row should say " + word);
-        if (present("docs/CURSEFORGE.md")) {
-            assertTrue(
-                line(read("docs/CURSEFORGE.md"), "| Amazing Trophies |").contains(" " + word + " "),
-                "docs/CURSEFORGE.md's Amazing Trophies row should say " + word);
+        for (String page : STORE_PAGES) {
+            if (!present(page)) continue;
+            // The pages were cut from a manual to a listing and no longer carry a row per
+            // companion mod. A count they do name is still worth holding: a page saying six where
+            // the code defines seven is exactly the drift this file exists for.
+            Matcher counted = Pattern.compile("(\\w+) trophy definitions")
+                .matcher(read(page));
+            while (counted.find()) {
+                assertEquals(word, counted.group(1), page + " names a trophy count the code disagrees with");
+            }
         }
         assertTrue(
             read(CONFIG).contains("to pick up - " + word + " of them"),
@@ -94,12 +105,17 @@ class IntegrationWordsTest {
 
         String readme = read("README.md");
         assertFalse(
-            line(readme, "| **GregTech** |").contains("loot"),
+            row(readme, "GregTech").contains("loot"),
             "README.md's GregTech row claims finds the switch does not govern");
-        if (present("docs/CURSEFORGE.md")) {
-            assertFalse(
-                line(read("docs/CURSEFORGE.md"), "| GregTech |").contains("loot"),
-                "docs/CURSEFORGE.md's GregTech row claims finds the switch does not govern");
+        for (String page : STORE_PAGES) {
+            if (!present(page)) continue;
+            // Every paragraph that names it rather than the first, because a listing can mention a
+            // mod in more than one place and the wrong promise only has to be made once.
+            for (String paragraph : paragraphsNaming(read(page), "GregTech")) {
+                assertFalse(
+                    paragraph.contains("loot"),
+                    page + " promises GregTech brings finds the switch does not govern: " + paragraph);
+            }
         }
         int from = readme.indexOf("`integration.gtnhEnhanced` flips on");
         assertTrue(from >= 0, "README.md's integration paragraph is not where this test looks for it");
@@ -131,6 +147,43 @@ class IntegrationWordsTest {
             .matcher(text);
         while (m.find()) found.add(m.group(1));
         return found;
+    }
+
+    /**
+     * The table row whose first cell names this mod, however that name is dressed.
+     *
+     * <p>
+     * Every mod the manual names became a link in 0.9.217, so {@code | **GregTech** |} is now
+     * {@code | **[GregTech](https://...)** (1.7.10) / ...}. A marker written as text went stale the
+     * moment that happened, and said so in a way that sounded like a missing row rather than a
+     * rewritten one. This reads the cell the way a reader sees it instead.
+     */
+    private static String row(String text, String name) {
+        for (String each : text.split("\\r?\\n")) {
+            String trimmed = each.trim();
+            if (!trimmed.startsWith("|")) continue;
+            String[] cells = trimmed.split("\\|");
+            if (cells.length < 2) continue;
+            if (plain(cells[1]).startsWith(name)) return trimmed;
+        }
+        throw new AssertionError("No table row's first cell names " + name);
+    }
+
+    /** Every paragraph naming this mod; fails rather than returning nothing. */
+    private static List<String> paragraphsNaming(String text, String name) {
+        List<String> found = new ArrayList<String>();
+        for (String each : text.split("\\r?\\n\\s*\\r?\\n")) {
+            if (plain(each).contains(name)) found.add(each);
+        }
+        if (found.isEmpty()) throw new AssertionError("Nothing in this document names " + name);
+        return found;
+    }
+
+    /** A fragment as a reader sees it: links reduced to their text, emphasis dropped. */
+    private static String plain(String fragment) {
+        return fragment.replaceAll("\\[([^\\]]*)\\]\\([^)]*\\)", "$1")
+            .replace("*", "")
+            .trim();
     }
 
     /** The first line holding the marker, trimmed; fails rather than returning nothing. */

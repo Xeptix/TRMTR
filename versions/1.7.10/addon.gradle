@@ -8,6 +8,22 @@ tasks.named('test', Test) {
         events 'passed', 'skipped', 'failed'
     }
 
+    // Several tests here read files rather than classes - the manual and the store copy for the
+    // figures they quote, the source for the promises that are only visible in the text. Gradle
+    // cannot see that from a classpath, so editing one of those documents left this task UP-TO-DATE
+    // and the guard simply did not run: watched happen on 2026-10-05, with the manual's trophy count
+    // deliberately made wrong and the test reporting success. A test that quietly does not run is
+    // worse than no test.
+    inputs.files(
+        fileTree(rootProject.projectDir) {
+            include 'README.md'
+            include 'docs/*.md'
+            include 'src/main/java/**'
+            include 'src/main/resources/**'
+        })
+        .withPropertyName('theFilesTheseTestsRead')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
     // Where the 1.12.2 edition's tree is, for the test that compares the two copies of the portable
     // core. Read from an untracked file rather than written here: a repository that has to be
     // checked out beside another one to build is a repository nobody else can build, so on a machine

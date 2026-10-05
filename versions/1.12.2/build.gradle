@@ -333,6 +333,20 @@ test {
             showStandardStreams = true
         }
     }
+
+    // Several tests here read files rather than classes: which translation keys the source asks
+    // for, whether the settings text is this edition's, whether the shader seam still switches
+    // itself off rather than failing. Gradle cannot see that from a classpath, so a change to the
+    // source text or to a resource left this task UP-TO-DATE and the guard simply did not run -
+    // watched happen in the 1.7.10 edition on 2026-10-05, where a figure was made wrong on purpose
+    // and the test reported success. A test that quietly does not run is worse than no test.
+    inputs.files(
+        fileTree(projectDir) {
+            include 'src/main/java/**'
+            include 'src/main/resources/**'
+        })
+        .withPropertyName('theFilesTheseTestsRead')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // parserChangelog() removed with the changelog plugin it used. publish_with_changelog is off, and
