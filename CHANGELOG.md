@@ -40,6 +40,16 @@ name of a worn square itself. A missing translation is not an error and nothing 
 been true for as long as the golem has existed on that version. A test in each edition now reads the
 source for every key it asks for and insists the language file has it.
 
+**Worn ground drew as garbage on 1.12.2 under any shader pack, and crashed the game when shaders were
+switched off.** It built its quads through Forge's `UnpackedBakedQuad`, which measures its packed
+array from the vertex format when it is created and fills it from that same format later - and that
+format is shared and can grow. OptiFine grows it when a shader pack loads, so the array was written
+past its end: the hollow drew as enormous stretched blades, and toggling shaders mid-session ended in
+an `ArrayIndexOutOfBoundsException` while tesselating a worn square. Shaders off was always correct,
+which is why it survived this long. The quads are now packed by hand in the layout vanilla's own
+blocks use, as the 1.16.5 edition has always done, and a test holds that shape. Found by installing
+OptiFine and looking.
+
 The 1.7.10 jar is unchanged in this release. The number moves because a release is one number across
 every edition.
 

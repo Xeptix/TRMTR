@@ -12,10 +12,7 @@ import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.client.renderer.block.model.ItemOverrideList;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.client.renderer.vertex.VertexFormat;
-import net.minecraft.client.renderer.vertex.VertexFormatElement;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.client.model.pipeline.UnpackedBakedQuad;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -53,7 +50,34 @@ import com.trmtgtnh.surface.SurfaceFamily;
 @SideOnly(Side.CLIENT)
 public class GhostBakedModel implements IBakedModel {
 
-    private static final VertexFormat FORMAT = DefaultVertexFormats.ITEM;
+    /**
+     * Seven ints a vertex: position, colour, texture, lightmap. The block format, written by hand.
+     *
+     * <p>
+     * <strong>This is the number OptiFine's shaders broke the old quads on, and writing it here is
+     * the fix.</strong> The model used to hand back {@code UnpackedBakedQuad}s, which size their
+     * packed array from {@code format.getNextOffset()} when they are constructed and fill it from the
+     * same format later. That is safe only while the format's stride stays put - and
+     * {@code VertexFormat} is mutable and shared, so when a shader pack loads and the chunk format
+     * grows, an array measured before the growth is written past its end. Forge's
+     * {@code LightUtil.pack} does exactly that and does not check: the loop even carries a
+     * {@code // TODO handle overflow} where the bounds test would go.
+     *
+     * <p>
+     * Seen three ways on 2026-10-05 under OptiFine HD U G5, all of them with the same cause. In the
+     * item format the hollow drew as enormous stretched blades; in the block format it drew as a
+     * regular chevron pattern; and switching shaders off mid-session crashed the game outright with
+     * {@code ArrayIndexOutOfBoundsException: 28} inside {@code UnpackedBakedQuad.getVertexData},
+     * tesselating {@code trmtgtnh:ghost_grass}. Twenty-eight is four vertices of seven ints - one int
+     * past the end of exactly this array.
+     *
+     * <p>
+     * So the quads are packed here instead, in the layout vanilla's own blocks use, and handed over
+     * as a plain {@link BakedQuad}. The renderer copies that with {@code addVertexData}, which is the
+     * path OptiFine instruments and expands for itself. Nothing reads a stride that something else
+     * can change underneath it.
+     */
+    private static final int INTS_PER_VERTEX = 7;
 
     /** The tint index grass takes its biome colour through; see the block colour registration. */
     public static final int GRASS_TINT = 0;
@@ -207,13 +231,8 @@ public class GhostBakedModel implements IBakedModel {
                 break;
         }
 
-        UnpackedBakedQuad.Builder builder = new UnpackedBakedQuad.Builder(FORMAT);
-        builder.setTexture(sprite);
-        builder.setQuadOrientation(side);
-        builder.setQuadTint(tint);
-        builder.setApplyDiffuseLighting(true);
-
-        float nx = side.getXOffset(), ny = side.getYOffset(), nz = side.getZOffset();
+        int[] data = new int[4 * INTS_PER_VERTEX];
+        int at = 0;
         for (float[] c : corners) {
             float u, v;
             if (side.getAxis() == EnumFacing.Axis.Y) {
@@ -230,34 +249,19 @@ public class GhostBakedModel implements IBakedModel {
                 // up at the height the ground used to be.
                 v = (slid ? height - c[1] : 1F - c[1]) * 16F;
             }
-            put(builder, c[0], c[1], c[2], sprite.getInterpolatedU(u), sprite.getInterpolatedV(v), nx, ny, nz);
+            data[at] = Float.floatToRawIntBits(c[0]);
+            data[at + 1] = Float.floatToRawIntBits(c[1]);
+            data[at + 2] = Float.floatToRawIntBits(c[2]);
+            // White, so that a tint multiplies cleanly and an untinted face is left alone.
+            data[at + 3] = -1;
+            data[at + 4] = Float.floatToRawIntBits(sprite.getInterpolatedU(u));
+            data[at + 5] = Float.floatToRawIntBits(sprite.getInterpolatedV(v));
+            // The lightmap, which the renderer fills in; a model that guessed here would be arguing
+            // with the lighting it is about to be given.
+            data[at + 6] = 0;
+            at += INTS_PER_VERTEX;
         }
-        return builder.build();
-    }
-
-    private static void put(UnpackedBakedQuad.Builder builder, float x, float y, float z, float u, float v, float nx,
-        float ny, float nz) {
-        for (int e = 0; e < FORMAT.getElementCount(); e++) {
-            VertexFormatElement element = FORMAT.getElement(e);
-            switch (element.getUsage()) {
-                case POSITION:
-                    builder.put(e, x, y, z, 1F);
-                    break;
-                case COLOR:
-                    builder.put(e, 1F, 1F, 1F, 1F);
-                    break;
-                case UV:
-                    if (element.getIndex() == 0) builder.put(e, u, v, 0F, 1F);
-                    else builder.put(e);
-                    break;
-                case NORMAL:
-                    builder.put(e, nx, ny, nz, 0F);
-                    break;
-                default:
-                    builder.put(e);
-                    break;
-            }
-        }
+        return new BakedQuad(data, tint, side, sprite, true, DefaultVertexFormats.BLOCK);
     }
 
     @Override
