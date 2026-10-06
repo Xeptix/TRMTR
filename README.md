@@ -4,9 +4,8 @@
 
 ![Worn roads running across grass, dirt, sand and stone, each one darker and more sunken along the line that has been walked](docs/images/roads-reel.gif)
 
-I play GT: New Horizons, and I wanted the line between my base and the mine to look like what it
-is. Not a path I placed, but one that appeared because I kept walking it, and that fades once I
-stop.
+The line between your base and the mine is a path whether you built one or not. This makes it look
+like one, and lets it fade again once you stop using it.
 
 This is milkucha's [The Roads More Travelled](https://github.com/milkucha/trmt) rebuilt for a pack
 with hundreds of mods in it. The rebuild changed one thing that changes everything else: no block is
