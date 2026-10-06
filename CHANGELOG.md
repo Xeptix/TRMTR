@@ -1,10 +1,10 @@
-# TRMT Reimagined — changelog
+# TRMT Reimagined - changelog
 
 One version number across every edition. 0.9.217 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
 
-## 0.9.217 — 2026-10-06
+## 0.9.217 - 2026-10-06
 
 **A third edition: Minecraft 1.16.5, on Forge and on Fabric.** One codebase, two jars, and the same
 mod as the other two - the same behaviour, the same numbers, the same settings file. Everything the
@@ -92,7 +92,7 @@ every edition.
   vanilla tags itself, because nothing on that loader does.
 - Advancements rather than achievements, as on 1.12.2: the same sixteen, the same translation keys.
 
-## 0.9.216 — 2026-10-03
+## 0.9.216 - 2026-10-03
 
 **First public release, on Minecraft 1.7.10 and 1.12.2.**
 
@@ -129,7 +129,7 @@ Source: https://github.com/Xeptix/TRMTR
 - A long walk arrives evenly rather than nearly all at once at the end of it, and a long run never
   replays the same eight pictures.
 - Ground worn the whole way through gives way, and the rut may then go deeper into what was underneath
-   — but never where a sapling or a flower is holding the square, and never at a wear ceiling set
+ - but never where a sapling or a flower is holding the square, and never at a wear ceiling set
   below the whole run, neither of which touches a flat, barely-worn path.
 - Explosions scour the ground they do not destroy, scaled to the blast's force, and a hard landing
   marks what it lands on.
@@ -152,7 +152,7 @@ Source: https://github.com/Xeptix/TRMTR
   grass side fringe receding with the top; the longer chain for stone, cobble and gravel
   waits on `general.wearThroughToOtherSurfaces`, which ships off, so out of the box a stone road hollows
   out as stone.
-- Slabs, stairs and Chisel's layered blocks are ground too, and wear in their own shapes — a slab half as
+- Slabs, stairs and Chisel's layered blocks are ground too, and wear in their own shapes - a slab half as
   deep for exactly as much traffic, a stair blocking light and collision as the stair it stands in for.
 - A block's metadata wears what that metadata is made of, rather than what its neighbour is.
 - Worn ground keeps what the block had: its glow, its particles, its footing, its transparency, whatever
@@ -164,7 +164,7 @@ Source: https://github.com/Xeptix/TRMTR
   modded surface wears in its own colours instead of vanilla's. The authored art was
   decomposed into a reusable per-pixel coverage sequence to make that possible.
 - Eleven wear looks, each worked entirely from the block's own pixels, for the surfaces nobody drew art
-  for — rubbed, cracked, cracked-and-rubbed and the rest. A picker
+  for - rubbed, cracked, cracked-and-rubbed and the rest. A picker
   draws each of them on the player's own blocks before a choice is made.
 - Textures are composed on every core the machine has, and rebuilt when a wear setting moves
   rather than on the next restart.
@@ -175,13 +175,13 @@ Source: https://github.com/Xeptix/TRMTR
 - Wear pictures are filed by the block itself rather than by the id it happened to carry. Forge moves every
   modded block's id when a world loads and when a client joins a server, so on any world that has outlived
   a change to its mod list a modded block goes on wearing its own pictures.
-- A moving inner layer — Chisel's lavastone and waterstone — is budgeted for everything it keeps, not for
+- A moving inner layer - Chisel's lavastone and waterstone - is budgeted for everything it keeps, not for
   its frames alone, and leaves mipmapping on for the rest of the block atlas while it moves.
 
 #### Recovery
 
 - Healing is lazy: it is worked out from the absolute world clock when a chunk loads, so unloaded ground
-  recovers too, and it holds still while nobody is connected — an empty server is not a server whose roads
+  recovers too, and it holds still while nobody is connected - an empty server is not a server whose roads
   grow back.
 - Every family has its own recovery time outright, from snow at six in-game days to end stone at four
   hundred, rather than having it derived from what the family cost to wear.
@@ -216,13 +216,13 @@ Source: https://github.com/Xeptix/TRMTR
 - **Spawn ward** bars hostile or passive mobs from a square.
 - **Path light** lights it.
 - Each stores its state on the same compact per-position record, each explains itself where somebody is
-  asking, each has an achievement and a craftable unlock book rather than a gamble, and each switches off cleanly — including its book, its quest and its achievement.
+  asking, each has an achievement and a craftable unlock book rather than a gamble, and each switches off cleanly - including its book, its quest and its achievement.
 
 #### The Golem of Ways
 
 - A keeper that holds a stretch of ground at the level it is set to, rebuilt from the iron golem
   so it reads as one, with per-block orders, a screen that tells the truth, and a home of its own.
-- Eleven upgrades — nine that change one thing each, among them Far Ways, Deep, Frugal, Stout, Fierce and
+- Eleven upgrades - nine that change one thing each, among them Far Ways, Deep, Frugal, Stout, Fierce and
   Settled, and two that carry the whole set: the Unstable All Ways, which is every upgrade and holds none
   of them reliably, and the settled All Ways at Once, which does.
 - It carries its tamper rather than merely swinging it, works that tamper by the same rules a player does,
@@ -231,7 +231,7 @@ Source: https://github.com/Xeptix/TRMTR
 - It eats what roads are made of, one mouthful at a time, handing the empty container straight back, and
   lays reinforcing material where it is wanted rather than spitting it on the floor. It eats with both arms up and its head dipping to meet them. A dead
   golem gives its contents back whatever the loot rules say.
-- Automation may feed it the ground it mends with and nothing else, and take nothing out — a hopper
+- Automation may feed it the ground it mends with and nothing else, and take nothing out - a hopper
   gives back its tamper and its fitted upgrade. Its price follows the chunk tamper's in the
   same version, and it remembers ground its stores cannot pay for instead of walking every container again
   each stroke.
@@ -239,7 +239,7 @@ Source: https://github.com/Xeptix/TRMTR
 #### Plants, cover and trampling
 
 - The plants standing in a route go down with the route, stalks and all, when the ground drops a level
-   — but a plant's roots hold the square it stands on, and that square is drawn and walked
+ - but a plant's roots hold the square it stands on, and that square is drawn and walked
   at full height on both sides.
 - Trampling wears leaves where they are actually walked on, keeps a tally against a plant that fades at
   healing's own rate rather than being wiped by every sweep, and scales its threshold once instead of twice.
@@ -258,15 +258,15 @@ Source: https://github.com/Xeptix/TRMTR
 
 - JourneyMap is handed a colour that travels toward what the ground is becoming rather than saying it has
   become something else, with an optional desire-path highlight and a depth the player sets.
-- Xaero's Minimap shows worn ground, and is told when it changes — it caches every tile it writes and
+- Xaero's Minimap shows worn ground, and is told when it changes - it caches every tile it writes and
   nothing here sends a block packet to mark one dirty.
 - A path through modded turf stopped reading as a bright green stripe, which it did because that turf's map
   colour is green before the biome's tint is applied to it. Gravel and end stone stopped reporting
   the map colour of the wrong material.
 - Waila reads worn ground and unworn ground alike, showing reinforcement and wards on a square that
   has not yet been stepped on.
-- Every integration — Waila, JourneyMap, Xaero's, Angelica/Iris, Chisel, GregTech, Amazing Trophies,
-  BetterQuesting — sits behind a check that the other mod is present, and none of their code is linked
+- Every integration - Waila, JourneyMap, Xaero's, Angelica/Iris, Chisel, GregTech, Amazing Trophies,
+  BetterQuesting - sits behind a check that the other mod is present, and none of their code is linked
   against.
 
 #### Multiplayer and dedicated servers
@@ -278,7 +278,7 @@ Source: https://github.com/Xeptix/TRMTR
   nothing compared the two, so a client could draw ground the server was not wearing and collide with a
   floor the server did not have. The table travels compressed, is used for the visit only, and is handed
   back on disconnect.
-- Geometry and pricing travel with the rules — the depth of a gradation, each family's ceiling, the
+- Geometry and pricing travel with the rules - the depth of a gradation, each family's ceiling, the
   successor lists that decide what a road wears through into, and the switches that gate them.
 - Updates go to exactly the players the server has sent that chunk to, ground the server writes over is
   repainted rather than left as it was drawn, and a square a plant is holding is flat on both sides.
@@ -301,8 +301,8 @@ Source: https://github.com/Xeptix/TRMTR
   beside its entry.
 - A read-only Wear Table became an editable one, in plain language, with editable header figures, a preview
   of the run it is about to publish, and a hold for the block cycle.
-- Per-family cost curves let the price of a gradation change along a run — turf tears at a touch, snow
-  packs, ice glazes, dressed stone stays flat — normalised so a run's total never moves. The
+- Per-family cost curves let the price of a gradation change along a run - turf tears at a touch, snow
+  packs, ice glazes, dressed stone stays flat - normalised so a run's total never moves. The
   editor quotes a price with the curve it was worked out under, solves against it, and draws all five
   against one datum.
 - Five preset choosers give ready-made answers that can still be argued with, and a two-slot
@@ -343,19 +343,19 @@ Source: https://github.com/Xeptix/TRMTR
 - **One ghost block carries every appearance.** On 1.7.10 a block's appearance is a metadata value
   and an icon per side, which takes sixty-six block classes to cover sixty-six shapes; here it is a
   blockstate and a baked model handed the position, so one class covers all of them at eighty
-  gradations each — far more than blockstate variants could reasonably enumerate. Sprites are
+  gradations each - far more than blockstate variants could reasonably enumerate. Sprites are
   generated into the block atlas at stitch time, the model chooses one per position, painting into
   the client's own copy of the world survives threaded chunk rebuilds, and the sunken collision
   needs no mixin at all.
-- **Three of the 1.7.10 wear pipeline's mixins were not needed** — the atlas, the collision and the
-  grass tint — because Forge 1.12.2 lets a sprite declare dependencies, posts a collision event with
+- **Three of the 1.7.10 wear pipeline's mixins were not needed** - the atlas, the collision and the
+  grass tint - because Forge 1.12.2 lets a sprite declare dependencies, posts a collision event with
   the boxes about to be returned, and takes an `IBlockColor` per position.
 
 #### The ground underfoot
 
 - Wear kept per chunk, surviving a restart, and the detection that decides which blocks are
   ground at all. Ground that wears as time passes and as it is walked on.
-- Wear reaching a client, and then a worn path that can be seen and stood in — the
+- Wear reaching a client, and then a worn path that can be seen and stood in - the
   point at which the two halves met.
 - Worn ground drawn in each block's own pixels, every wear pattern,
   the sides of a rut, and a ghost the shape of whatever it covers.

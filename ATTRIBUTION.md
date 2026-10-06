@@ -7,7 +7,7 @@ Copyright © 2026 **milkucha**
 Source: <https://github.com/milkucha/trmt>
 CurseForge: <https://www.curseforge.com/minecraft/mc-mods/the-roads-more-travelled>
 Licensed under **Creative Commons Attribution-NonCommercial 4.0 International
-(CC BY-NC 4.0)** — full text in `LICENSE_trmt`.
+(CC BY-NC 4.0)** - full text in `LICENSE_trmt`.
 
 ## This work
 
@@ -172,7 +172,7 @@ for NonCommercial purposes. Exercising that right requires all of the following:
 
 1. **Attribute milkucha** as the creator of the original work.
 2. **Retain the copyright notice**, the license notice, and the warranty disclaimer.
-3. **Link the original** — <https://github.com/milkucha/trmt>.
+3. **Link the original** - <https://github.com/milkucha/trmt>.
 4. **State that this is modified**, and keep an indication of prior modifications.
 5. **Include the license text** (`LICENSE_trmt`) or a link to it.
 6. **Non-commercial only.** No sale, no paid distribution, no monetised hosting, no
@@ -194,7 +194,7 @@ generally like knowing, and it opens the door to upstreaming fixes.
 ## Other components
 
 - Build scaffolding derives from **CleanroomMC/ForgeDevEnv**, the 1.12.2 workspace template,
-  used under the **MIT License** — full text in `LICENSE_forgedevenv`, retained as that
+  used under the **MIT License** - full text in `LICENSE_forgedevenv`, retained as that
   licence requires. The 1.7.10 edition's scaffolding instead derives from
   **GTNewHorizons/ExampleMod1.7.10**; see that project for its own licence.
 - Et Futurum Requiem's `etfuturum:grass_path` and `etfuturum:farmland` appear as registry

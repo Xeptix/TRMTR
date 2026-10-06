@@ -16,7 +16,7 @@ moving a pack from one to the other.
 | **1.12.2** | Forge 14.23.5.2847+ | released | [MixinBooter](https://github.com/CleanroomMC/MixinBooter) |
 | **1.16.5** | Forge 36.2.34+ **or** Fabric | released | [Cloth Config](https://github.com/shedaniel/cloth-config); on Fabric also [Fabric API](https://github.com/FabricMC/fabric-api), and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
 
-All three run on plain Forge — or plain Fabric — with nothing else installed. Every other
+All three run on plain Forge - or plain Fabric - with nothing else installed. Every other
 integration is behind a mod-loaded check.
 
 1.16.5 is one codebase and two jars. Take the one that matches your loader.
@@ -37,7 +37,7 @@ integration is behind a mod-loaded check.
 
 On 1.7.10 a block is asked its colour with nothing but a metadata value, so a worn square cannot
 tell which position is being asked about. Reaching into those two mods' own colour lookups is the
-only way to answer per position — and because it hands them a real RGB value, that edition can
+only way to answer per position - and because it hands them a real RGB value, that edition can
 darken a road by any fraction and pull a route toward a violet that is not a material at all.
 
 From 1.12.2 on the position is handed in. One override answers every map that reads the world, so
@@ -53,7 +53,7 @@ mechanism has not got. They stay in the file so a pack can move between versions
 where it left them, and the mod names any of them you have changed, once, as it loads.
 
 **The vanilla map item never shows wear, in any edition.** It is drawn from the server's own blocks,
-and no worn square exists there — this mod paints them into each client's copy of the world and
+and no worn square exists there - this mod paints them into each client's copy of the world and
 writes nothing into the save. Minimaps that read the client's world show the path. `/trmt mapcolour`
 reports both answers for the square you are standing on.
 
@@ -75,13 +75,13 @@ to is read at the moment of granting instead.
 |---|---|---|---|
 | Cosmetic blocks registered | **66** | **1** | **1** |
 
-Not sixty-six pictures — one block class per shape and per rendering path, because on 1.7.10 a
+Not sixty-six pictures - one block class per shape and per rendering path, because on 1.7.10 a
 block's appearance is a metadata value and an icon per side. Later versions make appearance a
 blockstate and a model handed the position, so one class carries every shape and every gradation.
 
 This matters in one visible way: deleting the jar makes Forge show its *"found ID mismatches"*
 screen once, with sixty-six names to report on 1.7.10 and one on the others. Your world is intact
-either way — none of those blocks is ever placed in the saved world.
+either way - none of those blocks is ever placed in the saved world.
 
 ### Materials
 
@@ -89,8 +89,8 @@ either way — none of those blocks is ever placed in the saved world.
 |---|---|---|---|
 | How a material list is read | the ore dictionary | the ore dictionary | item tags |
 
-Every list of materials in the settings is written in ore-dictionary names — `ingotIron`,
-`gemDiamond` — and stays that way on every edition, so a settings file carries across. The ore
+Every list of materials in the settings is written in ore-dictionary names - `ingotIron`,
+`gemDiamond` - and stays that way on every edition, so a settings file carries across. The ore
 dictionary is gone from 1.13 on, so 1.16.5 translates each name to the tag it means: `ingotIron`
 becomes `forge:ingots/iron`. A pack whose material has no conventional tag can write the tag name
 itself in the setting; anything with a colon or a slash in it is taken as written.
@@ -121,7 +121,7 @@ None of this does anything without a shader pack loaded.
 | Amazing Trophies definitions | verified | unverified; the mod may not exist | no such mod here |
 
 All three tooltip mods descend from WAILA and keep the same `mcp.mobius.waila.api` package, so one
-integration covers them — 1.16.5 is written against the newer shape of that API rather than carried.
+integration covers them - 1.16.5 is written against the newer shape of that API rather than carried.
 
 The quest and trophy integrations work by writing those mods' own JSON into their own config
 folders. This mod links against neither, so both cost exactly nothing when absent, and a file
@@ -133,7 +133,7 @@ written is offered rather than accepted.
 |---|---|---|---|
 | Count | 3 client | 1 common, 1 client | 2 shared, 7 more on Forge, 16 on Fabric |
 
-A mixin that cannot bind — because something else in the pack has moved what it attaches to — costs
+A mixin that cannot bind - because something else in the pack has moved what it attaches to - costs
 the behaviour it carries and not the launch, in every edition. Nothing any of them hooks can damage
 a world, so refusing to start would be aimed at a player who did not choose the conflict and cannot
 fix it.
@@ -141,7 +141,7 @@ fix it.
 The Fabric number is the high one, and not because that jar does more. Forge patches vanilla
 directly and offers events for several of these questions; where it does, Fabric needs a mixin. And
 a mixin that names a method has that name written into a refmap in one loader's names, which the
-other refuses — so a hook both loaders need exists twice, with identical bodies.
+other refuses - so a hook both loaders need exists twice, with identical bodies.
 
 ### Settings screen
 
@@ -151,14 +151,14 @@ other refuses — so a hook both loaders need exists twice, with identical bodie
 | Built on | Forge's config screen | Forge's config screen | Cloth Config |
 
 Forge's own config screen was removed after 1.12.2 and vanilla has never had one, so 1.16.5 uses
-Cloth Config — the one dependency this mod takes that is not a loader. Fabric has no mod list with a
+Cloth Config - the one dependency this mod takes that is not a loader. Fabric has no mod list with a
 Config button at all, which is what Mod Menu is for; without it the settings file and `/trmt reload`
 are the way in.
 
 ### Upgrading a world
 
-Numeric block ids do not exist from 1.12.2 on, so the whole of 1.7.10's id-table machinery — the
-missing-mapping question, the retirement of the four old per-material tampers, the id blocking — has
+Numeric block ids do not exist from 1.12.2 on, so the whole of 1.7.10's id-table machinery - the
+missing-mapping question, the retirement of the four old per-material tampers, the id blocking - has
 no counterpart there. Settings files carry forward on all three, including keys only one version can
 act on.
 

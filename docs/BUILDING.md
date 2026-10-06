@@ -50,8 +50,8 @@ of this repository and build on its own.
 ## Why the portable core is duplicated
 
 Twenty-nine classes appear in both editions, byte for byte. They are the ones that name nothing from
-Minecraft at all — the storage layer, the wear chain, the texture planners, the surface table codec,
-the quest and loot bookkeeping — and they are duplicated rather than shared for the same reason
+Minecraft at all - the storage layer, the wear chain, the texture planners, the surface table codec,
+the quest and loot bookkeeping - and they are duplicated rather than shared for the same reason
 there is no root build: each edition compiles against a different Minecraft with a different
 toolchain, and there is no shared compilation unit for them to live in.
 
@@ -66,7 +66,7 @@ of the tests that runs.
 Consequence worth knowing if you are editing: **a change to any of those twenty-nine classes has to
 be made in both editions identically**, and neither edition may reformat them.
 
-Real shared compilation — a `common/` module with loader-specific subprojects — becomes possible
+Real shared compilation - a `common/` module with loader-specific subprojects - becomes possible
 from Minecraft 1.16.5, where Architectury Loom can give you Minecraft without a loader on the
 classpath. That is where it happened: the 1.16.5 edition is `common`, `forge` and `fabric`, and one
 build produces both jars. The twenty-nine classes are still duplicated *across* editions, for the
