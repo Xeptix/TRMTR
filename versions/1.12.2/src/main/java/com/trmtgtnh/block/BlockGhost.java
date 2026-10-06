@@ -98,6 +98,25 @@ public class BlockGhost extends Block {
     /** A whole cube, which is what a ghost stands in for unless the block it covers says otherwise. */
     public static final int WHOLE_CUBE = 16 << 8;
 
+    /**
+     * The shape of the stair this ghost stands in for, packed, or -1 for every other block.
+     *
+     * <p>
+     * A shape rather than a height, which is why it is a property of its own and not part of
+     * {@link #OUTLINE}: every other ghost is a box over the whole cell and is described by where its
+     * floor and its top are, and a stair is neither.
+     *
+     * <p>
+     * <strong>Packed by this class rather than carried as a state id, because a state id would lose
+     * exactly the part that matters.</strong> A stair's metadata holds its facing and its half; which
+     * of the five shapes it is - straight, or one of the four corners - is not stored at all but
+     * worked out from its neighbours every time it is asked, by {@code getActualState}. Round-tripping
+     * through {@code Block.getStateId} would therefore hand the model a state whose shape had reverted
+     * to straight, and every corner stair in a staircase would draw as though it were not one. See
+     * {@link #stairCodeAt}, which asks the block for its actual state and packs what that answers.
+     */
+    public static final IUnlistedProperty<Integer> STAIR = number("stair");
+
     private static IUnlistedProperty<Integer> number(final String name) {
         return new IUnlistedProperty<Integer>() {
 
@@ -182,7 +201,7 @@ public class BlockGhost extends Block {
         return new ExtendedBlockState(
             this,
             new net.minecraft.block.properties.IProperty[0],
-            new IUnlistedProperty[] { RECORD, ORIGIN, ROTATION, FRINGE_TURN, SNOWED, OUTLINE });
+            new IUnlistedProperty[] { RECORD, ORIGIN, ROTATION, FRINGE_TURN, SNOWED, OUTLINE, STAIR });
     }
 
     /**
@@ -209,7 +228,11 @@ public class BlockGhost extends Block {
                 FRINGE_TURN,
                 Integer.valueOf(com.trmtgtnh.erosion.Rotations.forPosition(pos.getX(), pos.getZ())))
             .withProperty(SNOWED, Integer.valueOf(snowedAt(world, pos) ? 1 : 0))
-            .withProperty(OUTLINE, Integer.valueOf(outlineAt(world, pos, origin)));
+            .withProperty(OUTLINE, Integer.valueOf(outlineAt(world, pos, origin)))
+            // Here rather than in the model, because this is the last place with a world to ask: a
+            // stair's shape is decided by its neighbours and the model is handed a state and nothing
+            // else. See STAIR.
+            .withProperty(STAIR, Integer.valueOf(stairCodeAt(world, pos, origin)));
     }
 
     /**
@@ -224,9 +247,44 @@ public class BlockGhost extends Block {
     @Override
     @Nullable
     public AxisAlignedBB getCollisionBoundingBox(IBlockState state, IBlockAccess world, BlockPos pos) {
-        int outline = outlineAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        // A stair is not one box, so the single-box question has vanilla's own answer for a stair -
+        // the whole cell - and the shape is given in addCollisionBoxToList, which is where vanilla
+        // gives it too.
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        if (stairCodeAt(world, pos, origin) >= 0) {
+            return FULL_BLOCK_AABB;
+        }
+        // A block narrower than its own square keeps its own footing, worn or not - see
+        // GhostInherit.ownFootingAt. Wear is a height off the top of a full cell, which is the wrong
+        // shape for a pad that only covers part of one: handing back a full cell over a cloud turns
+        // a block you fall through into a block you stand on.
+        AxisAlignedBB own = GhostInherit.ownFootingAt(world, pos, origin);
+        if (own != GhostInherit.ORDINARY) return own;
+        int outline = outlineAt(world, pos, origin);
         int sink = collisionSink(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
         return box(outline, sink);
+    }
+
+    /**
+     * The shape a stair is actually walked on, box by box.
+     *
+     * <p>
+     * The one question whose answer cannot be a single box, and the reason a stair needed anything
+     * beyond a height at all. Vanilla's stair gives its shape here and nowhere else; a ghost standing
+     * in for one has to do the same, or a player would walk up an invisible ramp and stand inside the
+     * step they can see.
+     */
+    @Override
+    public void addCollisionBoxToList(IBlockState state, World world, BlockPos pos, AxisAlignedBB entityBox,
+        java.util.List<AxisAlignedBB> colliding, @Nullable net.minecraft.entity.Entity entity, boolean actual) {
+        int stair = stairCodeAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        if (stair < 0) {
+            super.addCollisionBoxToList(state, world, pos, entityBox, colliding, entity, actual);
+            return;
+        }
+        for (AxisAlignedBB box : stairBoxes(stair)) {
+            addCollisionBoxToList(pos, entityBox, colliding, box);
+        }
     }
 
     /**
@@ -238,6 +296,12 @@ public class BlockGhost extends Block {
      */
     @Override
     public AxisAlignedBB getBoundingBox(IBlockState state, IBlockAccess world, BlockPos pos) {
+        // As vanilla's own stair does: the box a player aims at is the whole cell, however the steps
+        // are cut. Fine-grained outlines on stairs are a later version's idea and copying one here
+        // would make a worn stair the only stair in the world that aims differently.
+        if (stairCodeAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) >= 0) {
+            return FULL_BLOCK_AABB;
+        }
         int outline = outlineAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         int sink = drawnSink(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
         return box(outline, sink);
@@ -249,6 +313,201 @@ public class BlockGhost extends Block {
         double top = Math.max(floor, topOf(outline) - sink / 16.0D);
         return new AxisAlignedBB(0.0D, floor, 0.0D, 1.0D, top, 1.0D);
     }
+
+    // ------------------------------------------------------------------
+    // Stairs
+    // ------------------------------------------------------------------
+
+    /**
+     * The shape of the stair this ghost stands in for, packed, or -1 for every other block.
+     *
+     * <p>
+     * Two bits of facing, one of half, three of shape - the whole of what decides a stair's geometry,
+     * and all of it read from the block's <em>actual</em> state rather than its stored one, because
+     * which of the five shapes a stair is comes from its neighbours and is not in its metadata at all.
+     *
+     * <p>
+     * A worn stair keeps the stair's own shape and does not sink. A stair fuses what it looks like and
+     * what it collides as into one answer, so a dip in the picture would be a dip the server has not
+     * got, and the server would spend every tick pushing whoever stood in it back out of ground it
+     * believes is solid. The 1.7.10 edition reached that from the other direction, by extending
+     * vanilla's stair block and finding the two could not be separated there either.
+     */
+    public static int stairCodeAt(IBlockAccess world, BlockPos pos, int origin) {
+        if (origin < 0 || world == null) return -1;
+        try {
+            IBlockState stored = Block.getStateById(origin);
+            if (SurfaceShape.of(stored.getBlock()) != SurfaceShape.STAIR) return -1;
+            IBlockState actual = stored.getBlock()
+                .getActualState(stored, world, pos);
+            int facing = ((net.minecraft.util.EnumFacing) actual.getValue(net.minecraft.block.BlockStairs.FACING))
+                .getHorizontalIndex();
+            boolean top = actual.getValue(net.minecraft.block.BlockStairs.HALF)
+                == net.minecraft.block.BlockStairs.EnumHalf.TOP;
+            int shape = ((net.minecraft.block.BlockStairs.EnumShape) actual
+                .getValue(net.minecraft.block.BlockStairs.SHAPE)).ordinal();
+            return (facing & 3) | (top ? 4 : 0) | (shape << 3);
+        } catch (RuntimeException awkwardBlock) {
+            // A block that answers to being a stair without carrying a stair's properties. It gets
+            // drawn as a cube rather than crashing a chunk rebuild.
+            return -1;
+        }
+    }
+
+    /**
+     * The boxes a stair's shape is made of, in the cell's own frame.
+     *
+     * <p>
+     * <strong>A port of vanilla's own {@code BlockStairs.getCollisionBoxList}, which is private and
+     * takes a state this cannot hand it.</strong> The model is given a state and no world, and a
+     * stair's shape has to be worked out from its neighbours, so the shape is settled once where there
+     * is a world - {@link #stairCodeAt} - and turned back into boxes here. The eighteen boxes below
+     * are vanilla's, with vanilla's names, so the two can be read side by side; the apparent
+     * inversions are vanilla's too, and they are not mistakes - a stair whose half is TOP has its slab
+     * across the top of the cell and its step in the <em>bottom</em> half, which is why the top half
+     * asks for the boxes named BOT.
+     *
+     * <p>
+     * One answer serves the collision box, the outline a player aims at and the boxes the model draws,
+     * which is what keeps the three agreeing. The 1.16.5 edition gets the same list from
+     * {@code VoxelShape.toAabbs}, which is the same geometry by a shorter road.
+     */
+    public static java.util.List<AxisAlignedBB> stairBoxes(int code) {
+        java.util.List<AxisAlignedBB> boxes = new java.util.ArrayList<AxisAlignedBB>(3);
+        if (code < 0) return boxes;
+
+        boolean top = (code & 4) != 0;
+        net.minecraft.util.EnumFacing facing = net.minecraft.util.EnumFacing.byHorizontalIndex(code & 3);
+        net.minecraft.block.BlockStairs.EnumShape[] shapes = net.minecraft.block.BlockStairs.EnumShape.values();
+        int which = code >> 3;
+        net.minecraft.block.BlockStairs.EnumShape shape = which >= 0 && which < shapes.length ? shapes[which]
+            : net.minecraft.block.BlockStairs.EnumShape.STRAIGHT;
+
+        boxes.add(top ? AABB_SLAB_TOP : AABB_SLAB_BOTTOM);
+        if (shape == net.minecraft.block.BlockStairs.EnumShape.STRAIGHT
+            || shape == net.minecraft.block.BlockStairs.EnumShape.INNER_LEFT
+            || shape == net.minecraft.block.BlockStairs.EnumShape.INNER_RIGHT) {
+            boxes.add(stairQuarter(top, facing));
+        }
+        if (shape != net.minecraft.block.BlockStairs.EnumShape.STRAIGHT) {
+            boxes.add(stairEighth(top, facing, shape));
+        }
+        return boxes;
+    }
+
+    /** A quarter of a block - two eighth-size cubes back to back. In every shape but the outer ones. */
+    private static AxisAlignedBB stairQuarter(boolean top, net.minecraft.util.EnumFacing facing) {
+        switch (facing) {
+            case SOUTH:
+                return top ? AABB_QTR_BOT_SOUTH : AABB_QTR_TOP_SOUTH;
+            case WEST:
+                return top ? AABB_QTR_BOT_WEST : AABB_QTR_TOP_WEST;
+            case EAST:
+                return top ? AABB_QTR_BOT_EAST : AABB_QTR_TOP_EAST;
+            case NORTH:
+            default:
+                return top ? AABB_QTR_BOT_NORTH : AABB_QTR_TOP_NORTH;
+        }
+    }
+
+    /** An eighth of a block - all three dimensions halved. In every shape but straight. */
+    private static AxisAlignedBB stairEighth(boolean top, net.minecraft.util.EnumFacing facing,
+        net.minecraft.block.BlockStairs.EnumShape shape) {
+        net.minecraft.util.EnumFacing corner;
+        switch (shape) {
+            case OUTER_RIGHT:
+                corner = facing.rotateY();
+                break;
+            case INNER_RIGHT:
+                corner = facing.getOpposite();
+                break;
+            case INNER_LEFT:
+                corner = facing.rotateYCCW();
+                break;
+            case OUTER_LEFT:
+            default:
+                corner = facing;
+                break;
+        }
+        switch (corner) {
+            case SOUTH:
+                return top ? AABB_OCT_BOT_SE : AABB_OCT_TOP_SE;
+            case WEST:
+                return top ? AABB_OCT_BOT_SW : AABB_OCT_TOP_SW;
+            case EAST:
+                return top ? AABB_OCT_BOT_NE : AABB_OCT_TOP_NE;
+            case NORTH:
+            default:
+                return top ? AABB_OCT_BOT_NW : AABB_OCT_TOP_NW;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Which pass a ghost draws in
+    // ------------------------------------------------------------------
+
+    /**
+     * The pass the block this ghost stands in for draws in, which is the pass the ghost draws in.
+     *
+     * <p>
+     * <strong>One ghost standing in for everything has to answer this per position, and a block's
+     * pass is asked of the block rather than of the position.</strong> The 1.7.10 edition has no such
+     * problem: it registers a ghost block per family and variant - a clear one, a window one - and
+     * each simply answers for itself. Here the pass is declared once for the single ghost, and the
+     * only thing that varies per square is which quads are handed over, so the ghost offers itself to
+     * every pass a covered block might use and the model hands back nothing in the passes that are
+     * not this square's.
+     *
+     * <p>
+     * Without it every ghost drew in the cut-out pass: worn ice drew over what was behind it instead
+     * of through it, and a wear picture with holes in it had those holes punched through the ground
+     * rather than filled, which is what "you can see through the top of a worn path" was.
+     */
+    public static net.minecraft.util.BlockRenderLayer layerOf(int origin) {
+        if (origin < 0) return net.minecraft.util.BlockRenderLayer.CUTOUT_MIPPED;
+        try {
+            net.minecraft.util.BlockRenderLayer layer = Block.getStateById(origin)
+                .getBlock()
+                .getRenderLayer();
+            return layer == null ? net.minecraft.util.BlockRenderLayer.CUTOUT_MIPPED : layer;
+        } catch (RuntimeException awkwardBlock) {
+            return net.minecraft.util.BlockRenderLayer.CUTOUT_MIPPED;
+        }
+    }
+
+    /**
+     * Offered to every pass, because which one a square wants is not known until the square is known.
+     *
+     * <p>
+     * Costs a visit to the model in each pass for every ghost; the model answers with an empty list
+     * in all but one, which is the same work vanilla does for any block that declines a pass.
+     */
+    @Override
+    public boolean canRenderInLayer(IBlockState state, net.minecraft.util.BlockRenderLayer layer) {
+        return layer == net.minecraft.util.BlockRenderLayer.SOLID
+            || layer == net.minecraft.util.BlockRenderLayer.CUTOUT_MIPPED
+            || layer == net.minecraft.util.BlockRenderLayer.CUTOUT
+            || layer == net.minecraft.util.BlockRenderLayer.TRANSLUCENT;
+    }
+
+    private static final AxisAlignedBB AABB_SLAB_TOP = new AxisAlignedBB(0.0D, 0.5D, 0.0D, 1.0D, 1.0D, 1.0D);
+    private static final AxisAlignedBB AABB_SLAB_BOTTOM = new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, 0.5D, 1.0D);
+    private static final AxisAlignedBB AABB_QTR_TOP_WEST = new AxisAlignedBB(0.0D, 0.5D, 0.0D, 0.5D, 1.0D, 1.0D);
+    private static final AxisAlignedBB AABB_QTR_TOP_EAST = new AxisAlignedBB(0.5D, 0.5D, 0.0D, 1.0D, 1.0D, 1.0D);
+    private static final AxisAlignedBB AABB_QTR_TOP_NORTH = new AxisAlignedBB(0.0D, 0.5D, 0.0D, 1.0D, 1.0D, 0.5D);
+    private static final AxisAlignedBB AABB_QTR_TOP_SOUTH = new AxisAlignedBB(0.0D, 0.5D, 0.5D, 1.0D, 1.0D, 1.0D);
+    private static final AxisAlignedBB AABB_QTR_BOT_WEST = new AxisAlignedBB(0.0D, 0.0D, 0.0D, 0.5D, 0.5D, 1.0D);
+    private static final AxisAlignedBB AABB_QTR_BOT_EAST = new AxisAlignedBB(0.5D, 0.0D, 0.0D, 1.0D, 0.5D, 1.0D);
+    private static final AxisAlignedBB AABB_QTR_BOT_NORTH = new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, 0.5D, 0.5D);
+    private static final AxisAlignedBB AABB_QTR_BOT_SOUTH = new AxisAlignedBB(0.0D, 0.0D, 0.5D, 1.0D, 0.5D, 1.0D);
+    private static final AxisAlignedBB AABB_OCT_TOP_NW = new AxisAlignedBB(0.0D, 0.5D, 0.0D, 0.5D, 1.0D, 0.5D);
+    private static final AxisAlignedBB AABB_OCT_TOP_NE = new AxisAlignedBB(0.5D, 0.5D, 0.0D, 1.0D, 1.0D, 0.5D);
+    private static final AxisAlignedBB AABB_OCT_TOP_SW = new AxisAlignedBB(0.0D, 0.5D, 0.5D, 0.5D, 1.0D, 1.0D);
+    private static final AxisAlignedBB AABB_OCT_TOP_SE = new AxisAlignedBB(0.5D, 0.5D, 0.5D, 1.0D, 1.0D, 1.0D);
+    private static final AxisAlignedBB AABB_OCT_BOT_NW = new AxisAlignedBB(0.0D, 0.0D, 0.0D, 0.5D, 0.5D, 0.5D);
+    private static final AxisAlignedBB AABB_OCT_BOT_NE = new AxisAlignedBB(0.5D, 0.0D, 0.0D, 1.0D, 0.5D, 0.5D);
+    private static final AxisAlignedBB AABB_OCT_BOT_SW = new AxisAlignedBB(0.0D, 0.0D, 0.5D, 0.5D, 0.5D, 1.0D);
+    private static final AxisAlignedBB AABB_OCT_BOT_SE = new AxisAlignedBB(0.5D, 0.0D, 0.5D, 1.0D, 0.5D, 1.0D);
 
     /**
      * Which of the mod's shapes an outline is, for the rule that halves how far a shape may sink.
@@ -407,6 +666,69 @@ public class BlockGhost extends Block {
     @Override
     public boolean isOpaqueCube(IBlockState state) {
         return false;
+    }
+
+    /**
+     * How much light this square takes out of what passes through it.
+     *
+     * <p>
+     * All of it until the ground sinks, and none once it has. A worn-but-unsunken square is still a
+     * whole block of earth and stops light exactly as the block it stands in for did; letting light
+     * through it lit the cell below a road, and caves under one.
+     *
+     * <p>
+     * The 1.7.10 edition gets this from {@code isOpaqueCube}, which it can answer because it keeps a
+     * separate sunken variant of every ghost - {@code !sunken && !clear && !window}. One ghost
+     * standing in for everything cannot answer that from its state, and {@code isOpaqueCube} is
+     * asked of the state alone, so it stays false and the question is answered per position here
+     * instead. This is the position-aware opacity Forge adds for exactly this kind of block.
+     */
+    @Override
+    public int getLightOpacity(IBlockState state, IBlockAccess world, BlockPos pos) {
+        return sunkAt(world, pos) ? 0 : 255;
+    }
+
+    /**
+     * Whether a neighbour may leave off the face it has against this square.
+     *
+     * <p>
+     * It may, where this square is still a whole block. The 1.7.10 edition answers this through
+     * {@code isOpaqueCube}, which it can make {@code !sunken && !clear && !window} because it keeps a
+     * separate sunken variant of every ghost; one ghost standing in for all of them cannot, because
+     * that question is asked of the state alone. So the state-level answer stays no - which is what
+     * keeps a sunken square from hiding the sides its hollow has just exposed - and the position-level
+     * one is given here, where Forge does hand the position in.
+     *
+     * <p>
+     * Without it the neighbours of every worn square drew faces nobody can see, and the ambient
+     * shading in the corners around a worn square came out lighter than around the block it replaced,
+     * because that shading is worked out from what occludes.
+     *
+     * <p>
+     * <strong>What this version cannot carry:</strong> {@code isOpaqueCube} itself stays false, so
+     * anything that reads opaqueness straight from the state rather than asking per position still
+     * sees a ghost as not opaque. Light is answered separately and per position in
+     * {@link #getLightOpacity}; this is the other half.
+     */
+    @Override
+    public boolean doesSideBlockRendering(IBlockState state, IBlockAccess world, BlockPos pos,
+        net.minecraft.util.EnumFacing side) {
+        if (sunkAt(world, pos)) return false;
+        int outline = outlineAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        // A whole cube only. A slab or a path stands short, and a neighbour that left off its face
+        // against one would show a hole where the square stops.
+        return floorOf(outline) <= 0F && topOf(outline) >= 1F;
+    }
+
+    /**
+     * Whether this square has dropped below the top of the block it stands in for.
+     *
+     * <p>
+     * The question the opacity above turns on, and the one the other edition answers by having a
+     * sunken variant of each ghost rather than by asking the position.
+     */
+    private static boolean sunkAt(IBlockAccess world, BlockPos pos) {
+        return ErosionState.sinkOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
     }
 
     @Override

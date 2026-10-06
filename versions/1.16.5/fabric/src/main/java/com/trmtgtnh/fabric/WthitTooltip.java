@@ -3,16 +3,6 @@ package com.trmtgtnh.fabric;
 import java.util.ArrayList;
 import java.util.List;
 
-import mcp.mobius.waila.api.IComponentProvider;
-import mcp.mobius.waila.api.IDataAccessor;
-import mcp.mobius.waila.api.IEntityAccessor;
-import mcp.mobius.waila.api.IEntityComponentProvider;
-import mcp.mobius.waila.api.IPluginConfig;
-import mcp.mobius.waila.api.IRegistrar;
-import mcp.mobius.waila.api.IWailaPlugin;
-import mcp.mobius.waila.api.TooltipPosition;
-
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
@@ -25,6 +15,15 @@ import com.trmtgtnh.block.BlockGhost;
 import com.trmtgtnh.compat.WailaCompat;
 import com.trmtgtnh.compat.WailaGolem;
 import com.trmtgtnh.entity.EntityGolemOfWays;
+
+import mcp.mobius.waila.api.IComponentProvider;
+import mcp.mobius.waila.api.IDataAccessor;
+import mcp.mobius.waila.api.IEntityAccessor;
+import mcp.mobius.waila.api.IEntityComponentProvider;
+import mcp.mobius.waila.api.IPluginConfig;
+import mcp.mobius.waila.api.IRegistrar;
+import mcp.mobius.waila.api.IWailaPlugin;
+import mcp.mobius.waila.api.TooltipPosition;
 
 /**
  * This mod's lines in WTHIT's block tooltip.
@@ -63,6 +62,8 @@ public final class WthitTooltip implements IWailaPlugin {
 
     @Override
     public void register(IRegistrar registrar) {
+        // Something here reads the reply, so the crosshair is worth asking about. See InspectionCache.
+        com.trmtgtnh.client.InspectionCache.noteReader();
         registrar.registerComponentProvider(new Ground(false), TooltipPosition.BODY, BlockGhost.class);
         registrar.registerComponentProvider(new Ground(true), TooltipPosition.BODY, Block.class);
         registrar.registerComponentProvider(new Golem(), TooltipPosition.BODY, EntityGolemOfWays.class);
@@ -83,13 +84,8 @@ public final class WthitTooltip implements IWailaPlugin {
             if (!config.get(TOGGLE)) return;
             BlockPos at = accessor.getPosition();
             List<String> said = new ArrayList<String>();
-            WailaCompat.ground(
-                said,
-                everyBlock,
-                accessor.getBlock() instanceof BlockGhost,
-                at.getX(),
-                at.getY(),
-                at.getZ());
+            WailaCompat
+                .ground(said, everyBlock, accessor.getBlock() instanceof BlockGhost, at.getX(), at.getY(), at.getZ());
             for (String line : said) {
                 tooltip.add(new TextComponent(line));
             }

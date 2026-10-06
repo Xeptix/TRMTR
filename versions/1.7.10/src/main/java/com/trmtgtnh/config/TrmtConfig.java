@@ -2785,7 +2785,10 @@ public final class TrmtConfig {
             }
         }
         if (bare.isEmpty()) return;
-        Trmt.LOG.warn("{} settings have no hover explanation: {}", Integer.valueOf(bare.size()), bare);
+        Trmt.LOG.warn(
+            "{} settings have no hover explanation: {}",
+            Integer.valueOf(bare.size()),
+            com.trmtgtnh.util.LogSample.of(bare));
     }
 
     private static boolean isBlank(String text) {

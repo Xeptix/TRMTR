@@ -188,6 +188,30 @@ dependencies {
 
 apply from: 'gradle/scripts/dependencies.gradle'
 
+// The verification harness is off in a plain run and has to be asked for, which is the whole point of
+// its being gated: each spike opens a world, drives the player and shuts the game down, and none of
+// that may happen to somebody who merely launched the game. `-Pspike` sets the walking one's gate and
+// `-Pshots` adds the one that photographs. Both are passed by tools/run_client.sh rather than typed.
+//
+// A JavaExec forks its own JVM, so a -D on the Gradle command line sets the property on Gradle and not
+// on the game - which is why this exists at all rather than the script simply passing one through. The
+// 1.16.5 edition says the same thing through Loom's `runs` block.
+['runClient', 'runServer', 'runObfClient', 'runObfServer'].each { taskName ->
+    tasks.named(taskName, JavaExec).configure { JavaExec task ->
+        if (project.hasProperty('spike')) {
+            task.systemProperty('trmt.spike.walk', 'true')
+        }
+        if (project.hasProperty('shots')) {
+            task.systemProperty('trmt.spike.shots', 'true')
+        }
+        // Which parts of the run are wanted - walk, show, demo1, demo2 - so one of them can be
+        // refreshed on its own. Nothing given means all of them. See the harness's wanted().
+        if (project.hasProperty('only')) {
+            task.systemProperty('trmt.spike.only', project.property('only').toString())
+        }
+    }
+}
+
 if (propertyBool('use_mixins')) {
     ['runClient', 'runServer', 'runObfClient', 'runObfServer'].each { taskName ->
         tasks.named(taskName, JavaExec).configure { JavaExec task ->

@@ -1,12 +1,11 @@
 package com.trmtgtnh.fabric;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
 
-import net.fabricmc.fabric.api.renderer.v1.model.FabricBakedModel;
 import net.fabricmc.fabric.api.renderer.v1.mesh.QuadEmitter;
+import net.fabricmc.fabric.api.renderer.v1.model.FabricBakedModel;
 import net.fabricmc.fabric.api.renderer.v1.render.RenderContext;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.block.model.ItemOverrides;
@@ -54,24 +53,60 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
     }
 
     @Override
-    public void emitBlockQuads(BlockAndTintGetter level, BlockState state, BlockPos pos,
-        Supplier<Random> random, RenderContext context) {
+    public void emitBlockQuads(BlockAndTintGetter level, BlockState state, BlockPos pos, Supplier<Random> random,
+        RenderContext context) {
         short record = Client.ghostRecordAt(level, pos.getX(), pos.getY(), pos.getZ());
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(),
-            com.trmtgtnh.erosion.ErosionState.sinkOf(record));
+        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), com.trmtgtnh.erosion.ErosionState.sinkOf(record));
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
 
         // Asked once without a side and once per side, which is how both older editions are asked and
         // what decides whether a face can be culled away. See emit.
-        emit(context, GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null), null);
+        java.util.List<net.minecraft.world.phys.AABB> stairs = BlockGhost.stairBoxesAt(level, pos, origin);
+        // The pass this square belongs in, carried on every quad it emits. See materialFor.
+        net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial material = materialFor(origin);
+        emit(
+            context,
+            GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
+            null,
+            material);
         for (Direction side : Direction.values()) {
-            emit(context, GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, side), side);
+            emit(
+                context,
+                GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
+                side,
+                material);
         }
+    }
+
+    /**
+     * The material a square's quads carry, which is how this loader chooses a pass.
+     *
+     * <p>
+     * Fabric binds a block to one pass and offers no way to ask which pass is being built, so the
+     * Forge side's trick - claim every pass, hand back nothing in the three that are wrong - has
+     * nothing here to hook on to. Its rendering API answers a better question instead: a
+     * <em>quad</em> may carry its own blend mode, and the block's registered pass is only the
+     * fallback for quads that do not. So worn ice emits translucent quads and worn stone solid ones,
+     * out of one model, with no second block and no second registration.
+     *
+     * <p>
+     * Null when no renderer is installed, which cannot happen while Fabric API is present - Indigo is
+     * part of it - but is checked because a null slipped into {@code material()} would be a crash on
+     * every worn square rather than a wrong-looking one.
+     */
+    private static net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial materialFor(int origin) {
+        net.fabricmc.fabric.api.renderer.v1.Renderer renderer = net.fabricmc.fabric.api.renderer.v1.RendererAccess.INSTANCE
+            .getRenderer();
+        if (renderer == null) return null;
+        return renderer.materialFinder()
+            .clear()
+            .blendMode(0, com.trmtgtnh.client.GhostLayers.of(origin))
+            .find();
     }
 
     /**
@@ -108,7 +143,8 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
      * watching a run said "that is a hole" and was right. See {@code GhostModelForge}, which had a
      * different fault with the same symptom at the same time.
      */
-    private static void emit(RenderContext context, List<BakedQuad> quads, Direction cull) {
+    private static void emit(RenderContext context, List<BakedQuad> quads, Direction cull,
+        net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial material) {
         for (BakedQuad quad : quads) {
             // Once, and kept. See above - this is not a tidy-up.
             QuadEmitter emitter = context.getEmitter();
@@ -116,6 +152,8 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
             emitter.cullFace(cull);
             emitter.nominalFace(quad.getDirection());
             emitter.colorIndex(quad.getTintIndex());
+            // Before emit, like everything else here, and after fromVanilla, which does not touch it.
+            if (material != null) emitter.material(material);
             emitter.emit();
         }
     }
@@ -129,9 +167,26 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
     // The vanilla half, which nothing should reach but everything must answer
     // ------------------------------------------------------------------
 
+    /**
+     * The plain block, for a renderer that does not speak the mesh API.
+     *
+     * <p>
+     * {@code isVanillaAdapter} says false, so a renderer that implements FRAPI - Indigo, or Sodium
+     * with Indium beside it - calls {@link #emitBlockQuads} and never this. One that does not
+     * implement FRAPI has no way to be told which square it is drawing, and there is no position in
+     * this signature to read: Sodium on its own is the case that matters, since a player may well
+     * install it without Indium.
+     *
+     * <p>
+     * It used to answer with nothing, and nothing is the worst available answer - the ghost has
+     * replaced the ground in the client's own copy of the world, so no quads means a hole you can
+     * see the sky through rather than a path. That is exactly what Forge's half did on 2026-10-06
+     * with Rubidium installed, photographed in a real instance, and this is the same fault waiting on
+     * this side. Unworn ground says "this renderer draws no wear"; a hole says "this mod is broken".
+     */
     @Override
     public List<BakedQuad> getQuads(BlockState state, Direction side, Random random) {
-        return Collections.emptyList();
+        return fallback.getQuads(state, side, random);
     }
 
     @Override

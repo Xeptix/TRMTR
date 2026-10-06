@@ -9,28 +9,25 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.item.Items;
+import net.minecraft.util.Mth;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.core.BlockPos;
-import net.minecraft.util.Mth;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TextComponent;
-import net.minecraft.network.chat.TranslatableComponent;
-import net.minecraft.ChatFormatting;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.block.GhostMapColour;
 import com.trmtgtnh.block.ModBlocks;
 import com.trmtgtnh.config.ConfigReload;
 import com.trmtgtnh.config.FamilySettings;
-import com.trmtgtnh.block.GhostMapColour;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ChunkErosionData;
 import com.trmtgtnh.erosion.ErosionChain;
@@ -74,8 +71,7 @@ public final class CommandTrmt {
      * command is mistyped; there is no such method here, so the string is the string and the
      * refusals below carry it themselves.
      */
-    private static final String USAGE =
-        "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolour|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+    private static final String USAGE = "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolour|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
 
     private CommandTrmt() {}
 
@@ -174,8 +170,7 @@ public final class CommandTrmt {
         try {
             runCommand(sender, args);
         } catch (com.mojang.brigadier.exceptions.CommandSyntaxException refused) {
-            sender.sendFailure(
-                new net.minecraft.network.chat.TextComponent(ChatFormatting.RED + refused.getMessage()));
+            sender.sendFailure(new net.minecraft.network.chat.TextComponent(ChatFormatting.RED + refused.getMessage()));
         }
     }
 
@@ -244,6 +239,7 @@ public final class CommandTrmt {
      */
     private static final java.util.regex.Pattern COLOUR_CODES = java.util.regex.Pattern
         .compile("(?i)\u00a7[0-9a-fk-or]");
+
     private static void runCommand(CommandSourceStack sender, String[] args)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         if (args.length == 0) throw refuse(USAGE);
@@ -748,12 +744,21 @@ public final class CommandTrmt {
     }
 
     /**
-     * Puts a block with a metadata at these coordinates.
+     * Puts a block at these coordinates, in the state it is normally placed in.
      *
      * <p>
-     * The metadata becomes a state through the block's own {@code getStateFromMeta}, which is the
-     * same translation the block does for its own saved data - so a metadata the other edition
-     * chose on purpose, a sign's rotation or a slab's half, means here what it meant there.
+     * <strong>The metadata is carried for the caller's sake and is not used.</strong> There is no
+     * {@code getStateFromMeta} at this version - a state is not a number here - and the honest
+     * reading of "the variant this block is usually in" is its default state. The javadoc used to
+     * claim the number was translated, which was never true of this version's code and read as
+     * though a slab's half or a sign's rotation would be carried across.
+     *
+     * <p>
+     * Taking the default is also what makes this edition's demonstration build right-way-up stairs
+     * and slabs that sit on the floor of their cell. The 1.12.2 edition picks a metadata instead, and
+     * picked the first one each block declared - which for every vanilla stair and slab is the
+     * upside-down half, so it built the whole yard inverted. It asks for the default first now, for
+     * the same reason this does.
      */
     private static void place(Level world, int x, int y, int z, Block block, int meta, int flags) {
         world.setBlock(new BlockPos(x, y, z), block.defaultBlockState(), flags);
@@ -786,7 +791,8 @@ public final class CommandTrmt {
             .isReplaceable();
     }
 
-    private static void showcase(CommandSourceStack sender, String[] args) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static void showcase(CommandSourceStack sender, String[] args)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         if (!(sender.getEntity() instanceof ServerPlayer)) {
             reply(sender, ChatFormatting.RED, "Only a player can lay out a showcase.");
             return;
@@ -933,7 +939,11 @@ public final class CommandTrmt {
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
         ChunkErosionData data = ErosionStore.get()
-            .getOrCreateChunk(ErosionStore.get().indexOf(world), chunkX, chunkZ);
+            .getOrCreateChunk(
+                ErosionStore.get()
+                    .indexOf(world),
+                chunkX,
+                chunkZ);
         int key = com.trmtgtnh.erosion.ErosionKey.packWorld(x, y, z);
         com.trmtgtnh.erosion.ErosionEntry entry = data.get(key);
         if (entry == null) {
@@ -954,7 +964,8 @@ public final class CommandTrmt {
             .markModified(world, chunkX, chunkZ);
     }
 
-    private static void demonstrate(CommandSourceStack sender, String[] args) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static void demonstrate(CommandSourceStack sender, String[] args)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         if (!(sender.getEntity() instanceof ServerPlayer)) {
             reply(sender, ChatFormatting.RED, "Only a player has somewhere for this to be built above.");
             return;
@@ -1059,8 +1070,7 @@ public final class CommandTrmt {
                 String[] shape = arg.substring(arg.indexOf('=') + 1)
                     .split("x");
                 if (shape.length != 2) {
-                    throw refuse(
-                        "/trmt demonstrate: realdemo= wants width x length, as in realdemo=16x128");
+                    throw refuse("/trmt demonstrate: realdemo= wants width x length, as in realdemo=16x128");
                 }
                 try {
                     roadWidth = Math.max(2, Math.min(64, Integer.parseInt(shape[0].trim())));
@@ -1068,8 +1078,7 @@ public final class CommandTrmt {
                     roads = true;
                     continue;
                 } catch (NumberFormatException notAShape) {
-                    throw refuse(
-                        "/trmt demonstrate: realdemo= wants width x length, as in realdemo=16x128");
+                    throw refuse("/trmt demonstrate: realdemo= wants width x length, as in realdemo=16x128");
                 }
             }
             if ("cleararea".equals(arg)) {
@@ -1092,8 +1101,7 @@ public final class CommandTrmt {
                 String[] at = arg.substring(9)
                     .split(",");
                 if (at.length != 2) {
-                    throw refuse(
-                        "/trmt demonstrate: samearea= wants two numbers, as in samearea=123,456");
+                    throw refuse("/trmt demonstrate: samearea= wants two numbers, as in samearea=123,456");
                 }
                 try {
                     anchorX = Integer.parseInt(at[0].trim());
@@ -1101,8 +1109,7 @@ public final class CommandTrmt {
                     anchored = true;
                     continue;
                 } catch (NumberFormatException notACoordinate) {
-                    throw refuse(
-                        "/trmt demonstrate: samearea= wants two numbers, as in samearea=123,456");
+                    throw refuse("/trmt demonstrate: samearea= wants two numbers, as in samearea=123,456");
                 }
             }
             if ("tight".equals(arg) || "nogap".equals(arg)) {
@@ -1168,8 +1175,7 @@ public final class CommandTrmt {
                     // Square only. The gradient runs along one axis and wraps onto the next row,
                     // so a platform that is not square reads as a mistake rather than as a ramp.
                     if (width != depth) {
-                        throw refuse(
-                            "/trmt demonstrate: platforms are square, so 4x4 rather than " + arg);
+                        throw refuse("/trmt demonstrate: platforms are square, so 4x4 rather than " + arg);
                     }
                     size = Math.max(1, Math.min(DEMO_MAX_SIZE, width));
                     if (parts.length == 3) {
@@ -1465,7 +1471,11 @@ public final class CommandTrmt {
             int chunkX = (int) (key.longValue() >> 32);
             int chunkZ = (int) key.longValue();
             ChunkErosionData data = ErosionStore.get()
-                .getChunk(ErosionStore.get().indexOf(world), chunkX, chunkZ);
+                .getChunk(
+                    ErosionStore.get()
+                        .indexOf(world),
+                    chunkX,
+                    chunkZ);
             if (data != null) TrmtNetwork.sendChunkToWatchers(world, chunkX, chunkZ, data, true);
         }
 
@@ -1848,7 +1858,11 @@ public final class CommandTrmt {
                     int chunkX = (originX + Math.min(along, length - 1)) >> 4;
                     int chunkZ = (stripZ + Math.min(across, width - 1)) >> 4;
                     ChunkErosionData data = ErosionStore.get()
-                        .getChunk(ErosionStore.get().indexOf(world), chunkX, chunkZ);
+                        .getChunk(
+                            ErosionStore.get()
+                                .indexOf(world),
+                            chunkX,
+                            chunkZ);
                     if (data != null) TrmtNetwork.sendChunkToWatchers(world, chunkX, chunkZ, data, true);
                 }
             }
@@ -1977,8 +1991,8 @@ public final class CommandTrmt {
         // tail should be the fortieth nearly identical tamper grade rather than every block the
         // other thirty-nine are for.
         out.add(new ItemStack(Items.BONE_MEAL, 64));
-        Block[] ground = { Blocks.DIRT, Blocks.GRASS_BLOCK, Blocks.COBBLESTONE, Blocks.STONE, Blocks.SAND, Blocks.GRAVEL,
-            Blocks.SNOW_BLOCK, Blocks.SNOW, Blocks.ICE, Blocks.NETHERRACK, Blocks.END_STONE };
+        Block[] ground = { Blocks.DIRT, Blocks.GRASS_BLOCK, Blocks.COBBLESTONE, Blocks.STONE, Blocks.SAND,
+            Blocks.GRAVEL, Blocks.SNOW_BLOCK, Blocks.SNOW, Blocks.ICE, Blocks.NETHERRACK, Blocks.END_STONE };
         for (Block block : ground) {
             out.add(new ItemStack(block, 64));
         }
@@ -2028,7 +2042,7 @@ public final class CommandTrmt {
     }
 
     /** The plainest block of a family, so a road reads as ground rather than as a mod's sampler. */
-    static Block roadBlock(SurfaceFamily family) {
+    public static Block roadBlock(SurfaceFamily family) {
         switch (family) {
             case GRASS:
                 return Blocks.GRASS;
@@ -2212,10 +2226,7 @@ public final class CommandTrmt {
         }
         ServerPlayer player = (ServerPlayer) sender.getEntity();
         Level world = player.level;
-        BlockPos under = new BlockPos(
-            Mth.floor(player.getX()),
-            Mth.floor(player.getY()) - 1,
-            Mth.floor(player.getZ()));
+        BlockPos under = new BlockPos(Mth.floor(player.getX()), Mth.floor(player.getY()) - 1, Mth.floor(player.getZ()));
 
         BlockState standing = world.getBlockState(under);
         net.minecraft.world.level.material.MaterialColor drawn = standing.getMapColor(world, under);

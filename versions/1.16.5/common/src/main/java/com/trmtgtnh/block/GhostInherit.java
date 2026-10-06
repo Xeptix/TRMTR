@@ -2,12 +2,14 @@ package com.trmtgtnh.block;
 
 import java.util.Random;
 
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import com.trmtgtnh.Client;
 import com.trmtgtnh.Trmt;
@@ -17,10 +19,15 @@ import com.trmtgtnh.config.TrmtConfig;
  * The parts of the covered block a ghost goes on letting through.
  *
  * <p>
- * A ghost mirrors the block it is covering wherever anything but rendering can tell, and two of those
+ * A ghost mirrors the block it is covering wherever anything but rendering can tell. Two of those
  * ways are things the block does rather than things it is: scattering its own ambient particles, and
  * acting on whatever stands inside it. Both are plain {@code Block} calls that the ghost receives
  * instead of the block it stands for, so both have to be handed on.
+ *
+ * <p>
+ * The third is a thing the block <em>is</em>, and it was missing from this edition until 2026-10-06:
+ * the footing it insists on. This javadoc used to say "two of those ways" and mean it, which is how
+ * the absence went unseen - a list that sounds complete is not a list anybody checks.
  *
  * <p>
  * The other edition does this from a class of the same name and keeps a third thing in it that lives
@@ -52,6 +59,60 @@ public final class GhostInherit {
 
     private static void leave() {
         INSIDE.remove();
+    }
+
+    /** A ten-thousandth of a block, finer than anything states its own edges to. */
+    private static final double TOLERANCE = 1.0E-4D;
+
+    /**
+     * The footing the covered block insists on for itself, or null when it insists on none.
+     *
+     * <p>
+     * Wear is a height taken off the top of a full cell, and that is the right shape for every kind
+     * of ground there is - earth, rock, sand, a slab, a made path. It is the wrong shape for a block
+     * that occupies less of its square than that. A cloud is a pad a little over half across sitting
+     * at the bottom of its cell, and a stand-in handing back a full cell over one turns a block you
+     * fall through into a block you stand on. So a block narrower than its own square keeps its own
+     * answer, worn or not, and a rut is simply never cut into it.
+     *
+     * <p>
+     * Only the footprint is measured and never the height, because a shorter block is exactly what
+     * wear produces and is what the record already knows how to describe. A slab and a grass path
+     * fill their square and stand short, and both go on wearing as they always have. A stair's shape
+     * is not full either, but the union of its boxes is, so it is not caught here - and it is
+     * answered before this anyway.
+     *
+     * <p>
+     * Both sides ask the same question of the same block: the server through
+     * {@code PhysicalDecay.fillsItsFootprint}, the client through here. A footing derived from two
+     * rules is two machines disagreeing about where somebody is standing.
+     *
+     * @return the block's own shape when it is narrower than its square, an empty shape when it
+     *         insists on no footing at all, and null when it takes whatever footing it is given
+     */
+    public static VoxelShape ownFootingAt(BlockGetter world, BlockPos pos, int origin) {
+        if (origin < 0 || world == null || pos == null) return null;
+        if (!enter()) return null;
+        try {
+            BlockState under = Block.stateById(origin);
+            if (under == null || under.getBlock() instanceof BlockGhost) return null;
+
+            VoxelShape own = under.getCollisionShape(world, pos);
+            if (own == null) return null;
+            if (own.isEmpty()) return own;
+
+            net.minecraft.world.phys.AABB bounds = own.bounds();
+            boolean narrow = bounds.minX > TOLERANCE || bounds.minZ > TOLERANCE
+                || bounds.maxX < 1.0D - TOLERANCE
+                || bounds.maxZ < 1.0D - TOLERANCE;
+            return narrow ? own : null;
+        } catch (RuntimeException awkwardBlock) {
+            // A block that will not say what shape it is still gets the usual footing rather than
+            // taking a chunk's collision pass down with it.
+            return null;
+        } finally {
+            leave();
+        }
     }
 
     /**

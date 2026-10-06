@@ -265,6 +265,19 @@ public final class ErosionStore {
 
         long key = chunkKey(chunk.getWorld().provider.getDimension(), chunk.x, chunk.z);
         ChunkErosionData data = pending.remove(Long.valueOf(key));
+
+        // A record this chunk left behind on its way out and which was never written. The save that
+        // was meant to follow the unload did not come, so the record sat in `unloading` while the
+        // disk kept an older copy of the same chunk - and when the chunk came back that older copy
+        // was read into `pending` and promoted straight over the top of it. Wear going backwards,
+        // with every byte of the newer version still in memory at the time. What is held here is
+        // always at least as new as what is on disk, so it wins outright.
+        ChunkErosionData stranded = unloading.remove(Long.valueOf(key));
+        if (stranded != null && !stranded.isEmpty()) {
+            data = stranded;
+            chunk.markDirty();
+        }
+
         if (data != null && !data.isEmpty()) {
             loaded.put(Long.valueOf(key), data);
         } else {

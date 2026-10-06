@@ -34,6 +34,19 @@ public final class ForgeClientSetup {
 
     @SubscribeEvent
     public static void client(FMLClientSetupEvent event) {
+        // Every pass a covered block might draw in, because one ghost stands in for all of them and
+        // which pass a square wants is not known until the square is. The model hands back nothing
+        // in the three that are not this square's; see GhostLayers, which both loaders share, and
+        // TrmtFabricClient, which acts on the same answer the other way round.
+        //
+        // It began as a single declaration of cut-out mipped, which was already an improvement on
+        // declaring nothing - in the solid pass a cut-out texture's holes are drawn as though they
+        // were opaque, so grass's fringe came out as a grey rectangle over the whole face. But one
+        // pass for every ghost is the wrong shape of answer: it left worn ice drawing over what was
+        // behind it rather than through it.
+        net.minecraft.client.renderer.ItemBlockRenderTypes
+            .setRenderLayer(com.trmtgtnh.block.ModBlocks.ghost(), com.trmtgtnh.client.GhostLayers::claims);
+
         // What draws a Golem of Ways. Both older editions need a factory class for this - 1.12.2
         // because the render manager is built after the proxy runs, 1.7.10 because it registers the
         // renderer object itself - and that factory is Forge's own interface, so it could never
@@ -45,9 +58,8 @@ public final class ForgeClientSetup {
         // And what screen its orders open on. Through the game's own class here, which Forge makes
         // public with an access transformer; Fabric's copy of this line goes through its API
         // because vanilla's method is private and Fabric does not patch vanilla.
-        net.minecraft.client.gui.screens.MenuScreens.register(
-            com.trmtgtnh.entity.GolemMenu.type(),
-            com.trmtgtnh.client.gui.GuiGolem::new);
+        net.minecraft.client.gui.screens.MenuScreens
+            .register(com.trmtgtnh.entity.GolemMenu.type(), com.trmtgtnh.client.gui.GuiGolem::new);
 
         // Which picture draws a tamper, from the grade in the stack. The rule is TamperModels' and
         // is shared; only the door differs - Forge patches vanilla's register public, and Fabric is
@@ -63,6 +75,22 @@ public final class ForgeClientSetup {
                 .getItemColors());
 
         Trmt.LOG.info("Registered the golem's renderer and screen, and the tampers' grade property, with Forge");
+    }
+
+    /**
+     * What colour a ghost is at a place.
+     *
+     * <p>
+     * Its own event rather than a line in {@link #client}: the block colours are built after setup
+     * and Forge hands them over here, which is the only moment there is a registry to put this in.
+     * The rule itself is {@code GhostTint}'s and is shared - Fabric registers the same object with
+     * its own registry - because what colour worn grass is has nothing to do with which loader is
+     * asking.
+     */
+    @SubscribeEvent
+    public static void colours(net.minecraftforge.client.event.ColorHandlerEvent.Block event) {
+        event.getBlockColors()
+            .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghost());
     }
 
     /** The grade property, on both tools that are drawn by one. */

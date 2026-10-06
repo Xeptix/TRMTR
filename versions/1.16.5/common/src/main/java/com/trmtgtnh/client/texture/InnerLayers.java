@@ -458,7 +458,7 @@ public final class InnerLayers {
         Trmt.LOG.warn(
             "innerLayerTextures names {} texture(s) that could not be read, so those blocks keep their holes: {}",
             Integer.valueOf(unresolved.size()),
-            unresolved);
+            com.trmtgtnh.util.LogSample.of(unresolved));
         unresolved.clear();
     }
 }

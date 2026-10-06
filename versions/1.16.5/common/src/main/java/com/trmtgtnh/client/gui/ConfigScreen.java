@@ -156,7 +156,7 @@ public final class ConfigScreen {
     /** One setting, as whichever kind of entry its own type asks for. */
     private static me.shedaniel.clothconfig2.api.AbstractConfigListEntry<?> entry(ConfigEntryBuilder entries,
         final ConfigFile.Setting setting) {
-        Component name = new TextComponent(title(setting.getName()));
+        Component name = named(setting);
         Component[] note = note(setting);
 
         if (setting.isList()) {
@@ -199,13 +199,66 @@ public final class ConfigScreen {
                 }
                 return made.build();
             }
-            default:
-                return entries.startStrField(name, setting.getString())
-                    .setDefaultValue(setting.getDefault())
-                    .setTooltip(note)
-                    .setSaveConsumer(value -> setting.set(value))
-                    .build();
+            default: {
+                // A setting that names its own valid values gets a chooser, not a text box.
+                //
+                // Found by the unwired sweep on 2026-10-06: ConfigFile.Setting has carried
+                // getValidValues() in this edition since it was ported and nothing ever asked it, so
+                // every such setting - the wear patterns, the looks - was a free text field here and a
+                // constrained chooser in the other two. A player could type a pattern that does not
+                // exist and the screen would take it. That is a difference in what the mod lets you
+                // do, not in how it looks.
+                String[] choices = setting.getValidValues();
+                if (choices != null && choices.length > 0) {
+                    String current = setting.getString();
+                    boolean known = false;
+                    for (String one : choices) {
+                        if (one.equals(current)) known = true;
+                    }
+                    // A value already in the file that is not on the list would otherwise be dropped
+                    // silently the moment the screen opened; it stays, and choosing anything else
+                    // leaves it behind.
+                    return needsRestart(
+                        entries.startSelector(name, known ? choices : with(choices, current), current)
+                            .setDefaultValue(setting.getDefault())
+                            .setTooltip(note)
+                            .setSaveConsumer(value -> setting.set(value)),
+                        setting)
+                                .build();
+                }
+                return needsRestart(
+                    entries.startStrField(name, setting.getString())
+                        .setDefaultValue(setting.getDefault())
+                        .setTooltip(note)
+                        .setSaveConsumer(value -> setting.set(value)),
+                    setting)
+                            .build();
+            }
         }
+    }
+
+    /**
+     * Marks a setting that only takes effect after a restart, where it says so.
+     *
+     * <p>
+     * The other two editions pass {@code requiresMcRestart} to Forge's own screen, which puts a note
+     * beside the entry. Cloth has the same idea under a different name, and this edition was carrying
+     * the flag without ever telling anybody - so a setting that needed a restart looked exactly like
+     * one that did not, and the only way to find out was that nothing happened.
+     */
+    private static <T, E extends me.shedaniel.clothconfig2.api.AbstractConfigListEntry<T>,
+        B extends me.shedaniel.clothconfig2.impl.builders.FieldBuilder<T, E, B>> B needsRestart(B made,
+            ConfigFile.Setting setting) {
+        made.requireRestart(setting.requiresMcRestart());
+        return made;
+    }
+
+    /** The valid values with one more on the end, for a file that already holds something else. */
+    private static String[] with(String[] choices, String extra) {
+        String[] all = new String[choices.length + 1];
+        System.arraycopy(choices, 0, all, 0, choices.length);
+        all[choices.length] = extra;
+        return all;
     }
 
     /**
@@ -309,6 +362,34 @@ public final class ConfigScreen {
     }
 
     /** A category or setting name as a heading: {@code wearStrength} reads as "Wear strength". */
+    /**
+     * What a setting is called on screen: its own translated name where it declares one, and
+     * otherwise its key, spaced out.
+     *
+     * <p>
+     * <strong>Three settings declare one</strong> - {@code showErosion},
+     * {@code overlayDistanceChunks} and {@code perSurfaceTextures} - and they are the three a player
+     * is most likely to go looking for, which is why they were given human names in the first place.
+     * Both older editions hand the key to Forge's own config screen, which looks it up and shows the
+     * translation; this screen is not Forge's, so nothing was looking it up and the three read "Show
+     * erosion", "Overlay distance chunks" and "Per surface textures" here while reading "Show worn
+     * paths", "Overlay distance" and "Per-surface wear textures" in the other two. The translations
+     * were already shipped in this edition's {@code en_us.json}; only the question was missing.
+     *
+     * <p>
+     * A key that has no translation is shown spaced out rather than raw, which is the test Forge
+     * makes too: {@code Language.getOrDefault} hands back the key itself when it knows nothing about
+     * it, so a key is translated exactly when the answer differs from the question.
+     */
+    private static Component named(ConfigFile.Setting setting) {
+        String key = setting.getLanguageKey();
+        if (key != null && !key.isEmpty()) {
+            String said = com.trmtgtnh.util.Translate.get(key);
+            if (!key.equals(said)) return new TextComponent(said);
+        }
+        return new TextComponent(title(setting.getName()));
+    }
+
     private static String title(String name) {
         if (name == null || name.isEmpty()) return "";
         StringBuilder out = new StringBuilder();

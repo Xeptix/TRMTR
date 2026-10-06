@@ -60,6 +60,17 @@ public final class TrmtFabricClient implements ClientModInitializer {
         // asked about every variant the game loads - see GhostModelProvider for what it answers.
         ModelLoadingRegistry.INSTANCE.registerVariantProvider(manager -> new GhostModelProvider());
 
+        // Which pass the ghost draws in, and what colour it is at a place. Both are things a block
+        // tells the client rather than the game, both are one line per loader, and neither was said
+        // on this edition: the ghost drew in the solid pass, where a cut-out texture's holes are
+        // filled in, and asked for tints nothing answered. Worn grass came out as grey slabs for
+        // both reasons at once. See BlockGhost for the pass and GhostTint for the colour; the Forge
+        // module says the same two things in ForgeClientSetup.
+        net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap.INSTANCE
+            .putBlock(com.trmtgtnh.block.ModBlocks.ghost(), net.minecraft.client.renderer.RenderType.cutoutMipped());
+        net.fabricmc.fabric.api.client.rendering.v1.ColorProviderRegistry.BLOCK
+            .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghost());
+
         // What draws a Golem of Ways, and what screen its orders open on. One line each, in the
         // only place that already knows it is a client; see TrmtForge for the other loader's pair.
         //
@@ -76,9 +87,8 @@ public final class TrmtFabricClient implements ClientModInitializer {
         // the field with a line of access widener. See ItemTints.
         com.trmtgtnh.client.gui.ItemTints.use(net.minecraft.client.Minecraft.getInstance().itemColors);
 
-        net.fabricmc.fabric.api.client.screenhandler.v1.ScreenRegistry.register(
-            com.trmtgtnh.entity.GolemMenu.type(),
-            com.trmtgtnh.client.gui.GuiGolem::new);
+        net.fabricmc.fabric.api.client.screenhandler.v1.ScreenRegistry
+            .register(com.trmtgtnh.entity.GolemMenu.type(), com.trmtgtnh.client.gui.GuiGolem::new);
 
         // Which picture draws a tamper, from the grade in the stack. The same disagreement as the
         // screen above and this time with the other answer: vanilla's register is private here too,

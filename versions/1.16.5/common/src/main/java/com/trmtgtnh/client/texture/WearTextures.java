@@ -7,14 +7,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
-import net.minecraft.world.level.block.Block;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlas;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
@@ -542,6 +541,8 @@ public final class WearTextures {
      * read the same as the other edition's; timed from the stitch event to here, which is the whole of what composing
      * cost, spread across the atlas's own loading.
      */
+
+
     private static void finishPass() {
         Pass current = pass;
         pass = null;
@@ -556,7 +557,20 @@ public final class WearTextures {
                     Long.valueOf((System.nanoTime() - current.began) / 1000000L), Integer.valueOf(tally.surfaces),
                     Integer.valueOf(tally.guessed), Integer.valueOf(tally.unreadable), Integer.valueOf(tally.failed) });
             if (!tally.improvised.isEmpty()) {
-                Trmt.LOG.info("Wearing a family stand-in rather than their own pixels: {}", tally.improvised);
+                // Counted and sampled rather than handed over whole.
+                //
+                // This line used to pass the set itself, and log4j stringifies a collection parameter by
+                // walking it. On 1.16.5, where a stitch composes forty-four thousand pictures from a
+                // hundred and fifty-six surfaces, that walk threw OutOfMemoryError with a StringBuilder
+                // past two gigabytes - inside TextureAtlas.reload, which took the whole resource reload
+                // down with it and left Indigo tessellating blocks with a null model. The game did not
+                // start. The other two editions have small enough packs that it never showed.
+                //
+                // The count is what anybody reads anyway; the names are a sample off a snapshot, so the
+                // line is bounded whatever the set is doing. A log line may not be able to stop a game.
+                Trmt.LOG.info(
+                    "Wearing a family stand-in rather than their own pixels: {}",
+                    com.trmtgtnh.util.LogSample.of(tally.improvised));
             }
             if (tally.lumaFirstCount > 0 || tally.lumaLastCount > 0) {
                 Trmt.LOG.info(
@@ -570,8 +584,7 @@ public final class WearTextures {
                         Integer.valueOf(tally.lumaFirstCount),
                         Long.valueOf(tally.lumaLastCount == 0 ? -1 : tally.lumaLastSum / tally.lumaLastCount),
                         Integer.valueOf(tally.lumaLastCount),
-                        Integer.valueOf(tally.darkest == Integer.MAX_VALUE ? -1 : tally.darkest),
-                        tally.darkestName });
+                        Integer.valueOf(tally.darkest == Integer.MAX_VALUE ? -1 : tally.darkest), tally.darkestName });
                 StringBuilder perFamily = new StringBuilder();
                 for (Map.Entry<String, long[]> each : tally.lastByFamily.entrySet()) {
                     if (perFamily.length() > 0) perFamily.append(", ");
@@ -585,10 +598,10 @@ public final class WearTextures {
             }
             reportFaces(current.faces);
             if (tally.scaled > 0) {
-                Trmt.LOG.info(LINE_SCALED, Integer.valueOf(tally.scaled), tally.scaledNames);
+                Trmt.LOG.info(LINE_SCALED, Integer.valueOf(tally.scaled), com.trmtgtnh.util.LogSample.of(tally.scaledNames));
             }
             if (tally.resized > 0) {
-                Trmt.LOG.warn(LINE_RESIZED, Integer.valueOf(tally.resized), tally.resizedNames);
+                Trmt.LOG.warn(LINE_RESIZED, Integer.valueOf(tally.resized), com.trmtgtnh.util.LogSample.of(tally.resizedNames));
             }
             InnerLayers.report();
             InnerLayers.reportAnimation();
@@ -635,8 +648,7 @@ public final class WearTextures {
      * load. Here the plan is made while the atlas is collecting names, and each picture is drawn
      * later, when the atlas asks the pack for that name's file.
      */
-    private static final Map<ResourceLocation, Object> PLANNED =
-        new java.util.concurrent.ConcurrentHashMap<ResourceLocation, Object>();
+    private static final Map<ResourceLocation, Object> PLANNED = new java.util.concurrent.ConcurrentHashMap<ResourceLocation, Object>();
 
     /** The pack's view of the plan. Handed to WearPackSource by the client module. */
     public static final GeneratedPack.Sheets SHEETS = new GeneratedPack.Sheets() {
@@ -713,9 +725,8 @@ public final class WearTextures {
         final StateFiling<Block, Boolean> filed;
         final int[] numbers;
 
-        Planned(WearSprite[] icons, FringeSprite[] fringes, int layers, int rotations,
-            StateFiling<Block, Integer> sets, StateFiling<Block, WearSprite> mended,
-            StateFiling<Block, WearSprite> walls, WearSprite wallFallback,
+        Planned(WearSprite[] icons, FringeSprite[] fringes, int layers, int rotations, StateFiling<Block, Integer> sets,
+            StateFiling<Block, WearSprite> mended, StateFiling<Block, WearSprite> walls, WearSprite wallFallback,
             StateFiling<Block, Boolean> filed, int[] numbers) {
             this.icons = icons;
             this.fringes = fringes;
@@ -775,8 +786,7 @@ public final class WearTextures {
     /** One filing of producers, as a filing of the atlas's own sprites. */
     private static StateFiling<Block, TextureAtlasSprite> resolved(StateFiling<Block, WearSprite> named,
         final TextureAtlas atlas) {
-        final StateFiling.Builder<Block, TextureAtlasSprite> out =
-            StateFiling.<Block, TextureAtlasSprite>builder();
+        final StateFiling.Builder<Block, TextureAtlasSprite> out = StateFiling.<Block, TextureAtlasSprite>builder();
         named.forEach(new StateFiling.Visitor<Block, WearSprite>() {
 
             @Override
@@ -1240,6 +1250,20 @@ public final class WearTextures {
      * there are enough of them to go round. The answer is whatever survived the config, the atlas
      * and the pre-flight, so it is asked of the table rather than of the setting.
      */
+    /**
+     * Whether the wear pictures have been composed yet.
+     *
+     * <p>
+     * Not the same question as {@link #drawnGradations()}, which answers eight before a single sprite
+     * exists because the empty table is built with the shipped default in it. Anything waiting for the
+     * stitch has to ask this instead - the verification harness does, because a world opened before
+     * the pictures are installed is rendered against a half-built atlas, and on 1.16.5 Fabric that is
+     * a crash in the renderer rather than a missing texture.
+     */
+    public static boolean composed() {
+        return lookup != Lookup.EMPTY;
+    }
+
     public static int drawnGradations() {
         return lookup.layers;
     }
@@ -1298,7 +1322,7 @@ public final class WearTextures {
         // the ids move, on whichever thread moved them, and walks that each read it afresh could hand
         // the census one table and the gate another.
         List<SurfaceRegistry.SurfaceState> surfaces = SurfaceRegistry.texturableStates();
-        StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(surfaces);
+        StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(manager, surfaces);
         StateFiling.Builder<Block, Boolean> wallsWanted = grassWallsWanted(surfaces);
         // Every edge worked out once, here, and used both to price the plan and to register the sprites, so what goes
         // to the stitcher is what the plan priced rather than a second reading of the same files.
@@ -2416,11 +2440,44 @@ public final class WearTextures {
      * need it costs a sprite and changes nothing, where missing one leaves a band you can see
      * through.
      */
-    private static boolean wantsMendedSide(Block block, SurfaceFamily family) {
-        // None, in this edition, for now. The signal was a render type of the block's own, which 1.12.2
-        // does not have in that sense: a block that draws in more than one pass is a model of more than one
-        // layer, and whether any 1.12.2 turf cuts its side away for a pass underneath is not yet known. The
-        // question belongs with the ghost's sides, which are the next part of this pipeline.
+    private static boolean wantsMendedSide(ResourceManager manager, Block block, SurfaceFamily family) {
+        // Grass only, as the 1.7.10 edition gates it: the mend is a hole filled with vanilla's own
+        // grass side, which is only the honest filling for a block that is a lawn.
+        if (manager == null || block == null || family != SurfaceFamily.GRASS) return false;
+
+        // The signal, at last, and it is the hole itself rather than a proxy for it.
+        //
+        // The 1.7.10 edition asks whether the block has a render type of its own - a block that draws
+        // itself may be drawing more than one pass, and its side texture can be cut away where a pass
+        // underneath is meant to show through. There is no such question at this version, and the
+        // render layer is not a stand-in for it: vanilla's own grass block draws in the cut-out pass,
+        // and vanilla's grass is precisely the block this must never claim. So the texture is read and
+        // asked directly whether it has holes in it, which is what the other edition's signal was a
+        // proxy for all along. Vanilla's grass side is opaque in every pixel on both versions, so it
+        // excludes itself and needs no special case.
+        String side = ModelFaces.faceName(block, 2);
+        if (side == null) return false;
+        return hasHoles(WearPatterns.readIcon(manager, side));
+    }
+
+    /**
+     * Whether any pixel of a texture's first frame is less than opaque.
+     *
+     * <p>
+     * The first frame only: an animated texture is a column of frames, and the frames below the first
+     * are not what a still side draws. Square is assumed, as everything in this pipeline assumes, so
+     * the frame is the width.
+     */
+    private static boolean hasHoles(java.awt.image.BufferedImage image) {
+        if (image == null) return false;
+        int width = image.getWidth();
+        int height = Math.min(width, image.getHeight());
+        if (width <= 0 || height <= 0) return false;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (((image.getRGB(x, y) >>> 24) & 0xFF) < 255) return true;
+            }
+        }
         return false;
     }
 
@@ -2429,12 +2486,13 @@ public final class WearTextures {
      * registered so they are priced before anything is planned, in the order the registration loop
      * used to walk them. A state is filed once, as registerMendedSide's own check does.
      */
-    private static StateFiling.Builder<Block, Boolean> mendedSidesWanted(List<SurfaceRegistry.SurfaceState> surfaces) {
+    private static StateFiling.Builder<Block, Boolean> mendedSidesWanted(ResourceManager manager,
+        List<SurfaceRegistry.SurfaceState> surfaces) {
         StateFiling.Builder<Block, Boolean> out = StateFiling.<Block, Boolean>builder();
         for (SurfaceRegistry.SurfaceState state : surfaces) {
             for (int meta : metasOf(state.block)) {
                 SurfaceFamily family = SurfaceRegistry.familyOf(state.block);
-                if (!wantsMendedSide(state.block, family)) continue;
+                if (!wantsMendedSide(manager, state.block, family)) continue;
                 out.file(state.block, meta, Boolean.TRUE);
             }
         }
@@ -2459,8 +2517,8 @@ public final class WearTextures {
         return out;
     }
 
-    private static void registerMendedSide(Registrar into, StateFiling.Builder<Block, WearSprite> out,
-        Block block, int meta, SurfaceFamily family, int edge) {
+    private static void registerMendedSide(Registrar into, StateFiling.Builder<Block, WearSprite> out, Block block,
+        int meta, SurfaceFamily family, int edge) {
         if (out.has(block, meta)) return;
 
         ResourceLocation name = spriteNamed("mend_" + (sideSpritesNamed++));
@@ -2482,8 +2540,8 @@ public final class WearTextures {
     }
 
     /** Registers one grass block's de-greened side wall, at the edge of that block's own side. */
-    private static void registerGrassWall(Registrar into, StateFiling.Builder<Block, WearSprite> out,
-        Block block, int meta, int edge) {
+    private static void registerGrassWall(Registrar into, StateFiling.Builder<Block, WearSprite> out, Block block,
+        int meta, int edge) {
         if (block == null || out.has(block, meta)) return;
 
         ResourceLocation name = spriteNamed("wall_" + (sideSpritesNamed++));
@@ -2571,14 +2629,8 @@ public final class WearTextures {
     }
 
     private static void register(Registrar into, SpritePlan plan) {
-        ResourceLocation name = spriteNamed(""
-            + plan.set
-            + "_"
-            + plan.appearance.key()
-            + "_"
-            + plan.stage
-            + "_"
-            + plan.rotation);
+        ResourceLocation name = spriteNamed(
+            "" + plan.set + "_" + plan.appearance.key() + "_" + plan.stage + "_" + plan.rotation);
 
         WearSprite sprite = new WearSprite(
             name,

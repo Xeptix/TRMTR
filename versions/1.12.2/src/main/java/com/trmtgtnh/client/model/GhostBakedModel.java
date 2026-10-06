@@ -106,6 +106,7 @@ public class GhostBakedModel implements IBakedModel {
         int rotation = 0;
         int fringeTurn = 0;
         boolean snowed = false;
+        int stair = -1;
         if (state instanceof IExtendedBlockState) {
             IExtendedBlockState extended = (IExtendedBlockState) state;
             Integer held = extended.getValue(BlockGhost.ORIGIN);
@@ -118,7 +119,23 @@ public class GhostBakedModel implements IBakedModel {
             if (held != null) snowed = held.intValue() != 0;
             held = extended.getValue(BlockGhost.OUTLINE);
             if (held != null) outline = held.intValue();
+            held = extended.getValue(BlockGhost.STAIR);
+            if (held != null) stair = held.intValue();
         }
+
+        // Nothing at all in the passes this square is not drawn in. The ghost offers itself to every
+        // pass a covered block might use - see BlockGhost.canRenderInLayer - and this is where all
+        // but one of them are turned away, so a worn ice block is drawn with the translucent blocks
+        // and worn stone with the solid ones, exactly as the blocks they stand in for are.
+        //
+        // Null outside a chunk rebuild, which is an item or a particle asking; those are drawn.
+        net.minecraft.util.BlockRenderLayer drawing = net.minecraftforge.client.MinecraftForgeClient.getRenderLayer();
+        if (drawing != null && drawing != BlockGhost.layerOf(origin)) return Collections.emptyList();
+
+        // A stair is a shape rather than a height, so nothing below this line applies to one: it is
+        // drawn as the boxes its own shape is made of and handed back whole. See stairs().
+        if (stair >= 0) return stairs(record, origin, rotation, fringeTurn, snowed, side, stair);
+
         SurfaceFamily appearance = ErosionState.familyOf(record);
         float floor = BlockGhost.floorOf(outline);
         // Sunk from the block's own top rather than from the top of its cell, and never below its floor: a
@@ -136,31 +153,108 @@ public class GhostBakedModel implements IBakedModel {
         if (top == null) top = earth;
         // Only grass takes the biome's colour. Worn through to dirt, a square has no grass left to
         // tint, and a dirt rut washed green by a jungle would be a very strange road.
-        int tint = appearance == SurfaceFamily.GRASS ? GRASS_TINT : LIGHT_TINT;
+        // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
+        // wearing as grass and the block under it has to be a lawn, because the picture is made from
+        // that block's own pixels.
+        int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
 
         if (side == null) {
-            return Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, false));
+            return Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F));
         }
         if (side == EnumFacing.UP) {
             return Collections.emptyList();
         }
-        if (side == EnumFacing.DOWN) {
-            // The underside of a square that has not moved: never seen unless the ground below is gone, and
-            // the earth it was sitting on is the honest answer when it is.
-            return Collections.singletonList(quad(side, floor, height, earth, LIGHT_TINT, false));
-        }
-
+        // The underside goes through the same rule as the flanks rather than being dirt by decree.
+        // Dirt was the answer for every block, and it is only the right one for a lawn - whose
+        // underside really is dirt, and which reaches that answer below by being asked for its own
+        // bottom face. A worn stone slab's underside is stone, and a stair's inner steps are the
+        // stair's own material; both were drawn as earth, which is what the 1.7.10 edition's rule
+        // never did: there, a block whose sides match its top wears on every face it has.
         GhostSides.Face face = GhostSides.of(record, origin, side.getIndex(), rotation, fringeTurn, snowed);
         TextureAtlasSprite flank = face.sprite == null ? earth : face.sprite;
         if (face.overlay == null) {
-            return Collections.singletonList(quad(side, floor, height, flank, LIGHT_TINT, face.slid));
+            return Collections
+                .singletonList(quad(side, floor, height, flank, LIGHT_TINT, shiftFor(face.slid, outline, height)));
         }
         // Two quads at one place, the fringe after the flank, which is how vanilla's own grass model draws
         // its overlay: one element for the side and a second, coincident, for the tinted overlay.
         List<BakedQuad> both = new java.util.ArrayList<BakedQuad>(2);
-        both.add(quad(side, floor, height, flank, LIGHT_TINT, face.slid));
-        both.add(quad(side, floor, height, face.overlay, GRASS_TINT, face.slid));
+        float shift = shiftFor(face.slid, outline, height);
+        both.add(quad(side, floor, height, flank, LIGHT_TINT, shift));
+        both.add(quad(side, floor, height, face.overlay, GRASS_TINT, shift));
         return both;
+    }
+
+    /**
+     * Every face of every box a stair is made of, all of it uncullable.
+     *
+     * <p>
+     * Handed back under the general bucket - the side vanilla asks for with no direction - rather than
+     * sorted into the six faces. A face of a sub-box is not a face of the cell: the top of a stair's
+     * lower step faces up in the middle of its own square, where vanilla's culling asks about the
+     * neighbour above and would answer that the step's tread is hidden by thin air. Culling the boxes
+     * against each other is the only thing given up, which is a few quads on a block somebody has worn
+     * a path across.
+     *
+     * <p>
+     * The sprites are the square's own: its wear picture on every upward face, the earth it stands in
+     * on every downward one, and whatever {@code GhostSides} says for each compass face, so a worn
+     * stair is the same material as the worn ground running up to it.
+     */
+    private static List<BakedQuad> stairs(short record, int origin, int rotation, int fringeTurn, boolean snowed,
+        @Nullable EnumFacing side, int stair) {
+        if (side != null) return Collections.emptyList();
+
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
+        TextureAtlasSprite earth = earth();
+        com.trmtgtnh.client.render.ShaderMaterial.claim(top == null ? -1 : origin);
+        if (top == null) top = earth;
+        // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
+        // wearing as grass and the block under it has to be a lawn, because the picture is made from
+        // that block's own pixels.
+        int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
+
+        java.util.List<net.minecraft.util.math.AxisAlignedBB> boxes = BlockGhost.stairBoxes(stair);
+        List<BakedQuad> out = new java.util.ArrayList<BakedQuad>(boxes.size() * 6);
+        for (net.minecraft.util.math.AxisAlignedBB box : boxes) {
+            float x0 = (float) box.minX;
+            float y0 = (float) box.minY;
+            float z0 = (float) box.minZ;
+            float x1 = (float) box.maxX;
+            float y1 = (float) box.maxY;
+            float z1 = (float) box.maxZ;
+
+            out.add(quad(EnumFacing.UP, x0, y0, z0, x1, y1, z1, top, tint, 0F));
+
+            // The stair's own underside, by the same rule as its flanks. A stair is made of boxes
+            // stacked within one cell, so most of these faces are the undersides of its steps -
+            // stone on a stone stair, and dirt only where the stair really is a lawn.
+            GhostSides.Face below = GhostSides
+                .of(record, origin, EnumFacing.DOWN.getIndex(), rotation, fringeTurn, snowed);
+            out.add(
+                quad(
+                    EnumFacing.DOWN,
+                    x0,
+                    y0,
+                    z0,
+                    x1,
+                    y1,
+                    z1,
+                    below.sprite == null ? earth : below.sprite,
+                    LIGHT_TINT,
+                    0F));
+
+            for (EnumFacing compass : EnumFacing.HORIZONTALS) {
+                GhostSides.Face face = GhostSides.of(record, origin, compass.getIndex(), rotation, fringeTurn, snowed);
+                TextureAtlasSprite flank = face.sprite == null ? earth : face.sprite;
+                out.add(quad(compass, x0, y0, z0, x1, y1, z1, flank, LIGHT_TINT, 0F));
+                if (face.overlay != null) {
+                    out.add(quad(compass, x0, y0, z0, x1, y1, z1, face.overlay, GRASS_TINT, 0F));
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -206,8 +300,41 @@ public class GhostBakedModel implements IBakedModel {
      * wound the wrong way does not look wrong; it is simply not there.
      */
     private static BakedQuad quad(EnumFacing side, float floor, float height, TextureAtlasSprite sprite, int tint,
-        boolean slid) {
-        float x0 = 0F, x1 = 1F, z0 = 0F, z1 = 1F, y0 = floor, y1 = height;
+        float shiftRows) {
+        return quad(side, 0F, floor, 0F, 1F, height, 1F, sprite, tint, shiftRows);
+    }
+
+    /**
+     * How far down to slide a side texture, in sprite rows, for a square that has sunk.
+     *
+     * <p>
+     * The distance the ground has actually dropped from the top of the block it stands in for, never
+     * the whole crop. Clamped as the other edition clamps it: nothing below nought, nothing past
+     * fifteen, so a shift can never walk off the end of a sprite.
+     */
+    private static float shiftFor(boolean slid, int outline, float height) {
+        if (!slid) return 0F;
+        long rows = Math.round(16.0D * (BlockGhost.topOf(outline) - height));
+        return rows <= 0L ? 0F : Math.min(rows, 15L);
+    }
+
+    /**
+     * One face of any box, not only of a square's whole footprint.
+     *
+     * <p>
+     * A ghost is a box over a cell, so for every shape but one the footprint is the whole cell and the
+     * ends are 0 and 1. A stair is the exception: it is drawn as the boxes its own shape is made of,
+     * each with its own ends, which is what lets a worn stair keep the shape of the stair it covers
+     * rather than standing in for it as a cube.
+     *
+     * <p>
+     * The texture coordinates stay in the cell's frame rather than the box's - u from x, v from z, both
+     * times sixteen - so a box covering half a cell takes half a texture, the half it covers. That is
+     * what makes the boxes of a stair read as one worn surface rather than as two small ones, each
+     * stretched to a full picture.
+     */
+    private static BakedQuad quad(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
+        TextureAtlasSprite sprite, int tint, float shiftRows) {
         float[][] corners;
         switch (side) {
             case UP:
@@ -240,14 +367,19 @@ public class GhostBakedModel implements IBakedModel {
                 v = c[2] * 16F;
             } else {
                 u = (side.getAxis() == EnumFacing.Axis.X ? c[2] : c[0]) * 16F;
-                // The earth under a sunken square shows its top rows, not a squashed whole: a side
-                // half a block tall takes half a texture, taken from the top.
+                // The renderer nails a side face's texture to the bottom of the cell: the window is
+                // [16 - 16*height, 16] in sprite rows, so shortening a block from the top throws away
+                // the rows at the top of the sprite. For a surface whose sides are one uniform
+                // texture that is right - a rut cut into sand shows sand all the way down the wall.
                 //
-                // Unless the picture slides with the surface, which is what the other edition's SideShift
-                // does for a face with a cap along its top edge: the window starts at the texture's own top
-                // row wherever the square has sunk to, so the cap rides the new surface rather than staying
-                // up at the height the ground used to be.
-                v = (slid ? height - c[1] : 1F - c[1]) * 16F;
+                // For a made surface it is wrong: a path's side is soil with a pale cap along its top
+                // edge, and cropping from the top eats the cap. So the window slides down by however
+                // far the ground has actually dropped, which puts its top edge at 16 - 16*originTop -
+                // a figure that does not depend on the sink depth at all. A path stands fifteen
+                // sixteenths high, so its window starts at row one and stays there however deep the
+                // rut gets, and row nought - which is transparent on grass_path_side - is never
+                // sampled. This is the other edition's SideShift arithmetic.
+                v = (1F - c[1]) * 16F - shiftRows;
             }
             data[at] = Float.floatToRawIntBits(c[0]);
             data[at + 1] = Float.floatToRawIntBits(c[1]);

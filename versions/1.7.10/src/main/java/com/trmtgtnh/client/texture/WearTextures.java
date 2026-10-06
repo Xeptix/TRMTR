@@ -312,6 +312,7 @@ public final class WearTextures {
      * reads no face, composes no picture, and leaves the see-through filing and the animation budget as the last
      * stitch that loaded them left them.
      */
+
     public static void buildFromLoadedSprites(TextureMap map, IResourceManager manager, int mipmapLevels) {
         // Noted before the early return rather than after it, because the two say different
         // things: nothing registered is an ordinary quiet afternoon, and the hook never firing
@@ -430,14 +431,29 @@ public final class WearTextures {
                 Integer.valueOf(tally.surfaces), Integer.valueOf(tally.guessed), Integer.valueOf(tally.unreadable),
                 Integer.valueOf(tally.failed) });
         if (!tally.improvised.isEmpty()) {
-            Trmt.LOG.info("Wearing a family stand-in rather than their own pixels: {}", tally.improvised);
+            // Counted and sampled rather than handed over whole.
+            //
+            // This line used to pass the set itself, and log4j stringifies a collection parameter by
+            // walking it. On 1.16.5, where a stitch composes forty-four thousand pictures from a
+            // hundred and fifty-six surfaces, that walk threw OutOfMemoryError with a StringBuilder
+            // past two gigabytes - inside TextureAtlas.reload, which took the whole resource reload
+            // down with it and left Indigo tessellating blocks with a null model. The game did not
+            // start. The other two editions have small enough packs that it never showed.
+            //
+            // The count is what anybody reads anyway; the names are a sample off a snapshot, so the
+            // line is bounded whatever the set is doing. A log line may not be able to stop a game.
+            Trmt.LOG.info(
+                "Wearing a family stand-in rather than their own pixels: {}",
+                com.trmtgtnh.util.LogSample.of(tally.improvised));
         }
         reportFaces(faces);
         if (tally.scaled > 0) {
-            Trmt.LOG.info(LINE_SCALED, Integer.valueOf(tally.scaled), tally.scaledNames);
+            Trmt.LOG
+                .info(LINE_SCALED, Integer.valueOf(tally.scaled), com.trmtgtnh.util.LogSample.of(tally.scaledNames));
         }
         if (tally.resized > 0) {
-            Trmt.LOG.warn(LINE_RESIZED, Integer.valueOf(tally.resized), tally.resizedNames);
+            Trmt.LOG
+                .warn(LINE_RESIZED, Integer.valueOf(tally.resized), com.trmtgtnh.util.LogSample.of(tally.resizedNames));
         }
         InnerLayers.report();
         InnerLayers.reportAnimation();
@@ -904,6 +920,20 @@ public final class WearTextures {
      * there are enough of them to go round. The answer is whatever survived the config, the atlas
      * and the pre-flight, so it is asked of the table rather than of the setting.
      */
+    /**
+     * Whether the wear pictures have been composed yet.
+     *
+     * <p>
+     * Not the same question as {@link #drawnGradations()}, which answers eight before a single sprite
+     * exists because the empty table is built with the shipped default in it. Anything waiting for the
+     * stitch has to ask this instead - the verification harness does, because a world opened before
+     * the pictures are installed is rendered against a half-built atlas, and on 1.16.5 Fabric that is
+     * a crash in the renderer rather than a missing texture.
+     */
+    public static boolean composed() {
+        return lookup != Lookup.EMPTY;
+    }
+
     public static int drawnGradations() {
         return lookup.layers;
     }

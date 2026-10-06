@@ -171,8 +171,7 @@ public final class ErosionStore {
 
     /** Packs a level index and chunk coordinates into one long map key. */
     public static long chunkKey(int levelIndex, int chunkX, int chunkZ) {
-        return ((long) (levelIndex & 0xFFFF) << 48) | ((long) (chunkX & 0xFFFFFF) << 24)
-            | ((long) (chunkZ & 0xFFFFFF));
+        return ((long) (levelIndex & 0xFFFF) << 48) | ((long) (chunkX & 0xFFFFFF) << 24) | ((long) (chunkZ & 0xFFFFFF));
     }
 
     public static int levelIndexOf(long key) {
@@ -294,8 +293,8 @@ public final class ErosionStore {
     /** Tells a chunk it has changed, so the next ordinary save writes it. */
     public static void markModified(Level level, int chunkX, int chunkZ) {
         if (level == null) return;
-        net.minecraft.world.level.chunk.ChunkAccess chunk = level.getChunk(chunkX, chunkZ,
-            net.minecraft.world.level.chunk.ChunkStatus.FULL, false);
+        net.minecraft.world.level.chunk.ChunkAccess chunk = level
+            .getChunk(chunkX, chunkZ, net.minecraft.world.level.chunk.ChunkStatus.FULL, false);
         if (chunk != null) chunk.setUnsaved(true);
     }
 
@@ -349,6 +348,24 @@ public final class ErosionStore {
 
         long key = chunkKey(indexOf(level), chunkX, chunkZ);
         ChunkErosionData data = pending.remove(Long.valueOf(key));
+
+        // A record this chunk left behind on its way out and which was never written.
+        //
+        // The save that was meant to follow the unload did not come - a chunk is only written when
+        // something has told it that it changed, and a chunk can be told, written, and then change
+        // again before it leaves. So the record sat here while the disk kept an older copy of the
+        // same chunk, and when the chunk came back the older copy was read into `pending` and
+        // promoted straight over the top of it. That is wear going backwards, or vanishing, with
+        // every byte of it still in memory at the time.
+        //
+        // What is held here is always at least as new as what is on disk, so it wins outright.
+        ChunkErosionData stranded = unloading.remove(Long.valueOf(key));
+        if (stranded != null && !stranded.isEmpty()) {
+            data = stranded;
+            // It has not been written, so the next save must not skip this chunk.
+            markModified(level, chunkX, chunkZ);
+        }
+
         if (data != null && !data.isEmpty()) {
             loaded.put(Long.valueOf(key), data);
         } else {
@@ -381,6 +398,7 @@ public final class ErosionStore {
 
         data.prune();
         byte[] blob = data.write();
+        data.clearDirty();
         unloading.remove(key);
         return blob;
     }
@@ -393,8 +411,39 @@ public final class ErosionStore {
         if (level == null || level.isClientSide()) return;
         Long key = Long.valueOf(chunkKey(indexOf(level), chunkX, chunkZ));
 
+        // The wet-healing meter's reading for this chunk goes with it. Held only while a chunk is
+        // loaded, so the map is bounded by what is in memory rather than by what has ever been
+        // walked on - and a chunk that comes back is met as new, which pays it nothing on arrival.
+        Weather.forget(key.longValue());
+        // And whatever its snow had taken, for the same reason: the weather will have relaid or
+        // melted it long before anybody comes back.
+        SnowCover.forget(key.longValue());
+
         ChunkErosionData data = loaded.remove(key);
-        if (data != null && !data.isEmpty()) unloading.put(key, data);
+        if (data == null) data = pending.remove(key);
+        else pending.remove(key);
+
+        // A save that never comes would leave this behind, so the set is bounded rather than
+        // trusted. Anything still here when it fills up has missed its chance already - and it is
+        // said out loud, because what is dropped here is somebody's worn ground and the silence was
+        // how a handful of chunks lost theirs without anything to read afterwards.
+        if (unloading.size() > 512) {
+            Trmt.LOG.warn(
+                "{} chunks are waiting to be written and none of them has been; dropping them. Wear "
+                    + "in those chunks is lost. This means chunks are unloading without being saved, "
+                    + "which is not something this mod can cause on its own.",
+                Integer.valueOf(unloading.size()));
+            unloading.clear();
+        }
+        if (data != null && !data.isEmpty()) {
+            unloading.put(key, data);
+            // The chunk is on its way out and its record has not been written. Telling it that it
+            // changed is what makes the save that follows the unload actually happen: a chunk whose
+            // only change was its wear has nothing else to set that flag, so without this the save
+            // is skipped and the record is stranded. Best effort - the chunk may already be out of
+            // reach by now, and chunkLoaded recovers the stranded record if it is.
+            markModified(level, chunkX, chunkZ);
+        }
     }
 
     /**

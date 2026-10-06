@@ -8,6 +8,8 @@
     "BucketItemAccessor",
     "MixinBlockItem",
     "MixinChunkMap",
+    "MixinChunkSerializer",
+    "MixinCraftingResult",
     "MixinExplosion",
     "MixinGhostMapColour",
     "MixinItemStack",

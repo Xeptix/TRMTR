@@ -23,6 +23,26 @@ public final class InspectionCache {
 
     private static final InspectionSlot SLOT = new InspectionSlot();
 
+    /**
+     * Whether anything on this client reads the reply.
+     *
+     * <p>
+     * Asking the server about the block under the crosshair is only worth a packet if something is
+     * going to show the answer. The 1.12.2 edition asks whether Waila is installed; here the reader
+     * says so itself as it registers - Jade on one loader, WTHIT on the other - which is exact rather
+     * than a mod id this code would have to keep up with.
+     */
+    private static volatile boolean readerPresent;
+
+    /** Said by a tooltip plugin as it registers. */
+    public static void noteReader() {
+        readerPresent = true;
+    }
+
+    public static boolean hasReader() {
+        return readerPresent;
+    }
+
     private static float wear;
     private static float threshold;
     private static int untouchedSeconds;

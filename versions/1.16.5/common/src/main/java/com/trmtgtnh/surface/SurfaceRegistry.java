@@ -12,7 +12,8 @@ import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.FlowerBlock;
 import net.minecraft.world.level.block.GrassBlock;
 import net.minecraft.world.level.block.GravelBlock;
@@ -21,9 +22,8 @@ import net.minecraft.world.level.block.SandBlock;
 import net.minecraft.world.level.block.SaplingBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
-import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Material;
-import net.minecraft.world.level.block.Blocks;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
@@ -172,13 +172,13 @@ public final class SurfaceRegistry {
     private SurfaceRegistry() {}
 
     /**
-      * The table's key: the block's own registry id.
-      *
-      * <p>
-      * Both older editions pack a metadata value into the low four bits, because there a block could
-      * be several materials at once. 1.13 split those apart into separate blocks, so the block id is
-      * the whole answer here and the shift is gone.
-      */
+     * The table's key: the block's own registry id.
+     *
+     * <p>
+     * Both older editions pack a metadata value into the low four bits, because there a block could
+     * be several materials at once. 1.13 split those apart into separate blocks, so the block id is
+     * the whole answer here and the shift is gone.
+     */
     private static int key(Block block) {
         return net.minecraft.core.Registry.BLOCK.getId(block);
     }
@@ -620,9 +620,8 @@ public final class SurfaceRegistry {
         // has. Whether it counts is the family's own decision, taken once the family is known, so
         // the shape is let past here and refused further down.
         if (!shape.isPartial()
-            && (!com.trmtgtnh.util.Worlds.fullCube(block.defaultBlockState())
-                || (!block.defaultBlockState()
-                    .canOcclude() && !clearButSolid))) {
+            && (!com.trmtgtnh.util.Worlds.fullCube(block.defaultBlockState()) || (!block.defaultBlockState()
+                .canOcclude() && !clearButSolid))) {
             return null;
         }
 
@@ -809,10 +808,10 @@ public final class SurfaceRegistry {
             if (excluded.contains(name.toLowerCase(Locale.ROOT))) continue;
 
             // getOptional rather than get: the registry answers a missing name with air rather than
-        // with null, and a stale entry would otherwise quietly claim air as a surface.
-        Block block = net.minecraft.core.Registry.BLOCK
-            .getOptional(net.minecraft.resources.ResourceLocation.tryParse(name))
-            .orElse(null);
+            // with null, and a stale entry would otherwise quietly claim air as a surface.
+            Block block = net.minecraft.core.Registry.BLOCK
+                .getOptional(net.minecraft.resources.ResourceLocation.tryParse(name))
+                .orElse(null);
             if (block == null) {
                 // Not an error: pack composition changes, and a stale entry should not shout.
                 Trmt.LOG.debug("Surface entry '{}' names a block that is not installed, skipping", entry);
@@ -870,24 +869,30 @@ public final class SurfaceRegistry {
     // ------------------------------------------------------------------
 
     /**
-     * The distinct block states worth generating colour-matched wear textures for.
+     * The distinct blocks worth generating colour-matched wear textures for.
      *
      * <p>
-     * Detection claims all sixteen metadata values per block, but most blocks only use one
-     * or two, and generating sprites for the other fourteen would waste atlas space on
-     * states that never appear. The client narrows this to the metadata a block actually
-     * declares; this list is only the raw candidate set, ordered deterministically so both
-     * the sprite names and the fallbacks are stable across restarts.
+     * The older editions claim all sixteen metadata values per block and narrow the list on the
+     * client, because there one block id wears sixteen faces. 1.13 split those into blocks of their
+     * own, so a key here is a block and the list is simply the staged part of the table, ordered
+     * deterministically - sprite names and fallbacks have to be the same on every launch, because
+     * they end up baked into the ghost's icon tables.
+     *
+     * <p>
+     * <strong>This shifted the key right by four until 2026-10-05, which was the metadata era's
+     * shift left behind.</strong> Dividing every registry id by sixteen named a different block,
+     * nearly always one that does not erode: the set collapsed from a hundred and thirty-three
+     * states to twenty-three, the wear generator composed pictures for the wrong blocks - eight
+     * textured faces where the 1.12.2 edition has fifty - what could sink was marked from the wrong
+     * set, and {@code /trmt demonstrate} answered "Nothing is detected as erodable" because every
+     * candidate failed the family check it is asked for. Ten callers read this list; all of them
+     * were wrong together, which is why nothing stood out as broken.
      */
     private static List<SurfaceState> collectTexturableStates(Map<Integer, SurfaceFamily> built) {
         Map<Integer, SurfaceFamily> byBlock = new HashMap<Integer, SurfaceFamily>();
         for (Map.Entry<Integer, SurfaceFamily> entry : built.entrySet()) {
             if (!entry.getValue().staged) continue;
-            byBlock.put(
-                Integer.valueOf(
-                    entry.getKey()
-                        .intValue() >> 4),
-                entry.getValue());
+            byBlock.put(entry.getKey(), entry.getValue());
         }
 
         List<SurfaceState> states = new ArrayList<SurfaceState>(byBlock.size());

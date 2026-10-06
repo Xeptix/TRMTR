@@ -3,7 +3,6 @@ package com.trmtgtnh.client;
 import net.minecraft.world.level.BlockGetter;
 
 import com.trmtgtnh.Client;
-import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.ServerRules;
 import com.trmtgtnh.erosion.WearMath;
 
@@ -350,11 +349,88 @@ public final class ClientSide implements Client.Side {
      */
     public static void tick() {
         sayHello();
+        tellAboutTheModifier();
+        // Put in place once, from here rather than from start-up: JourneyMap builds its own tables
+        // as a world loads, and a BlockMD asked for before then is one it will replace.
+        com.trmtgtnh.client.journeymap.JourneyMapColors.tick();
+        askAboutCrosshair();
         com.trmtgtnh.util.MainThread.drainClient();
         OverlayPainter.get()
             .tick();
         WearRestitch.get()
             .serviceRestitch();
+    }
+
+    /**
+     * Asks the server about the block under the crosshair, where anything is going to read the answer.
+     *
+     * <p>
+     * <strong>Nothing called this, so nothing ever asked.</strong> {@code InspectionCache} holds the
+     * reply and {@code WailaCompat} reads it, and between them was a poll no tick performed - so
+     * {@code has(x, y, z)} was false for every position and a tooltip showed a square's wear but
+     * never its reinforcement, its ward or how far along its run it was. Carried from the 1.12.2
+     * edition's {@code askAboutCrosshair}, which is where the gate below comes from.
+     */
+    private static void askAboutCrosshair() {
+        net.minecraft.client.Minecraft game = net.minecraft.client.Minecraft.getInstance();
+        if (game == null || game.level == null) return;
+
+        net.minecraft.world.phys.HitResult target = game.hitResult;
+        if (target == null || target.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            InspectionCache.clear();
+            return;
+        }
+        net.minecraft.core.BlockPos at = ((net.minecraft.world.phys.BlockHitResult) target).getBlockPos();
+        if (at == null) {
+            InspectionCache.clear();
+            return;
+        }
+
+        boolean ghost = game.level.getBlockState(at)
+            .getBlock() instanceof com.trmtgtnh.block.BlockGhost;
+        if (com.trmtgtnh.util.InspectionReach.asks(
+            InspectionCache.hasReader(),
+            ghost,
+            com.trmtgtnh.config.TrmtConfig.reinforceEnabled,
+            com.trmtgtnh.config.TrmtConfig.wardEnabled)) {
+            InspectionCache.poll(at.getX(), at.getY(), at.getZ());
+        } else {
+            InspectionCache.clear();
+        }
+    }
+
+    /** Whether the modifier was held last tick, so only the changes are sent. */
+    private static boolean modifierWasDown;
+
+    /**
+     * Tells the server whether the modifier key is held, when that changes.
+     *
+     * <p>
+     * A key a server cannot see. The client knows it is held and the server is the side that acts on
+     * a click, so unless this is sent the server never hears a byte of it and a chunk tamper's
+     * modified click behaves as an ordinary one. The packet and its handler were both here and
+     * registered; nothing sent one, which is the same shape as the rest of this edition's gaps.
+     *
+     * <p>
+     * Sent on the transition rather than with the click, which is the whole reason it works: a message
+     * sent a tick before a click arrives before that click, whereas a modifier sent alongside one
+     * would be racing the click it is meant to qualify.
+     *
+     * <p>
+     * Only while a chunk tamper is held, so a player holding control for any other reason is not
+     * sending packets about it.
+     */
+    private static void tellAboutTheModifier() {
+        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+        if (client == null || client.player == null) return;
+
+        net.minecraft.world.item.ItemStack held = client.player.getMainHandItem();
+        boolean relevant = held != null && held.getItem() instanceof com.trmtgtnh.item.ItemChunkTamper;
+        boolean down = relevant && net.minecraft.client.gui.screens.Screen.hasControlDown();
+        if (down == modifierWasDown) return;
+
+        modifierWasDown = down;
+        com.trmtgtnh.network.TrmtNetwork.sendModifier(down);
     }
 
     /** Whether this client has told the server it is here, which is said once a visit. */
@@ -386,18 +462,35 @@ public final class ClientSide implements Client.Side {
      *
      * <p>
      * The ghosts first, because the caches are the only record of what each one was covering and
-     * lifting a ghost needs that record. Then the caches, then the rules a server set for the visit -
-     * which are the server's and have no business outliving the connection.
+     * lifting a ghost needs that record. Then the queue, then the caches, then the two things the
+     * server set for the visit - its rules and its surface table - which are the server's and have no
+     * business outliving the connection.
      */
     public static void leaveWorld() {
         // Said again on the next visit: a server has no memory of this client between connections.
         announced = false;
+        // The server forgot the modifier the moment this connection went; if this did not forget it
+        // too, a client that left with the key down would never send the transition again, and the
+        // next server would be told the key was held only when it was finally let go.
+        modifierWasDown = false;
         OverlayPainter.get()
             .restoreAll();
+        // What is left queued names chunks of a world that is going away. Restoring first and
+        // emptying second is the order that matters: a queue drained into the next world would paint
+        // this one's roads onto it, at the coordinates they had here.
+        OverlayPainter.get()
+            .clearQueue();
         ClientErosionCache.get()
             .clear();
         ClientLightCache.get()
             .clear();
         ServerRules.release();
+        // The table a server named is the server's answer to what erodes, and a client that kept it
+        // would meet the next world holding the last one's list.
+        com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
+        // And the map's coalescing, so the first square painted in the next world is told about
+        // whatever the last one in this world happened to be.
+        com.trmtgtnh.client.xaero.XaeroMinimap.reset();
+        com.trmtgtnh.client.journeymap.JourneyMapColors.reset();
     }
 }

@@ -130,6 +130,16 @@ public final class ClientOverlay {
         }
     }
 
+    /**
+     * The whole packed byte, and nothing here asks for it.
+     *
+     * <p>
+     * 1.12.2 reaches the packed light through its proxy, because its {@code GhostLight} is handed a
+     * world it cannot ask which side it is on. This version's is handed a {@code BlockGetter}, asks it,
+     * and reads the store on the server and the cache on the client itself - so the packed byte never
+     * comes through here. Kept because the pair reads as a pair, and named in {@code tools/unwired.py}
+     * sweeps as deliberate rather than missed.
+     */
     public int clientLightPacked(int x, int y, int z) {
         try {
             return ClientLightCache.get()

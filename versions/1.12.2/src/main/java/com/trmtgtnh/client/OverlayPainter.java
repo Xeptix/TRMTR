@@ -23,7 +23,6 @@ import com.trmtgtnh.erosion.ErosionEntry;
 import com.trmtgtnh.erosion.ErosionKey;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
-import com.trmtgtnh.surface.SurfaceShape;
 
 /**
  * Paints the overlay into the client's own copy of the world, and takes it back out again.
@@ -252,6 +251,12 @@ public final class OverlayPainter {
         ClientErosionCache.get()
             .put(chunkX, chunkZ, overlay.copyWithOrigins(origins));
 
+        // Told outside any "did anything change" test, deliberately. A position can move along its
+        // chain and want the very same ghost at the very same state, so nothing is touched and the
+        // colour a map works out from the record still moves - which is exactly the sub-step this
+        // exists to show. See XaeroMinimap for why a map needs telling at all.
+        com.trmtgtnh.client.xaero.XaeroMinimap.chunkChangedAt(world, chunkX, chunkZ);
+
         if (touched > 0) {
             world.markBlockRangeForRenderUpdate(
                 (chunkX << 4),
@@ -305,6 +310,7 @@ public final class OverlayPainter {
             .put(chunkX, chunkZ, overlay.copyWithOrigins(origins));
         if (!painted) return false;
         world.markBlockRangeForRenderUpdate(x, y, z, x, y, z);
+        com.trmtgtnh.client.xaero.XaeroMinimap.chunkChanged(world, x, z);
         return true;
     }
 
@@ -349,12 +355,13 @@ public final class OverlayPainter {
             // with sand since the server last looked. Painting it would show sand wearing like turf.
             return false;
         }
-        // A stair is the one shape this ghost cannot stand in for: it is three boxes, cut four ways and
-        // joined at corners, and the other edition draws one by extending vanilla's own stair block. Every
-        // other shape is a box, and the ghost takes the outline of whatever it covers - so a slab stays a
-        // slab and a path stays a pixel short of its cell.
-        if (SurfaceShape.of(block) == SurfaceShape.STAIR) return decline(appearance);
-        // And pictures only for a family that has any: one that is not staged is never worn, and has none.
+        // A stair used to be declined here, as the one shape a ghost could not stand in for. It can:
+        // the shape is settled where there is a world to ask - BlockGhost.stairCodeAt - and the boxes
+        // it is made of serve the collision, the outline and the model alike. Every other shape is a
+        // box, and the ghost takes the outline of whatever it covers, so a slab stays a slab and a
+        // path stays a pixel short of its cell.
+        //
+        // Pictures only for a family that has any: one that is not staged is never worn, and has none.
         if (!appearance.staged) return decline(appearance);
 
         BlockGhost ghost = ModBlocks.ghostGrass();
@@ -418,7 +425,7 @@ public final class OverlayPainter {
         // running total would grow for as long as the game was open and mean nothing.
         Trmt.LOG.info(
             "Some worn ground is not drawn in this build, because its pictures or its shape are still to come (squares, first pass): {}",
-            declined);
+            com.trmtgtnh.util.LogSample.of(declined));
     }
 
     // ------------------------------------------------------------------
@@ -457,6 +464,10 @@ public final class OverlayPainter {
 
         ClientErosionCache.get()
             .put(chunkX, chunkZ, overlay.withoutOrigins());
+
+        // A lifted path leaves a dark tile behind on a map that keeps what it drew, so the same
+        // telling is owed on the way out as on the way in.
+        com.trmtgtnh.client.xaero.XaeroMinimap.chunkChangedAt(world, chunkX, chunkZ);
 
         if (changed) {
             world.markBlockRangeForRenderUpdate(

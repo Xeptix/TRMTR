@@ -37,6 +37,41 @@ public final class SourceTree {
                 + ". This test reads source rather than classes, so it needs the tree.");
     }
 
+    /**
+     * Every source file that mentions a token, by its path under the source root, sorted.
+     *
+     * <p>
+     * A file inside the thing being asked about does not count as mentioning it: a package naming
+     * itself is not a call site, and counting it would make "only the proxy names the harness" false
+     * by construction. So a path whose own directory spells the token is skipped.
+     */
+    public static List<String> namesOf(String token) throws IOException {
+        String directory = token.replace('.', '/');
+        List<String> found = new java.util.ArrayList<String>();
+        collect(mainJava(), "", token, directory, found);
+        java.util.Collections.sort(found);
+        return found;
+    }
+
+    private static void collect(File at, String prefix, String token, String directory, List<String> found)
+        throws IOException {
+        File[] children = at.listFiles();
+        if (children == null) return;
+        for (File child : children) {
+            String path = prefix.isEmpty() ? child.getName() : prefix + "/" + child.getName();
+            if (child.isDirectory()) {
+                collect(child, path, token, directory, found);
+                continue;
+            }
+            if (!child.getName()
+                .endsWith(".java")) continue;
+            if (path.startsWith(directory + "/")) continue;
+            if (new String(Files.readAllBytes(child.toPath()), Charset.forName("UTF-8")).contains(token)) {
+                found.add(path);
+            }
+        }
+    }
+
     /** Every line of one source file, named by its path under the source root. */
     public static List<String> lines(String relative) throws IOException {
         File file = new File(mainJava(), relative);

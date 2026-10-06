@@ -1224,7 +1224,6 @@ public final class TrmtConfig {
      */
     private static void sayWhatMapsCannotDo() {
         java.util.List<String> idle = new java.util.ArrayList<String>();
-        if (desirePathHighlight != 0f) idle.add("client.desirePathHighlight");
         if (!mapWearThroughTint) idle.add("client.mapWearThroughTint");
         if (idle.isEmpty()) return;
 
@@ -2834,7 +2833,10 @@ public final class TrmtConfig {
             }
         }
         if (bare.isEmpty()) return;
-        Trmt.LOG.warn("{} settings have no hover explanation: {}", Integer.valueOf(bare.size()), bare);
+        Trmt.LOG.warn(
+            "{} settings have no hover explanation: {}",
+            Integer.valueOf(bare.size()),
+            com.trmtgtnh.util.LogSample.of(bare));
     }
 
     private static boolean isBlank(String text) {

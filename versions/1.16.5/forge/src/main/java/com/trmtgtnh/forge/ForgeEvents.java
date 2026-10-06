@@ -2,15 +2,15 @@ package com.trmtgtnh.forge;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.event.entity.living.LivingFallEvent;
 import net.minecraftforge.event.entity.living.LivingSpawnEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.event.world.ChunkWatchEvent;
 import net.minecraftforge.event.world.ExplosionEvent;
 import net.minecraftforge.event.world.WorldEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -101,10 +101,7 @@ public final class ForgeEvents {
 
     @SubscribeEvent
     public static void onChunkWatch(ChunkWatchEvent.Watch event) {
-        ServerEvents.chunkWatched(
-            event.getPlayer(),
-            event.getPos().x,
-            event.getPos().z);
+        ServerEvents.chunkWatched(event.getPlayer(), event.getPos().x, event.getPos().z);
     }
 
     @SubscribeEvent
@@ -218,5 +215,56 @@ public final class ForgeEvents {
             centre.z,
             com.trmtgtnh.util.ExplosionSize.of(explosion),
             event.getAffectedBlocks());
+    }
+
+    // ------------------------------------------------------------------
+    // Crafting
+    // ------------------------------------------------------------------
+
+    /** Crafting a tamper awards its step of the ladder. Fabric reaches this through a mixin. */
+    @SubscribeEvent
+    public static void onCrafted(PlayerEvent.ItemCraftedEvent event) {
+        ServerEvents.crafted(event.getPlayer(), event.getCrafting());
+    }
+
+    // ------------------------------------------------------------------
+    // Chunks coming and going
+    // ------------------------------------------------------------------
+
+    /**
+     * A chunk has arrived, so wear read off disk is promoted onto the main thread.
+     *
+     * <p>
+     * The reading and the writing are not here. Forge has {@code ChunkDataEvent} for both and its
+     * load half cannot be used: it carries no world, because a chunk being read off disk is a
+     * {@code ProtoChunk} and the only thing that answers {@code getWorldForge} is a
+     * {@code LevelChunk}. Which level a chunk belongs to is half of the key its wear is stored
+     * under, so both loaders go through {@code MixinChunkSerializer} instead, where vanilla hands
+     * the level over as an argument.
+     *
+     * <p>
+     * These two moments, though, are what the events are for and are the same on both loaders: a
+     * chunk that is now in the world, and one that has left it.
+     */
+    @SubscribeEvent
+    public static void onChunkLoad(net.minecraftforge.event.world.ChunkEvent.Load event) {
+        net.minecraft.world.level.chunk.ChunkAccess chunk = event.getChunk();
+        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk)) return;
+        Level level = ((net.minecraft.world.level.chunk.LevelChunk) chunk).getLevel();
+        com.trmtgtnh.erosion.ErosionStore.get()
+            .chunkLoaded(level, chunk.getPos().x, chunk.getPos().z);
+    }
+
+    /**
+     * A chunk has gone. Its record is set aside rather than dropped, because the save comes after
+     * this and the record has to still be there to be written - see {@code ErosionStore.unloading}.
+     */
+    @SubscribeEvent
+    public static void onChunkUnload(net.minecraftforge.event.world.ChunkEvent.Unload event) {
+        net.minecraft.world.level.chunk.ChunkAccess chunk = event.getChunk();
+        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk)) return;
+        Level level = ((net.minecraft.world.level.chunk.LevelChunk) chunk).getLevel();
+        com.trmtgtnh.erosion.ErosionStore.get()
+            .chunkUnloaded(level, chunk.getPos().x, chunk.getPos().z);
     }
 }

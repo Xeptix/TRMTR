@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "trmtgtnh-forge-refmap.json",
   "mixins": [
+    "MixinChunkSerializer",
     "MixinGhostMapColour",
     "MixinLootArrivals",
     "MixinRecipeArrivals",

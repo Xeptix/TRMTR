@@ -2015,7 +2015,7 @@ public class CommandTrmt extends CommandBase {
     }
 
     /** The plainest block of a family, so a road reads as ground rather than as a mod's sampler. */
-    static Block roadBlock(SurfaceFamily family) {
+    public static Block roadBlock(SurfaceFamily family) {
         switch (family) {
             case GRASS:
                 return Blocks.GRASS;
@@ -2098,13 +2098,24 @@ public class CommandTrmt extends CommandBase {
      * Which metadata of this block to build a platform out of.
      *
      * <p>
-     * A metadata the block actually declares comes first, and one detection merely claims comes
-     * second. Detection claims all sixteen because it cannot tell which are real, so a naive
-     * "first claimed" always answers zero - and zero is a variant plenty of blocks do not have.
-     * Chisel's snakestone declares one and thirteen and nothing else, so a demo built at zero was
-     * a demo of a state the block is never in.
+     * The block as it is normally placed comes first, then a metadata the block actually declares,
+     * then one detection merely claims. Detection claims all sixteen because it cannot tell which are
+     * real, so a naive "first claimed" always answers zero - and zero is a variant plenty of blocks do
+     * not have. Chisel's snakestone declares one and thirteen and nothing else, so a demo built at
+     * zero was a demo of a state the block is never in.
+     *
+     * <p>
+     * <strong>The default state goes first because declaration order is not placement order.</strong>
+     * A block lists its states in whatever order its properties happen to enumerate, and for every
+     * stair and slab in vanilla that order begins with the upside-down half: oak stairs declare
+     * metadata seven first, which is {@code half=top}, and both slabs declare eight, which is the
+     * same. So the demonstration built every stair upside down and every slab hung from the ceiling
+     * of its cell, half a block above the course below it - and the ghosts drew that faithfully,
+     * which made it look like a fault in the drawing.
      */
     private static int erodableMeta(SurfaceRegistry.SurfaceState state) {
+        int natural = naturalMeta(state.block);
+        if (natural >= 0 && SurfaceRegistry.familyOf(state.block, natural) == state.family) return natural;
         for (int meta : declaredMetas(state.block)) {
             if (SurfaceRegistry.familyOf(state.block, meta) == state.family) return meta;
         }
@@ -2112,6 +2123,18 @@ public class CommandTrmt extends CommandBase {
             if (SurfaceRegistry.familyOf(state.block, meta) == state.family) return meta;
         }
         return -1;
+    }
+
+    /** The metadata of the block's own default state, or -1 if it will not answer for one. */
+    private static int naturalMeta(Block block) {
+        try {
+            int meta = block.getMetaFromState(block.getDefaultState());
+            return meta >= 0 && meta < 16 ? meta : -1;
+        } catch (RuntimeException awkwardBlock) {
+            // A block whose getMetaFromState refuses its own default. Rare, and it must not be able
+            // to stop a demo being built.
+            return -1;
+        }
     }
 
     /**

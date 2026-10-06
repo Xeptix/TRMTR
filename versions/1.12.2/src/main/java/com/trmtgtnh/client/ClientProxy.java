@@ -202,6 +202,9 @@ public class ClientProxy extends CommonProxy {
             com.trmtgtnh.network.TrmtNetwork.sendModifier(down);
         }
 
+        // Put in place once, from here rather than from start-up: JourneyMap builds its own tables
+        // as a world loads, and a BlockMD asked for before then is one it will replace.
+        com.trmtgtnh.client.journeymap.JourneyMapColors.tick();
         OverlayPainter.get()
             .tick();
         askAboutCrosshair(mc);
@@ -421,6 +424,10 @@ public class ClientProxy extends CommonProxy {
         com.trmtgtnh.config.ServerRules.release();
         boolean handedBack = com.trmtgtnh.config.ServerRules.appearancesMovedFrom(underServer);
         com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
+        // And the map's coalescing, so the first square painted in the next world is told about
+        // whatever the last one in this world happened to be.
+        com.trmtgtnh.client.xaero.XaeroMinimap.reset();
+        com.trmtgtnh.client.journeymap.JourneyMapColors.reset();
         serverNamedTable = 0L;
         tableAskedFor = 0L;
         mayEditFamilies = false;

@@ -66,7 +66,7 @@ class CoreStaysPortableTest {
         "com/trmtgtnh/surface/SurfaceTableCodec.java", "com/trmtgtnh/util/RefusedFetches.java",
         "com/trmtgtnh/util/MobEntries.java", "com/trmtgtnh/util/OfferedDraw.java",
         "com/trmtgtnh/util/WayfarerCategories.java", "com/trmtgtnh/util/InspectionReach.java",
-        "com/trmtgtnh/util/InspectionSlot.java", "com/trmtgtnh/util/IntKeyMap.java",
+        "com/trmtgtnh/util/InspectionSlot.java", "com/trmtgtnh/util/IntKeyMap.java", "com/trmtgtnh/util/LogSample.java",
         "com/trmtgtnh/item/WayfarerCore.java", "com/trmtgtnh/compat/QuestLessons.java",
         "com/trmtgtnh/client/texture/AtlasPlan.java", "com/trmtgtnh/client/texture/StateFiling.java",
         "com/trmtgtnh/client/texture/MovingLayerLedger.java", "com/trmtgtnh/client/texture/FaceRules.java",

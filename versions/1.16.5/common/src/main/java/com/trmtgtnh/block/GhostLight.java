@@ -28,7 +28,9 @@ import com.trmtgtnh.erosion.ErosionStore;
  *
  * <p>
  * What is still per loader, and is not here, is registering the colour: a block tells the game how to
- * tint itself through a loader-specific registry. {@link #tinted} is what that registry will call.
+ * tint itself through a loader-specific registry. {@code GhostTint} is what both registries are
+ * handed, and {@link #tinted} is what it calls - so a lit square gets its glow multiplied into
+ * whatever colour it would otherwise have been.
  */
 public final class GhostLight {
 

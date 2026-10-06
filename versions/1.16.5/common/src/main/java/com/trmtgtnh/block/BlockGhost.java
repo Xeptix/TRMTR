@@ -1,27 +1,22 @@
 package com.trmtgtnh.block;
 
-
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.material.MaterialColor;
-import net.minecraft.world.level.material.Material;
-import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Material;
+import net.minecraft.world.level.material.MaterialColor;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import com.trmtgtnh.Client;
-import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.Level;
 
-import com.trmtgtnh.Trmt;
+import com.trmtgtnh.Client;
 import com.trmtgtnh.erosion.ErosionState;
 import com.trmtgtnh.erosion.SinkProfile;
 import com.trmtgtnh.surface.SurfaceFamily;
@@ -81,8 +76,8 @@ public class BlockGhost extends Block {
      * families is a set nobody should enumerate - but a light level is sixteen values, it is what a
      * blockstate is for, and the model is replaced for every variant on both loaders anyway.
      */
-    public static final net.minecraft.world.level.block.state.properties.IntegerProperty LIGHT =
-        net.minecraft.world.level.block.state.properties.IntegerProperty.create("light", 0, 15);
+    public static final net.minecraft.world.level.block.state.properties.IntegerProperty LIGHT = net.minecraft.world.level.block.state.properties.IntegerProperty
+        .create("light", 0, 15);
 
     public BlockGhost() {
         // Properties handed to super, rather than setters called on itself: that is how 1.13 onward
@@ -97,8 +92,32 @@ public class BlockGhost extends Block {
         super(
             BlockBehaviour.Properties.of(Material.DIRT)
                 .strength(0.6F)
-                .sound(SoundType.GRAVEL)
                 .noOcclusion()
+                // No state cache, because every interesting answer this block gives is per square.
+                //
+                // <strong>Without this, none of the per-position overrides below ever run.</strong>
+                // This version builds a {@code BlockBehaviour$BlockStateBase$Cache} for each state
+                // the first time it is used, and fills it by calling the block once with
+                // {@code EmptyBlockGetter.INSTANCE} and {@code BlockPos.ZERO} - a view with no world
+                // in it, where a ghost cannot look up its own record and answers as though nothing
+                // had worn. Every later question is answered from that frozen value, whatever square
+                // is being asked about.
+                //
+                // Proved rather than reasoned: getLightBlock was made to log its caller, and across a
+                // whole run - world generation, light, eighty legs of walking, every chunk rebuild -
+                // it was called exactly once, by EmptyBlockGetter, before the first ghost existed.
+                //
+                // What that cost: a sunken square reported that it blocks all light when it blocks
+                // none, and Fabric's Indigo renderer - which, unlike vanilla's, reads opacity to
+                // decide ambient occlusion - drew the walls beside every sunken square two and a half
+                // times too dark. 1.7.10, 1.12.2 and Forge were unaffected and the fault looked like a
+                // Fabric rendering bug, which is where four runs were spent before this was found.
+                //
+                // The cost of the cure is that occlusion, light and shape are now computed per query
+                // rather than once per state. That is what a block whose shape depends on the square
+                // it is in has to pay, and it is the same answer vanilla gives its own such blocks.
+                .dynamicShape()
+                .sound(SoundType.GRAVEL)
                 // What this square glows, read off the state the painter chose. See LIGHT.
                 .lightLevel(state -> state.getValue(LIGHT))
                 // Nothing drops, because nothing is really there. Two methods there -
@@ -115,8 +134,7 @@ public class BlockGhost extends Block {
 
     @Override
     protected void createBlockStateDefinition(
-        net.minecraft.world.level.block.state.StateDefinition.Builder<net.minecraft.world.level.block.Block,
-            BlockState> builder) {
+        net.minecraft.world.level.block.state.StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
         builder.add(LIGHT);
     }
 
@@ -131,8 +149,7 @@ public class BlockGhost extends Block {
      * rather than a position. {@code OverlayPainter.relight} is what asks again when the answer
      * changes.
      */
-    public static BlockState litState(BlockGhost ghost, BlockGetter access, int x, int y, int z,
-        BlockState covered) {
+    public static BlockState litState(BlockGhost ghost, BlockGetter access, int x, int y, int z, BlockState covered) {
         int lit = GhostLight.levelAt(access, x, y, z);
         int own = 0;
         if (covered != null) {
@@ -159,11 +176,52 @@ public class BlockGhost extends Block {
      * number is what keeps a player standing in a rut from being shoved back out of it.
      */
     @Override
-    public VoxelShape getCollisionShape(BlockState state, BlockGetter world, BlockPos pos,
-        CollisionContext context) {
-        int outline = outlineAt(world, pos, Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+    public VoxelShape getCollisionShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
+        int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        VoxelShape stair = stairShapeAt(world, pos, origin);
+        if (stair != null) return stair;
+        // A block narrower than its own square keeps its own footing, worn or not - see
+        // GhostInherit.ownFootingAt. Wear is a height off the top of a full cell, which is the wrong
+        // shape for a pad that only covers part of one: handing back a full cell over a cloud turns
+        // a block you fall through into a block you stand on.
+        VoxelShape own = GhostInherit.ownFootingAt(world, pos, origin);
+        if (own != null) return own;
+        int outline = outlineAt(world, pos, origin);
         int sink = collisionSink(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
         return box(outline, sink);
+    }
+
+    /**
+     * The shape of the stair this ghost stands in for, or null when it stands in for anything else.
+     *
+     * <p>
+     * A worn stair keeps the stair's own shape and does not sink. A stair fuses what it looks like
+     * and what it collides as into one answer, so a dip in the picture would be a dip the server has
+     * not got, and the server would spend every tick pushing whoever stood in it back out of ground
+     * it believes is solid. The 1.7.10 edition reached that from the other direction, by extending
+     * vanilla's stair block and finding the two could not be separated there either.
+     *
+     * <p>
+     * One answer serves the collision box, the outline a player aims at and the boxes the model
+     * draws, which is what keeps the three agreeing.
+     */
+    public static VoxelShape stairShapeAt(BlockGetter world, BlockPos pos, int origin) {
+        if (origin < 0 || world == null) return null;
+        try {
+            BlockState under = Block.stateById(origin);
+            if (com.trmtgtnh.surface.SurfaceShape.of(under) != com.trmtgtnh.surface.SurfaceShape.STAIR) return null;
+            VoxelShape shape = under.getShape(world, pos);
+            return shape == null || shape.isEmpty() ? null : shape;
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        }
+    }
+
+    /** The boxes that shape is made of, for the model to draw, or null for every other shape. */
+    public static java.util.List<net.minecraft.world.phys.AABB> stairBoxesAt(BlockGetter world, BlockPos pos,
+        int origin) {
+        VoxelShape stair = stairShapeAt(world, pos, origin);
+        return stair == null ? null : stair.toAabbs();
     }
 
     /**
@@ -175,7 +233,10 @@ public class BlockGhost extends Block {
      */
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
-        int outline = outlineAt(world, pos, Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        VoxelShape stair = stairShapeAt(world, pos, origin);
+        if (stair != null) return stair;
+        int outline = outlineAt(world, pos, origin);
         int sink = drawnSink(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
         return box(outline, sink);
     }
@@ -334,10 +395,17 @@ public class BlockGhost extends Block {
      * fringe. Every ghost draws in this pass, as every vanilla grass block does, rather than the block
      * choosing a pass per square - which it cannot, since the pass is asked of the state and a ghost's state
      * is the same everywhere.
+     *
+     * <p>
+     * It went unsaid for the whole of this port and the sentence above describes what that looked
+     * like exactly: a grey rectangle over each face, with the real fringe as a mottled band along its
+     * top edge. The comment claiming the client module did it was written before the client module
+     * did, which is the same shape as the three other things this edition had and never called.
      */
-    // getRenderLayer is not a block's answer here. Which pass a block draws in is registered on
-    // the client at start-up, through RenderTypeLookup, and the client module does it - cut-out
-    // mipped, for the reason above.
+    // getRenderLayer is not a block's answer here. Which pass a block draws in is registered on the
+    // client at start-up and each loader does it in its own client setup: Forge through
+    // ItemBlockRenderTypes.setRenderLayer, which is Forge's patch onto vanilla's class, and Fabric
+    // through BlockRenderLayerMap. Cut-out mipped on both, for the reason above.
 
     /**
      * Not a full cube, because it is not one.
@@ -377,18 +445,63 @@ public class BlockGhost extends Block {
         return 1.0F;
     }
 
-    /**
-     * Skylight passes through, as it does a slab.
-     *
-     * <p>
-     * Decided from the collision shape as well, and wrong here for the same reason: a worn square is
-     * open to the sky it has sunk away from. Measured before this was written - the cell of a worn
-     * square sat one light level below the open air above it, where a slab's cell sits level with
-     * it. Not a carry either, for the reason above.
-
     // isTopSolid is not answered here any more. It was a flag a block set; it is read off the
     // collision shape now, and a ghost's collision shape is the hollow a rut actually has - so the
     // same answer comes out of the shape the block was already returning.
+
+    /**
+     * Whether this square has dropped below the top of the block it stands in for.
+     *
+     * <p>
+     * The question both light answers below turn on, and the one the 1.7.10 edition answers by having
+     * a separate sunken variant of every ghost: there {@code isOpaqueCube} is
+     * {@code !sunken && !clear && !window}, so a worn-but-unsunken square is a full opaque block and
+     * behaves like the one it replaced. One ghost cannot answer that from its state, so it is asked
+     * of the position instead.
+     */
+    private static boolean sunkAt(BlockGetter world, BlockPos pos) {
+        return ErosionState.sinkOf(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
+    }
+
+    /**
+     * Skylight passes through a square that has sunk, as it does a slab, and not through one that
+     * has not.
+     *
+     * <p>
+     * Decided from the collision shape by default, and wrong here for the same reason the shade is:
+     * a worn square is open to the sky it has sunk away from. Measured before this was written - the
+     * cell of a worn square sat one light level below the open air above it, where a slab's cell sits
+     * level with it.
+     *
+     * <p>
+     * <strong>This method and the one below it were documented and then not written.</strong> The
+     * javadoc above sat in the file with no method under it, and being a block comment it swallowed
+     * the javadoc of the next method as well. So the measurement was recorded, the behaviour was
+     * described, and the file compiled without either - which is the same fault as every other
+     * comment in this port that promised wiring nobody had done.
+     */
+    @Override
+    public boolean propagatesSkylightDown(BlockState state, BlockGetter world, BlockPos pos) {
+        return sunkAt(world, pos);
+    }
+
+    /**
+     * How much light this square takes out of what passes through it.
+     *
+     * <p>
+     * All of it until the ground sinks, and none once it has. A worn-but-unsunken square is still a
+     * whole block of earth and stops light exactly as the block it stands in for did; letting light
+     * through it lit the cell below a road, and caves under one. The 1.7.10 edition gets this from
+     * {@code isOpaqueCube}, which its unsunken variants answer yes to.
+     *
+     * <p>
+     * Not left to the default, which reads {@code canOcclude} - said once for the block rather than
+     * per square, and no for this one, so every ghost leaked light whatever had happened to it.
+     */
+    @Override
+    public int getLightBlock(BlockState state, BlockGetter world, BlockPos pos) {
+        return sunkAt(world, pos) ? 0 : 15;
+    }
 
     /**
      * What a map paints this square, which is what the ground underneath would be painted.
@@ -498,8 +611,7 @@ public class BlockGhost extends Block {
 
     /** Whatever the covered block does to something standing inside it, still done. */
     @Override
-    public void entityInside(BlockState state, Level world, BlockPos pos,
-        net.minecraft.world.entity.Entity entity) {
+    public void entityInside(BlockState state, Level world, BlockPos pos, net.minecraft.world.entity.Entity entity) {
         GhostInherit.entityCollided(this, world, pos, state, entity);
     }
 }

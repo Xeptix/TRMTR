@@ -1225,7 +1225,6 @@ public final class TrmtConfig {
      */
     private static void sayWhatMapsCannotDo() {
         java.util.List<String> idle = new java.util.ArrayList<String>();
-        if (desirePathHighlight != 0f) idle.add("client.desirePathHighlight");
         if (!mapWearThroughTint) idle.add("client.mapWearThroughTint");
         if (idle.isEmpty()) return;
 
@@ -1235,7 +1234,7 @@ public final class TrmtConfig {
             named.append(one);
         }
         com.trmtgtnh.Trmt.LOG.info(
-            "These map settings do nothing in this edition and are left in the file so a pack can move between versions: {}. Every map here reads one vanilla answer, which is a choice of sixty-four fixed palette entries, so there is no per-position tint to give and no highlight colour to travel toward. What does work: a worn square reports the colour of whatever it stands in for, darkened by surfaces.mapWearDarkening to the nearest entry the palette has - one colour rather than a shade per gradation, so a road is visible on a map but how worn it is is not.",
+            "These map settings do nothing in this edition and are left in the file so a pack can move between versions: {}. What does work, and on which map: every map that reads the vanilla answer gets a choice of sixty-four fixed palette entries, so a worn square reports the colour of whatever it stands in for, darkened by surfaces.mapWearDarkening to the nearest entry the palette has - one colour rather than a shade per gradation, so a road is visible but how worn it is is not. JourneyMap is the exception and is handed an ordinary RGB value per position, so against it mapTracksWear, mapWearDarkening, desirePathHighlight and desirePathRgb all mean exactly what they say.",
             named);
     }
 
@@ -2737,7 +2736,7 @@ public final class TrmtConfig {
             0f,
             0f,
             1f,
-            "Does nothing in this edition: it needs JourneyMap's own colour lookup, which the older editions hand an RGB value to and which this edition needs no integration with at all. Left in the file so a pack can move between versions. What follows is what it means there. How far a worn square's colour on the map is pulled toward the desire-path colour below, at the point it is fully worn. Nought is off and off is what ships, so this means nothing at all until somebody deliberately raises it. Left alone, a map goes on drawing worn ground as the ground it is - travelling toward what it is turning into and darkening as it goes, which is what surfaces.mapTracksWear does. Turn this up and the map stops answering 'what material is this square' for worn ground and starts answering 'where does everybody actually walk'. That is a different map and a deliberate trade: a road drawn in violet is no longer a road drawn in stone. One puts a fully worn square entirely in the highlight colour; a half leaves both readings at once, the material still recognisable with the traffic laid over it, and is the setting to try first. The pull is scaled by how worn each square is, so ground nobody has ever crossed is left exactly as it was - but be ready for how much ground is not that, because a square counts from its first crossing and around a base that is most of it. The scale is deliberately not a straight line but the square root of the wear, because a route is interesting the moment somebody starts using it and a straight line leaves a new one invisible until it is half worn out. Two things it cannot do: it needs JourneyMap and does nothing whatever without it, because the highlight is applied by the colour handler this mod hands to JourneyMap and no other map is given one; and it does not repaint a map already drawn, so ground near you recolours as it is mapped again while ground you explored last week keeps its old colours until you go back. The log says once, the first time a square is actually highlighted, that all of this is working.");
+            "How far a worn square's colour on the map is pulled toward the desire-path colour below, at the point it is fully worn. Nought is off and off is what ships, so this means nothing at all until somebody deliberately raises it. Left alone, a map goes on drawing worn ground as the ground it is - travelling toward what it is turning into and darkening as it goes, which is what surfaces.mapTracksWear does. Turn this up and the map stops answering 'what material is this square' for worn ground and starts answering 'where does everybody actually walk'. That is a different map and a deliberate trade: a road drawn in violet is no longer a road drawn in stone. One puts a fully worn square entirely in the highlight colour; a half leaves both readings at once, the material still recognisable with the traffic laid over it, and is the setting to try first. The pull is scaled by how worn each square is, so ground nobody has ever crossed is left exactly as it was - but be ready for how much ground is not that, because a square counts from its first crossing and around a base that is most of it. The scale is deliberately not a straight line but the square root of the wear, because a route is interesting the moment somebody starts using it and a straight line leaves a new one invisible until it is half worn out. Two things it cannot do: it needs JourneyMap and does nothing whatever without it, because the highlight is applied by the colour handler this mod hands to JourneyMap and no other map is given one; and it does not repaint a map already drawn, so ground near you recolours as it is mapped again while ground you explored last week keeps its old colours until you go back. The log says once, the first time a square is actually highlighted, that all of this is working.");
         desirePathColour = config.getString(
             "desirePathColour",
             CATEGORY_CLIENT,
@@ -2835,7 +2834,7 @@ public final class TrmtConfig {
             }
         }
         if (bare.isEmpty()) return;
-        Trmt.LOG.warn("{} settings have no hover explanation: {}", Integer.valueOf(bare.size()), bare);
+        Trmt.LOG.warn("{} settings have no hover explanation: {}", Integer.valueOf(bare.size()), com.trmtgtnh.util.LogSample.of(bare));
     }
 
     private static boolean isBlank(String text) {

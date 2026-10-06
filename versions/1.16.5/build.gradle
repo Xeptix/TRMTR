@@ -35,6 +35,14 @@ subprojects {
             configureEach {
                 if (project.hasProperty("spike")) property("trmt.spike", "true")
                 if (project.hasProperty("paint")) property("trmt.spike.paint", "true")
+                // The walk harness, which is the one the other two editions run: it makes its own
+                // superflat, paces a line until the ground wears and photographs it, then builds two
+                // demonstrate yards and photographs those. `-Pshots` adds the camera work.
+                if (project.hasProperty("walk")) property("trmt.spike.walk", "true")
+                if (project.hasProperty("shots")) property("trmt.spike.shots", "true")
+                // Which parts of the run are wanted - walk, show, demo1, demo2 - so one of them
+                // can be refreshed on its own. Nothing given means all of them.
+                if (project.hasProperty("only")) property("trmt.spike.only", project.property("only").toString())
             }
         }
     }

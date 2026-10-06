@@ -6,7 +6,9 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
 import com.trmtgtnh.Trmt;
@@ -16,7 +18,7 @@ import com.trmtgtnh.config.TrmtConfig;
  * The parts of the covered block a ghost goes on letting through.
  *
  * <p>
- * A ghost mirrors the block it is covering wherever anything but rendering can tell, and two of those
+ * A ghost mirrors the block it is covering wherever anything but rendering can tell. Two of those
  * ways are things the block does rather than things it is: scattering its own ambient particles, and
  * acting on whatever stands inside it. Both are plain {@code Block} calls that the ghost receives
  * instead of the block it stands for, so both have to be handed on.
@@ -51,6 +53,68 @@ public final class GhostInherit {
 
     private static void leave() {
         INSIDE.remove();
+    }
+
+    /** A ten-thousandth of a block, finer than anything states its own edges to. */
+    private static final double TOLERANCE = 1.0E-4D;
+
+    /**
+     * Stands for "this block takes whatever footing it is given", so that null can go on meaning to
+     * this mod what it means to the game, which is that there is nothing here to walk into.
+     */
+    public static final AxisAlignedBB ORDINARY = new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, 1.0D, 1.0D);
+
+    /**
+     * The footing the covered block insists on for itself, or null when it insists on none.
+     *
+     * <p>
+     * Wear is a height taken off the top of a full cell, and that is the right shape for every kind
+     * of ground there is - earth, rock, sand, a slab, a made path. It is the wrong shape for a block
+     * that occupies less of its square than that. A cloud is a pad a little over half across sitting
+     * at the bottom of its cell, and a stand-in handing back a full cell over one turns a block you
+     * fall through into a block you stand on. So a block narrower than its own square keeps its own
+     * answer, worn or not, and a rut is simply never cut into it.
+     *
+     * <p>
+     * Only the footprint is measured and never the height, because a shorter block is exactly what
+     * wear produces and is what the record already knows how to describe. A slab and a grass path
+     * fill their square and stand short, and both go on wearing as they always have. A stair is not
+     * caught here either - its boxes span the square between them, and it is answered before this.
+     *
+     * <p>
+     * Both sides ask the same question of the same block: the server through
+     * {@code PhysicalDecay}, the client through here. A footing derived from two rules is two
+     * machines disagreeing about where somebody is standing.
+     *
+     * <p>
+     * The three answers use the 1.7.10 edition's own convention, and they have to: {@code NULL_AABB}
+     * is literally {@code null} at this version, so null cannot also mean "no opinion" the way it
+     * does on 1.16.5 where a shape has a real empty value.
+     *
+     * @return the block's own box when it is narrower than its square, null when it insists on no
+     *         footing at all, and {@link #ORDINARY} when it takes whatever footing it is given
+     */
+    public static AxisAlignedBB ownFootingAt(IBlockAccess world, BlockPos pos, int origin) {
+        if (origin < 0 || world == null || pos == null) return ORDINARY;
+        if (!enter()) return ORDINARY;
+        try {
+            IBlockState under = Block.getStateById(origin);
+            if (under == null || under.getBlock() instanceof BlockGhost) return ORDINARY;
+
+            AxisAlignedBB own = under.getCollisionBoundingBox(world, pos);
+            if (own == null) return null;
+
+            boolean narrow = own.minX > TOLERANCE || own.minZ > TOLERANCE
+                || own.maxX < 1.0D - TOLERANCE
+                || own.maxZ < 1.0D - TOLERANCE;
+            return narrow ? own : ORDINARY;
+        } catch (RuntimeException awkwardBlock) {
+            // A block that will not say what shape it is still gets the usual footing rather than
+            // taking a chunk's collision pass down with it.
+            return ORDINARY;
+        } finally {
+            leave();
+        }
     }
 
     /**

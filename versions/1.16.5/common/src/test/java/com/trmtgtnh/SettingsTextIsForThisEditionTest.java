@@ -74,7 +74,8 @@ class SettingsTextIsForThisEditionTest {
                 "1.12 replaced achievements with advancements and this edition writes advancement "
                     + "JSON, so a player reading this has no achievement page to look for. The "
                     + "setting keeps its name - that is what the allowance list is for - but the "
-                    + "prose has to be about this game:\n  " + String.join("\n  ", wrong));
+                    + "prose has to be about this game:\n  "
+                    + String.join("\n  ", wrong));
         }
     }
 
@@ -91,14 +92,18 @@ class SettingsTextIsForThisEditionTest {
     void every_setting_that_does_nothing_here_says_so_where_it_is_read() throws IOException {
         List<String> lines = SourceTree.lines(FILE);
         Set<String> idle = idleSettings(lines);
-        // Two, and it was four. mapTracksWear and mapWearDarkening stopped being idle when the map
-        // darkening was built in the reduced form this version can carry - a palette entry picked for
-        // being darker, rather than a colour dimmed by a fraction. The floor is here so that a day
-        // when this test finds none at all is a day it has stopped looking, not a day it passed.
+        // One, and it was four. mapTracksWear and mapWearDarkening stopped being idle when the map
+        // darkening was built in the reduced form the vanilla palette can carry - an entry picked for
+        // being darker, rather than a colour dimmed by a fraction. desirePathHighlight stopped being
+        // idle when this edition gained the JourneyMap colour proxy it had been assumed not to need:
+        // JourneyMap is handed an ordinary RGB value per position, so the highlight has somewhere to
+        // be applied after all. The floor is here so that a day when this test finds none at all is a
+        // day it has stopped looking, not a day it passed.
         assertTrue(
-            idle.size() >= 2,
-            "Found " + idle.size() + " settings named in sayWhatMapsCannotDo and expected at least "
-                + "two - this test has stopped finding them rather than stopped finding faults");
+            idle.size() >= 1,
+            "Found " + idle.size()
+                + " settings named in sayWhatMapsCannotDo and expected at least "
+                + "one - this test has stopped finding them rather than stopped finding faults");
 
         List<String> wrong = new ArrayList<String>();
         for (String key : idle) {
@@ -113,7 +118,8 @@ class SettingsTextIsForThisEditionTest {
             fail(
                 "These settings do nothing in this edition - the mod says so in the log once per "
                     + "load - and their own descriptions do not begin by saying so, which is where "
-                    + "somebody actually reads them:\n  " + String.join("\n  ", wrong));
+                    + "somebody actually reads them:\n  "
+                    + String.join("\n  ", wrong));
         }
     }
 

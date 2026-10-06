@@ -2,8 +2,8 @@ package com.trmtgtnh.forge;
 
 import java.io.File;
 
-import net.minecraftforge.common.IPlantable;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.IPlantable;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
@@ -12,12 +12,12 @@ import net.minecraftforge.fml.server.ServerLifecycleHooks;
 
 import com.trmtgtnh.Client;
 import com.trmtgtnh.ModsPresent;
+import com.trmtgtnh.Trmt;
 import com.trmtgtnh.client.ClientSide;
 import com.trmtgtnh.client.texture.WearPackSource;
 import com.trmtgtnh.client.texture.WearTextures;
-import com.trmtgtnh.surface.Plants;
-import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.surface.Plants;
 
 /**
  * Where the mod starts under Forge. The Fabric module's opposite number, answering the same two
@@ -33,8 +33,9 @@ import com.trmtgtnh.config.TrmtConfig;
 public final class TrmtForge {
 
     public TrmtForge() {
-        ModsPresent.use(modId -> ModList.get()
-            .isLoaded(modId));
+        ModsPresent.use(
+            modId -> ModList.get()
+                .isLoaded(modId));
         // What this build calls itself, which the loader knows and the shared module does not. The
         // 1.12.2 edition reads a class its build plugin generates; there is none here and the two
         // compat layers only want it to stamp a folder. See Trmt.useVersion.
@@ -78,9 +79,7 @@ public final class TrmtForge {
         // wired any later is a pack the manager never heard of - and every wear sprite the atlas asks
         // for comes back as a missing texture. Which is what happened when this was done at stitch
         // time, on Fabric, visibly, before it was moved here on both.
-        DistExecutor.unsafeRunWhenOn(
-            Dist.CLIENT,
-            () -> () -> WearPackSource.use(WearTextures.SHEETS));
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> WearPackSource.use(WearTextures.SHEETS));
 
         // Where an arriving packet puts its news, and where the ghost's model asks what to draw.
         // Both are the same object, so it is wired once and here: a packet can arrive before anything
@@ -123,6 +122,13 @@ public final class TrmtForge {
     public static final class Lifecycle {
 
         private Lifecycle() {}
+
+        // Before the world loads, which is the point: what erodes has to be known before the first
+        // chunk is asked about, and on this edition nothing on a server ever worked it out.
+        @net.minecraftforge.eventbus.api.SubscribeEvent
+        public static void aboutToStart(net.minecraftforge.fml.event.server.FMLServerAboutToStartEvent event) {
+            com.trmtgtnh.server.ServerEvents.serverStarting(event.getServer());
+        }
 
         @net.minecraftforge.eventbus.api.SubscribeEvent
         public static void started(net.minecraftforge.fml.event.server.FMLServerStartedEvent event) {

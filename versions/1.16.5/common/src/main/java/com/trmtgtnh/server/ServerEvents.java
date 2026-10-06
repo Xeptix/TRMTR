@@ -14,6 +14,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -274,6 +275,35 @@ public final class ServerEvents {
     }
 
     /**
+     * A server is starting, and must work out what erodes before anything asks it.
+     *
+     * <p>
+     * <strong>Without this, nothing on this edition erodes at all.</strong> Detection was reached
+     * from two places only: the texture stitcher, which is client-only, and {@code /trmt reload}. So
+     * a client worked out its own table while building wear sprites and a server never worked out
+     * one at all - and in single player the client then adopts the server's table on joining, which
+     * replaced a good table with an empty one. The symptom is a world where no square ever wears and
+     * {@code /trmt demonstrate} answers "Nothing is detected as erodable". On a dedicated server
+     * nobody would have seen anything wear, ever.
+     *
+     * <p>
+     * It went unseen because every test and every probe run drives a client, and a client resolves
+     * on its way to stitching an atlas. The 1.12.2 edition resolves from its own mod lifecycle, in
+     * {@code init} and again in {@code postInit}, which is both sides by construction; this edition
+     * has no such lifecycle to borrow, so the moment is here - before the world loads, after every
+     * registry is frozen, on whichever side is starting a server.
+     *
+     * <p>
+     * The chain is the one {@code /trmt reload} runs and in the same order, minus the parts that
+     * belong to a reload: what erodes, then which of it can sink. Tamper grades are decided from
+     * tags and are rebuilt on the first tick, which is late enough to be their own problem.
+     */
+    public static void serverStarting(net.minecraft.server.MinecraftServer server) {
+        com.trmtgtnh.surface.SurfaceRegistry.resolve();
+        com.trmtgtnh.erosion.PhysicalDecay.markSinkableBlocks();
+    }
+
+    /**
      * A server has started, which is when the two written integrations do their writing.
      *
      * <p>
@@ -298,9 +328,48 @@ public final class ServerEvents {
         com.trmtgtnh.compat.QuestbookCompat.examineWorld(server);
     }
 
-    /** A server has stopped, and what was read off its save goes with it. */
+    /**
+     * A server has stopped, and everything that was about that world goes with it.
+     *
+     * <p>
+     * All of it is in-memory state keyed on a world that no longer exists: the wear of the chunks
+     * that were loaded, the engine's record of who stood where, each chunk's wet-healing and snow
+     * meters, and the work the server thread had queued for itself. A single-player client stops a
+     * server every time it leaves a world and starts another for the next one, so anything kept here
+     * is handed to the next world rather than being merely stale - which is how one save's roads
+     * turn up in another.
+     *
+     * <p>
+     * The pending work is the stopped server's own and only that. The client's queue is its own
+     * business and is emptied in {@code ClientSide.leaveWorld}: in single player this runs while
+     * that client is still there, and clearing its queue from here could discard a reload it had
+     * asked for.
+     */
     public static void serverStopped() {
+        com.trmtgtnh.util.MainThread.clearServer();
         com.trmtgtnh.compat.QuestbookCompat.forgetWorld();
+        com.trmtgtnh.erosion.ErosionStore.get()
+            .clearMemory();
+        com.trmtgtnh.erosion.ErosionEngine.get()
+            .clearOrphans();
+        com.trmtgtnh.erosion.ErosionEngine.get()
+            .reset();
+        com.trmtgtnh.erosion.Weather.reset();
+        com.trmtgtnh.erosion.SnowCover.reset();
+    }
+
+    /**
+     * Something was crafted, which is how the tool ladder is awarded.
+     *
+     * <p>
+     * The one trigger in {@code ModAchievements} that no loader called here: the method was carried,
+     * the advancements were carried, and crafting a tamper awarded nothing. Forge fires an event for
+     * it; Fabric has none, so its half is a mixin into the slot the result is taken from - which is
+     * the same place vanilla itself hangs its own crafting triggers.
+     */
+    public static void crafted(Player player, ItemStack stack) {
+        if (player == null || player.level == null || player.level.isClientSide()) return;
+        com.trmtgtnh.item.ModAchievements.onCrafted(player, stack);
     }
 
     /**

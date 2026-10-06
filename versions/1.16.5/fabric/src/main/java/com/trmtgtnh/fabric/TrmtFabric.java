@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.Registry;
 import net.minecraft.server.MinecraftServer;
-
 import net.minecraft.world.level.block.BushBlock;
 
 import com.trmtgtnh.ModsPresent;
@@ -47,15 +46,15 @@ public final class TrmtFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        ModsPresent.use(modId -> FabricLoader.getInstance()
-            .isModLoaded(modId));
+        ModsPresent.use(
+            modId -> FabricLoader.getInstance()
+                .isModLoaded(modId));
         Trmt.useHost(() -> running);
 
         // The same seam as the Forge side's, filled with this loader's word for it. See
         // OreNames.LazyTags for why a recipe cannot hold a tag fetched from the collection of the
         // moment.
-        com.trmtgtnh.util.OreNames
-            .use(name -> net.fabricmc.fabric.api.tag.TagRegistry.item(name));
+        com.trmtgtnh.util.OreNames.use(name -> net.fabricmc.fabric.api.tag.TagRegistry.item(name));
 
         // Vanilla's bush class, which is what every plant that needs ground underneath it extends.
         // Forge answers this with its own IPlantable instead, so the two agree about vanilla and
@@ -73,7 +72,12 @@ public final class TrmtFabric implements ModInitializer {
                         .getFriendlyString())
                 .orElse("unknown"));
 
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+        // Before the world loads, which is the point: what erodes has to be known before the first
+        // chunk is asked about, and on this edition nothing on a server ever worked it out.
+        ServerLifecycleEvents.SERVER_STARTING
+            .register(server -> com.trmtgtnh.server.ServerEvents.serverStarting(server));
+
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             running = server;
             // After the server is on record, because both of these ask this mod where it is.
             com.trmtgtnh.server.ServerEvents.serverStarted(server);
@@ -158,35 +162,34 @@ public final class TrmtFabric implements ModInitializer {
      * is sent an id it has no golem for refuses the window rather than showing an empty one.
      */
     private static void registerGolemMenu() {
-        net.minecraft.world.inventory.MenuType<com.trmtgtnh.entity.ContainerGolem> type =
-            net.fabricmc.fabric.api.screenhandler.v1.ScreenHandlerRegistry.registerExtended(
+        net.minecraft.world.inventory.MenuType<com.trmtgtnh.entity.ContainerGolem> type = net.fabricmc.fabric.api.screenhandler.v1.ScreenHandlerRegistry
+            .registerExtended(
                 new net.minecraft.resources.ResourceLocation(Trmt.MODID, "golem"),
                 com.trmtgtnh.entity.ContainerGolem::new);
         com.trmtgtnh.entity.GolemMenu.use(type);
 
         com.trmtgtnh.entity.GolemMenu.use((player, golem) -> {
             if (!(player instanceof net.minecraft.server.level.ServerPlayer)) return;
-            player.openMenu(
-                new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory() {
+            player.openMenu(new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory() {
 
-                    @Override
-                    public net.minecraft.network.chat.Component getDisplayName() {
-                        return golem.getName();
-                    }
+                @Override
+                public net.minecraft.network.chat.Component getDisplayName() {
+                    return golem.getName();
+                }
 
-                    @Override
-                    public net.minecraft.world.inventory.AbstractContainerMenu createMenu(int windowId,
-                        net.minecraft.world.entity.player.Inventory inventory,
-                        net.minecraft.world.entity.player.Player opening) {
-                        return new com.trmtgtnh.entity.ContainerGolem(windowId, inventory, golem);
-                    }
+                @Override
+                public net.minecraft.world.inventory.AbstractContainerMenu createMenu(int windowId,
+                    net.minecraft.world.entity.player.Inventory inventory,
+                    net.minecraft.world.entity.player.Player opening) {
+                    return new com.trmtgtnh.entity.ContainerGolem(windowId, inventory, golem);
+                }
 
-                    @Override
-                    public void writeScreenOpeningData(net.minecraft.server.level.ServerPlayer to,
-                        net.minecraft.network.FriendlyByteBuf buffer) {
-                        buffer.writeVarInt(golem.getId());
-                    }
-                });
+                @Override
+                public void writeScreenOpeningData(net.minecraft.server.level.ServerPlayer to,
+                    net.minecraft.network.FriendlyByteBuf buffer) {
+                    buffer.writeVarInt(golem.getId());
+                }
+            });
         });
     }
 }

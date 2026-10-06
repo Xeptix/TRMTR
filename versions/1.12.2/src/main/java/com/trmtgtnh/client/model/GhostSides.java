@@ -94,6 +94,24 @@ public final class GhostSides {
         SurfaceFamily originFamily = block == null ? null : SurfaceRegistry.familyOf(block, meta);
         if (originFamily == null) originFamily = appearance;
 
+        /*
+         * Whether this square has dropped below the top of the block it stands in for, which is the
+         * only thing that may slide a side picture.
+         * It used to be handed out as a constant true, and that is an off-by-one row on every block
+         * that is not a whole cube. Sliding anchors the texture's own top row to the top of the quad;
+         * not sliding anchors its bottom row to the bottom of the cell, which is what vanilla does.
+         * Vanilla's grass path is the case that showed it: the block is fifteen sixteenths tall, the
+         * top row of grass_path_side is fully transparent, and vanilla's model skips that row with
+         * `uv [0, 1, 16, 16]`. Sliding an unsunk path drew that transparent row along the top of
+         * every side - a see-through band in the cut-out pass, and a black one in the solid pass.
+         */
+        boolean sunken = ErosionState.sinkOf(record) > 0;
+        // ...and only a flank may slide. The 1.7.10 edition says `side >= 2` in the same breath as
+        // its sunken test, and it matters here in a way it never did there: the underside now comes
+        // through this method too, and a bottom face anchored to the top of its own quad samples the
+        // texture upside down.
+        boolean slides = sunken && side >= 2;
+
         // One texture all round: the side wears from the same set as the top, at the side's own lesser wear.
         if (appearance != SurfaceFamily.GRASS && !hasOwnSides(block, meta)) {
             TextureAtlasSprite worn = WearTextures
@@ -104,25 +122,54 @@ public final class GhostSides {
         // Worn through to what was underneath: a rut through turf shows the soil it sat on, not the turf's flank.
         boolean revealsEarth = originFamily == SurfaceFamily.GRASS && appearance != SurfaceFamily.GRASS;
         if (revealsEarth) {
-            return new Face(faceSprite(block, meta, 0, originFamily, appearance), true, null);
+            return new Face(faceSprite(block, meta, 0, originFamily, appearance), slides, null);
         }
 
         if (appearance == SurfaceFamily.GRASS) {
-            TextureAtlasSprite fringe = fringeFor(record, fringeTurn);
+            // Only where the block really is a lawn, and only on a flank.
+            //
+            // The fringe used to be handed to anything whose <em>appearance</em> was grass, which is
+            // what a square is wearing as rather than what it is made of - so a modded block detected
+            // into the grass family got vanilla's green fringe laid over its own sides, and the top
+            // and bottom faces got one too. The 1.7.10 edition keys this off the block drawing
+            // vanilla's own grass top, which is the same question {@link #mimicsVanillaGrassTop}
+            // already answers for the earth wall just below.
+            boolean lawn = mimicsVanillaGrassTop(block, meta);
+            boolean flank = side >= 2;
+            // A square that has sunk keeps the look it had before this feature existed, which is
+            // the gate the 1.7.10 edition states twice - once for the thinned fringe and once for
+            // the earth wall below - and which neither port carried. Without it a sinking lawn's
+            // flanks went on receding as it sank: here the wall darkened the top of every side, and
+            // on 1.16.5 the fringe kept thinning and brightening against it. Both are this one
+            // missing condition.
+            TextureAtlasSprite fringe = lawn && flank ? fringeFor(record, fringeTurn, !sunken) : null;
             if (snowed) {
                 // Snow sits on it, so the flank is the snowed one the block itself would draw; the fringe has
                 // nothing to do under snow.
                 return new Face(snowedSide(block, meta, originFamily, appearance), false, null);
             }
             int sideStep = WearSteps.sideLayer(appearance, record);
-            if (TrmtConfig.grassSideWear && sideStep >= WALL_START && mimicsVanillaGrassTop(block, meta)) {
+            if (TrmtConfig.grassSideWear && flank && !sunken && sideStep >= WALL_START && lawn) {
                 TextureAtlasSprite wall = WearTextures.grassEarthWall(block, meta);
                 if (wall != null) return new Face(wall, false, fringe);
+            }
+            // A covered block that cuts its own side away, mended with vanilla's grass underneath it.
+            //
+            // Such a block draws itself in more than one layer and fills the holes with what shows
+            // through; a ghost draws in one, so borrowing that texture left a band you could see
+            // straight through. The mend is composed at stitch time for exactly the blocks whose side
+            // texture has holes in it - see WearTextures.wantsMendedSide - and there is none for
+            // anything else, so this costs a null check per face and nothing else. When the atlas
+            // could not fit one, the block's own side is drawn as before and the composer's report
+            // says how many it could not install.
+            if (flank) {
+                TextureAtlasSprite mended = WearTextures.mendedSide(block, meta);
+                if (mended != null) return new Face(mended, false, fringe);
             }
             return new Face(faceSprite(block, meta, side, originFamily, appearance), false, fringe);
         }
 
-        return new Face(faceSprite(block, meta, side, originFamily, appearance), true, null);
+        return new Face(faceSprite(block, meta, side, originFamily, appearance), slides, null);
     }
 
     /**
@@ -131,11 +178,35 @@ public final class GhostSides {
      * <p>
      * Grey either way: the quad it is drawn on carries the biome tint, and tinting it here would tint it twice.
      */
-    private static TextureAtlasSprite fringeFor(short record, int fringeTurn) {
-        if (!TrmtConfig.grassSideWear) return vanilla("blocks/grass_side_overlay");
+    private static TextureAtlasSprite fringeFor(short record, int fringeTurn, boolean thin) {
+        if (!thin || !TrmtConfig.grassSideWear) return vanilla("blocks/grass_side_overlay");
         TextureAtlasSprite thinned = WearTextures
             .grassSideOverlay(WearSteps.sideLayer(SurfaceFamily.GRASS, record), fringeTurn);
         return thinned != null ? thinned : vanilla("blocks/grass_side_overlay");
+    }
+
+    /**
+     * Whether this square's wear picture is a grey one waiting for the biome's grass colour.
+     *
+     * <p>
+     * Two things have to be true and only one of them used to be asked. The square has to be wearing
+     * as grass - and the block it covers has to <em>be</em> a lawn, because the picture is composited
+     * from that block's own pixels. Vanilla's grass top is stored grey and is green only because the
+     * game multiplies a biome colour into it; anything else is stored in its own colours and
+     * multiplying grass green into those is just darkening them.
+     *
+     * <p>
+     * Asking only the first question tinted the top of every block a pack had detected into the grass
+     * family: a red block came out dark red, and blocks that are not green at all came out green.
+     * This is the same test the fringe and the earth wall are gated by, which is the point - all
+     * three are asking "is this vanilla's turf".
+     */
+    public static boolean tintsAsGrass(int origin, SurfaceFamily appearance) {
+        if (appearance != SurfaceFamily.GRASS) return false;
+        IBlockState under = stateOf(origin);
+        Block block = under == null ? null : under.getBlock();
+        if (block == null) return false;
+        return mimicsVanillaGrassTop(block, metaOf(block, under));
     }
 
     /** Whether a block's sides are their own texture rather than the one on its top. */
@@ -152,7 +223,12 @@ public final class GhostSides {
      */
     private static boolean mimicsVanillaGrassTop(Block block, int meta) {
         String top = block == null ? null : ModelFaces.faceName(block, meta, 1);
-        return "minecraft:blocks/grass_top".equals(top);
+        if (top == null) return false;
+        // Compared canonically rather than as strings, because one texture has several spellings.
+        // Vanilla's own model declares "blocks/grass_top" with no namespace, and this used to compare
+        // against the literal "minecraft:blocks/grass_top" - so it matched nothing, vanilla grass was
+        // never recognised as a lawn, and neither the earth wall nor the fringe ever fired for it.
+        return canonical("grass_top").equals(canonical(top));
     }
 
     /** The flank a snowed block draws: vanilla's snowed grass side for a lawn, else the block's own. */
@@ -186,6 +262,22 @@ public final class GhostSides {
     /** A bare name in the other edition's form given the folder 1.12.2 files a block texture under. */
     private static String sprite(String name) {
         return name.indexOf('/') >= 0 ? name : "minecraft:blocks/" + name;
+    }
+
+    /**
+     * One texture name written one way, so two spellings of the same texture compare equal.
+     *
+     * <p>
+     * A model may name a texture bare, with a folder, or with a namespace as well, and all three mean
+     * the same file. Comparing the raw strings makes two of those three a miss.
+     */
+    private static String canonical(String name) {
+        if (name == null) return null;
+        int colon = name.indexOf(':');
+        String domain = colon >= 0 ? name.substring(0, colon) : "minecraft";
+        String path = colon >= 0 ? name.substring(colon + 1) : name;
+        if (path.indexOf('/') < 0) path = "blocks/" + path;
+        return domain + ":" + path;
     }
 
     private static TextureAtlasSprite vanilla(String path) {

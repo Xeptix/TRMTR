@@ -1,0 +1,161 @@
+{
+  "dev": {
+    "1.12.2": {
+      "cameras": "1db1a780a013",
+      "shots": 23,
+      "taken": 1791323180.1505144
+    },
+    "1.16.5 fabric": {
+      "cameras": "1db1a780a013",
+      "shots": 23,
+      "taken": 1791324165.4610572
+    },
+    "1.16.5 forge": {
+      "cameras": "1db1a780a013",
+      "shots": 23,
+      "taken": 1791323507.3310425
+    },
+    "1.7.10": {
+      "cameras": "1db1a780a013",
+      "shots": 23,
+      "taken": 1791322884.290513
+    }
+  },
+  "instances": {
+    "1.12.2": {
+      "bytes": 1648393,
+      "cameras": "1db1a780a013",
+      "edition": "1.12.2",
+      "jar": "trmtr-1.12.2-0.9.217-dirty-forge.jar",
+      "mods": [
+        "journeymap-forge-1.12.2-6.0.10.jar",
+        "mixinbooter-11.13.jar",
+        "xaerolib-forge-1.12.2-1.7.3.jar",
+        "xaerominimap-forge-1.12.2-26.6.0.jar"
+      ],
+      "shots": 23,
+      "taken": 1791325403.6490295
+    },
+    "1.12.2 OptiFine": {
+      "bytes": 1648393,
+      "cameras": "1db1a780a013",
+      "edition": "1.12.2",
+      "jar": "trmtr-1.12.2-0.9.217-dirty-forge.jar",
+      "mods": [
+        "OptiFine_1.12.2_HD_U_G5.jar",
+        "mixinbooter-11.13.jar"
+      ],
+      "shots": 23,
+      "taken": 1791325703.7233427
+    },
+    "1.16.5 Fabric": {
+      "bytes": 1734801,
+      "cameras": "1db1a780a013",
+      "edition": "1.16.5 fabric",
+      "jar": "trmtr-1.16.5-0.9.217-fabric.jar",
+      "mods": [
+        "cloth-config-fabric-4.17.132.jar",
+        "fabric-api-0.42.0+1.16.jar",
+        "indium-1.0.0+mc1.16.5.jar",
+        "iris-mc1.16.5-1.4.5.jar",
+        "modmenu-1.16.23.jar",
+        "sodium-fabric-mc1.16.5-0.2.0+build.4.jar",
+        "xaerominimap-fabric-1.16.5-26.6.0.jar"
+      ],
+      "shots": 23,
+      "taken": 1791326799.4159808
+    },
+    "1.16.5 Fabric Canvas": {
+      "bytes": 1734801,
+      "cameras": "1db1a780a013",
+      "edition": "1.16.5 fabric",
+      "jar": "trmtr-1.16.5-0.9.217-fabric.jar",
+      "mods": [
+        "canvas-mc116-1.0.1511.jar",
+        "cloth-config-fabric-4.17.132.jar",
+        "fabric-api-0.42.0+1.16.jar",
+        "modmenu-1.16.23.jar"
+      ],
+      "shots": 0,
+      "taken": null
+    },
+    "1.16.5 Fabric OptiFabric": {
+      "bytes": 1734801,
+      "cameras": "1db1a780a013",
+      "edition": "1.16.5 fabric",
+      "jar": "trmtr-1.16.5-0.9.217-fabric.jar",
+      "mods": [
+        "OptiFine_1.16.5_HD_U_G8.jar",
+        "cloth-config-fabric-4.17.132.jar",
+        "fabric-api-0.42.0+1.16.jar",
+        "modmenu-1.16.23.jar",
+        "optifabric-1.10.2.jar"
+      ],
+      "shots": 0,
+      "taken": null
+    },
+    "1.16.5 Forge": {
+      "bytes": 1743358,
+      "cameras": "1db1a780a013",
+      "edition": "1.16.5 forge",
+      "jar": "trmtr-1.16.5-0.9.217-forge.jar",
+      "mods": [
+        "cloth-config-forge-4.17.132.jar",
+        "oculus-mc1.16.5-1.4.8.jar",
+        "rubidium-mc1.16.5-0.2.13.jar",
+        "xaerolib-forge-1.16.5-1.7.3.jar",
+        "xaerominimap-forge-1.16.5-26.6.0.jar"
+      ],
+      "shots": 23,
+      "taken": 1791326031.5420294
+    },
+    "1.16.5 Forge OptiFine": {
+      "bytes": 1743358,
+      "cameras": "1db1a780a013",
+      "edition": "1.16.5 forge",
+      "jar": "trmtr-1.16.5-0.9.217-forge.jar",
+      "mods": [
+        "OptiFine_1.16.5_HD_U_G8.jar",
+        "cloth-config-forge-4.17.132.jar"
+      ],
+      "shots": 23,
+      "taken": 1791326472.1870093
+    },
+    "1.7.10": {
+      "bytes": 1533410,
+      "cameras": "1db1a780a013",
+      "edition": "1.7.10",
+      "jar": "trmtr-1.7.10-0.9.217-master+9b369d3c23-dirty-forge.jar",
+      "mods": [
+        "+unimixins-all-1.7.10-0.1.23.jar"
+      ],
+      "shots": 23,
+      "taken": 1791324468.9210577
+    },
+    "1.7.10 Angelica": {
+      "bytes": 1533410,
+      "cameras": "1db1a780a013",
+      "edition": "1.7.10",
+      "jar": "trmtr-1.7.10-0.9.217-master+9b369d3c23-dirty-forge.jar",
+      "mods": [
+        "+unimixins-all-1.7.10-0.1.23.jar",
+        "Angelica-2.2.29.jar",
+        "GTNHLib-0.11.52.jar"
+      ],
+      "shots": 23,
+      "taken": 1791325090.419828
+    },
+    "1.7.10 OptiFine": {
+      "bytes": 1533410,
+      "cameras": "1db1a780a013",
+      "edition": "1.7.10",
+      "jar": "trmtr-1.7.10-0.9.217-master+9b369d3c23-dirty-forge.jar",
+      "mods": [
+        "+unimixins-all-1.7.10-0.1.23.jar",
+        "OptiFine_1.7.10_HD_U_E7.jar"
+      ],
+      "shots": 23,
+      "taken": 1791324778.769598
+    }
+  }
+}

@@ -1,5 +1,6 @@
 package com.trmtgtnh.fabric;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
@@ -48,6 +49,17 @@ public final class FabricEvents {
         // As early as Fabric offers for a level, which is before its chunks are asked for.
         ServerWorldEvents.LOAD.register((server, level) -> ServerEvents.levelLoaded(level));
 
+        // A chunk arriving and a chunk going, which is when wear read off disk is promoted onto the
+        // main thread and when what is in memory is set aside to be written. The reading and the
+        // writing themselves are MixinChunkSerializer's: vanilla's method has the level to hand and
+        // neither loader's chunk-data event does. See ErosionStore for what each of the four does.
+        ServerChunkEvents.CHUNK_LOAD.register(
+            (level, chunk) -> com.trmtgtnh.erosion.ErosionStore.get()
+                .chunkLoaded(level, chunk.getPos().x, chunk.getPos().z));
+        ServerChunkEvents.CHUNK_UNLOAD.register(
+            (level, chunk) -> com.trmtgtnh.erosion.ErosionStore.get()
+                .chunkUnloaded(level, chunk.getPos().x, chunk.getPos().z));
+
         // The player is read off the handler's own field rather than from a getter: this version's
         // packet listener holds it as `player` with nothing to ask.
         ServerPlayConnectionEvents.JOIN
@@ -75,8 +87,8 @@ public final class FabricEvents {
 
         // And the second refusal: a tamper breaks nothing, however long it is held on a block. The
         // callback above stops a click starting a dig; this stops one that started another way.
-        PlayerBlockBreakEvents.BEFORE.register(
-            (level, player, pos, state, entity) -> !TamperEvents.holdsTamper(player.getMainHandItem()));
+        PlayerBlockBreakEvents.BEFORE
+            .register((level, player, pos, state, entity) -> !TamperEvents.holdsTamper(player.getMainHandItem()));
     }
 
     /** Called by the chunk-watch mixin, which has the tracker rather than the player to hand. */

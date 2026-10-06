@@ -1,5 +1,6 @@
 package com.trmtgtnh.client.texture;
 
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -448,6 +449,7 @@ public final class WearTextures {
      * read the same as the other edition's; timed from the stitch event to here, which is the whole of what composing
      * cost, spread across the atlas's own loading.
      */
+
     private static void finishPass() {
         Pass current = pass;
         pass = null;
@@ -462,14 +464,33 @@ public final class WearTextures {
                     Long.valueOf((System.nanoTime() - current.began) / 1000000L), Integer.valueOf(tally.surfaces),
                     Integer.valueOf(tally.guessed), Integer.valueOf(tally.unreadable), Integer.valueOf(tally.failed) });
             if (!tally.improvised.isEmpty()) {
-                Trmt.LOG.info("Wearing a family stand-in rather than their own pixels: {}", tally.improvised);
+                // Counted and sampled rather than handed over whole.
+                //
+                // This line used to pass the set itself, and log4j stringifies a collection parameter by
+                // walking it. On 1.16.5, where a stitch composes forty-four thousand pictures from a
+                // hundred and fifty-six surfaces, that walk threw OutOfMemoryError with a StringBuilder
+                // past two gigabytes - inside TextureAtlas.reload, which took the whole resource reload
+                // down with it and left Indigo tessellating blocks with a null model. The game did not
+                // start. The other two editions have small enough packs that it never showed.
+                //
+                // The count is what anybody reads anyway; the names are a sample off a snapshot, so the
+                // line is bounded whatever the set is doing. A log line may not be able to stop a game.
+                Trmt.LOG.info(
+                    "Wearing a family stand-in rather than their own pixels: {}",
+                    com.trmtgtnh.util.LogSample.of(tally.improvised));
             }
             reportFaces(current.faces);
             if (tally.scaled > 0) {
-                Trmt.LOG.info(LINE_SCALED, Integer.valueOf(tally.scaled), tally.scaledNames);
+                Trmt.LOG.info(
+                    LINE_SCALED,
+                    Integer.valueOf(tally.scaled),
+                    com.trmtgtnh.util.LogSample.of(tally.scaledNames));
             }
             if (tally.resized > 0) {
-                Trmt.LOG.warn(LINE_RESIZED, Integer.valueOf(tally.resized), tally.resizedNames);
+                Trmt.LOG.warn(
+                    LINE_RESIZED,
+                    Integer.valueOf(tally.resized),
+                    com.trmtgtnh.util.LogSample.of(tally.resizedNames));
             }
             InnerLayers.report();
             InnerLayers.reportAnimation();
@@ -1012,6 +1033,20 @@ public final class WearTextures {
      * there are enough of them to go round. The answer is whatever survived the config, the atlas
      * and the pre-flight, so it is asked of the table rather than of the setting.
      */
+    /**
+     * Whether the wear pictures have been composed yet.
+     *
+     * <p>
+     * Not the same question as {@link #drawnGradations()}, which answers eight before a single sprite
+     * exists because the empty table is built with the shipped default in it. Anything waiting for the
+     * stitch has to ask this instead - the verification harness does, because a world opened before
+     * the pictures are installed is rendered against a half-built atlas, and on 1.16.5 Fabric that is
+     * a crash in the renderer rather than a missing texture.
+     */
+    public static boolean composed() {
+        return lookup != Lookup.EMPTY;
+    }
+
     public static int drawnGradations() {
         return lookup.layers;
     }
@@ -1071,7 +1106,7 @@ public final class WearTextures {
         // the ids move, on whichever thread moved them, and walks that each read it afresh could hand
         // the census one table and the gate another.
         List<SurfaceRegistry.SurfaceState> surfaces = SurfaceRegistry.texturableStates();
-        StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(surfaces);
+        StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(manager, surfaces);
         StateFiling.Builder<Block, Boolean> wallsWanted = grassWallsWanted(surfaces);
         // Every edge worked out once, here, and used both to price the plan and to register the sprites, so what goes
         // to the stitcher is what the plan priced rather than a second reading of the same files.
@@ -2187,11 +2222,44 @@ public final class WearTextures {
      * need it costs a sprite and changes nothing, where missing one leaves a band you can see
      * through.
      */
-    private static boolean wantsMendedSide(Block block, SurfaceFamily family) {
-        // None, in this edition, for now. The signal was a render type of the block's own, which 1.12.2
-        // does not have in that sense: a block that draws in more than one pass is a model of more than one
-        // layer, and whether any 1.12.2 turf cuts its side away for a pass underneath is not yet known. The
-        // question belongs with the ghost's sides, which are the next part of this pipeline.
+    private static boolean wantsMendedSide(IResourceManager manager, Block block, int meta, SurfaceFamily family) {
+        // Grass only, as the other edition gates it: the mend is a hole filled with vanilla's own grass
+        // side, which is only the honest filling for a block that is a lawn.
+        if (manager == null || block == null || family != SurfaceFamily.GRASS) return false;
+
+        // The signal, at last, and it is the hole itself rather than a proxy for it.
+        //
+        // The 1.7.10 edition asks whether the block has a render type of its own - a block that draws
+        // itself may be drawing more than one pass, and its side texture can be cut away where a pass
+        // underneath is meant to show through. There is no such question at this version, and the
+        // render layer is not a stand-in for it: vanilla's own grass block draws in the cut-out pass,
+        // and vanilla's grass is precisely the block this must never claim. So the texture is read and
+        // asked directly whether it has holes in it, which is what the other edition's signal was a
+        // proxy for all along. Vanilla's grass side is opaque in every pixel on both versions, so it
+        // excludes itself and needs no special case.
+        String side = ModelFaces.faceName(block, meta, 2);
+        if (side == null) return false;
+        return hasHoles(WearPatterns.readIcon(manager, side));
+    }
+
+    /**
+     * Whether any pixel of a texture's first frame is less than opaque.
+     *
+     * <p>
+     * The first frame only: an animated texture is a column of frames, and the frames below the first
+     * are not what a still side draws. Square is assumed, as everything in this pipeline assumes, so
+     * the frame is the width.
+     */
+    private static boolean hasHoles(BufferedImage image) {
+        if (image == null) return false;
+        int width = image.getWidth();
+        int height = Math.min(width, image.getHeight());
+        if (width <= 0 || height <= 0) return false;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (((image.getRGB(x, y) >>> 24) & 0xFF) < 255) return true;
+            }
+        }
         return false;
     }
 
@@ -2200,12 +2268,13 @@ public final class WearTextures {
      * registered so they are priced before anything is planned, in the order the registration loop
      * used to walk them. A state is filed once, as registerMendedSide's own check does.
      */
-    private static StateFiling.Builder<Block, Boolean> mendedSidesWanted(List<SurfaceRegistry.SurfaceState> surfaces) {
+    private static StateFiling.Builder<Block, Boolean> mendedSidesWanted(IResourceManager manager,
+        List<SurfaceRegistry.SurfaceState> surfaces) {
         StateFiling.Builder<Block, Boolean> out = StateFiling.<Block, Boolean>builder();
         for (SurfaceRegistry.SurfaceState state : surfaces) {
             for (int meta : metasOf(state.block)) {
                 SurfaceFamily family = SurfaceRegistry.familyOf(state.block, meta);
-                if (!wantsMendedSide(state.block, family)) continue;
+                if (!wantsMendedSide(manager, state.block, meta, family)) continue;
                 out.file(state.block, meta, Boolean.TRUE);
             }
         }

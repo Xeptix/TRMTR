@@ -45,6 +45,8 @@ public final class VanillaNames {
         moved.put("grass_top", "grass_block_top");
         moved.put("grass_side", "grass_block_side");
         moved.put("grass_side_overlay", "grass_block_side_overlay");
+        // 1.13 renamed this one rather than merely moving it: "snowed" became "snow".
+        moved.put("grass_side_snowed", "grass_block_snow");
         RENAMED = Collections.unmodifiableMap(moved);
     }
 

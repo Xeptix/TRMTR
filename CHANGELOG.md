@@ -4,7 +4,7 @@ One version number across every edition. 0.9.217 is the same release on Minecraf
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
 
-## 0.9.217 — 2026-10-05
+## 0.9.217 — 2026-10-06
 
 **A third edition: Minecraft 1.16.5, on Forge and on Fabric.** One codebase, two jars, and the same
 mod as the other two - the same behaviour, the same numbers, the same settings file. Everything the
@@ -13,6 +13,25 @@ of those is named in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
 
 It needs [Cloth Config](https://github.com/shedaniel/cloth-config) on both loaders, [Fabric API](https://github.com/FabricMC/fabric-api) on Fabric, and
 [Mod Menu](https://github.com/TerraformersMC/ModMenu) if you want to reach the settings screen there. Nothing else.
+
+**Worn ground is drawn under Rubidium, on 1.16.5 Forge.** The 1.16.5 edition told its ghost block
+which square it was drawing through one door only, and [Rubidium](https://github.com/Asek3/Rubidium)
+meshes chunks itself without ever opening that door - so with it installed every worn square drew
+nothing at all. Because a ghost *replaces* the ground in your client's copy of the world rather than
+covering it, nothing is not a missing path: it is a rectangular pit with the sky visible through one
+edge. It now answers Forge's own per-block model-data hook, which Rubidium does ask, and **no renderer
+can make a hole again**: told nothing, both loaders draw the plain block, which is what the 1.12.2
+edition has always done. Found by driving the game with Rubidium and Oculus installed, which no
+development run has.
+
+**Three settings show their names on 1.16.5.** `showErosion`, `overlayDistanceChunks` and
+`perSurfaceTextures` carry human names, the translations shipped with the edition, and its settings
+screen - which is Cloth's rather than Forge's - never looked them up. They read "Show erosion" where
+the other two editions read "Show worn paths".
+
+**A log line can no longer grow without limit.** Three lines in every edition handed a whole
+collection to the log, which on a large pack is a string long enough to exhaust the heap building it;
+the 1.16.5 edition died that way at startup. Each now prints a sample and says how many it stood for.
 
 **A road is visible on a map again, on 1.12.2 and 1.16.5.** Both of those read one vanilla answer for
 a block's map colour, out of sixty-four fixed palette entries, so there is no fraction to darken by -
