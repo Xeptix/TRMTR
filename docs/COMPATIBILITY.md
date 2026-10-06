@@ -1,7 +1,7 @@
 # Where the editions differ
 
 TRMT Reimagined is one mod with one version number. Every edition does the same thing by the same
-numbers and reads the same settings file, and twenty-eight classes are shared between them byte for
+numbers and reads the same settings file, and twenty-nine classes are shared between them byte for
 byte, with a test in each that fails the build if the copies drift.
 
 This page is everything that is *not* the same, in one place. The manual says each of these in the
