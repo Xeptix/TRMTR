@@ -49,7 +49,20 @@ public class MixinGrassTint {
     // mandatory would instead refuse to start a pack of two hundred and thirty-five mods.
     @ModifyExpressionValue(
         require = 0,
-        method = "renderStandardBlockWithColorMultiplier",
+        // All three, for the reason MixinGrassSideOverlay already gives next door: with smooth
+        // lighting on - which is the default - a block goes through the two ambient-occlusion methods
+        // and never reaches the third. Hooking only the third was enough while the renderer was
+        // vanilla's or this pack's, because both reach the grass treatment another way: they ask the
+        // block's position-free getIcon for the top face, get vanilla's own grass_top back, and key
+        // the untinted sides off that name.
+        //
+        // **OptiFine never makes that call.** Measured on 2026-10-06 with a probe: plain 1.7.10 asks
+        // the position-free icon twice in a run and OptiFine not once in fifty-three icon lookups. So
+        // under OptiFine the only route left to the grass treatment is this identity comparison, and
+        // it has to be substituted wherever the comparison is made rather than in one method of three.
+        method = { "renderStandardBlockWithAmbientOcclusion(Lnet/minecraft/block/Block;IIIFFF)Z",
+            "renderStandardBlockWithAmbientOcclusionPartial(Lnet/minecraft/block/Block;IIIFFF)Z",
+            "renderStandardBlockWithColorMultiplier(Lnet/minecraft/block/Block;IIIFFF)Z" },
         at = @At(
             value = "FIELD",
             target = "Lnet/minecraft/init/Blocks;grass:Lnet/minecraft/block/BlockGrass;",

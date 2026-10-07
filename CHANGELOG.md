@@ -1,8 +1,31 @@
 # TRMT Reimagined - changelog
 
-One version number across every edition. 0.9.217 is the same release on Minecraft 1.7.10, 1.12.2
+One version number across every edition. 0.9.218 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.218 - 2026-10-07
+
+**Worn grass draws correctly under OptiFine, on 1.7.10.** With OptiFine installed, the side of a worn
+grass block came out an even olive green, with none of the thin green fringe along its top edge,
+where plain 1.7.10 and [Angelica](https://github.com/GTNewHorizons/Angelica) draw brown earth with
+that strip laid over it. OptiFine is the renderer most people on that version run, and the fault had
+been in every release. It was two faults, one hidden under the other.
+
+A grass block's sides are drawn untinted with a separately tinted fringe laid over them, and both
+halves of that are decided inside the renderer, not by the block. Vanilla recognises grass by name -
+the name of its top texture for the tint, the name of the side texture for the fringe. OptiFine
+compares against vanilla's own block and vanilla's own texture instead, object for object. This mod
+was answering the first comparison in one of the three methods a block is drawn through, so with
+smooth lighting on, which is the default, the tint landed on the earth; and it was not answering the
+second at all, so the earth wall of worn grass was never given its fringe. Both are answered now,
+wherever OptiFine asks them - and never where Better Grass asks whether to paint a side over with
+grass, so with Better Grass on a worn wall still shows its earth.
+
+The top of a worn square keeps its wear and its biome tint, and nothing changes on any other renderer.
+
+**Nothing else changed.** 1.12.2 and 1.16.5 draw through baked models, never reach the renderer
+either fault lived in, and differ from 0.9.217 only in the version they report.
 
 ## 0.9.217 - 2026-10-06
 

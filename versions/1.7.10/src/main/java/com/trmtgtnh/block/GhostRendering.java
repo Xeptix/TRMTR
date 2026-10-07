@@ -1,5 +1,7 @@
 package com.trmtgtnh.block;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.material.MapColor;
 import net.minecraft.init.Blocks;
@@ -110,12 +112,28 @@ public final class GhostRendering {
      * so the render path is byte-for-byte what it was.
      */
     public static IIcon grassSideOverlay(GhostBlock ghost, int x, int y, int z, IIcon vanilla) {
+        if (PROBE) probe(
+            "grassSideOverlay reached, family=" + ghost.appearance()
+                + " sunken="
+                + ghost.isSunken()
+                + " grassSideWear="
+                + TrmtConfig.grassSideWear
+                + " untinted="
+                + ghost.isUntinted()
+                + " mimicsGrassTop="
+                + ghost.mimicsVanillaGrassTop());
         if (!TrmtConfig.grassSideWear) return vanilla;
         if (ghost.appearance() != SurfaceFamily.GRASS || ghost.isUntinted()) return vanilla;
         if (!ghost.mimicsVanillaGrassTop()) return vanilla;
         if (ghost.isSunken()) return vanilla;
         int layer = sideLayer(SurfaceFamily.GRASS, x, y, z);
         IIcon thinned = WearTextures.grassSideOverlay(layer, Rotations.forPosition(x, z));
+        if (PROBE) probe(
+            "grassSideOverlay answering: layer=" + layer
+                + " thinned="
+                + (thinned == null ? "null, falling back" : thinned.getIconName())
+                + " vanillaWas="
+                + (vanilla == null ? "null" : vanilla.getIconName()));
         return thinned != null ? thinned : vanilla;
     }
 
@@ -142,7 +160,52 @@ public final class GhostRendering {
 
     private GhostRendering() {}
 
+    /**
+     * Says what the renderer asked this block for, when asked to.
+     *
+     * <p>
+     * Off unless {@code -Dtrmt.spike.render=true}, and silent after the first answer of each kind,
+     * because a chunk rebuild asks this thousands of times a second. It exists because a worn grass
+     * flank came out wrong under OptiFine and right everywhere else, and what a renderer asks of this
+     * block is the one thing about it that can be watched from this mod's own code. It found both
+     * halves of that fault: OptiFine never asking the position-free icon, which cost the tint, and
+     * OptiFine answering the fringe hook for one gradation where plain answers sixty-one, which cost
+     * the fringe.
+     *
+     * <p>
+     * <b>Every call is behind {@code if (PROBE)} at the call site, not only in here.</b> A message is
+     * built before it is passed, so a gate inside this method still cost every face of every ghost a
+     * string while the probe was off - in the chunk mesher, for every player. A constant at the call
+     * site costs nothing once compiled. {@code RenderProbeIsFreeWhenOffTest} holds that.
+     *
+     * <p>
+     * The two overloads are not interchangeable and that is the whole point: the position-free one
+     * answers vanilla's own {@code grass_top} for a ghost that still mimics grass, which is what
+     * tells the renderer to treat the sides as grass's - untinted, with a separate fringe over them.
+     * The position-aware one answers the worn sprite. A renderer that asks the second where vanilla
+     * asks the first would lose the grass treatment silently, and the face would take the tint.
+     */
+    static final boolean PROBE = Boolean.getBoolean("trmt.spike.render");
+
+    private static final java.util.Set<String> PROBED = java.util.Collections
+        .synchronizedSet(new java.util.HashSet<String>());
+
+    /** Says one thing once, so a chunk rebuild does not write a log file a gigabyte long. */
+    static void probe(String what) {
+        if (!PROBE) return;
+        if (!PROBED.add(what)) return;
+        Trmt.LOG.info("Ghost probe: {}", what);
+    }
+
     public static IIcon iconFor(GhostBlock ghost, IBlockAccess world, int x, int y, int z, int side) {
+        if (PROBE) probe(
+            "iconFor (position-aware) side=" + side
+                + " family="
+                + ghost.appearance()
+                + " mimicsGrassTop="
+                + ghost.mimicsVanillaGrassTop()
+                + " untinted="
+                + ghost.isUntinted());
         int stage = world.getBlockMetadata(x, y, z);
         int packedOrigin = ClientErosionCache.get()
             .originAt(x, y, z);
@@ -232,7 +295,7 @@ public final class GhostRendering {
             && ghost.mimicsVanillaGrassTop()
             && sideLayer(SurfaceFamily.GRASS, x, y, z) >= WALL_START) {
             IIcon wall = WearTextures.grassEarthWall(origin, originMeta);
-            if (wall != null) return new AsGrassSide(wall);
+            if (wall != null) return asGrassSide(wall);
         }
 
         if (side >= 2 && ghost.appearance() == SurfaceFamily.GRASS
@@ -240,7 +303,7 @@ public final class GhostRendering {
             && origin != null
             && origin.getRenderType() != 0) {
             IIcon mended = WearTextures.mendedSide(origin, originMeta);
-            if (mended != null) return new AsGrassSide(mended);
+            if (mended != null) return asGrassSide(mended);
             // Nothing mended for this block, so vanilla's own side rather than a hole.
             return Blocks.grass.getIcon(2, 0);
         }
@@ -448,6 +511,9 @@ public final class GhostRendering {
     }
 
     public static int colorFor(GhostBlock ghost, IBlockAccess world, int x, int y, int z) {
+        if (PROBE) probe(
+            "colorFor family=" + ghost
+                .appearance() + " mimicsGrassTop=" + ghost.mimicsVanillaGrassTop() + " untinted=" + ghost.isUntinted());
         // A glow is a deliberate act and outranks every rule below about when ground should and
         // should not be tinted - somebody chose this colour for this block, so it wins.
         int glow = GhostLight.packedAt(world, x, y, z);
@@ -530,14 +596,64 @@ public final class GhostRendering {
      * not to show it a world that does not exist.
      */
     /**
+     * The side a worn grass block is drawn with, for OptiFine's comparison, or null when it is
+     * vanilla's own side or anything else that is not one of these stand-ins.
+     *
+     * <p>
+     * Called from {@code MixinOptiFineGrassSide}, which hands this to the comparison OptiFine makes
+     * instead of the one vanilla makes - see {@link AsGrassSide}. It asks {@link #iconFor} itself
+     * rather than repeating its conditions, so the two cannot come to disagree about which sides
+     * are stand-ins; and it asks for side 2 because every branch that makes one depends only on
+     * the side being a side.
+     */
+    public static IIcon grassSideStandIn(GhostBlock ghost, IBlockAccess world, int x, int y, int z) {
+        IIcon side = iconFor(ghost, world, x, y, z, 2);
+        IIcon standIn = side instanceof AsGrassSide ? side : null;
+        if (PROBE) probe("grassSideStandIn " + (standIn != null ? "substituted for OptiFine" : "not needed"));
+        return standIn;
+    }
+
+    /** One stand-in per sprite, so that the same side is the same object every time it is asked for. */
+    private static final ConcurrentHashMap<IIcon, AsGrassSide> STAND_INS = new ConcurrentHashMap<IIcon, AsGrassSide>();
+
+    /**
+     * The stand-in for one sprite - always the same object for the same sprite.
+     *
+     * <p>
+     * <b>That is load-bearing, not tidiness.</b> OptiFine decides whether a side gets its fringe with
+     * {@code ==}, so the object the renderer drew the face with and the one {@link #grassSideStandIn}
+     * hands its comparison have to be one and the same; a fresh wrapper per call would never match.
+     * A sprite changes identity on a resource reload, which is the one thing that retires a stand-in,
+     * so the stale ones are dropped when there are more than a reload's worth - they can only ever
+     * be looked up by sprites that no longer exist.
+     */
+    private static IIcon asGrassSide(IIcon delegate) {
+        AsGrassSide held = STAND_INS.get(delegate);
+        if (held != null) return held;
+        if (STAND_INS.size() > 4096) STAND_INS.clear();
+        AsGrassSide made = new AsGrassSide(delegate);
+        AsGrassSide raced = STAND_INS.putIfAbsent(delegate, made);
+        return raced != null ? raced : made;
+    }
+
+    /**
      * A sprite that answers to vanilla grass's name.
      *
      * <p>
-     * The renderer decides whether to draw grass's separately tinted fringe by comparing the
-     * side texture's name against {@code grass_side}, and nothing else. A mended side carries
-     * the covered block's own earth with vanilla's grass baked into the rows its texture cuts
-     * away - which is the right picture underneath, but under a name the renderer does not
-     * recognise, so the fringe that gives it its biome colour would never be drawn.
+     * Vanilla decides whether to draw grass's separately tinted fringe by comparing the side
+     * texture's name against {@code grass_side}. A mended side carries the covered block's own
+     * earth with vanilla's grass baked into the rows its texture cuts away - which is the right
+     * picture underneath, but under a name the renderer does not recognise, so the fringe that
+     * gives it its biome colour would never be drawn. The de-greened wall of worn grass is the
+     * same case.
+     *
+     * <p>
+     * <b>OptiFine does not compare the name.</b> Its smooth-lighting method, and the overlay test in
+     * the flat-lit one, compare the side against its own cached copy of vanilla's sprite with
+     * {@code ==}, so a wrapper answering to the name was refused and every worn grass wall under
+     * OptiFine was drawn bare, with no fringe at all. Found on 2026-10-07 by reading OptiFine's own
+     * RenderBlocks out of its patches. {@code MixinOptiFineGrassSide} hands that comparison this
+     * stand-in instead - which is why there is only ever one of each, see {@link #asGrassSide}.
      *
      * <p>
      * Only the name is borrowed. Every coordinate is the mended sprite's own, so what gets

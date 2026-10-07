@@ -96,5 +96,22 @@ reobfJar {
         if (project.hasProperty('only')) {
             task.systemProperty('trmt.spike.only', project.property('only').toString())
         }
+        // The size this run photographs at, so one comparison sheet never tiles two of them.
+        //
+        // A Prism instance takes its window from the launcher's instance.cfg, and a dev run has no
+        // launcher to ask - so the game is handed its own --width and --height here. Both halves are
+        // set by tools/window_size.sh, which writes the chosen size where every edition's scripts
+        // read it, and the catalogue refuses to keep a target that photographed at another size.
+        if (taskName == 'runClient' && project.hasProperty('window')) {
+            def size = project.property('window').toString().split('x')
+            task.args('--width', size[0], '--height', size[1])
+        }
+        // The heap this run is allowed, so a dev run counts against the same budget as an instance.
+        // instance.cfg caps the ten Prism instances and reaches none of the four dev runs, which
+        // would otherwise take whatever Gradle's default is while four games ran beside them.
+        if (project.hasProperty('memory')) {
+            task.maxHeapSize = project.property('memory').toString() + 'm'
+            task.minHeapSize = '512m'
+        }
     }
 }

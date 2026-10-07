@@ -852,6 +852,8 @@ final class GhostLogic {
      */
     @SideOnly(Side.CLIENT)
     static IIcon icon(GhostBlock ghost, int side, int meta) {
+        if (GhostRendering.PROBE) GhostRendering.probe(
+            "icon (position-free) side=" + side + " meta=" + meta + " mimicsGrassTop=" + ghost.mimicsVanillaGrassTop());
         SurfaceFamily appearance = ghost.appearance();
         if (side == 1) {
             // Reporting vanilla's name here is what tells RenderBlocks to treat this block's

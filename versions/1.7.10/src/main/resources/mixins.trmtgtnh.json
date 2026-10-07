@@ -13,6 +13,7 @@
   "client": [
     "MixinGrassTint",
     "MixinGrassSideOverlay",
+    "MixinOptiFineGrassSide",
     "MixinTextureMap",
     "MixinAnimatedSprite",
     "MixinSpriteFiltering",

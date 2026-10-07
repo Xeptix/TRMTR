@@ -43,6 +43,18 @@ subprojects {
                 // Which parts of the run are wanted - walk, show, demo1, demo2 - so one of them
                 // can be refreshed on its own. Nothing given means all of them.
                 if (project.hasProperty("only")) property("trmt.spike.only", project.property("only").toString())
+                // The size this run photographs at, so one comparison sheet never tiles two of
+                // them. A Prism instance takes its window from the launcher; a dev run has no
+                // launcher to ask, so the game is handed its own --width and --height. Set for
+                // every target at once by tools/window_size.sh in the 1.7.10 tree.
+                if (project.hasProperty("window") && name.toLowerCase().contains("client")) {
+                    def size = project.property("window").toString().split("x")
+                    programArgs("--width", size[0], "--height", size[1])
+                }
+                // The heap this run is allowed - see the note in the 1.7.10 tree's addon.gradle.
+                if (project.hasProperty("memory")) {
+                    vmArgs("-Xmx" + project.property("memory") + "m", "-Xms512m")
+                }
             }
         }
     }
