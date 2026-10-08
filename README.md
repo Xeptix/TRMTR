@@ -35,6 +35,7 @@ in [`CHANGELOG.md`](CHANGELOG.md).
 The mod is free and always will be. If you would like to put something in the hat:
 
 [![Support the mod on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F6L1285ROA)
+[![Support the mod on Patreon](https://img.shields.io/badge/Patreon-Xeptix-F96854?logo=patreon&logoColor=white)](https://www.patreon.com/Xeptix)
 
 ---
 
