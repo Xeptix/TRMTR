@@ -120,9 +120,10 @@ another way again: a worn square takes the covered block's FREX material in its 
 mod's hooks have been prepared, so none can bind to them, and a worn square draws with the pack's
 default material. Nothing else about it differs.
 
-None of this does anything without a shader pack loaded. Every combination in the table was
-photographed under Complementary Reimagined and Sildurs Vibrant for 0.9.219, beside the same
-renderer without a pack and again after the pack was turned off mid-session.
+None of this does anything without a shader pack loaded. Every combination in the table but Canvas
+was photographed under Complementary Reimagined and Sildurs Vibrant for 0.9.219, beside the same
+renderer without a pack and again after the pack was turned off mid-session; Canvas draws through its
+own pipeline and was photographed under that.
 
 ### Companion mods
 

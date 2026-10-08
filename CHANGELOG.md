@@ -14,10 +14,11 @@ per launch, sends nothing but the request itself, and is never shown to anybody 
 tells nobody and never asks. A server that does not ask says why, in one line of its log. Every edition,
 both 1.16.5 loaders.
 
-**1.12.2 and 1.16.5 were checked under every shader loader made for them, and fixed where they fell
-short.** Each was photographed under Complementary Reimagined and Sildurs Vibrant, beside the same
-renderer without a pack, and again after the pack was turned off mid-session - which is where 1.12.2
-under OptiFine once crashed.
+**1.12.2 and 1.16.5 were checked under OptiFine, Oculus, Iris, Canvas and OptiFabric, and fixed where
+they fell short.** Each pack loader was photographed under Complementary Reimagined and Sildurs Vibrant,
+beside the same renderer without a pack, and again after the pack was turned off mid-session - which
+is where 1.12.2 under OptiFine once crashed. Canvas draws through its own pipeline and was photographed
+under that.
 
 - **Worn ground keeps its shader material under OptiFine** on 1.12.2 and on 1.16.5 Forge, as it already
   did under Oculus and Iris, and under **Canvas** on 1.16.5 Fabric as the covered block's FREX material.
