@@ -2,7 +2,7 @@
 
 TRMT Reimagined is one mod with one version number. Every edition does the same thing by the same
 numbers and reads the same settings file, and thirty classes are shared between them byte for
-byte, with a test in each that fails the build if the copies drift.
+byte, with a test in each edition's development tree that fails if the copies drift.
 
 This page is everything that is *not* the same, in one place. The manual says each of these in the
 section it belongs to as well; this is the list for somebody deciding which version to play, or

@@ -1294,13 +1294,13 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested by `./gradlew test` - **444 tests on 1.7.10, 435 on 1.12.2 and 455
-on 1.16.5** - with `CoreStaysPortableTest` there to keep that boundary from eroding.
+types in them and are unit tested - **457 tests on 1.7.10, 448 on 1.12.2 and 476 on 1.16.5**, every one
+passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
+eroding. The tests stay in development: this repository carries what builds the jars.
 
 **Thirty of those classes are shared between the editions byte for byte**, and a test in each
 reads its own copy and the one in the edition it was carried from, failing the build on any
-difference and naming the files. In this repository the editions are siblings, so that check runs for
-anybody who clones it.
+difference and naming the files.
 
 The built jar is `build/libs/trmtr-<mc version>-<version>.jar`; on 1.16.5 there are two, one per
 loader, under `forge/build/libs` and `fabric/build/libs`.

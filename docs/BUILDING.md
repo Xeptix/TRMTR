@@ -30,7 +30,6 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 | Gradle | wrapper, GTNH conventions over RetroFuturaGradle | wrapper, 9.7.0, RetroFuturaGradle 2.x | wrapper, 8.8, Architectury Loom |
 | Loader | Forge 10.13.4.1614 | Forge 14.23.5.2847 | Forge 36.2.34 **and** Fabric, from one build |
 | Network | `nexus.gtnewhorizons.com` | Cleanroom's repository and CurseMaven | Fabric, Architectury, Mojang, shedaniel and CurseMaven |
-| Tests | 444 | 435 | 455 |
 
 The first build of either downloads and decompiles Minecraft and takes several minutes. After that
 it is quick.
@@ -55,13 +54,9 @@ the quest and loot bookkeeping - and they are duplicated rather than shared for 
 there is no root build: each edition compiles against a different Minecraft with a different
 toolchain, and there is no shared compilation unit for them to live in.
 
-The duplication is deliberate and it is checked. `CoreMatchesOtherEditionTest` in each edition reads
-its own copy and the one in the edition it was carried from - 1.12.2 against 1.7.10, 1.16.5 against
-1.12.2 - and fails the build on any difference, naming the files. In a development tree that test
-needs an untracked `sibling.properties` saying where the other edition is, and skips when it is
-absent; **here the editions are siblings, so the file is committed with a relative path and the check
-runs for anybody who clones this repository.** Run `./gradlew test` in any edition and it is one
-of the tests that runs.
+The duplication is deliberate and it is checked before every release: a test in each edition's
+development tree reads its own copy and the one in the edition it was carried from - 1.12.2 against
+1.7.10, 1.16.5 against 1.12.2 - and fails the build on any difference, naming the files.
 
 Consequence worth knowing if you are editing: **a change to any of those thirty classes has to
 be made in every edition identically**, and neither edition may reformat them.
@@ -72,9 +67,12 @@ classpath. That is where it happened: the 1.16.5 edition is `common`, `forge` an
 build produces both jars. The thirty classes are still duplicated *across* editions, for the
 reason above; within 1.16.5 they exist once.
 
-## Verifying a change
+## How a release is verified
 
-Beyond `./gradlew build`, which runs the unit tests:
+**This repository carries what builds the jars, and nothing else.** The tests stay in the development
+trees, where every one of them runs and passes before a release is built here - 457 on 1.7.10, 448 on
+1.12.2 and 476 on 1.16.5. `./gradlew build` here compiles and packages; it has no tests to run.
+Among them:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
   thirty classes starts naming a Minecraft type.
@@ -86,12 +84,9 @@ Beyond `./gradlew build`, which runs the unit tests:
   Forge strips `@SideOnly(CLIENT)` members on a dedicated server and the result is a crash that
   never appears in single player. The scan is development tooling and is not published here.
 
-## The released jars carry a little more than this source
+## The released jars are built from this source
 
-The 1.12.2 and 1.16.5 jars published with a release also contain a verification harness -
-`com.trmtgtnh.spike` on 1.12.2, `ForgeSpikeRun` and `FabricSpikeRun` with their reporters on 1.16.5.
-It drives a client, and on 1.12.2 a real dedicated server, and asks it to check the result. It is how
-those editions are proved, every part of it sits behind a `-Dtrmt.spike*` system property, and it
-does nothing whatsoever in a normal game. It is not part of the published source because it is of no
-use to anybody but the author, so a jar you build from this repository will be slightly smaller than
-the one attached to the release. Nothing a player can reach differs.
+Every jar attached to a release is built in this repository, from the tagged commit, and checked
+byte for byte against what that build produced before it is uploaded. The development trees also hold
+a verification harness that drives a client and, on 1.12.2, a real dedicated server; it is in neither
+this repository nor any released jar.
