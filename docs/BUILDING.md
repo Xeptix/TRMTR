@@ -31,8 +31,8 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 | Loader | Forge 10.13.4.1614 | Forge 14.23.5.2847 | Forge 36.2.34 **and** Fabric, from one build |
 | Network | `nexus.gtnewhorizons.com` | Cleanroom's repository and CurseMaven | Fabric, Architectury, Mojang, shedaniel and CurseMaven |
 
-The first build of either downloads and decompiles Minecraft and takes several minutes. After that
-it is quick.
+The first build of each edition downloads and decompiles Minecraft and takes several minutes. After
+that it is quick.
 
 ## Why there is no root build
 
@@ -72,7 +72,7 @@ reason above; within 1.16.5 they exist once.
 **This repository carries what builds the jars, and nothing else.** The tests stay in the development
 trees, where every one of them runs and passes before a release is built here - 457 on 1.7.10, 448 on
 1.12.2 and 476 on 1.16.5. `./gradlew build` here compiles and packages; it has no tests to run.
-Among them:
+Among what runs before a release:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
   thirty classes starts naming a Minecraft type.
@@ -80,9 +80,11 @@ Among them:
   seven packages that may name Minecraft and may not name Forge, and lists the eleven files outside
   it with what each needs Forge for. It fails both ways, so neither the fence nor the list of
   exceptions can rot. It is there for the ports after 1.12.2.
-- **Nothing shared may reach a client-only member.** Both editions carry a scan for that, because
-  Forge strips `@SideOnly(CLIENT)` members on a dedicated server and the result is a crash that
-  never appears in single player. The scan is development tooling and is not published here.
+- **Nothing shared may reach a client-only member.** Every edition carries a scan for that, because
+  a dedicated server's copy of the game lacks them - Forge strips `@SideOnly(CLIENT)` and
+  `@OnlyIn(CLIENT)` members, Fabric ships without its `@Environment(CLIENT)` ones - and the result is
+  a crash that never appears in single player. The scan is development tooling and is not published
+  here.
 
 ## The released jars are built from this source
 
