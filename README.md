@@ -31,11 +31,13 @@ produced, endorsed or supported by milkucha. See [`LICENSE.md`](LICENSE.md) and
 **Downloads** - [CurseForge](https://www.curseforge.com/minecraft/mc-mods/trmt-reimagined) or [Modrinth](https://modrinth.com/mod/trmtr).
 **Source** - [GitHub](https://github.com/Xeptix/TRMTR), where bug reports and feature requests belong; a version's own notes are
 in [`CHANGELOG.md`](CHANGELOG.md).
+**Community** - [![Join the Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RE85HRwYZZ), for questions and talk about the mod.
 
 The mod is free and always will be. If you would like to put something in the hat:
 
 [![Support the mod on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F6L1285ROA)
 [![Support the mod on Patreon](https://img.shields.io/badge/Patreon-Xeptix-F96854?logo=patreon&logoColor=white)](https://www.patreon.com/Xeptix)
+[![Join the Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RE85HRwYZZ)
 
 ---
 
