@@ -4,12 +4,14 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.mixin.OculusGate;
+import com.trmtgtnh.surface.SurfaceFamily;
+import com.trmtgtnh.surface.SurfaceRegistry;
 
 /**
  * What a shader pack thinks worn ground is made of.
@@ -37,6 +39,13 @@ import com.trmtgtnh.mixin.OculusGate;
  * whole record - says what to claim.
  *
  * <p>
+ * <strong>OptiFine has the same window, on a different object</strong> - see {@link OptiFineMaterial}.
+ * It keeps a block's shader id on a stack carried by the chunk's own buffer, pushed as the block's model
+ * starts and popped as it ends, and {@code GhostQuads} runs in between. So the one claim this class works
+ * out is handed to whichever of the two seats this thread holds. Canvas takes the same claim another way,
+ * as a FREX material on each quad, from the Fabric module's {@code FrexMaterial}.
+ *
+ * <p>
  * Nothing of Oculus is named at compile time and nothing is added to the mod's dependencies. The
  * holder arrives as {@code Object}, its one method is reached by reflection, and the mixin that
  * provides it is refused outright by {@link com.trmtgtnh.mixin.OculusGate} on a client that has no
@@ -45,25 +54,19 @@ import com.trmtgtnh.mixin.OculusGate;
  * other edition's is, rather than configured.
  *
  * <p>
- * What a ghost claims is the honest answer twice over, as it is there. While it is still drawing the
- * surface of the block it covers it claims that block, so a worn granite road is granite as far as
- * the pack is concerned. Once it has worn through, the model draws earth and this claims earth, so
- * the shine goes as the road breaks up - not by fading a number nobody authored, but by becoming the
- * material the pack already has real values for.
+ * <strong>What a ghost claims is the 1.7.10 edition's answer</strong>, from its {@code ShaderMaterial}:
+ * the block it covers while it still wears as that block's own family, so a worn granite road is
+ * granite as far as the pack is concerned, and once its wear has reached another material, that
+ * material's own block - cobblestone, then gravel, then earth - so the shine goes as the road breaks up,
+ * not by fading a number nobody authored but by becoming what the pack already has real values for.
+ * Until 0.9.219 this edition claimed the covered block until the picture ran out and earth after it,
+ * so a stone road worn to its cobble stage still told the pack it was stone; the family test was the
+ * one clause the port had left out. Where the picture is the bare earth, the claim is earth.
  *
  * <p>
- * <strong>Shapes confirmed, not yet seen running.</strong> The 1.12.2 edition's copy of this
- * paragraph says every shape in it was read from source and none of it had been run. Half of that is
- * now settled: the holder on Iris's own 1.16.5 branch declares {@code public void set(BlockState,
- * short)} and a {@code public short renderType} beside it, on the class the gate probes for, which is
- * exactly what the reflection below asks for. What is still unrun is the whole of it together - that
- * wants a client with Iris, Sodium and a shader pack, and no such client has drawn a worn road yet.
- *
- * <p>
- * Every way it can be wrong is a way it switches itself off, which is why it ships unrun: the gate
- * refuses the mixin when the holder is absent, the inject is {@code require = 0} so a holder that has
- * moved its method simply never seats one, and the first reflective failure gives up for the session.
- * None of them reach the renderer.
+ * Every way it can be wrong is a way it switches itself off: the gate refuses the mixin when the holder
+ * is absent, the inject is {@code require = 0} so a holder that has moved its method simply never seats
+ * one, and the first reflective failure gives up for the session. None of them reach the renderer.
  */
 public final class ShaderMaterial {
 
@@ -92,7 +95,7 @@ public final class ShaderMaterial {
 
     private ShaderMaterial() {}
 
-    /** Whether there is anything to say and anybody to say it to. */
+    /** Whether there is anything to say and anybody to say it to, under Oculus. */
     public static boolean available() {
         if (!TrmtConfig.inheritShaderMaterial) return false;
         if (!looked) look();
@@ -161,17 +164,41 @@ public final class ShaderMaterial {
      *
      * <p>
      * Asked once per face, and the faces of one square all want the same answer, so the second ask
-     * onwards is a reference compare. Called with the state id the painter remembered for this
-     * position while the ghost still shows that block's own surface, and with -1 once it has worn
-     * through - which claims the earth the model is drawing by then.
+     * onwards is a reference compare. Called with the family the square's wear has reached, or null
+     * where the model is drawing the bare earth.
      *
-     * @param origin the covered block's state id, or -1 for the material it has worn into
+     * @param origin     the covered block's state id, or -1 when nothing was recorded
+     * @param appearance the family the square wears as, or null where the picture is the bare earth
      */
-    public static void claim(int origin) {
-        if (!available()) return;
+    public static void claim(int origin, SurfaceFamily appearance) {
+        if (!TrmtConfig.inheritShaderMaterial) return;
         Seat seat = SEAT.get();
-        if (seat == null || seat.holder == null) return;
+        boolean oculus = seat != null && seat.holder != null;
+        if (!oculus && !OptiFineMaterial.seated()) return;
 
+        BlockState claim = claimFor(origin, appearance);
+
+        OptiFineMaterial.claim(claim);
+        if (!oculus || !available() || seat.claimed == claim) return;
+        try {
+            set.invoke(seat.holder, claim, Short.valueOf(renderType.getShort(seat.holder)));
+            seat.claimed = claim;
+        } catch (Throwable awkward) {
+            // One failure is enough: something has changed under us and asking again every face for
+            // the rest of the session would be the expensive way to keep finding that out.
+            set = null;
+            renderType = null;
+            Trmt.LOG.warn("Giving up on the shader material override: {}", awkward.toString());
+        }
+    }
+
+    /**
+     * The block a ghost should be taken for, from what the painter remembered and what it is drawing.
+     *
+     * @param origin     the covered block's state id, or -1 when nothing was recorded
+     * @param appearance the family the square wears as, or null where the picture is the bare earth
+     */
+    public static BlockState claimFor(int origin, SurfaceFamily appearance) {
         BlockState covered = null;
         if (origin >= 0) {
             try {
@@ -180,18 +207,56 @@ public final class ShaderMaterial {
                 covered = null;
             }
         }
-        if (covered == null || covered.getBlock() == Blocks.AIR) covered = Blocks.DIRT.defaultBlockState();
-        if (seat.claimed == covered) return;
+        if (covered != null && covered.getBlock() == Blocks.AIR) covered = null;
+        return claimed(covered, covered == null ? null : SurfaceRegistry.familyOf(covered), appearance);
+    }
 
-        try {
-            set.invoke(seat.holder, covered, Short.valueOf(renderType.getShort(seat.holder)));
-            seat.claimed = covered;
-        } catch (Throwable awkward) {
-            // One failure is enough: something has changed under us and asking again every face for
-            // the rest of the session would be the expensive way to keep finding that out.
-            set = null;
-            renderType = null;
-            Trmt.LOG.warn("Giving up on the shader material override: {}", awkward.toString());
+    /**
+     * The block a ghost should be taken for, by the 1.7.10 edition's rule: the block it covers while it
+     * still wears as that block's own family, and the block of the family its wear has reached once it
+     * does not. Earth where the picture is the bare earth.
+     *
+     * @param covered       the block underneath, or null when nothing was recorded
+     * @param coveredFamily the family that block belongs to, or null
+     * @param appearance    the family the square wears as, or null where the picture is the bare earth
+     */
+    static BlockState claimed(BlockState covered, SurfaceFamily coveredFamily,
+        SurfaceFamily appearance) {
+        if (appearance == null) return Blocks.DIRT.defaultBlockState();
+        if (covered != null && coveredFamily == appearance) return covered;
+        return counterpartOf(appearance).defaultBlockState();
+    }
+
+    /**
+     * The vanilla block a family looks like - the 1.7.10 edition's {@code GhostLogic.vanillaCounterpart},
+     * which the material a road has worn into is claimed as. Earth for anything without one of its own.
+     *
+     * <p>
+     * In this version's names {@code Blocks.GRASS} is the plant and {@code Blocks.SNOW} is the layer, so
+     * the two blocks the other editions mean are {@code GRASS_BLOCK} and {@code SNOW_BLOCK}.
+     */
+    static Block counterpartOf(SurfaceFamily appearance) {
+        switch (appearance) {
+            case GRASS:
+                return Blocks.GRASS_BLOCK;
+            case SAND:
+                return Blocks.SAND;
+            case GRAVEL:
+                return Blocks.GRAVEL;
+            case STONE:
+                return Blocks.STONE;
+            case COBBLE:
+                return Blocks.COBBLESTONE;
+            case NETHER:
+                return Blocks.NETHERRACK;
+            case END:
+                return Blocks.END_STONE;
+            case SNOW:
+                return Blocks.SNOW_BLOCK;
+            case ICE:
+                return Blocks.ICE;
+            default:
+                return Blocks.DIRT;
         }
     }
 }

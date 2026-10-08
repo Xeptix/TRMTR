@@ -176,6 +176,8 @@ public final class Trmt {
         // alike. See onServerThread.
         serverThread = Thread.currentThread();
         event.registerServerCommand(new CommandTrmt());
+        // Whether a newer release is out, asked once a launch - see UpdateNotice for who is told.
+        com.trmtgtnh.server.UpdateNotice.serverStarting();
     }
 
     /**

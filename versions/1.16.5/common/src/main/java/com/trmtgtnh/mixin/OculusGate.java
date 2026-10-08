@@ -29,9 +29,12 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
  * the two it is differs between Forge and Fabric and neither is worth naming.
  *
  * <p>
- * Everything else in the config is waved through by name. This is the config's only gate because it is
- * the config's only optional target, and splitting a second config out for one mixin would buy a
- * package that overlaps the first one's.
+ * Everything else in the config is waved through by name. This is the config's only gate because the
+ * config's optional targets are all of one kind - another mod's class, named by string - and from 0.9.219
+ * there are three: Oculus's holder and OptiFine's vertex builder, through which a ghost claims its shader
+ * material, and the Sodium family's face test, through which a settled snow layer keeps its step. Each is
+ * refused the same way on a client without its mod. Splitting a second config out for one mixin would buy
+ * a package that overlaps the first one's.
  */
 public final class OculusGate implements IMixinConfigPlugin {
 
@@ -45,15 +48,53 @@ public final class OculusGate implements IMixinConfigPlugin {
      */
     public static final String HOLDER = "net.coderbot.iris.compat.sodium.impl.block_context.BlockContextHolder";
 
-    /** The one mixin this gate has an opinion about. */
+    /**
+     * OptiFine's vertex builder, whose static {@code pushEntity} puts a block's shader id on the buffer's
+     * stack - named once for the whole mod, here, for the same reason as {@link #HOLDER}.
+     */
+    public static final String OPTIFINE_SEAT = "net.optifine.shaders.SVertexBuilder";
+
+    /**
+     * The Sodium family's face test, which Rubidium, Embeddium and Sodium all ask in place of vanilla's -
+     * named here for the same reason as {@link #HOLDER}. Not a shader seat: a settled snow layer's step is
+     * kept through it. See {@code MixinSettledFacesSodium}.
+     */
+    public static final String SODIUM_FACES = "me.jellysquid.mods.sodium.client.render.occlusion.BlockOcclusionCache";
+
+    /** The mixin that needs Oculus. */
     private static final String GATED = "MixinOculusBlockContext";
+
+    /** The mixin that needs OptiFine. */
+    private static final String GATED_OPTIFINE = "MixinOptiFineShaderSeat";
+
+    /** The mixin that needs the Sodium family. */
+    private static final String GATED_SODIUM = "MixinSettledFacesSodium";
 
     private boolean present;
 
+    private boolean optiFinePresent;
+
+    private boolean sodiumPresent;
+
     @Override
     public void onLoad(String mixinPackage) {
-        String path = HOLDER.replace('.', '/') + ".class";
-        present = thereUnder(OculusGate.class.getClassLoader(), path)
+        present = there(HOLDER);
+        optiFinePresent = there(OPTIFINE_SEAT);
+        sodiumPresent = there(SODIUM_FACES);
+        // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
+        // and worn ground then simply draws without its shader material.
+        org.apache.logging.log4j.LogManager.getLogger("trmtgtnh")
+            .info(
+                "Shader material seats at mixin load: Oculus or Iris {}, OptiFine {}; the Sodium family's face test {}",
+                present ? "found" : "not found",
+                optiFinePresent ? "found" : "not found",
+                sodiumPresent ? "found" : "not found");
+    }
+
+    /** Whether either loader can see a class's bytes. */
+    private static boolean there(String className) {
+        String path = className.replace('.', '/') + ".class";
+        return thereUnder(OculusGate.class.getClassLoader(), path)
             || thereUnder(
                 Thread.currentThread()
                     .getContextClassLoader(),
@@ -72,8 +113,10 @@ public final class OculusGate implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (!mixinClassName.endsWith(GATED)) return true;
-        return present;
+        if (mixinClassName.endsWith(GATED)) return present;
+        if (mixinClassName.endsWith(GATED_OPTIFINE)) return optiFinePresent;
+        if (mixinClassName.endsWith(GATED_SODIUM)) return sodiumPresent;
+        return true;
     }
 
     @Override

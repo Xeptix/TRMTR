@@ -155,6 +155,17 @@ public final class TrmtConfig {
      */
     public static String physicalDecay = DECAY_REAL;
 
+    public static final String UPDATE_OPERATORS = "operators";
+    public static final String UPDATE_EVERYONE = "everyone";
+    public static final String UPDATE_OFF = "off";
+
+    /**
+     * Who is told, as they join, that a newer release is out: <b>operators</b> - whoever can update this
+     * copy - <b>everyone</b>, or <b>off</b>, which also means the mod never asks. See
+     * {@link com.trmtgtnh.server.UpdateNotice}.
+     */
+    public static String updateNotice = UPDATE_OPERATORS;
+
     /**
      * Scales every wear threshold at once. Above 1.0 erodes faster, below 1.0 slower. The
      * shipped defaults are about eight times slower than upstream TRMT, so 8.0 here restores
@@ -1419,6 +1430,12 @@ public final class TrmtConfig {
             DECAY_REAL,
             "Whether worn paths physically hollow out. real: ruts you can walk down into. The server owns the collision, so every client is shown the ruts and cannot switch the overlay off while connected; without that, a player with it off would trip over dips they cannot see. visual: ruts you can see but not feel. Nothing is forced on anyone and the per-player toggle stays free, at the cost of standing slightly above the deepest ruts. off: flat wear only. Per-family depth is families.<name>.maxSinkPixels.",
             new String[] { DECAY_REAL, DECAY_VISUAL, DECAY_OFF });
+        updateNotice = config.getString(
+            "updateNotice",
+            Configuration.CATEGORY_GENERAL,
+            UPDATE_OPERATORS,
+            "Who is told, as they join, that a newer TRMT Reimagined is out. operators: whoever can update this copy - you in single player, the host of a LAN game, a server's operators. everyone: every player, privately. off: nobody, and the mod never asks. Once a launch, a server reads one small file from GitHub to learn the newest version; nothing about you or your world is sent.",
+            new String[] { UPDATE_OPERATORS, UPDATE_EVERYONE, UPDATE_OFF });
 
         globalSpeed = config.get(
             Configuration.CATEGORY_GENERAL,

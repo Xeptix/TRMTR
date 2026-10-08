@@ -309,7 +309,11 @@ public final class PhysicalDecay {
      * whose block could ever sink or settle costs more.
      *
      * <p>
-     * Ignores the client's world, where a ghost stands over worn ground and answers for its own shape.
+     * On the client a ghost stands over worn ground and answers for its own shape, so only what rests on
+     * it is this hook's business there: snow and carpet, real blocks the ghost does not answer for. Until
+     * 0.9.219 it left the client's world alone entirely - the server lowered a snow layer's footing and
+     * the client did not, so a player crossed a snowed-over road at the height it had before it wore. The
+     * 1.7.10 edition's collision mixin runs on both sides.
      */
     public static final class CollisionHook {
 
@@ -317,7 +321,8 @@ public final class PhysicalDecay {
         public void onCollisionBoxes(GetCollisionBoxesEvent event) {
             if (!active) return;
             World world = event.getWorld();
-            if (world == null || world.isRemote) return;
+            if (world == null) return;
+            boolean client = world.isRemote;
             List<AxisAlignedBB> boxes = event.getCollisionBoxesList();
             if (boxes.isEmpty()) return;
             AxisAlignedBB query = event.getAabb();
@@ -342,7 +347,7 @@ public final class PhysicalDecay {
 
                 Block block = com.trmtgtnh.util.Worlds.blockAt(world, x, y, z);
                 AxisAlignedBB worn;
-                if (sinkable.contains(block)) {
+                if (!client && sinkable.contains(block)) {
                     worn = boxAt(world, x, y, z);
                 } else if (settling.contains(block)) {
                     worn = settledBoxAt(world, x, y, z, box);
@@ -355,7 +360,9 @@ public final class PhysicalDecay {
                 } else {
                     it.remove();
                 }
-                sayInPlace(x, y, z, worn);
+                // The server's line, about the ground; a client settling snow onto its own ghosts says
+                // nothing here.
+                if (!client) sayInPlace(x, y, z, worn);
             }
         }
 

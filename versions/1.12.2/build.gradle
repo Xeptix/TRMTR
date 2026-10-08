@@ -303,11 +303,11 @@ jar {
         if (propertyBool('is_coremod')) {
             attribute_map['FMLCorePlugin'] = propertyString('coremod_plugin_class_name')
             if (propertyBool('coremod_includes_mod')) {
+                // FML's own way of saying the plugin's jar holds the mod as well. The template also wrote
+                // Mixin's ForceLoadAsMod, but only when the first task named was build or one of two
+                // others - so the same source built two different manifests depending on how it was
+                // asked for. A jar is the same jar however it is built; FML needs only this.
                 attribute_map['FMLCorePluginContainsFMLMod'] = true
-                def currentTasks = gradle.startParameter.taskNames
-                if (currentTasks[0] == 'build' || currentTasks[0] == 'prepareObfModsFolder' || currentTasks[0] == 'runObfClient') {
-                    attribute_map['ForceLoadAsMod'] = true
-                }
             }
         }
         if (propertyBool('use_access_transformer')) {
@@ -385,6 +385,9 @@ test {
         fileTree(projectDir) {
             include 'src/main/java/**'
             include 'src/main/resources/**'
+            // LoadingPluginIsWiredTest reads how the jar is built and which plugin it names.
+            include 'build.gradle'
+            include 'gradle.properties'
         })
         .withPropertyName('theFilesTheseTestsRead')
         .withPathSensitivity(PathSensitivity.RELATIVE)

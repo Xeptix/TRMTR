@@ -29,9 +29,13 @@ import com.trmtgtnh.network.TrmtNetwork;
  * would have to name there does not exist on a server.
  *
  * <p>
- * The version string is compared both ways and both comparisons are {@code equals}, which is Forge's
- * way of saying this mod is required on both ends. It already is - a client missing the server's
- * blocks cannot join - so this only makes the refusal happen earlier and with a clearer reason.
+ * <strong>A server must find the channel on its clients; a client need not find it on its server.</strong>
+ * A client missing this mod cannot join a server that has it whatever the channel says - Forge's
+ * registry handshake refuses a client without the server's blocks - so the server's side stays
+ * {@code equals}, which only makes that refusal earlier and clearer. A client carrying the mod onto a
+ * server without it is another matter, and the 1.7.10 edition lets it in: nothing is sent to it and
+ * nothing is drawn. Until 0.9.219 both comparisons here were {@code equals}, and such a client was
+ * turned away at the door, while the manual said it was fine.
  */
 public final class ForgeChannel {
 
@@ -46,7 +50,10 @@ public final class ForgeChannel {
         channel = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Trmt.MODID, "main"),
             () -> VERSION,
-            VERSION::equals,
+            // What a client accepts of its server: this version, or a server without the channel.
+            version -> VERSION.equals(version) || NetworkRegistry.ABSENT.equals(version)
+                || NetworkRegistry.ACCEPTVANILLA.equals(version),
+            // What a server accepts of its clients: this version only.
             VERSION::equals);
 
         for (Packets.Entry<?> each : Packets.all()) {

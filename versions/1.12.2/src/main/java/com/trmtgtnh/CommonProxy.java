@@ -1,8 +1,8 @@
 package com.trmtgtnh;
 
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.common.MinecraftForge;
 
 import com.trmtgtnh.erosion.ErosionStore;
 
@@ -94,6 +94,24 @@ public class CommonProxy {
 
     /** A server named its surface table's fingerprint. Only a client has anything to do with it. */
     public void considerServerTable(boolean sent, long fingerprint) {}
+
+    /**
+     * Block ids moved under the surface table, so it is rebuilt under the ids now in force.
+     *
+     * <p>
+     * The table, the resistance and ground-cover sets and the sinkable stamps are all keyed by a block's
+     * number, and a number is only good for the registry it was read under: a save made with another
+     * mod list, or a server with its own history, hands out different ones. Built once at start-up and
+     * never again, the table went on looking up the wrong blocks - the wrong modded ground wore, real
+     * modded paths did not, and the table sent to clients carried the same stale keys - until a reload.
+     * The 1.7.10 edition's rebuild; this edition had no handler for the move until 0.9.219.
+     */
+    public void idsMoved() {
+        Trmt.LOG.info("Block ids changed; rebuilding the surface table under them");
+        com.trmtgtnh.surface.SurfaceRegistry.resolve();
+        // The settling stamps with them: this edition lays both in the one call.
+        com.trmtgtnh.erosion.PhysicalDecay.markSinkableBlocks();
+    }
 
     /** A server's surface table arrived. Only a client has anything to do with it. */
     public void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes) {}

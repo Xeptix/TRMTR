@@ -146,10 +146,11 @@ public class GhostBakedModel implements IBakedModel {
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
         // Said before any of this square's vertices are written, and only ever heard while the seat is
-        // a ghost's: the block underneath while its own surface is still showing, and the earth it has
-        // worn into once it is not. The same answer decides the claim and the picture, which is the
-        // whole of why the shine goes as the road breaks up rather than the moment it is walked on.
-        com.trmtgtnh.client.render.ShaderMaterial.claim(top == null ? -1 : origin);
+        // a ghost's: the block underneath while the square still wears as that block's own family, the
+        // block of the family its wear has reached once it does not, and earth where the picture is the
+        // bare earth - which is why the claim is made before that substitution, while a null top still
+        // says so. The 1.7.10 edition's rule; see ShaderMaterial.
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
         // Only grass takes the biome's colour. Worn through to dirt, a square has no grass left to
         // tint, and a dirt rut washed green by a jungle would be a very strange road.
@@ -208,7 +209,7 @@ public class GhostBakedModel implements IBakedModel {
         SurfaceFamily appearance = ErosionState.familyOf(record);
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
-        com.trmtgtnh.client.render.ShaderMaterial.claim(top == null ? -1 : origin);
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
         // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from

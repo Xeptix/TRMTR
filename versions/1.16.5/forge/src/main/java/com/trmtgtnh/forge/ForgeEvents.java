@@ -127,7 +127,15 @@ public final class ForgeEvents {
     @SubscribeEvent
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getWorld() instanceof Level)) return;
-        ServerEvents.blockPlaced((Level) event.getWorld(), event.getPos(), event.getPlacedBlock());
+        // The placer as well, for the golem the builder may stand up: whoever set the head is who it
+        // records as having built it.
+        ServerEvents.blockPlaced(
+            (Level) event.getWorld(),
+            event.getPos(),
+            event.getPlacedBlock(),
+            event.getEntity() instanceof net.minecraft.world.entity.player.Player
+                ? (net.minecraft.world.entity.player.Player) event.getEntity()
+                : null);
     }
 
     // ------------------------------------------------------------------

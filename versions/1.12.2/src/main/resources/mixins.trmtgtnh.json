@@ -11,7 +11,12 @@
   ],
   "client": [
     "MixinBlockArrivals",
-    "MixinOculusBlockContext"
+    "MixinGhostShadeForge",
+    "MixinGhostShadeVanilla",
+    "MixinOculusBlockContext",
+    "MixinOptiFineShaderSeat",
+    "MixinSettleOnWornGround",
+    "MixinSettledSnowFaces"
   ],
   "server": []
 }

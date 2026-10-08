@@ -1,5 +1,6 @@
 package com.trmtgtnh;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -49,6 +50,28 @@ class LanguageIsWholeTest {
 
     /** Where the other edition's tree is, filled in by the buildscript from an untracked file. */
     private static final String OTHER = "trmt.other.edition";
+
+    /**
+     * Sentences this edition says differently on purpose: the key, the other edition's sentence, and this
+     * one's. Only the named sentence may differ - the rest of the line is still held word for word.
+     *
+     * <p>
+     * The one there is: the older editions run on Forge alone, and this one ships a Fabric jar beside its
+     * Forge jar, both needing Cloth Config for the settings screen - so the guide page that said the mod
+     * runs on plain Forge and needs nothing was wrong in the Fabric jar and loose in both. Found while
+     * planning the update notice, and corrected in 0.9.219.
+     */
+    private static final String[][] SAID_DIFFERENTLY = { { "trmtgtnh.guide.mk2.page10.body",
+        "The mod runs on plain Forge and needs nothing.",
+        "The mod runs on Forge or Fabric, with Cloth Config for its settings screen, and needs nothing else." } };
+
+    /** The other edition's line as this edition says it. */
+    private static String asSaidHere(String key, String theirs) {
+        for (String[] each : SAID_DIFFERENTLY) {
+            if (each[0].equals(key) && theirs.contains(each[1])) return theirs.replace(each[1], each[2]);
+        }
+        return theirs;
+    }
 
     /**
      * The keys the game asks for, which are the only ones whose spelling changed.
@@ -114,7 +137,7 @@ class LanguageIsWholeTest {
             if (!ours.containsKey(mine)) {
                 missing.add(key + (mine.equals(key) ? "" : "  (looked for it as " + mine + ")"));
             } else if (!ours.get(mine)
-                .equals(value)) {
+                .equals(asSaidHere(mine, value))) {
                 changed.add(mine);
             }
         }
@@ -150,6 +173,17 @@ class LanguageIsWholeTest {
         }
 
         if (seen == 0) fail("The other edition's language file read as empty, which cannot be right.");
+    }
+
+    @Test
+    void no_line_says_this_edition_runs_on_forge_alone() throws IOException {
+        for (Map.Entry<String, String> each : ours().entrySet()) {
+            assertTrue(
+                !each.getValue()
+                    .contains("plain Forge"),
+                each.getKey() + " tells a Fabric player the mod runs on plain Forge - a carry from the "
+                    + "other edition put the sentence SAID_DIFFERENTLY replaces back");
+        }
     }
 
     @Test

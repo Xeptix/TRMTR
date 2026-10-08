@@ -51,6 +51,11 @@ public final class TrmtFabric implements ModInitializer {
                 .isModLoaded(modId));
         Trmt.useHost(() -> running);
 
+        // Block ids moved: Fabric's registry sync renumbers blocks to a server's ids on joining it, to a
+        // world's own as it opens, and back again. See ServerEvents.idsMoved.
+        net.fabricmc.fabric.api.event.registry.RegistryIdRemapCallback.event(net.minecraft.core.Registry.BLOCK)
+            .register(moved -> com.trmtgtnh.server.ServerEvents.idsMoved());
+
         // The same seam as the Forge side's, filled with this loader's word for it. See
         // OreNames.LazyTags for why a recipe cannot hold a tag fetched from the collection of the
         // moment.
@@ -71,6 +76,12 @@ public final class TrmtFabric implements ModInitializer {
                         .getVersion()
                         .getFriendlyString())
                 .orElse("unknown"));
+        // This jar's line in the update check's version file, and whether this is a development game;
+        // see UpdateNotice and the Forge module's copy of this.
+        com.trmtgtnh.server.UpdateNotice.edition(
+            "1.16.5-fabric",
+            FabricLoader.getInstance()
+                .isDevelopmentEnvironment());
 
         // Before the world loads, which is the point: what erodes has to be known before the first
         // chunk is asked about, and on this edition nothing on a server ever worked it out.

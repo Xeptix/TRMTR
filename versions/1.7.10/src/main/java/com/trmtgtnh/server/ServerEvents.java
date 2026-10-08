@@ -199,6 +199,7 @@ public final class ServerEvents {
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         SpawnGrants.onLogin(event.player);
         tellAboutQuests(event.player);
+        if (event.player instanceof EntityPlayerMP) UpdateNotice.onLogin((EntityPlayerMP) event.player);
     }
 
     /**
@@ -208,7 +209,10 @@ public final class ServerEvents {
      * Writing the file is useless on its own: BetterQuesting only reads that folder when a world is
      * made or when the command is run, and running it is not the mod's decision to make. So the
      * only thing left is to say the line is there, and only to a player who has the permission to
-     * do something about it - which on a server is the admin and in single player is everybody.
+     * do something about it - which on a server is an operator, and in single player is the owner when
+     * the world allows cheats. Vanilla makes the single-player owner an operator only then
+     * ({@code ServerConfigurationManager.func_152596_g}), which is the same rule the command itself is
+     * held to: a world without cheats, where nobody can run it, is never told to.
      */
     private void tellAboutQuests(net.minecraft.entity.player.EntityPlayer player) {
         if (player == null) return;
@@ -236,6 +240,7 @@ public final class ServerEvents {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.player instanceof EntityPlayerMP) TrmtNetwork.forget((EntityPlayerMP) event.player);
+        if (event.player instanceof EntityPlayerMP) UpdateNotice.onLogout((EntityPlayerMP) event.player);
     }
 
     // ------------------------------------------------------------------

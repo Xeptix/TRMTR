@@ -7,7 +7,11 @@
   "plugin": "com.trmtgtnh.mixin.OculusGate",
   "mixins": [
     "MixinOculusBlockContext",
+    "MixinOptiFineShaderSeat",
     "MixinPackRepository"
+  ],
+  "client": [
+    "MixinSettledFacesSodium"
   ],
   "injectors": {
     "defaultRequire": 1

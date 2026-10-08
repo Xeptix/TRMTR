@@ -57,7 +57,7 @@ public final class GhostQuads {
     public static final int LIGHT_TINT = 1;
 
     /** Position, colour, texture, light, normal: vanilla's block format, eight ints a vertex. */
-    private static final int INTS_PER_VERTEX = 8;
+    public static final int INTS_PER_VERTEX = 8;
 
     private GhostQuads() {}
 
@@ -101,11 +101,11 @@ public final class GhostQuads {
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
         // Said before any of this square's vertices are written, and only ever heard while the seat
-        // is a ghost's: the block underneath while its own surface is still showing, and the earth it
-        // has worn into once it is not. The same answer decides the claim and the picture, which is
-        // the whole of why the shine goes as the road breaks up rather than the moment it is walked
-        // on. See ShaderMaterial, which holds all of this.
-        com.trmtgtnh.client.render.ShaderMaterial.claim(top == null ? -1 : origin);
+        // is a ghost's: the block underneath while the square still wears as that block's own family,
+        // the block of the family its wear has reached once it does not, and earth where the picture
+        // is the bare earth - which is why the claim is made before that substitution, while a null
+        // top still says so. The 1.7.10 edition's rule; see ShaderMaterial, which holds all of this.
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
         // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
@@ -149,6 +149,18 @@ public final class GhostQuads {
      * then its family's. What the square is standing over is turned back from the state id the
      * painter remembered; nothing remembered means the family's set.
      */
+    /**
+     * The block this square tells a shader pack it is made of - the claim {@link #build} makes, for a
+     * renderer that takes it as a material on each quad rather than from a seat. Canvas is the one: see
+     * the Fabric module's {@code FrexMaterial}. Asked the same way {@code build} asks it, from the same
+     * picture, so the two can never disagree about a square.
+     */
+    public static BlockState claimOf(short record, int origin, int rotation) {
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
+        return com.trmtgtnh.client.render.ShaderMaterial.claimFor(origin, top == null ? null : appearance);
+    }
+
     private static TextureAtlasSprite topOf(short record, SurfaceFamily appearance, int origin, int rotation) {
         if (appearance == null || !BlockGhost.shows(record)) return null;
         Block block = null;
@@ -201,7 +213,7 @@ public final class GhostQuads {
         SurfaceFamily appearance = ErosionState.familyOf(record);
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
-        com.trmtgtnh.client.render.ShaderMaterial.claim(top == null ? -1 : origin);
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
         // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from

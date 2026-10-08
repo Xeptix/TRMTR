@@ -296,6 +296,70 @@ public final class ClientSide implements Client.Side {
         if (delta.showErosionMoved && announced) {
             com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
         }
+        if (delta.showErosionMoved && !com.trmtgtnh.config.TrmtConfig.showErosion
+            && com.trmtgtnh.config.TrmtConfig.overlayForced) {
+            net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+            if (client != null && client.player != null) {
+                com.trmtgtnh.server.Notices.say(
+                    client.player,
+                    com.trmtgtnh.server.Notices.line(
+                        "This server has worn ground you can walk down into, so path visuals cannot be switched off here. Your setting will apply everywhere else.",
+                        net.minecraft.ChatFormatting.YELLOW,
+                        true));
+            }
+        }
+        // Last, because the table this asks for is installed from the queue and repaints on its own. An edit
+        // made on the config screen mid-visit - a block added to a family, one excluded - publishes a table the
+        // server may not be using, and until 0.9.219 nothing here ever looked again.
+        ClientRules.get()
+            .recheckServerTable();
+    }
+
+    /**
+     * The same rebuild as a server's, run where it is safe to run it.
+     *
+     * <p>
+     * A client sees the ids move on more than one thread: a single-player world takes its ids and gives them
+     * back on its own server thread, and is rebuilt where it stands; a visit's arrive on the network thread,
+     * where rebuilding would race the painter, so that one is queued. The wear atlas needs nothing - it is
+     * filed by block object, which no move renumbers - and the line queued after the rebuild says how many
+     * blocks with wear of their own now carry another id. The 1.7.10 edition's method.
+     */
+    @Override
+    public void idsMoved() {
+        boolean inPlace = net.minecraft.client.Minecraft.getInstance()
+            .isSameThread() || com.trmtgtnh.Trmt.onServerThread();
+        Runnable rebuild = () -> {
+            com.trmtgtnh.Trmt.LOG.info("Block ids changed; rebuilding the surface table under them");
+            ClientRules.resettleSurfaces();
+        };
+        try {
+            if (inPlace) {
+                rebuild.run();
+            } else {
+                com.trmtgtnh.util.MainThread.onClient(rebuild);
+            }
+        } finally {
+            // Queued whatever the rebuild did: one run where it stands can throw, and the throw goes on to the
+            // loader as it always has without taking the icons' reset and the atlas's audit with it.
+            com.trmtgtnh.util.MainThread.onClient(com.trmtgtnh.client.gui.WearIcons::reset);
+            com.trmtgtnh.util.MainThread.onClient(com.trmtgtnh.client.texture.WearTextures::auditAfterIdMove);
+        }
+    }
+
+    /**
+     * What a tick with no world in it still has to do: run what was handed to this thread, and a rebuild of
+     * the wear pictures that was asked for.
+     *
+     * <p>
+     * The 1.7.10 edition does both above its world check. So a look changed at the main menu takes there,
+     * since going into a world builds nothing, and a rebuild asked for on the way out of a world runs before
+     * the next one rather than in the middle of joining it. Until 0.9.219 both waited for a world here.
+     */
+    public static void idleTick() {
+        com.trmtgtnh.util.MainThread.drainClient();
+        WearRestitch.get()
+            .serviceRestitch();
     }
 
     @Override
@@ -465,6 +529,16 @@ public final class ClientSide implements Client.Side {
      * lifting a ghost needs that record. Then the queue, then the caches, then the two things the
      * server set for the visit - its rules and its surface table - which are the server's and have no
      * business outliving the connection.
+     *
+     * <p>
+     * <strong>And this client's own settings read back, which until 0.9.219 nothing did.</strong>
+     * Releasing a server's rules only stops holding them; what they wrote into the live settings stays
+     * until something reads the file again - so the decay mode, the wear-through switches and every
+     * family's stages, depth and successors went on being the last server's, into the next world opened,
+     * until the config screen's Done, {@code /trmt reload} or a restart. The 1.7.10 edition's hand-back:
+     * the chains taken under the server, the rules and the table released, the file read, and only then
+     * asked whether the chains or the switches moved - asked before the read they compare the server's
+     * chains with themselves.
      */
     public static void leaveWorld() {
         // Said again on the next visit: a server has no memory of this client between connections.
@@ -484,10 +558,29 @@ public final class ClientSide implements Client.Side {
             .clear();
         ClientLightCache.get()
             .clear();
+        InspectionCache.clear();
+        int[] underServer = ServerRules.chainAppearances();
         ServerRules.release();
         // The table a server named is the server's answer to what erodes, and a client that kept it
-        // would meet the next world holding the last one's list.
-        com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
+        // would meet the next world holding the last one's list. Released before the read, so the
+        // rebuild below publishes this client's own table rather than the visit's again.
+        boolean tableHandedBack = com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
+        ClientRules.get()
+            .leave();
+        com.trmtgtnh.config.TrmtConfig.read();
+        boolean appearancesHandedBack = ServerRules.appearancesMovedFrom(underServer);
+        boolean enabledHandedBack = ServerRules.enabledMovedFrom(underServer);
+        // The mirror of the join: a family this client had switched off can have been resolved into its
+        // table for the visit, and leaving it there would go on trampling ground the player's own file had
+        // said to leave alone.
+        if (enabledHandedBack || tableHandedBack) ClientRules.resettleSurfaces();
+        if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
+        // A client that wore a server's chains needs its own pictures back - serviced with no world loaded,
+        // see idleTick, so before the next world rather than in the middle of joining it.
+        if (appearancesHandedBack) {
+            WearRestitch.get()
+                .requestRestitch("Back on the materials your own config draws.");
+        }
         // And the map's coalescing, so the first square painted in the next world is told about
         // whatever the last one in this world happened to be.
         com.trmtgtnh.client.xaero.XaeroMinimap.reset();

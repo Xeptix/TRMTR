@@ -58,7 +58,7 @@ import com.trmtgtnh.item.UnlockBooks;
  * consulted. That is what the {@code required-after:mixinbooter} dependency on {@code Trmt} is for.
  */
 @Mixin(EntityVillager.ListEnchantedBookForEmeralds.class)
-public abstract class MixinLibrarianBooks {
+public abstract class MixinLibrarianBooks implements com.trmtgtnh.core.MixinsApplied {
 
     // The only Enchantment local in the method, and the first thing it does.
     @ModifyVariable(require = 0, method = "addMerchantRecipe", at = @At("STORE"), ordinal = 0)

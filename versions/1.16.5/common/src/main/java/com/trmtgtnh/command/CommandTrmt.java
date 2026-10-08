@@ -761,7 +761,25 @@ public final class CommandTrmt {
      * the same reason this does.
      */
     private static void place(Level world, int x, int y, int z, Block block, int meta, int flags) {
-        world.setBlock(new BlockPos(x, y, z), block.defaultBlockState(), flags);
+        world.setBlock(new BlockPos(x, y, z), placedState(block), flags);
+    }
+
+    /**
+     * The state a demonstration lays a block in: its default, with a stair turned to rise towards the
+     * east.
+     *
+     * <p>
+     * East because that is the stair the 1.7.10 edition lays - its metadata nought, which at that version
+     * is a bottom-half stair rising east - and the yards are photographed side by side. The default here
+     * faces north, so until 0.9.219 this yard's stair platform ran its steps across the frame where 1.7.10's
+     * repeat along it, and the second yard's close-up of the stairs compared two different shapes.
+     */
+    static BlockState placedState(Block block) {
+        BlockState state = block.defaultBlockState();
+        if (block instanceof net.minecraft.world.level.block.StairBlock) {
+            state = state.setValue(net.minecraft.world.level.block.StairBlock.FACING, net.minecraft.core.Direction.EAST);
+        }
+        return state;
     }
 
     /**
@@ -2041,11 +2059,21 @@ public final class CommandTrmt {
         return -1;
     }
 
-    /** The plainest block of a family, so a road reads as ground rather than as a mod's sampler. */
+    /**
+     * The plainest block of a family, so a road reads as ground rather than as a mod's sampler.
+     *
+     * <p>
+     * <strong>The grass block and the snow block, by this version's names.</strong> Under Mojang's names
+     * {@code Blocks.GRASS} is the plant that grows on a grass block and {@code Blocks.SNOW} the thin layer,
+     * and both stood here until 0.9.219, carried across from the older editions' spelling: the roads were
+     * laid in grass plants and snow layers, the golem pens floored with them, and JourneyMap took its stock
+     * colour for worn grass from the plant. Found while the walk harness was being taught to ask the yard
+     * where each family's road block was laid, which would have found no platform of either.
+     */
     public static Block roadBlock(SurfaceFamily family) {
         switch (family) {
             case GRASS:
-                return Blocks.GRASS;
+                return Blocks.GRASS_BLOCK;
             case SAND:
                 return Blocks.SAND;
             case GRAVEL:
@@ -2059,7 +2087,7 @@ public final class CommandTrmt {
             case END:
                 return Blocks.END_STONE;
             case SNOW:
-                return Blocks.SNOW;
+                return Blocks.SNOW_BLOCK;
             case ICE:
                 return Blocks.ICE;
             default:

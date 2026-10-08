@@ -69,6 +69,13 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
         java.util.List<net.minecraft.world.phys.AABB> stairs = BlockGhost.stairBoxesAt(level, pos, origin);
         // The pass this square belongs in, carried on every quad it emits. See materialFor.
         net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial material = materialFor(origin);
+        // Under Canvas, the material the block this square claims to be is given, in that same pass -
+        // the shader-material claim the other renderers take from a seat. See FrexMaterial.
+        if (FrexMaterial.active()) {
+            net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial claimed = FrexMaterial
+                .of(GhostQuads.claimOf(record, origin, rotation), com.trmtgtnh.client.GhostLayers.of(origin));
+            if (claimed != null) material = claimed;
+        }
         emit(
             context,
             GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
@@ -143,18 +150,72 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
      * watching a run said "that is a hole" and was right. See {@code GhostModelForge}, which had a
      * different fault with the same symptom at the same time.
      */
+    /**
+     * Whether quads go to the emitter one attribute at a time rather than through {@code fromVanilla} - under
+     * OptiFabric only.
+     *
+     * <p>
+     * {@code fromVanilla} copies a whole quad at the stride the renderer fixed once, when it first started, from
+     * {@code DefaultVertexFormat.BLOCK} - which OptiFine grows while a shader pack is on. Under OptiFabric, Indigo
+     * can fix the grown stride and then be handed these eight-int vertices once the pack is turned off, and it
+     * copies past their end: on 2026-10-07 the mid-session toggle crashed the game there, with
+     * ArrayIndexOutOfBoundsException in {@code MutableQuadViewImpl.fromVanilla}, on a chunk rebuilt after the pack
+     * went. One attribute at a time reads no stride at all.
+     *
+     * <p>
+     * <strong>And only there</strong>, because Canvas does not read a quad set that way as it reads one copied in:
+     * the first version of this fix set every quad by attribute on every renderer, and Canvas drew the first yard
+     * smeared into streaks with a dark block across it. Nothing but OptiFine moves that stride, and on Fabric
+     * OptiFine comes only through OptiFabric, which Canvas cannot run beside.
+     */
+    private static final boolean BY_ATTRIBUTE = net.fabricmc.loader.api.FabricLoader.getInstance()
+        .isModLoaded("optifabric");
+
     private static void emit(RenderContext context, List<BakedQuad> quads, Direction cull,
         net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial material) {
         for (BakedQuad quad : quads) {
             // Once, and kept. See above - this is not a tidy-up.
             QuadEmitter emitter = context.getEmitter();
-            emitter.fromVanilla(quad.getVertices(), 0, false);
+            if (!BY_ATTRIBUTE) {
+                emitter.fromVanilla(quad.getVertices(), 0, false);
+            } else {
+                // See BY_ATTRIBUTE. The normals are left unset, as fromVanilla left them, so the renderer
+                // takes the face's own.
+                emitVertices(emitter, quad.getVertices());
+            }
             emitter.cullFace(cull);
             emitter.nominalFace(quad.getDirection());
             emitter.colorIndex(quad.getTintIndex());
             // Before emit, like everything else here, and after fromVanilla, which does not touch it.
             if (material != null) emitter.material(material);
             emitter.emit();
+        }
+    }
+
+    /**
+     * One quad's four vertices, each attribute set on its own - see {@link #BY_ATTRIBUTE}.
+     *
+     * <p>
+     * <strong>Read at the quad's own stride, not at eight.</strong> OptiFine patches {@code BakedQuad.getVertices}
+     * to hand the data back grown to its shader format while a pack is on - the same attributes first in each
+     * vertex, more after them - so the length of the array is the only thing that says how far apart the
+     * vertices are. Read at eight, under OptiFabric with a pack on, every vertex after the first was taken from
+     * the middle of another, and the first yard drew as tiled grass sides with black bands across it. That is
+     * also the crash this path exists for, seen from the renderer's side: Indigo copied at a stride fixed while
+     * the arrays were grown, and was handed eight-int ones once the pack went off.
+     */
+    private static void emitVertices(QuadEmitter emitter, int[] packed) {
+        int stride = packed.length / 4;
+        for (int vertex = 0; vertex < 4; vertex++) {
+            int at = vertex * stride;
+            emitter.pos(
+                vertex,
+                Float.intBitsToFloat(packed[at]),
+                Float.intBitsToFloat(packed[at + 1]),
+                Float.intBitsToFloat(packed[at + 2]));
+            emitter.spriteColor(vertex, 0, packed[at + 3]);
+            emitter.sprite(vertex, 0, Float.intBitsToFloat(packed[at + 4]), Float.intBitsToFloat(packed[at + 5]));
+            emitter.lightmap(vertex, packed[at + 6]);
         }
     }
 

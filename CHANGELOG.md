@@ -1,8 +1,91 @@
 # TRMT Reimagined - changelog
 
-One version number across every edition. 0.9.218 is the same release on Minecraft 1.7.10, 1.12.2
+One version number across every edition. 0.9.219 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.219 - 2026-10-07
+
+**You are told when a newer release is out.** Whoever can update a copy of the mod - the owner of a
+single-player world, the host of a LAN game, a server's operators - is told as they join, in one chat
+line with links to the CurseForge and Modrinth pages. It reads one small file from this repository once
+per launch, sends nothing but the request itself, and is never shown to anybody who could not act on it.
+`general.updateNotice` is `operators` by default; `everyone` tells every player, privately, and `off`
+tells nobody and never asks. A server that does not ask says why, in one line of its log. Every edition,
+both 1.16.5 loaders.
+
+**1.12.2 and 1.16.5 were checked under every shader loader made for them, and fixed where they fell
+short.** Each was photographed under Complementary Reimagined and Sildurs Vibrant, beside the same
+renderer without a pack, and again after the pack was turned off mid-session - which is where 1.12.2
+under OptiFine once crashed.
+
+- **Worn ground keeps its shader material under OptiFine** on 1.12.2 and on 1.16.5 Forge, as it already
+  did under Oculus and Iris, and under **Canvas** on 1.16.5 Fabric as the covered block's FREX material.
+  A worn path keeps the shine, sway or reflection the pack gives the block it covers while it still shows
+  that block, and takes the earth's once it has worn through. Under **OptiFabric** that one thing is out
+  of reach: OptiFabric defines OptiFine's classes after every mod's hooks have been prepared, so none can
+  bind to them, and a worn square draws with the pack's default material rather than its block's.
+  Nothing else about it differs.
+- **Embeddium** with Oculus on 1.16.5 Forge, Canvas, and OptiFabric on 1.16.5 Fabric are now all
+  photographed with every release. None of them, and no shader loader at all, is ever required.
+- **Turning the pack off mid-session under OptiFabric could crash the game**, in Fabric's own renderer,
+  which copied each worn square at a size OptiFine had changed while the pack was on. Under OptiFabric
+  each corner is handed over on its own now, read at whatever size OptiFine gives it.
+
+**A 1.16.5 Fabric dedicated server with the mod crashed on its first tick**, from 0.9.217 on. Building
+its recipes called a method Fabric keeps on the client only - a dedicated server's copy of the game does
+not have it - and single player and every client have it, so nothing but a real Fabric server could
+show it. It runs now, and every call the mod makes is checked against the game's own client-only marks:
+two more were found and moved, one of them in how config snapshots are saved on a Fabric server.
+
+**1.16.5 lit worn ground wrongly in three ways.**
+
+- **Under Rubidium, Embeddium and Canvas the second demonstration yard drew darker the deeper it was
+  worn.** The server sends light in packets of its own, and each one replaced the client's light for its
+  sections with the server's - which lights the real block standing there, not the hollow the client
+  draws. Sunk squares are now lit again when the server's light lands, and when a column is painted
+  ahead of its light.
+- **A worn stair drew its riser black on Forge**, and **worn ice stopped all light**, so a path worn
+  across a frozen lake darkened the water under it. A worn square that has not sunk now stops light
+  exactly as the block it covers does, not as a whole block of earth.
+
+**Worn ground that has not sunk shades the corners beside it, on both ports, as the block it covers
+does** - so the edge of a rut is shaded toward the step, as on 1.7.10. Both had answered that worn ground
+shades nothing at all, and sunk ground beside an unsunken square drew evenly lit. Vanilla's renderer and
+OptiFine draw that shade as 1.7.10 does. Forge's own light pipeline on 1.12.2, and Rubidium, Embeddium,
+Sodium and Fabric's Indigo on 1.16.5, blend a shallow face's shade by its depth, so there the edge is
+softer - as it is for a vanilla path beside a full block.
+
+**With JourneyMap 6 on 1.12.2, none of the mod's mixins loaded.** JourneyMap 6 brings a Mixin of its own,
+which starts before MixinBooter, and MixinBooter then reads no other mod's list of mixins. Snow and carpet
+stayed up off worn ground, a chunk the server rewrote was not repainted at once, librarians sold no wear
+books, OptiFine's shader material went unclaimed - and nothing said so. A small loading plugin now
+registers them itself when that happens, and the log says if they still did not apply.
+
+**1.12.2's worn ice hid what was behind it.** A worn ice square let the real ice under it and the worn
+squares beside it leave off every face they shared with it, so ice read as one thin pane with whatever
+stood beyond showing through. It is drawn through as ice is now, and stops only the light ice stops.
+
+**The two ports caught up with 1.7.10 in the places nobody had looked.**
+
+- **Golems of Ways are built from their blocks and a head again** on both: the builder had been ported
+  and was never called.
+- **Leaving a server hands everything back.** A server's own rules - its decay mode, switches and family
+  numbers - stayed in force into the next world you opened on 1.16.5, because leaving never read your own
+  settings back. Joining now carries a server's rules out in full, and leaving undoes them, on both.
+- **Snow and carpet on a rut are drawn down with it**, where only the footing had come down.
+- **A client with the mod can join a server without it**, on both, as on 1.7.10.
+- **Frosted ice is not ground.** Frost Walker lays it and the game melts it; counted as ice, it laid a
+  demonstration platform that melted and poured off the yard.
+- **Messages the mod speaks from the client reach you on 1.16.5** - every one was being dropped - and the
+  in-game guide no longer tells a Fabric player the mod runs on Forge alone.
+- **On 1.16.5 the demonstration's roads, its golem pens and JourneyMap's colour for worn grass used the
+  grass plant and the snow layer** where they meant the grass block and the snow block.
+- **Moved block ids rebuild the surface table** on both, and the moving layers behind worn Chisel stone
+  move again on 1.12.2.
+- **The demonstration lays its stairs rising east**, as 1.7.10's does, on both.
+
+**On 1.7.10 nothing else changed.** The update notice is this edition's whole difference from 0.9.218.
 
 ## 0.9.218 - 2026-10-07
 

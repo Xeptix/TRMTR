@@ -193,8 +193,10 @@ class GhostFacesFollowTheBlockTest {
     void an_unsunken_square_stops_light_as_the_block_it_covers_did() throws IOException {
         String ghost = body("com/trmtgtnh/block/BlockGhost.java");
 
+        // Ice aside, which stops what ice stops - see WornIceIsClearTest.
         assertTrue(
-            ghost.contains("public int getLightBlock(") && ghost.contains("sunkAt(world, pos) ? 0 : 15"),
+            ghost.contains("public int getLightBlock(") && ghost.contains("if (sunkAt(world, pos)) return 0;")
+                && ghost.contains("return covered == null ? 15 : covered.getLightBlock(world, pos);"),
             "a worn-but-unsunken square is still a whole block of earth and stops light as the block "
                 + "it stands in for did; the default reads canOcclude, which is said once for the "
                 + "block and is no, so every ghost leaked light whatever had happened to it");

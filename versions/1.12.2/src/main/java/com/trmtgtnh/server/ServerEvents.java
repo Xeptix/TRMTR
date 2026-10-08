@@ -248,6 +248,7 @@ public final class ServerEvents {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.player instanceof EntityPlayerMP) TrmtNetwork.forget((EntityPlayerMP) event.player);
+        if (event.player instanceof EntityPlayerMP) UpdateNotice.onLogout((EntityPlayerMP) event.player);
     }
 
     // ------------------------------------------------------------------
@@ -280,6 +281,25 @@ public final class ServerEvents {
                 state.getBlock(),
                 state.getBlock()
                     .getMetaFromState(state));
+    }
+
+    /**
+     * A player head set on the right shape stands a Golem of Ways up.
+     *
+     * <p>
+     * The 1.7.10 edition's handler of the same name, carried across. Missing until 0.9.219: the
+     * builder was ported whole and nothing called it, so a golem could be had from a loot egg or the
+     * demonstrate yard and never from the blocks and a head, which is how the guide says to make one.
+     * Any skull here; whether it is a player's is the builder's question, as it is there.
+     */
+    @SubscribeEvent
+    public void onHeadPlaced(BlockEvent.PlaceEvent event) {
+        if (event.getPlacedBlock()
+            .getBlock() == net.minecraft.init.Blocks.SKULL) {
+            BlockPos pos = event.getPos();
+            com.trmtgtnh.entity.GolemBuilder
+                .onHeadPlaced(event.getWorld(), pos.getX(), pos.getY(), pos.getZ(), event.getPlayer());
+        }
     }
 
     @SubscribeEvent
@@ -418,6 +438,7 @@ public final class ServerEvents {
     public void onPlayerLoggedIn(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent event) {
         SpawnGrants.onLogin(event.player);
         tellAboutQuests(event.player);
+        if (event.player instanceof EntityPlayerMP) UpdateNotice.onLogin((EntityPlayerMP) event.player);
     }
 
     /**
@@ -427,7 +448,10 @@ public final class ServerEvents {
      * Writing the file is useless on its own: the questbook only reads that folder when a world is
      * made or when the command is run, and running it is not this mod's decision to make. So the only
      * thing left is to say the line is there, and only to a player who has the permission to do
-     * something about it - which on a server is the admin and in single player is everybody.
+     * something about it - which on a server is an operator, and in single player is the owner when the
+     * world allows cheats. Vanilla makes the single-player owner an operator only then
+     * ({@code PlayerList.canSendCommands}), which is the same rule the command itself is held to: a
+     * world without cheats, where nobody can run it, is never told to.
      */
     private void tellAboutQuests(net.minecraft.entity.player.EntityPlayer player) {
         if (player == null) return;

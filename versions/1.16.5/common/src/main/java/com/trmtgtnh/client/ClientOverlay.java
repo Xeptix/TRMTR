@@ -33,9 +33,142 @@ public final class ClientOverlay {
         OverlayPainter.get()
             .restoreVanished(Minecraft.getInstance().level, previous, keys);
         cache.put(chunkX, chunkZ, ClientErosionCache.build(chunkX, chunkZ, keys, states, previous));
+        // Any square already painted whose record has just crossed into or out of sunk. See relightIfMoved.
+        if (keys != null && states != null) {
+            for (int i = 0; i < keys.length && i < states.length; i++) {
+                short before = previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(keys[i]);
+                relightIfMoved(
+                    before,
+                    states[i],
+                    (chunkX << 4) + com.trmtgtnh.erosion.ErosionKey.localX(keys[i]),
+                    com.trmtgtnh.erosion.ErosionKey.y(keys[i]),
+                    (chunkZ << 4) + com.trmtgtnh.erosion.ErosionKey.localZ(keys[i]));
+            }
+        }
         OverlayPainter.get()
             .queueChunk(chunkX, chunkZ);
         redrawColumn(chunkX, chunkZ, keys);
+    }
+
+    /**
+     * Re-lights a painted square whose record has just crossed into or out of sunk.
+     *
+     * <p>
+     * A ghost stops all light until its ground sinks and none once it has ({@code
+     * BlockGhost.getLightBlock}), and that answer is read from the record rather than from the block.
+     * The 1.7.10 edition gets the re-light for nothing: sinking swaps a ghost for its separate sunken
+     * variant, and a block that changes is always re-lit. One ghost standing in for both never changes
+     * block when it sinks, so the change has to be told - or the cell keeps the darkness it had while it
+     * was a whole block. Vanilla's renderer never reads that cell for a sunken top; the Sodium family
+     * does, and on 2026-10-07 the second demonstrate yard drew darker the deeper it was worn, under
+     * Rubidium only.
+     *
+     * <p>
+     * Only a square already painted is told. One about to be painted is re-lit by the paint itself,
+     * because its answer differs from the block it replaces, and a chunk arriving whole would otherwise
+     * re-light every square in it for nothing.
+     */
+    private static void relightIfMoved(short before, short after, int x, int y, int z) {
+        if (!lightAnswerMoved(before, after)) return;
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) return;
+        BlockPos pos = new BlockPos(x, y, z);
+        if (!(level.getBlockState(pos)
+            .getBlock() instanceof com.trmtgtnh.block.BlockGhost)) return;
+        // Told to the light engine rather than to the world: this version keeps lighting in an engine of
+        // its own, and the engine marks the sections it relights for rebuilding itself.
+        level.getLightEngine()
+            .checkBlock(pos);
+    }
+
+    /** Whether a record moving from one state to the other changes the square's answer to the light engine. */
+    static boolean lightAnswerMoved(short before, short after) {
+        return (com.trmtgtnh.erosion.ErosionState.sinkOf(before) > 0) != (com.trmtgtnh.erosion.ErosionState
+            .sinkOf(after) > 0);
+    }
+
+    /**
+     * The server's own light for one chunk column has just been queued over this client's, and it is
+     * wrong at every painted square that answers the light engine differently from a whole block.
+     *
+     * <p>
+     * The server lights the real block standing there, which stops all light and glows with none. A
+     * sunk ghost stops none and a lit one glows, and this client worked that out for itself when it
+     * painted them. But this version sends light in packets of its own, apart from the blocks, and a
+     * packet replaces each section's light whole - so the moment the server's light for a column
+     * arrives, every sunk square in it goes back to the darkness of a whole block of earth, and
+     * nothing lights it again, because the ghost standing there never changed. The 1.7.10 and 1.12.2
+     * editions never meet this: their light arrives with their blocks, which puts the real block back
+     * and has the square painted, and lit, again.
+     *
+     * <p>
+     * Found on 2026-10-07 by the harness's yard census, after re-lighting a square as its record sank
+     * had cured Rubidium in one run and not in the next. 302 of 328 sunk squares in the second yard
+     * were dark in their own cell under Rubidium and Embeddium, all 328 under Canvas - which light a
+     * sunk top from that cell, so the yard drew darker the deeper it was worn. Vanilla and OptiFine
+     * light a top from the cell above it and drew it right, while anything standing in a sunk square
+     * was still lit by the dark cell under every renderer.
+     *
+     * <p>
+     * <strong>The server's light is let in first and the squares told after.</strong> The packet only
+     * queues it, for the light engine's next pass; told before that pass, the engine weighs each square
+     * against the light that is about to be replaced, finds nothing to do, and the server's darkness
+     * lands on top of it. Only when a square here needs it, so a column with no painted path costs
+     * nothing.
+     */
+    public static void serverLightArrived(int chunkX, int chunkZ) {
+        relightPainted(chunkX, chunkZ);
+    }
+
+    /**
+     * Re-lights every painted square in one column that answers the light engine its own way, after letting
+     * in whatever light is queued for it - the work {@link #serverLightArrived} exists for, asked from both
+     * ends.
+     *
+     * <p>
+     * <strong>From the painter too, from 0.9.219.</strong> The server sends a chunk's light just ahead of the
+     * chunk and its wear just after, so a column is often painted while the server's light for it is still
+     * queued: the light packet arrived first and found nothing painted to re-light, and the paint's own
+     * re-light was weighed against the light about to be replaced. Found by the yard census on a dev run of
+     * the first yard alone - 142 of 213 sunk squares dark, own light 0 under full sky - where every full run
+     * that day had come back clean, because the walk before the yard had given the light time to land.
+     */
+    static void relightPainted(int chunkX, int chunkZ) {
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) return;
+        ClientErosionCache.ChunkOverlay overlay = ClientErosionCache.get()
+            .overlay(chunkX, chunkZ);
+        if (overlay == null || overlay.isEmpty()) return;
+        java.util.List<BlockPos> told = null;
+        for (int i = 0; i < overlay.size(); i++) {
+            int key = overlay.keyAt(i);
+            BlockPos pos = new BlockPos(
+                (chunkX << 4) + com.trmtgtnh.erosion.ErosionKey.localX(key),
+                com.trmtgtnh.erosion.ErosionKey.y(key),
+                (chunkZ << 4) + com.trmtgtnh.erosion.ErosionKey.localZ(key));
+            BlockState standing = level.getBlockState(pos);
+            if (!(standing.getBlock() instanceof com.trmtgtnh.block.BlockGhost)) continue;
+            if (!answersLightOwnWay(overlay.stateAtIndex(i), standing.getValue(com.trmtgtnh.block.BlockGhost.LIGHT)
+                .intValue())) continue;
+            if (told == null) told = new java.util.ArrayList<>();
+            told.add(pos);
+        }
+        if (told == null) return;
+        net.minecraft.world.level.lighting.LevelLightEngine engine = level.getLightEngine();
+        // The server's sections in now, as the next frame would let them in, so each square is weighed
+        // against the light it actually has.
+        engine.runUpdates(Integer.MAX_VALUE, true, true);
+        for (BlockPos pos : told) {
+            engine.checkBlock(pos);
+        }
+    }
+
+    /**
+     * Whether a painted square answers the light engine other than as the whole block the server lit:
+     * sunk, so it stops no light, or glowing.
+     */
+    static boolean answersLightOwnWay(short record, int glow) {
+        return com.trmtgtnh.erosion.ErosionState.sinkOf(record) > 0 || glow > 0;
     }
 
     public void handleDelta(int x, int y, int z, short state) {
@@ -51,6 +184,7 @@ public final class ClientOverlay {
                 .restoreSingle(Minecraft.getInstance().level, chunkX, chunkZ, key, previous.originAt(key));
         }
         cache.put(chunkX, chunkZ, ClientErosionCache.withSingle(previous, chunkX, chunkZ, key, state));
+        relightIfMoved(previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(key), state, x, y, z);
         OverlayPainter.get()
             .queueChunk(chunkX, chunkZ);
         // And the mesh asked for directly, because the painter cannot always tell that anything

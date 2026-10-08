@@ -19,7 +19,7 @@ with nothing else installed, except that 1.16.5 wants Cloth Config for its setti
 
 One mod, one version number, three editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
-left them. Twenty-nine classes are shared between them byte for byte. Where an edition cannot match
+left them. Thirty classes are shared between them byte for byte. Where an edition cannot match
 the others it is because the Minecraft version took away what the behaviour was built on, and the
 section it belongs to says so rather than leaving you to find out. They are collected in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) if you would rather see them all at once.
@@ -71,6 +71,7 @@ The mod is free and always will be. If you would like to put something in the ha
 - [Commands](#commands)
 - [Pinning a position](#pinning-a-position)
 - [Servers](#servers)
+- [Update notice](#update-notice)
 - [Performance](#performance)
 - [Optional integrations](#optional-integrations)
 - [How this differs from The Roads More Travelled](#how-this-differs-from-the-roads-more-travelled)
@@ -120,6 +121,11 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
   rather than left to wonder why. **UniMixins** states partial 1.12.2 support and is expected to read
   the same manifest attribute, but nobody has run this jar under it, so it is not claimed - and with
   the dependency declared it would have to be installed alongside rather than instead.
+- **With JourneyMap 6 installed** - it brings a Mixin of its own, which starts before MixinBooter, and
+  MixinBooter then reads no mod's manifest - a small loading plugin in the jar registers the mixin
+  config itself. It transforms nothing and does nothing at all when MixinBooter started Mixin. Before
+  0.9.219 the mod ran without any of its mixins there, and nothing said so; now the log says, at
+  warning, if they still did not apply.
 
 **Requirements, 1.16.5**
 
@@ -204,9 +210,10 @@ A ghost mirrors the block it is covering wherever anything but rendering can tel
 - middle-click gives you the real block;
 - mining hardness is the real block's, so nothing breaks early and snaps back;
 - Waila, or Hwyla on 1.12.2, names the real block and offers the right tool;
-- under **Angelica** on 1.7.10, **Oculus** on 1.16.5 Forge and **Iris** on 1.16.5 Fabric, it
-  inherits the covered block's shader material, so a worn granite road is still granite to your
-  shader pack - and becomes the earth it has worn into once it is granite no longer;
+- under **Angelica** on 1.7.10, **OptiFine** on 1.12.2 and 1.16.5 Forge, **Oculus** on 1.16.5 Forge,
+  and **Iris** or **Canvas** on 1.16.5 Fabric, it inherits the covered block's shader material, so a
+  worn granite road is still granite to your shader pack - and becomes the earth it has worn into once
+  it is granite no longer;
 - it goes on scattering the covered block's ambient particles;
 - it goes on doing whatever the covered block does to something standing inside it, so **Chisel**'s
   cloud still breaks a fall when it is worn;
@@ -222,12 +229,25 @@ id is left on for the shader mod's own vertex writer to read - and that is where
 say a ghost is something else. Oculus is a fork of Iris and kept its packages, so one seam answers
 for **Oculus on 1.16.5 Forge** and **Iris on 1.16.5 Fabric** alike.
 
-**On 1.12.2 that seam has nothing to reach yet.** It is written against the same holder, but no
-public Oculus build exists for that version - the releases begin at 1.16.5 - so
-`client.inheritShaderMaterial` is one boolean read there and nothing more. **Optifine is not of that
-family**: its shader material comes from the pack's own `block.properties` at load time, with no
-runtime seam for a mod to claim a block, so it cannot stand in. Everywhere it does work, the setting
+**OptiFine is not of that family, and has a holder of its own.** It works out a block's shader id
+from the pack's `block.properties` as the block's model starts, and pushes it onto a stack the chunk's
+buffer carries; from 0.9.219 a ghost's entry there is written over, in place, with the block it stands
+in for - on **1.12.2**, where no Oculus is published, and on **1.16.5 Forge**. **Canvas** on 1.16.5
+Fabric is asked another way again: a worn square takes the covered block's FREX material in its own
+pass. **Under OptiFabric the claim is out of reach.** OptiFabric defines OptiFine's classes after every
+mod's hooks have been prepared, so none can bind to them, and a worn square draws with the pack's
+default material; nothing else about it differs. Everywhere it does work, `client.inheritShaderMaterial`
 wants a shader pack loaded as well, and names itself in the log when it is going to do anything.
+
+**Worn ice is drawn through, as ice is, and how much shows behind it is the renderer's call.** A worn
+ice square sinks while the one beside it does not, which leaves standing the faces real ice never
+shows - the sides between two squares - and see-through faces only layer properly when a renderer
+draws them back to front. Vanilla, OptiFine, Canvas and Angelica do. On 1.16.5, **Sodium 0.2,
+Rubidium and Embeddium as installed do not**, and the panes behind the nearest one go missing:
+Embeddium's own **Translucency Sorting**, on the Advanced page of its video settings and off by
+default, puts them back. **OptiFine on 1.7.10 with a shader pack on** loses the same panes, because
+its sort reads each face at the size it had before the pack grew it. Water, glass and real ice in
+the same chunk are sorted by the same rule; nothing a block can say about itself changes it.
 
 A block placed directly on worn ground stops the ground dipping under it
 (`general.hideWearUnderBlocks`, on by default). What that means is decided by
@@ -1061,6 +1081,31 @@ while leaving the stored data alone. `general.familyEditorOperatorsOnly` default
 because editing which blocks wear, and which creatures wear it, writes the server's config file and
 reloads it.
 
+## Update notice
+
+**Once a launch, a server asks whether a newer release is out, and tells whoever can update this
+copy as they join** - one line in their chat, with the new version, the one this world is running,
+and links to CurseForge and Modrinth.
+
+- **What is read.** One small file, `latest.properties`, from this repository, holding a line per
+  edition - 1.7.10, 1.12.2, 1.16.5 Forge, 1.16.5 Fabric - of which each jar reads only its own. Its
+  address is `https://raw.githubusercontent.com/Xeptix/TRMTR/master/latest.properties`.
+- **What is sent.** Nothing but the request itself, which GitHub sees as it would any page: no player
+  names, no world, no settings, no identifier of any kind. The answer is kept in memory and noted in
+  the game's log.
+- **When.** The first time a server starts in a game - a dedicated server as it starts, single player
+  as the first world of the session opens - and again when somebody it would tell joins and the last
+  answer is more than a day old. A client joining somebody else's server never asks. An answer that
+  takes more than five seconds, or does not read as a version, is let go quietly, and not asked for
+  again that day.
+- **Who is told.** Whoever can act on it: you in single player, with cheats or without; the host of a
+  LAN game, and not the guests, who cannot update the host's copy; a dedicated server's operators.
+- **`general.updateNotice`** - `operators`, the default, as above; `everyone` to tell every player,
+  privately; or `off` to tell nobody, and then the mod never asks at all - and says so, in one line of
+  the log, as the server starts.
+
+A development build never asks.
+
 ## Performance
 
 Four things about the shape of it, without inventing benchmarks:
@@ -1093,7 +1138,7 @@ wear table and the config screen.
 | **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5) | the wear readout on the tooltip, and a golem provider |
 | **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map colouring and the desire-path highlight - *1.7.10; on 1.12.2 every map is served without naming it* |
 | **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | worn ground drawn darker as it wears, and the map told when a square changes - *1.7.10 only, same reason* |
-| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material. The 1.12.2 edition has the same seam, but no Oculus is published for that version |
+| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)** or **[Canvas](https://github.com/vram-guild/canvas)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material. Under OptiFabric it draws with the pack's default material instead - see [What you actually see](#what-you-actually-see) |
 | **[Chisel](https://github.com/Chisel-Team/Chisel)** | layered-block shell lift, and the liquid layer painted into worn textures |
 | **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **[Amazing Trophies](https://github.com/GTNewHorizons/Amazing-Trophies)** | seven trophy definitions written into its own config folder |
@@ -1156,7 +1201,7 @@ Beyond being a port:
   before you choose.
 - **`/trmt demonstrate`** builds a complete exhibit of every detected surface, every look and
   every golem upgrade in the sky, for judging a change at a glance.
-- **Bytecode injection is limited to thirteen mixins on 1.7.10 and three on 1.12.2.** On 1.7.10
+- **Bytecode injection is limited to thirteen mixins on 1.7.10 and eight on 1.12.2.** On 1.7.10
   three of them run on a server: the collision hook and the one beside it, both live only under
   `physicalDecay = real` - the first gives worn ground its hollow, the second stops the game deciding
   that something lying in that hollow is buried in the floor and flinging it out - and a hook on a
@@ -1165,9 +1210,12 @@ Beyond being a port:
   one window where every block's pixels exist, sprite filtering, letting a generated sprite declare
   itself animated, stair metadata, settling on worn ground, shader-material inheritance, hearing the
   blocks a server writes over painted ground, and a Chisel shell lift added only when Chisel is
-  present. On 1.12.2 there are three, one of which runs on a server: the librarian hook, and
-  client-side the arrival of blocks a server writes over painted ground and the seat a ghost claims
-  its shader material from, that last applied only where an Iris-family loader is installed. Ten of the other
+  present. On 1.12.2 there are eight, one of which runs on a server: the librarian hook; and
+  client-side the arrival of blocks a server writes over painted ground, settling on worn ground and
+  the snow faces it leaves open, two seats a ghost claims its shader material from - one for an
+  Iris-family loader and one for OptiFine, each applied only where that loader is installed - and the
+  shade a whole worn square gives the corners beside it, in Forge's light pipeline and in vanilla's.
+  Ten of the other
   edition's thirteen target `RenderBlocks`, which 1.8 deleted, and a baked model, a block override or
   a Forge event does each of those jobs instead - the hollow under worn ground among them. Every
   server-side hook upstream mixes in for has a Forge event in the Forge editions, and a mixin of its
@@ -1243,10 +1291,10 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested by `./gradlew test` - **416 tests on 1.7.10, 362 on 1.12.2 and 352
+types in them and are unit tested by `./gradlew test` - **444 tests on 1.7.10, 435 on 1.12.2 and 455
 on 1.16.5** - with `CoreStaysPortableTest` there to keep that boundary from eroding.
 
-**Twenty-nine of those classes are shared between the editions byte for byte**, and a test in each
+**Thirty of those classes are shared between the editions byte for byte**, and a test in each
 reads its own copy and the one in the edition it was carried from, failing the build on any
 difference and naming the files. In this repository the editions are siblings, so that check runs for
 anybody who clones it.

@@ -179,10 +179,18 @@ public class ClientProxy extends CommonProxy {
     public void onClientTick(net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent event) {
         if (event.phase != net.minecraftforge.fml.common.gameevent.TickEvent.Phase.END) return;
         com.trmtgtnh.util.MainThread.drainClient();
+        // A fresh allowance of moving-layer uploads, every tick, above the world check as the 1.7.10 edition
+        // has it. Missing until 0.9.219: the allowance starts closed and nothing ever opened it, so the lava and
+        // water seen through worn Chisel stone never moved past its first frame.
+        com.trmtgtnh.client.texture.InnerLayers.newTick();
 
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.world == null || mc.player == null) {
             handBack();
+            // With no world too, as the 1.7.10 edition services it above its world check: a look changed at the
+            // main menu has to take there, since going into a world stitches nothing, and a rebuild asked for on
+            // the way out runs before the next world rather than in the middle of joining it.
+            serviceRestitch();
             return;
         }
         if (!announced) {
@@ -290,6 +298,16 @@ public class ClientProxy extends CommonProxy {
     private void serviceRestitch() {
         if (restitchWanted == null) return;
         Minecraft mc = Minecraft.getMinecraft();
+        // Held while one of this mod's own screens is open. Neither pauses the game, so the work would land with
+        // the player still looking at the editor part way through a set of changes; closing it is the moment to
+        // spend the time, and holding collapses a session of edits into one rebuild. The 1.7.10 edition's first
+        // hold, missing here until 0.9.219.
+        net.minecraft.client.gui.GuiScreen screen = mc.currentScreen;
+        if (screen instanceof com.trmtgtnh.client.gui.GuiWearEditor
+            || screen instanceof com.trmtgtnh.client.gui.GuiWearTable) {
+            restitchIn = 0;
+            return;
+        }
         if (mc.world != null && mc.player == null) {
             restitchIn = 0;
             return;
@@ -402,16 +420,28 @@ public class ClientProxy extends CommonProxy {
         if (delta.showErosionMoved && announced) {
             com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
         }
+        if (delta.showErosionMoved && !com.trmtgtnh.config.TrmtConfig.showErosion
+            && com.trmtgtnh.config.TrmtConfig.overlayForced) {
+            tell(
+                net.minecraft.util.text.TextFormatting.YELLOW
+                    + "[TRMT] This server has worn ground you can walk down into, so path visuals cannot be switched off here. Your setting will apply everywhere else.");
+        }
+        // Last, because the table this asks for is installed from the queue and repaints on its own. An edit
+        // made on the config screen mid-visit - a block added to a family, one excluded - publishes a table the
+        // server may not be using, and until 0.9.219 nothing here ever looked again.
+        recheckServerTable();
     }
 
     /**
      * Gives this client its own settings back when it leaves a server.
      *
      * <p>
-     * Smaller than the 1.7.10 edition's, which also drops the inspection cache and two minimap
-     * integrations - none of which exist here yet. What it does do is the part that
-     * matters and the part that is easy to get wrong: a client that keeps a server's rules, surface
-     * table or wear after leaving shows the next world it opens the last one's roads.
+     * The 1.7.10 edition's hand-back. Until 0.9.219 this one asked whether the chains had moved before
+     * reading its own file back - so before anything had rebuilt them, and the answer was always no -
+     * and never rebuilt the table: a family this client had switched off, resolved into the table for
+     * the visit, went on wearing in the next world it opened, by the last server's numbering, until a
+     * reload. A client that keeps a server's rules, surface table or wear after leaving shows the next
+     * world the last one's roads.
      */
     private void handBack() {
         if (!announced) return;
@@ -420,18 +450,27 @@ public class ClientProxy extends CommonProxy {
         // too, a client that left with the key down would never send the transition again, and the
         // next server would be told the key was held only when it was finally let go.
         modifierWasDown = false;
-        int[] underServer = com.trmtgtnh.config.ServerRules.chainAppearances();
-        com.trmtgtnh.config.ServerRules.release();
-        boolean handedBack = com.trmtgtnh.config.ServerRules.appearancesMovedFrom(underServer);
-        com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
+        serverPricing = null;
+        mayEditFamilies = false;
         // And the map's coalescing, so the first square painted in the next world is told about
         // whatever the last one in this world happened to be.
         com.trmtgtnh.client.xaero.XaeroMinimap.reset();
         com.trmtgtnh.client.journeymap.JourneyMapColors.reset();
+        com.trmtgtnh.client.InspectionCache.clear();
+        // Released before the read rather than after, because this read is the designed hand-back and the
+        // one read that must not have a server's numbers put back into it. The appearance sets are taken
+        // first because the held rules say what the server wanted, not what this client's own file says,
+        // and only rebuilding the chains out of that file answers it.
+        int[] underServer = com.trmtgtnh.config.ServerRules.chainAppearances();
+        com.trmtgtnh.config.ServerRules.release();
+        // Before the read and the rebuild below, so the rebuild publishes this client's own table rather
+        // than publishing the visit's again.
+        boolean tableHandedBack = com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
         serverNamedTable = 0L;
         tableAskedFor = 0L;
-        mayEditFamilies = false;
-        serverPricing = null;
+        com.trmtgtnh.config.TrmtConfig.read();
+        boolean appearancesHandedBack = com.trmtgtnh.config.ServerRules.appearancesMovedFrom(underServer);
+        boolean enabledHandedBack = com.trmtgtnh.config.ServerRules.enabledMovedFrom(underServer);
         // Nothing is put back into the world first: it is the world being left, and it is thrown away
         // whole. What must not survive is the queue, which names chunks of a world that is gone.
         OverlayPainter.get()
@@ -440,9 +479,13 @@ public class ClientProxy extends CommonProxy {
             .clear();
         ClientLightCache.get()
             .clear();
-        com.trmtgtnh.config.TrmtConfig.read();
-        // The mirror of the join: a client that wore a server's chains needs its own pictures back.
-        if (handedBack) requestRestitch("Your own settings are back.");
+        // The mirror of the join, here rather than left to the next reload: a family this client had
+        // switched off can have been resolved into its table for the visit, and leaving it there would go
+        // on trampling ground the player's own file had said to leave alone.
+        if (enabledHandedBack || tableHandedBack) resettleSurfaces();
+        if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
+        // A client that wore a server's chains needs its own pictures back.
+        if (appearancesHandedBack) requestRestitch("Back on the materials your own config draws.");
     }
 
     // -- packet sinks --
@@ -456,9 +499,55 @@ public class ClientProxy extends CommonProxy {
         OverlayPainter.get()
             .restoreVanished(Minecraft.getMinecraft().world, previous, keys);
         cache.put(chunkX, chunkZ, ClientErosionCache.build(chunkX, chunkZ, keys, states, previous));
+        // Any square already painted whose record has just crossed into or out of sunk. See relightIfMoved.
+        if (keys != null && states != null) {
+            for (int i = 0; i < keys.length && i < states.length; i++) {
+                short before = previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(keys[i]);
+                relightIfMoved(
+                    before,
+                    states[i],
+                    (chunkX << 4) + com.trmtgtnh.erosion.ErosionKey.localX(keys[i]),
+                    com.trmtgtnh.erosion.ErosionKey.y(keys[i]),
+                    (chunkZ << 4) + com.trmtgtnh.erosion.ErosionKey.localZ(keys[i]));
+            }
+        }
         OverlayPainter.get()
             .queueChunk(chunkX, chunkZ);
         redrawColumn(chunkX, chunkZ, keys);
+    }
+
+    /**
+     * Re-lights a painted square whose record has just crossed into or out of sunk.
+     *
+     * <p>
+     * A ghost stops all light until its ground sinks and none once it has ({@code
+     * BlockGhost.getLightOpacity}), and that answer is read from the record rather than from the block.
+     * The 1.7.10 edition gets the re-light for nothing: sinking swaps a ghost for its separate sunken
+     * variant, and a block that changes is always re-lit. One ghost standing in for both never changes
+     * block when it sinks, so the change has to be told - or the cell keeps the darkness it had while it
+     * was a whole block. Vanilla's renderer never reads that cell for a sunken top; the Sodium family
+     * does, and on 2026-10-07 the 1.16.5 edition's second demonstrate yard drew darker the deeper it was
+     * worn, under Rubidium only. The same light was wrong here, where nothing yet draws from it.
+     *
+     * <p>
+     * Only a square already painted is told. One about to be painted is re-lit by the paint itself,
+     * because its answer differs from the block it replaces, and a chunk arriving whole would otherwise
+     * re-light every square in it for nothing.
+     */
+    private static void relightIfMoved(short before, short after, int x, int y, int z) {
+        if (!lightAnswerMoved(before, after)) return;
+        net.minecraft.world.World world = Minecraft.getMinecraft().world;
+        if (world == null) return;
+        BlockPos pos = new BlockPos(x, y, z);
+        if (!(world.getBlockState(pos)
+            .getBlock() instanceof com.trmtgtnh.block.BlockGhost)) return;
+        world.checkLight(pos);
+    }
+
+    /** Whether a record moving from one state to the other changes the square's answer to the light engine. */
+    static boolean lightAnswerMoved(short before, short after) {
+        return (com.trmtgtnh.erosion.ErosionState.sinkOf(before) > 0)
+            != (com.trmtgtnh.erosion.ErosionState.sinkOf(after) > 0);
     }
 
     @Override
@@ -475,6 +564,12 @@ public class ClientProxy extends CommonProxy {
                 .restoreSingle(Minecraft.getMinecraft().world, chunkX, chunkZ, key, previous.originAt(key));
         }
         cache.put(chunkX, chunkZ, ClientErosionCache.withSingle(previous, chunkX, chunkZ, key, state));
+        relightIfMoved(
+            previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(key),
+            state,
+            x,
+            y,
+            z);
         OverlayPainter.get()
             .queueChunk(chunkX, chunkZ);
         // And the mesh asked for directly, because the painter cannot always tell that anything
@@ -711,49 +806,113 @@ public class ClientProxy extends CommonProxy {
 
     private com.trmtgtnh.erosion.WearMath.Pricing serverPricing;
 
+    /**
+     * Holds a server's rules for the visit, and carries out what they change here.
+     *
+     * <p>
+     * The 1.7.10 edition's method line for line. Until 0.9.219 this one held the rules and asked only
+     * the stitch question, which could never come out true: the chains it compares against were not
+     * rebuilt, so a visit went on drawing this client's own chains and decay mode whatever the server
+     * said. The forced overlay was held and never shown or taken down, a family the server had switched
+     * on that this client had not stayed unplaceable, and ground already built went on showing the
+     * old geometry until something else re-meshed it.
+     */
     @Override
     public void applyServerRules(boolean forceOverlay, String decayMode,
         com.trmtgtnh.config.ServerRules.Geometry geometry) {
-        // Taken before and compared after, because what matters is not that the rules differ but that they
-        // send a chain somewhere this client has no pictures for: a surface whose run now visits gravel on a
-        // client that never planned gravel would stop showing any wear at the point it reached it.
+        boolean wasForced = com.trmtgtnh.config.TrmtConfig.overlayForced;
+        // Taken before the rules land, because this is the last moment the chains still describe this
+        // client's own file. What has to be asked is which materials a run passes through, and nothing but
+        // building the chains says that.
         int[] before = com.trmtgtnh.config.ServerRules.chainAppearances();
         com.trmtgtnh.config.ServerRules.hold(forceOverlay, decayMode, geometry);
+
+        com.trmtgtnh.erosion.ErosionChain.rebuild();
+        com.trmtgtnh.erosion.PhysicalDecay.refresh();
+
+        if (forceOverlay && !wasForced && !com.trmtgtnh.config.TrmtConfig.showErosion) {
+            OverlayPainter.get()
+                .repaintAll();
+            tell(
+                net.minecraft.util.text.TextFormatting.YELLOW
+                    + "[TRMT] This server has worn ground you can walk down into, so path visuals stay on here.");
+        }
+        if (wasForced && !forceOverlay && !com.trmtgtnh.config.TrmtConfig.showErosion) {
+            // Reloading a server's config can stop it needing real ruts, and a player who never wanted
+            // overlays should not be left holding the ones it made them show.
+            OverlayPainter.get()
+                .restoreAll();
+            tell(
+                net.minecraft.util.text.TextFormatting.GRAY
+                    + "[TRMT] Path visuals are back under your own setting on this server.");
+        }
+        if (com.trmtgtnh.config.ServerRules.enabledMovedFrom(before)) {
+            // Before the stitch below rather than after it, for the one case where both fire: a family
+            // arriving is a family the atlas has never planned pictures for, and the planner reads the
+            // table this rebuilds.
+            resettleSurfaces();
+        }
         if (com.trmtgtnh.config.ServerRules.appearancesMovedFrom(before)) {
-            requestRestitch("This server's ground wears through into surfaces yours does not.");
+            // A surface whose run now visits gravel on a client that never planned gravel would stop
+            // showing any wear at the point it reached it.
+            requestRestitch("This server's ground wears through to different materials than your config draws.");
+        }
+        if (com.trmtgtnh.config.ServerRules.overrode() > 0 && restitchWanted == null) {
+            // What a worn block draws, and how deep, is worked out from the live settings as a chunk's mesh
+            // is built, so geometry that moved under an already-built chunk goes on showing the old
+            // picture until the meshes are built again. Skipped when a stitch has just been queued,
+            // since that ends in the same call a few ticks later.
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc.renderGlobal != null) mc.renderGlobal.loadRenderers();
         }
     }
 
     /**
-     * Asks for the server's surface table, once per table.
+     * A server named the surface table it is using. Asks for it when it is not the one in use here.
      *
      * <p>
-     * A client asks only when the fingerprint it has been told about is one it has not already asked
-     * for, because the rules are announced on every reload and an ask per announcement would fetch
-     * the same table over and over. The server forgets what it last sent whenever it announces, so
-     * an ask that crosses with a table already on its way costs nothing either way.
+     * Never on a host: a single-player or LAN host shares its server's table outright. A fingerprint
+     * that matches what is in use costs nothing; one that matches this client's own file while a
+     * server's table is held means the server has come round to it, and the visit's table is handed
+     * back. Anything else is asked for once, and not again until a different fingerprint arrives. The
+     * 1.7.10 edition's method; until 0.9.219 this one asked for the table on every join whether or not
+     * it was the client's own, and again after every announcement.
      */
     @Override
     public void considerServerTable(boolean sent, long fingerprint) {
-        serverNamedTable = sent ? fingerprint : 0L;
-        if (!sent || fingerprint == 0L || fingerprint == tableAskedFor) return;
+        if (!sent || com.trmtgtnh.Trmt.runningServer() != null) return;
+        serverNamedTable = fingerprint;
+        boolean holding = com.trmtgtnh.surface.SurfaceRegistry.holdingServerTable();
+        if (holding && com.trmtgtnh.surface.SurfaceRegistry.heldFingerprint() == fingerprint) return;
+        if (fingerprint == com.trmtgtnh.surface.SurfaceRegistry.ownFingerprint()) {
+            if (holding) handBackServerTable();
+            return;
+        }
+        if (tableAskedFor == fingerprint) return;
         tableAskedFor = fingerprint;
         com.trmtgtnh.network.TrmtNetwork.requestSurfaceTable(fingerprint);
     }
 
     /**
-     * Takes a server's surface table into use for the visit.
+     * Puts a server's surface table in use for the visit.
      *
      * <p>
-     * Refused for a table this client did not ask for, and for one it cannot read or cannot hold -
-     * in every refusal the client keeps its own table, which is what every version before the table
-     * existed did anyway. The fingerprint is forgotten again on each refusal, so a server that comes
-     * back to the same table is asked for it afresh rather than being assumed to have been answered.
+     * Its drawing first taken off the world, then the table swapped, then everything derived from the
+     * table re-stamped and the ground painted again under the new one - or a square painted under this
+     * client's own table stays painted under a table that has never heard of it. Nothing is stitched:
+     * a block this client never planned wear pictures for wears with its family's generic art for the
+     * visit, which was decided rather than defaulted.
+     *
+     * <p>
+     * Refused rather than held when it is not the table the rules last named, and a table that cannot
+     * be used stays remembered as asked for, so it is not sent again with every announcement to fail
+     * again each time.
      */
     @Override
     public void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes) {
         if (com.trmtgtnh.Trmt.runningServer() != null) return;
         if (serverNamedTable == 0L || fingerprint != serverNamedTable) {
+            // Not remembered as asked for, so a server that comes back to this table is asked for it again.
             if (tableAskedFor == fingerprint) tableAskedFor = 0L;
             return;
         }
@@ -765,16 +924,132 @@ public class ClientProxy extends CommonProxy {
             com.trmtgtnh.Trmt.LOG.warn("This server's surface table could not be read; keeping your own", malformed);
             return;
         }
+        OverlayPainter painter = OverlayPainter.get();
+        painter.restoreAll();
         if (!com.trmtgtnh.surface.SurfaceRegistry.holdServerTable(decoded, holdsSwitch, fingerprint)) {
+            // Nothing was held, so the table in use is still this client's own; the ground is only put back
+            // as it was.
             tableAskedFor = fingerprint;
             com.trmtgtnh.Trmt.LOG
                 .warn("This server's surface table names a surface this build does not have; keeping your own");
+            surfacesMoved();
             return;
         }
+        // Forgotten only once the table is in use, so a server that leaves it and comes back is asked again.
         tableAskedFor = 0L;
+        surfacesMoved();
         com.trmtgtnh.Trmt.LOG.info(
             "Using this server's surface table for the visit: {} block states",
             Integer.valueOf(decoded.families.size()));
+    }
+
+    /**
+     * Compares this client's own table with the server's again, after something here rebuilt it.
+     *
+     * <p>
+     * The comparison otherwise runs only when rules arrive, so an edit made on the config screen
+     * mid-visit published a table the server was not using and nothing looked again.
+     */
+    private void recheckServerTable() {
+        if (serverNamedTable != 0L) considerServerTable(true, serverNamedTable);
+    }
+
+    /** Stops using a server's table and goes back to this client's own. */
+    private void handBackServerTable() {
+        if (!com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable()) return;
+        OverlayPainter.get()
+            .restoreAll();
+        com.trmtgtnh.surface.SurfaceRegistry.resolve();
+        surfacesMoved();
+    }
+
+    /**
+     * Everything derived from the published table, re-stamped after it moved, and the ground repainted.
+     *
+     * <p>
+     * The 1.7.10 edition's list less one line: it surveys what every ghost class stands in for, and
+     * this edition's one ghost asks what it covers at every question instead. The settling stamps are
+     * the sinkable ones' second half here, laid down by the same call.
+     */
+    private void surfacesMoved() {
+        com.trmtgtnh.erosion.PhysicalDecay.markSinkableBlocks();
+        com.trmtgtnh.client.gui.WearIcons.reset();
+        if (com.trmtgtnh.config.TrmtConfig.enabled && com.trmtgtnh.config.TrmtConfig.overlayVisible()) {
+            OverlayPainter.get()
+                .repaintAll();
+        }
+    }
+
+    /**
+     * Rebuilds the surface table and what is derived from it, for a family that changed hands.
+     *
+     * <p>
+     * Whether a family wears at all is decided when the table is built, and the table drops every
+     * block of a family whose switch is off - so a client that had turned a family off, joining a
+     * server that has not, gained a chain for that family and still could not place one of its records.
+     * And without the sinkable stamps the collision path dismisses the newly known blocks on one field
+     * read, so the client walks over the top of a rut the server keeps dropping it into.
+     */
+    private void resettleSurfaces() {
+        com.trmtgtnh.surface.SurfaceRegistry.resolve();
+        com.trmtgtnh.erosion.PhysicalDecay.markSinkableBlocks();
+    }
+
+    /**
+     * The same rebuild as a server's, run where it is safe to run it.
+     *
+     * <p>
+     * A client sees the ids move on more than one thread. A world opened in single player takes its ids
+     * and gives them back on its own server thread, and is rebuilt where it stands, as a reload in single
+     * player already is. A visit to somebody else's server takes them on the network thread, where
+     * rebuilding would race the painter, so that one is queued - ahead of the rules and the ground the
+     * same join is about to send - and gives them back on this one as the world closes. The 1.7.10
+     * edition's method.
+     *
+     * <p>
+     * The wear atlas needs nothing: it is filed by block object, which no move renumbers, and the line
+     * queued after the rebuild only says how many blocks with wear of their own now carry another id.
+     */
+    @Override
+    public void idsMoved() {
+        boolean inPlace = Minecraft.getMinecraft()
+            .isCallingFromMinecraftThread()
+            || net.minecraftforge.fml.common.FMLCommonHandler.instance()
+                .getEffectiveSide() == Side.SERVER;
+        Runnable rebuild = new Runnable() {
+
+            @Override
+            public void run() {
+                com.trmtgtnh.Trmt.LOG.info("Block ids changed; rebuilding the surface table under them");
+                resettleSurfaces();
+            }
+        };
+        try {
+            if (inPlace) {
+                rebuild.run();
+            } else {
+                com.trmtgtnh.util.MainThread.onClient(rebuild);
+            }
+        } finally {
+            // Queued whatever the rebuild did: one run where it stands can throw, and the throw goes on to
+            // Forge as it always has without taking the icons' reset and the atlas's audit with it. The
+            // icons are a screen's, let go of only on the thread that draws them; the audit follows the
+            // rebuild's line in the same queue, on the thread that stitches.
+            com.trmtgtnh.util.MainThread.onClient(new Runnable() {
+
+                @Override
+                public void run() {
+                    com.trmtgtnh.client.gui.WearIcons.reset();
+                }
+            });
+            com.trmtgtnh.util.MainThread.onClient(new Runnable() {
+
+                @Override
+                public void run() {
+                    WearTextures.auditAfterIdMove();
+                }
+            });
+        }
     }
 
     @Override

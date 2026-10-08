@@ -14,7 +14,10 @@
   "client": [
     "MixinAirSwing",
     "MixinBlockArrivals",
-    "MixinBlockRenderDispatcher"
+    "MixinBlockRenderDispatcher",
+    "MixinServerLightArrives",
+    "MixinSettleOnWornGround",
+    "MixinSettledFaces"
   ],
   "injectors": {
     "defaultRequire": 1

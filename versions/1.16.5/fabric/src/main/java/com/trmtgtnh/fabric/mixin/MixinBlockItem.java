@@ -37,10 +37,13 @@ public abstract class MixinBlockItem {
         InteractionResult result = callback.getReturnValue();
         if (result == null || !result.consumesAction()) return;
         if (context == null || context.getLevel() == null) return;
+        // The placer as well, for the golem the builder may stand up: whoever set the head is who it
+        // records as having built it.
         ServerEvents.blockPlaced(
             context.getLevel(),
             context.getClickedPos(),
             context.getLevel()
-                .getBlockState(context.getClickedPos()));
+                .getBlockState(context.getClickedPos()),
+            context.getPlayer());
     }
 }

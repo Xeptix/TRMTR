@@ -24,6 +24,9 @@
   "client": [
     "MixinAirSwing",
     "MixinBlockArrivals",
+    "MixinServerLightArrives",
+    "MixinSettleOnWornGround",
+    "MixinSettledFaces",
     "MixinTextureAtlas"
   ],
   "injectors": {

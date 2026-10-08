@@ -37,6 +37,11 @@ import com.trmtgtnh.surface.SurfaceRegistry;
     name = Tags.MOD_NAME,
     version = Tags.VERSION,
     acceptedMinecraftVersions = "[1.12.2]",
+    // Any version on the other side, or none - as the 1.7.10 edition says, and as this edition's manual
+    // has always said it does. Missing until 0.9.219, which left Forge's default in charge: the exact
+    // same version on both sides, so a client carrying this mod could not join a server without it.
+    // See checkRemoteVersions.
+    acceptableRemoteVersions = "*",
     // The mixin loader, named so that a pack without it is told rather than left to wonder. This is
     // something the other edition cannot do: UniMixins is a tweaker, with no mod id to require, so
     // there the only place a player is told is the download page's relations block. MixinBooter
@@ -77,9 +82,29 @@ public class Trmt {
     @SidedProxy(clientSide = "com.trmtgtnh.client.ClientProxy", serverSide = "com.trmtgtnh.CommonProxy")
     public static CommonProxy proxy;
 
+    /**
+     * Says in the log, at warning, when this mod's mixin config was never registered - by the manifest or by
+     * {@link com.trmtgtnh.core.TrmtLoadingPlugin}. Without it every mixin here is missing and nothing else says so:
+     * JourneyMap 6 for 1.12.2 did exactly that until 0.9.219, and the only trace was one line in the debug log
+     * about JourneyMap, not about this mod.
+     */
+    static void mixinsLoaded() {
+        // Asked of a class the mixins mark, not of Mixin's own list, which forgets a config once it is selected -
+        // see MixinsApplied. Naming the class loads it, and a config that was registered applies as it loads.
+        if (com.trmtgtnh.core.MixinsApplied.class
+            .isAssignableFrom(net.minecraft.entity.passive.EntityVillager.ListEnchantedBookForEmeralds.class)) return;
+        LOG.warn(
+            "{} was never registered, so none of this mod's mixins apply: snow and carpet do not settle on worn ground,"
+                + " a chunk the server rewrites is not repainted at once, librarians sell no wear books, and worn"
+                + " ground does not shade its neighbours. Another mod booted Mixin before MixinBooter - see the"
+                + " compatibility notes.",
+            com.trmtgtnh.core.TrmtLoadingPlugin.CONFIG);
+    }
+
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         LOG.info("{} {} for Minecraft 1.12.2", NAME, Tags.VERSION);
+        mixinsLoaded();
         TrmtConfig.load(event.getSuggestedConfigurationFile());
         com.trmtgtnh.network.TrmtNetwork.init();
         proxy.preInit();
@@ -146,6 +171,7 @@ public class Trmt {
         serverThread = Thread.currentThread();
         // Recorded first, because the command's own first act is to ask whether it is on this thread.
         event.registerServerCommand(new com.trmtgtnh.command.CommandTrmt());
+        com.trmtgtnh.server.UpdateNotice.serverStarting();
     }
 
     @Mod.EventHandler
@@ -164,6 +190,36 @@ public class Trmt {
             .reset();
         com.trmtgtnh.erosion.Weather.reset();
         com.trmtgtnh.erosion.SnowCover.reset();
+    }
+
+    /**
+     * Accepts whatever the other side's copy of this mod is, or that it has none.
+     *
+     * <p>
+     * This settles only the comparison of mod lists, and it is not what decides whether a client
+     * without this mod can join a server that has it. That is decided afterwards, by Forge's registry
+     * handshake, which refuses any client missing a server's registrations - and this mod registers
+     * blocks and items. So a server running it needs it on every client. What answering yes here does
+     * allow is a client carrying it onto a server that does not, where nothing is sent to it and nothing
+     * is drawn. A port of the 1.7.10 edition's method of the same name; until 0.9.219 this edition had
+     * neither it nor {@code acceptableRemoteVersions}, and Forge wanted the exact same version on both
+     * sides.
+     */
+    @net.minecraftforge.fml.common.network.NetworkCheckHandler
+    public boolean checkRemoteVersions(java.util.Map<String, String> remoteVersions,
+        net.minecraftforge.fml.relauncher.Side side) {
+        return true;
+    }
+
+    /**
+     * Block ids moved: a world from another mod list was opened, a server's numbering was taken on, or
+     * either was handed back. Everything keyed by a block's number is rebuilt under the ids now in force
+     * - see {@code CommonProxy.idsMoved}. Missing until 0.9.219, which built the surface table once at
+     * start-up and kept it whatever world was opened.
+     */
+    @Mod.EventHandler
+    public void idsMoved(net.minecraftforge.fml.common.event.FMLModIdMappingEvent event) {
+        proxy.idsMoved();
     }
 
     /** The thread the running server ticks on, recorded as it starts, or null with none running. */

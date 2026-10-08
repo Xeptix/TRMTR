@@ -51,6 +51,11 @@ public final class WearRestitch {
         restitchIn = 0;
     }
 
+    /** Whether a rebuild is waiting, which re-meshes everything when it runs. */
+    public boolean pending() {
+        return restitchWanted != null;
+    }
+
     /**
      * Runs a pending rebuild once the countdown is out and the moment is right.
      *
@@ -63,12 +68,25 @@ public final class WearRestitch {
     public void serviceRestitch() {
         if (restitchWanted == null) return;
         Minecraft mc = Minecraft.getInstance();
+        // Held while one of this mod's own screens is open. Neither pauses the game, so the work would land
+        // with the player still looking at the editor part way through a set of changes; closing it is the
+        // moment to spend the time, and holding collapses a session of edits into one rebuild. The 1.7.10
+        // edition's first hold, missing here until 0.9.219.
+        if (mc.screen instanceof com.trmtgtnh.client.gui.GuiWearEditor
+            || mc.screen instanceof com.trmtgtnh.client.gui.GuiWearTable) {
+            restitchIn = 0;
+            return;
+        }
         if (mc.level != null && mc.player == null) {
             restitchIn = 0;
             return;
         }
+        // Nor, with no world loaded, while the block ids may still be moving on another thread: a server's
+        // arrive on the network thread under the connecting screen, and a single-player world's are put back
+        // on its server thread after this client has let go of it - which a running server has stopped being
+        // by then, so the thread is asked, as the older editions ask it.
         if (mc.level == null && (mc.screen instanceof net.minecraft.client.gui.screens.ConnectScreen
-            || com.trmtgtnh.Trmt.runningServer() != null)) {
+            || com.trmtgtnh.Trmt.serverThreadAlive())) {
             restitchIn = 0;
             return;
         }

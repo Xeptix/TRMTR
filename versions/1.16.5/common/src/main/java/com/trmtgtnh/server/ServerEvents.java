@@ -299,8 +299,11 @@ public final class ServerEvents {
      * tags and are rebuilt on the first tick, which is late enough to be their own problem.
      */
     public static void serverStarting(net.minecraft.server.MinecraftServer server) {
+        // Both loaders say this on the server's own thread, as it starts. See Trmt.serverThreadAlive.
+        Trmt.serverThreadIs(Thread.currentThread());
         com.trmtgtnh.surface.SurfaceRegistry.resolve();
         com.trmtgtnh.erosion.PhysicalDecay.markSinkableBlocks();
+        UpdateNotice.serverStarting();
     }
 
     /**
@@ -346,6 +349,7 @@ public final class ServerEvents {
      * asked for.
      */
     public static void serverStopped() {
+        Trmt.serverThreadIs(null);
         com.trmtgtnh.util.MainThread.clearServer();
         com.trmtgtnh.compat.QuestbookCompat.forgetWorld();
         com.trmtgtnh.erosion.ErosionStore.get()
@@ -383,6 +387,7 @@ public final class ServerEvents {
     public static void playerJoined(Player player) {
         SpawnGrants.onLogin(player);
         tellAboutQuests(player);
+        UpdateNotice.onLogin(player);
     }
 
     /**
@@ -418,6 +423,7 @@ public final class ServerEvents {
     /** A player has left, and whatever was remembered about what they wanted goes with them. */
     public static void playerLeft(Player player) {
         if (player instanceof ServerPlayer) TrmtNetwork.forget((ServerPlayer) player);
+        UpdateNotice.onLogout(player);
     }
 
     // ------------------------------------------------------------------
@@ -439,11 +445,47 @@ public final class ServerEvents {
             .breakBlock(level, pos.getX(), pos.getY(), pos.getZ(), state.getBlock(), 0);
     }
 
-    /** The same block back in the same spot inside the window gets its record back. */
-    public static void blockPlaced(Level level, BlockPos pos, BlockState state) {
+    /**
+     * Block ids moved under the surface table, so it is rebuilt under the ids now in force.
+     *
+     * <p>
+     * The table is keyed by a block's number, and a number is only good for the registry it was read
+     * under: a world from another mod list, or a server with its own history, hands out different ones.
+     * Built at start-up and never again, it went on looking up the wrong blocks until a reload - the wrong
+     * modded ground wore and real modded paths did not. The 1.7.10 edition's rebuild; this edition heard no
+     * such move on either loader until 0.9.219. Forge says so with {@code FMLModIdMappingEvent}, Fabric's
+     * registry sync with its remap callback, and both land here.
+     *
+     * <p>
+     * A client takes it on its own terms - on its own thread, with the atlas audit after it; a server with no
+     * client in it rebuilds where it stands. {@link SurfaceRegistry#resolve} re-stamps the sinkable and
+     * settling blocks as it goes.
+     */
+    public static void idsMoved() {
+        if (com.trmtgtnh.Client.idsMoved()) return;
+        Trmt.LOG.info("Block ids changed; rebuilding the surface table under them");
+        com.trmtgtnh.surface.SurfaceRegistry.resolve();
+    }
+
+    /**
+     * A block was placed, by {@code player} or by nobody in particular.
+     *
+     * <p>
+     * The same block back in the same spot inside the window gets its record back, and a player head
+     * set on the right shape stands a Golem of Ways up - the 1.7.10 edition's two handlers of the one
+     * event, here one call because each loader hands over the one placement. The second was missing
+     * until 0.9.219: the builder was ported whole and nothing called it, so a golem could be had from a
+     * loot egg or the demonstrate yard and never from the blocks and a head, which is how the guide
+     * says to make one. Any skull here; whether it is a player's on the ground is the builder's
+     * question, as it is there.
+     */
+    public static void blockPlaced(Level level, BlockPos pos, BlockState state, Player player) {
         if (level == null || level.isClientSide() || pos == null || state == null) return;
         ErosionEngine.get()
             .placeBlock(level, pos.getX(), pos.getY(), pos.getZ(), state.getBlock(), 0);
+        if (state.getBlock() instanceof net.minecraft.world.level.block.AbstractSkullBlock) {
+            com.trmtgtnh.entity.GolemBuilder.onHeadPlaced(level, pos.getX(), pos.getY(), pos.getZ(), player);
+        }
     }
 
     // ------------------------------------------------------------------

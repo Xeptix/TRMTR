@@ -170,8 +170,10 @@ class GhostFacesFollowTheBlockTest {
             ghost.contains("public int getLightOpacity(IBlockState state, IBlockAccess world, BlockPos pos)"),
             "opacity has to be answered per position: isOpaqueCube is asked of the state alone, and "
                 + "one ghost stands in for both sunken and unsunken squares");
+        // Ice aside, which stops what ice stops - see WornIceIsClearTest.
         assertTrue(
-            ghost.contains("sunkAt(world, pos) ? 0 : 255"),
+            ghost.contains("if (sunkAt(world, pos)) return 0;")
+                && ghost.contains("return covered == null ? 255 : covered.getLightOpacity();"),
             "all of the light until the ground sinks and none once it has - letting light through an "
                 + "unsunken square lit the cell below a road, and caves under one");
     }

@@ -1888,7 +1888,7 @@ public class CommandTrmt extends CommandBase {
     }
 
     /** The plainest block of a family, so a road reads as ground rather than as a mod's sampler. */
-    static Block roadBlock(SurfaceFamily family) {
+    public static Block roadBlock(SurfaceFamily family) {
         switch (family) {
             case GRASS:
                 return Blocks.grass;

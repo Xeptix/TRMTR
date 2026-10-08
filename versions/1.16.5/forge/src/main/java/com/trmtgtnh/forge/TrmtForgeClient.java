@@ -51,6 +51,8 @@ public final class TrmtForgeClient {
                 left = false;
                 ClientSide.leaveWorld();
             }
+            // What a tick with no world still owes - see ClientSide.idleTick.
+            ClientSide.idleTick();
         } else {
             left = true;
             ClientSide.tick();

@@ -2125,10 +2125,24 @@ public class CommandTrmt extends CommandBase {
         return -1;
     }
 
-    /** The metadata of the block's own default state, or -1 if it will not answer for one. */
-    private static int naturalMeta(Block block) {
+    /**
+     * The metadata of the block's own default state, or -1 if it will not answer for one - with a stair
+     * turned to rise towards the east.
+     *
+     * <p>
+     * East because that is the stair the 1.7.10 edition lays - its metadata nought, a bottom-half stair
+     * rising east, which is metadata nought here too - and the yards are photographed side by side. The
+     * default faces north, so until 0.9.219 this yard's stair platform ran its steps across the frame where
+     * 1.7.10's repeat along it, and the second yard's close-up of the stairs compared two different shapes.
+     */
+    static int naturalMeta(Block block) {
         try {
-            int meta = block.getMetaFromState(block.getDefaultState());
+            IBlockState natural = block.getDefaultState();
+            if (block instanceof net.minecraft.block.BlockStairs) {
+                natural = natural
+                    .withProperty(net.minecraft.block.BlockStairs.FACING, net.minecraft.util.EnumFacing.EAST);
+            }
+            int meta = block.getMetaFromState(natural);
             return meta >= 0 && meta < 16 ? meta : -1;
         } catch (RuntimeException awkwardBlock) {
             // A block whose getMetaFromState refuses its own default. Rare, and it must not be able

@@ -30,7 +30,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 | Gradle | wrapper, GTNH conventions over RetroFuturaGradle | wrapper, 9.7.0, RetroFuturaGradle 2.x | wrapper, 8.8, Architectury Loom |
 | Loader | Forge 10.13.4.1614 | Forge 14.23.5.2847 | Forge 36.2.34 **and** Fabric, from one build |
 | Network | `nexus.gtnewhorizons.com` | Cleanroom's repository and CurseMaven | Fabric, Architectury, Mojang, shedaniel and CurseMaven |
-| Tests | 416 | 362 | 352 |
+| Tests | 444 | 435 | 455 |
 
 The first build of either downloads and decompiles Minecraft and takes several minutes. After that
 it is quick.
@@ -49,7 +49,7 @@ of this repository and build on its own.
 
 ## Why the portable core is duplicated
 
-Twenty-nine classes appear in both editions, byte for byte. They are the ones that name nothing from
+Thirty classes appear in every edition, byte for byte. They are the ones that name nothing from
 Minecraft at all - the storage layer, the wear chain, the texture planners, the surface table codec,
 the quest and loot bookkeeping - and they are duplicated rather than shared for the same reason
 there is no root build: each edition compiles against a different Minecraft with a different
@@ -60,16 +60,16 @@ its own copy and the one in the edition it was carried from - 1.12.2 against 1.7
 1.12.2 - and fails the build on any difference, naming the files. In a development tree that test
 needs an untracked `sibling.properties` saying where the other edition is, and skips when it is
 absent; **here the editions are siblings, so the file is committed with a relative path and the check
-runs for anybody who clones this repository.** Run `./gradlew test` in either edition and it is one
+runs for anybody who clones this repository.** Run `./gradlew test` in any edition and it is one
 of the tests that runs.
 
-Consequence worth knowing if you are editing: **a change to any of those twenty-nine classes has to
-be made in both editions identically**, and neither edition may reformat them.
+Consequence worth knowing if you are editing: **a change to any of those thirty classes has to
+be made in every edition identically**, and neither edition may reformat them.
 
 Real shared compilation - a `common/` module with loader-specific subprojects - becomes possible
 from Minecraft 1.16.5, where Architectury Loom can give you Minecraft without a loader on the
 classpath. That is where it happened: the 1.16.5 edition is `common`, `forge` and `fabric`, and one
-build produces both jars. The twenty-nine classes are still duplicated *across* editions, for the
+build produces both jars. The thirty classes are still duplicated *across* editions, for the
 reason above; within 1.16.5 they exist once.
 
 ## Verifying a change
@@ -77,9 +77,9 @@ reason above; within 1.16.5 they exist once.
 Beyond `./gradlew build`, which runs the unit tests:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
-  twenty-nine classes starts naming a Minecraft type.
-- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds fifty-seven files across
-  seven packages that may name Minecraft and may not name Forge, and lists the twelve files outside
+  thirty classes starts naming a Minecraft type.
+- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds sixty files across
+  seven packages that may name Minecraft and may not name Forge, and lists the eleven files outside
   it with what each needs Forge for. It fails both ways, so neither the fence nor the list of
   exceptions can rot. It is there for the ports after 1.12.2.
 - **Nothing shared may reach a client-only member.** Both editions carry a scan for that, because

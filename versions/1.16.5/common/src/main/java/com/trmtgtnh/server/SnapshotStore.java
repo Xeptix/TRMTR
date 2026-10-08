@@ -135,8 +135,10 @@ public final class SnapshotStore {
         loaded = true;
         File file = file();
         if (file == null || !file.isFile()) return;
-        try {
-            CompoundTag root = NbtIo.read(file);
+        // NbtIo's File overloads are client-only on Fabric, so a dedicated server has neither; these are the
+        // same reads and writes through the stream overloads both sides keep. Found by tools/server_safe.py.
+        try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.FileInputStream(file))) {
+            CompoundTag root = NbtIo.read(in);
             if (root == null) return;
             ListTag list = root.getList("players", 10);
             for (int i = 0; i < list.size(); i++) {
@@ -190,8 +192,8 @@ public final class SnapshotStore {
             list.add(entry);
         }
         root.put("players", list);
-        try {
-            NbtIo.write(root, file);
+        try (java.io.DataOutputStream out = new java.io.DataOutputStream(new java.io.FileOutputStream(file))) {
+            NbtIo.write(root, out);
         } catch (IOException unwritable) {
             Trmt.LOG.warn("Could not write the config snapshots", unwritable);
         }

@@ -76,6 +76,14 @@ class EveryKeyAskedForExistsTest {
 
         Set<String> asked = new TreeSet<String>();
         gather(SourceTree.mainJava(), asked);
+        // And both loaders' own source, which shares this language file and was never read: a key named only
+        // in the Forge or the Fabric module could go missing with nothing to say so. Found while planning the
+        // update notice, which put a loader's own words in each module.
+        for (String loader : new String[] { "forge", "fabric" }) {
+            File module = new File(SourceTree.repoRoot(), loader + "/src/main/java");
+            assertTrue(module.isDirectory(), module.getAbsolutePath() + " is not there, so its keys go unread");
+            gather(module, asked);
+        }
         assertTrue(asked.size() > 100, "found " + asked.size() + " keys, which would switch this test off");
 
         List<String> absent = new ArrayList<String>();

@@ -151,6 +151,17 @@ public final class TrmtConfig {
      */
     public static String physicalDecay = DECAY_REAL;
 
+    public static final String UPDATE_OPERATORS = "operators";
+    public static final String UPDATE_EVERYONE = "everyone";
+    public static final String UPDATE_OFF = "off";
+
+    /**
+     * Who is told, as they join, that a newer release is out: <b>operators</b> - whoever can update this
+     * copy - <b>everyone</b>, or <b>off</b>, which also means the mod never asks. See
+     * {@link com.trmtgtnh.server.UpdateNotice}.
+     */
+    public static String updateNotice = UPDATE_OPERATORS;
+
     /**
      * Scales every wear threshold at once. Above 1.0 erodes faster, below 1.0 slower. The
      * shipped defaults are about eight times slower than upstream TRMT, so 8.0 here restores
@@ -1075,7 +1086,10 @@ public final class TrmtConfig {
     /** The most memory, in megabytes, moving layers may hold for the session. */
     public static int innerLayerAnimationBudgetMb = 64;
 
-    /** How many moving layers may be redrawn in one tick. */
+    /**
+     * How many moving layers may be redrawn in one tick, in the older editions. Read and kept here so a
+     * pack can move between versions; nothing in this edition redraws a moving layer per picture.
+     */
     public static int innerLayerUploadsPerTick = 256;
 
     /**
@@ -1468,6 +1482,12 @@ public final class TrmtConfig {
             DECAY_REAL,
             "Whether worn paths physically hollow out. real: ruts you can walk down into. The server owns the collision, so every client is shown the ruts and cannot switch the overlay off while connected; without that, a player with it off would trip over dips they cannot see. visual: ruts you can see but not feel. Nothing is forced on anyone and the per-player toggle stays free, at the cost of standing slightly above the deepest ruts. off: flat wear only. Per-family depth is families.<name>.maxSinkPixels.",
             new String[] { DECAY_REAL, DECAY_VISUAL, DECAY_OFF });
+        updateNotice = config.getString(
+            "updateNotice",
+            ConfigFile.CATEGORY_GENERAL,
+            UPDATE_OPERATORS,
+            "Who is told, as they join, that a newer TRMT Reimagined is out. operators: whoever can update this copy - you in single player, the host of a LAN game, a server's operators. everyone: every player, privately. off: nobody, and the mod never asks. Once a launch, a server reads one small file from GitHub to learn the newest version; nothing about you or your world is sent.",
+            new String[] { UPDATE_OPERATORS, UPDATE_EVERYONE, UPDATE_OFF });
 
         globalSpeed = config.get(
             ConfigFile.CATEGORY_GENERAL,
@@ -2709,7 +2729,7 @@ public final class TrmtConfig {
             "animateInnerLayers",
             CATEGORY_CLIENT,
             true,
-            "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, including while you are looking the other way, wherever client.innerLayerUploadsPerTick lets it be redrawn. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - a little over eleven megabytes for Chisel's fifteen faces at sixteen pixels and the settings shipped here, and about forty-five at thirty-two. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
+            "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, including while you are looking the other way. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - a little over eleven megabytes for Chisel's fifteen faces at sixteen pixels and the settings shipped here, and about forty-five at thirty-two. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
         innerLayerAnimationBudgetMb = config.getInt(
             "innerLayerAnimationBudgetMb",
             CATEGORY_CLIENT,
@@ -2723,7 +2743,7 @@ public final class TrmtConfig {
             256,
             16,
             8192,
-            "How many moving layers may be redrawn in one tick. Every worn picture of a lavastone wants its lava laid again on the same tick, because they all follow one clock, so without a ceiling, on a plain client, every worn picture of a moving liquid on the atlas would send its upload on the same tick, whether or not any is in view - several thousand for Chisel's fifteen faces - and drop a frame doing it. A picture over the ceiling is not redrawn late: it keeps the frame it shows until its layer next moves and asks again, and because the pictures of a liquid all ask on the same ticks in the same order, past the ceiling it is the same pictures that miss out each time and stand still. The first tick after a resource reload that turns any picture away is written to the log with how many asked. A modern chunk builder already redraws only what is on screen, so on a client that has one this is almost never reached; on a plain client every moving picture asks, and Chisel's fifteen faces at the settings shipped here are four thousand eight hundred pictures. On a plain client the ceiling covers every moving picture on the atlas wherever you are, the menu included, so a regular stutter everywhere that goes away with client.animateInnerLayers off is the sign to lower it; only with a chunk builder that redraws what is on screen does the count follow how much worn chiselled ground is in view. Raise it if the log says it turned pictures away and you would rather see more of the liquid move.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: here the frames of a moving layer are stacked into one picture and the game's own atlas animates it, as it animates the liquid itself, so there is no redrawing per picture for a ceiling to count. What follows is what it means on 1.7.10 and 1.12.2. How many moving layers may be redrawn in one tick. Every worn picture of a lavastone wants its lava laid again on the same tick, because they all follow one clock, so without a ceiling, on a plain client, every worn picture of a moving liquid on the atlas would send its upload on the same tick, whether or not any is in view - several thousand for Chisel's fifteen faces - and drop a frame doing it. A picture over the ceiling is not redrawn late: it keeps the frame it shows until its layer next moves and asks again, and because the pictures of a liquid all ask on the same ticks in the same order, past the ceiling it is the same pictures that miss out each time and stand still. The first tick after a resource reload that turns any picture away is written to the log with how many asked. A modern chunk builder already redraws only what is on screen, so on a client that has one this is almost never reached; on a plain client every moving picture asks, and Chisel's fifteen faces at the settings shipped here are four thousand eight hundred pictures. On a plain client the ceiling covers every moving picture on the atlas wherever you are, the menu included, so a regular stutter everywhere that goes away with client.animateInnerLayers off is the sign to lower it; only with a chunk builder that redraws what is on screen does the count follow how much worn chiselled ground is in view. Raise it if the log says it turned pictures away and you would rather see more of the liquid move.");
 
         mapWearThroughTint = config.getBoolean(
             "mapWearThroughTint",

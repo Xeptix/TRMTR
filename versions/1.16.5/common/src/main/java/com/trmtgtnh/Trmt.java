@@ -130,4 +130,26 @@ public final class Trmt {
         Host asking = host;
         return asking == null ? null : asking.runningServer();
     }
+
+    /** The server thread, recorded as a server starts and forgotten as it stops. See serverThreadAlive. */
+    private static volatile Thread serverThread;
+
+    /** Records the thread a server is starting on, or forgets it with null as one stops. */
+    public static void serverThreadIs(Thread thread) {
+        serverThread = thread;
+    }
+
+    /**
+     * Whether a server's thread is still alive, from its start to its stopped event.
+     *
+     * <p>
+     * Not the same question as whether one is running, which is no from the moment it begins to stop: a
+     * single-player world goes on saving, and its block ids go on moving, after that. The older editions
+     * record the thread and ask this; a rebuild of the wear pictures is held while it is true with no world
+     * loaded, so it cannot plan half a pack under one numbering and the rest under another.
+     */
+    public static boolean serverThreadAlive() {
+        Thread recorded = serverThread;
+        return recorded != null && recorded.isAlive();
+    }
 }

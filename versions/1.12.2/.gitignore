@@ -27,3 +27,6 @@ run
 # Where the other edition of this mod is checked out on this machine, for the test that compares
 # the two copies of the portable core. Machine-specific, so never committed.
 sibling.properties
+
+# What a test that loads the game writes where it runs - never source.
+/logs/

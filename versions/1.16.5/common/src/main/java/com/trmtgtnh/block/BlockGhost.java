@@ -421,28 +421,54 @@ public class BlockGhost extends Block {
     // own verges is the one a player notices.
 
     /**
-     * How much light a neighbour's face keeps where it touches this one. All of it.
+     * How much light a neighbour's face keeps where it touches this one: a fifth where this square stands in
+     * for a whole block, as that block did, and all of it where the square is hollowed.
      *
      * <p>
      * <strong>{@code noOcclusion()} does not cover this, and that is the trap.</strong> Vanilla
      * decides this number from the <em>collision</em> shape rather than from occlusion -
-     * {@code isCollisionShapeFullBlock() ? 0.2F : 1.0F} - and a ghost's collision shape is a full
-     * block, because a ghost is ground somebody is standing on. So a square that had carefully said
-     * it occludes nothing was still handing every face that touched it a fifth of its light.
+     * {@code isCollisionShapeFullBlock() ? 0.2F : 1.0F}. Left to that, a sunken square answered a fifth
+     * too, and the full blocks round a sunken patch drew dark edges where the worn ground had exposed
+     * their sides - which somebody spotted from a screenshot. So this answered all of it, everywhere.
      *
      * <p>
-     * What that looks like is exactly what the comment above predicts, and what somebody spotted
-     * from a screenshot: the full blocks round a sunken patch have dark edges where the worn ground
-     * has exposed their sides. A stone slab in the same place answers 1.0 here and its neighbours
-     * are lit properly - and a worn square is the same shape as a slab, so it answers the same.
-     *
-     * <p>
-     * Neither older edition has this method, so neither is it a carry: 1.7.10 and 1.12.2 decide the
-     * same number from whether the block is opaque, which a ghost already answers no to.
+     * <strong>Everywhere was one clause too many.</strong> The 1.7.10 edition answers this through
+     * {@code isBlockNormalCube}, which for a ghost is {@code renderAsNormalBlock}, which is {@code !sunken} -
+     * and its sunken variant is the hollowed one, chosen once the ground has sunk or from the start when the
+     * block covered is short ({@code OverlayPainter.wantedGhost}, {@code shortBase || sink > 0}). So there a
+     * worn square that has not sunk shades the corners beside it as the grass it replaced did, and a rut's
+     * edge is shaded toward the step. This said otherwise until 0.9.219, when the first yard's close-ups
+     * showed sunk earth beside an unsunken square drawn evenly lit here and shaded on 1.7.10; and the comment
+     * here said both older editions answered from opacity, "which a ghost already answers no to" - true of
+     * the hollowed variant only. See {@link #wholeAt}.
      */
     @Override
     public float getShadeBrightness(BlockState state, BlockGetter level, BlockPos pos) {
-        return 1.0F;
+        return wholeAt(level, pos) ? WHOLE_SHADE : 1.0F;
+    }
+
+    /** The shade a whole ghost gives the corners beside it - vanilla's for a full block. See {@link #wholeAt}. */
+    public static final float WHOLE_SHADE = 0.2F;
+
+    /**
+     * Whether this square stands in for a whole block: it has not sunk, and the block it covers is neither a
+     * partial shape - a slab, a stair - nor short of its cell, as a path or farmland is. The 1.7.10 edition's
+     * {@code !(shortBase || sink > 0)}, which picks its hollowed variant. Nothing known about the block
+     * covered is 1.7.10's {@code isShort(null)}: not short.
+     */
+    static boolean wholeAt(BlockGetter world, BlockPos pos) {
+        if (sunkAt(world, pos)) return false;
+        int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        BlockState covered = origin < 0 ? null : Block.stateById(origin);
+        if (covered == null || covered.getBlock() instanceof BlockGhost) return true;
+        if (SurfaceShape.of(covered)
+            .isPartial()) return false;
+        try {
+            return covered.getShape(world, pos)
+                .max(net.minecraft.core.Direction.Axis.Y) >= 0.999D;
+        } catch (RuntimeException awkwardBlock) {
+            return true;
+        }
     }
 
     // isTopSolid is not answered here any more. It was a flag a block set; it is read off the
@@ -482,7 +508,43 @@ public class BlockGhost extends Block {
      */
     @Override
     public boolean propagatesSkylightDown(BlockState state, BlockGetter world, BlockPos pos) {
-        return sunkAt(world, pos);
+        if (sunkAt(world, pos)) return true;
+        // Otherwise as the block it covers - see coveredFor.
+        BlockState covered = coveredFor(world, pos);
+        return covered != null && covered.propagatesSkylightDown(world, pos);
+    }
+
+    /**
+     * The block an unsunken square answers light as: the one it covers.
+     *
+     * <p>
+     * "Stops light exactly as the block it stands in for did" is the rule {@link #getLightBlock} states, and
+     * until 0.9.219 it was written as fifteen, which is that answer only for a whole block of earth. Two
+     * kinds of square it was wrong for:
+     * <ul>
+     * <li><em>Ice</em>, which the 1.7.10 edition calls clear and gives ice's own figure - {@code clear ?
+     * lightOpacityFor(appearance) : 255} - where fifteen made a path across a frozen lake darken the water
+     * under it.</li>
+     * <li><em>A stair, a slab, a path</em> - anything that stops short of filling its square - whose faces
+     * inside the square are lit from the square itself. Vanilla's renderer does that for every face not on
+     * the cell's edge, and a square answering fifteen holds no light, so on Forge every worn but unsunken
+     * stair in the second yard drew its riser black. The older editions never meet it: 1.7.10's stair
+     * stand-in, and every 1.12.2 ghost, take their light from the brightest neighbour, a flag this version
+     * does not have. Answering as the stair does lets the light in, as it comes into a stair.</li>
+     * </ul>
+     *
+     * <p>
+     * Null when the covered block is not known, which is the whole block of earth - except where the square
+     * is worn as ice, which is ice until told otherwise, as that edition's stand-in is.
+     */
+    static BlockState coveredFor(BlockGetter world, BlockPos pos) {
+        int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        BlockState covered = origin < 0 ? null : Block.stateById(origin);
+        if (covered != null && !(covered.getBlock() instanceof BlockGhost)) return covered;
+        short record = Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
+        return ErosionState.familyOf(record) == com.trmtgtnh.surface.SurfaceFamily.ICE
+            ? net.minecraft.world.level.block.Blocks.ICE.defaultBlockState()
+            : null;
     }
 
     /**
@@ -500,7 +562,10 @@ public class BlockGhost extends Block {
      */
     @Override
     public int getLightBlock(BlockState state, BlockGetter world, BlockPos pos) {
-        return sunkAt(world, pos) ? 0 : 15;
+        if (sunkAt(world, pos)) return 0;
+        // Otherwise as the block it covers - see coveredFor.
+        BlockState covered = coveredFor(world, pos);
+        return covered == null ? 15 : covered.getLightBlock(world, pos);
     }
 
     /**

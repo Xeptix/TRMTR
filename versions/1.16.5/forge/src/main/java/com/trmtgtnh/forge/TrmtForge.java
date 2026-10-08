@@ -47,6 +47,10 @@ public final class TrmtForge {
                         .getVersion()
                         .toString())
                 .orElse("unknown"));
+        // This jar's line in the update check's version file, and whether this is a development game -
+        // which only the loader can say. See UpdateNotice.
+        com.trmtgtnh.server.UpdateNotice
+            .edition("1.16.5-forge", !net.minecraftforge.fml.loading.FMLEnvironment.production);
         Trmt.useHost(() -> {
             net.minecraft.server.MinecraftServer candidate = ServerLifecycleHooks.getCurrentServer();
             return candidate != null && candidate.isRunning() ? candidate : null;
@@ -93,6 +97,15 @@ public final class TrmtForge {
         // the game crashed on the title screen with an NPE out of a lambda. Compiling said nothing
         // about it, which is the whole argument for starting the thing. They are in
         // ForgeClientSetup now, on the event that fires once the registries are full.
+
+        // Block ids moved - a world from another mod list opened, a server's numbering taken on, or either
+        // handed back. Forge posts it on each mod's own bus, so it is heard here rather than on the game's.
+        // See ServerEvents.idsMoved.
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get()
+            .getModEventBus()
+            .addListener(
+                (net.minecraftforge.fml.event.lifecycle.FMLModIdMappingEvent moved) -> com.trmtgtnh.server.ServerEvents
+                    .idsMoved());
 
         // Where the mod list's Config button goes. Forge's own GuiConfig is gone at this version and
         // this is what replaced the factory that used to point at it - one line rather than

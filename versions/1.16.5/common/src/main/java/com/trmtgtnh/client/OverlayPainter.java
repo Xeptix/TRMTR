@@ -254,6 +254,10 @@ public final class OverlayPainter {
         com.trmtgtnh.client.xaero.XaeroMinimap.chunkChangedAt(world, chunkX, chunkZ);
 
         if (touched > 0) {
+            // The server's light for this column may still be queued behind the paint, and it lights the
+            // real blocks - see ClientOverlay.relightPainted. Before the redraw, so the mesh is built
+            // against the light the squares end up with.
+            ClientOverlay.relightPainted(chunkX, chunkZ);
             redraw((chunkX << 4), minY, (chunkZ << 4), (chunkX << 4) + 15, maxY, (chunkZ << 4) + 15);
         }
         return touched;

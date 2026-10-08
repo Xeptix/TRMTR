@@ -215,6 +215,7 @@ trmtgtnh.snapshot.empty.right=The right snapshot is empty.
 trmtgtnh.snapshot.noConfig=There is no config loaded to snapshot.
 trmtgtnh.snapshot.failed=That snapshot could not be applied; the config is unchanged.
 trmtgtnh.snapshot.noPermission=You are not allowed to change this server's settings.
+trmtgtnh.update.available=%s is out - this world is running %s. Get it from %s or %s.
 trmtgtnh.snapshot.gui.title=Config Snapshots
 trmtgtnh.snapshot.gui.blurb=Two whole configs, kept per player on the server.
 trmtgtnh.snapshot.gui.left=Left

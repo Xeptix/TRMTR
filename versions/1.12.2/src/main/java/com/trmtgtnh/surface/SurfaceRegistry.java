@@ -14,6 +14,7 @@ import java.util.Set;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDirt;
 import net.minecraft.block.BlockFlower;
+import net.minecraft.block.BlockFrostedIce;
 import net.minecraft.block.BlockGrass;
 import net.minecraft.block.BlockGravel;
 import net.minecraft.block.BlockLeaves;
@@ -464,6 +465,17 @@ public final class SurfaceRegistry {
      * better failure than terrain that silently never wears.
      */
     /**
+     * True for the one block that is never ground, however it is named or listed: frosted ice, which is
+     * ice by material, laid by Frost Walker and melted again by the game within seconds. Counted, it put
+     * a platform of it in every demonstrate yard, which melted and poured off the edge - a waterfall the
+     * 1.7.10 yard does not have, because that edition has no such block. Asked by detection and by the
+     * family lists alike, since the lists keep whatever detection once recorded in them.
+     */
+    static boolean neverGround(Block block) {
+        return block instanceof BlockFrostedIce;
+    }
+
+    /**
      * True for anything that keeps state of its own at the position.
      *
      * <p>
@@ -628,6 +640,12 @@ public final class SurfaceRegistry {
         // way round: these materials name exactly the blocks meant, where "ice" as a word turns
         // up inside pumice, lattice and half the pack's chemistry.
         if (material == Material.CRAFTED_SNOW || material == Material.SNOW) return SurfaceFamily.SNOW;
+        // Except frosted ice, which is ice by material and not ground at all: Frost Walker lays it and
+        // the game melts it again within seconds. Counted, it put a platform of it in every
+        // demonstrate yard, which melted and poured off the edge - found by the 0.9.219 photograph
+        // pass, as a waterfall the 1.7.10 yard does not have. That edition has no such block, so
+        // leaving it out is what its rule, the ground of frozen water, means here.
+        if (neverGround(block)) return null;
         if (material == Material.ICE || material == Material.PACKED_ICE) return SurfaceFamily.ICE;
 
         if (material == Material.SAND) {
@@ -805,6 +823,14 @@ public final class SurfaceRegistry {
             // build would otherwise be re-added on every load for ever.
             if (keepsItsOwnState(block)) {
                 Trmt.LOG.debug("Surface entry '{}' keeps a tile entity, skipping", entry);
+                continue;
+            }
+            // Nor about whether it is ground at all, for the block that never is. Detection on 0.9.218
+            // and earlier recorded frosted ice in the ice list of every config it ran in, and the list
+            // keeps it, so refusing it in detection alone left every world opened before the fix still
+            // laying it - which is how the 0.9.219 pass found the waterfall again in every instance.
+            if (neverGround(block)) {
+                Trmt.LOG.debug("Surface entry '{}' is never ground, skipping", entry);
                 continue;
             }
 

@@ -145,10 +145,16 @@ public final class OreRecipes {
     public static Function<ResourceLocation, Recipe<?>> draught(String group, ItemStack result,
         final net.minecraft.world.item.alchemy.Potion brew, Object... what) {
         final Function<ResourceLocation, Recipe<?>> plain = shapeless(group, result, what);
+        // Never null, as shapeless() makes it: a recipe goes to every joining client, and a null group fails as
+        // the packet is written - the first fix here passed the group as given and a dedicated server kicked
+        // the first player to join, which single player, writing no packets, cannot show.
+        final String band = group == null ? "" : group;
         return id -> {
             Recipe<?> made = plain.apply(id);
             ShapelessRecipe loose = (ShapelessRecipe) made;
-            return new RecipeDraught(id, loose.getGroup(), loose.getResultItem(), loose.getIngredients(), brew);
+            // The group as given, not loose.getGroup(), which Fabric keeps on the client only - and this runs as
+            // the server builds its recipes. Found by tools/server_safe.py on 2026-10-07.
+            return new RecipeDraught(id, band, loose.getResultItem(), loose.getIngredients(), brew);
         };
     }
 
@@ -192,7 +198,11 @@ public final class OreRecipes {
             // See OreNames.LazyTags.
             return Ingredient.of(com.trmtgtnh.util.OreNames.tagOf((String) one));
         }
-        if (one instanceof ItemStack) return Ingredient.of((ItemStack) one);
+        // Through the Stream overload, never Ingredient.of(ItemStack...): Fabric marks that one client-only, so a
+        // dedicated server's copy of the game does not have it, and the first recipe built with a stack there
+        // crashed the server on its first tick - NoSuchMethodError, from 0.9.217 until the 0.9.219 pass ran a
+        // Fabric server long enough to tick. The Stream overload is on both sides and keeps the stack as it is.
+        if (one instanceof ItemStack) return Ingredient.of(java.util.stream.Stream.of((ItemStack) one));
         if (one instanceof Item) return Ingredient.of((Item) one);
         if (one instanceof net.minecraft.world.level.ItemLike) {
             return Ingredient.of((net.minecraft.world.level.ItemLike) one);

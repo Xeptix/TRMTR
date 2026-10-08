@@ -70,7 +70,8 @@ class CoreStaysPortableTest {
         "com/trmtgtnh/item/WayfarerCore.java", "com/trmtgtnh/compat/QuestLessons.java",
         "com/trmtgtnh/client/texture/AtlasPlan.java", "com/trmtgtnh/client/texture/StateFiling.java",
         "com/trmtgtnh/client/texture/MovingLayerLedger.java", "com/trmtgtnh/client/texture/FaceRules.java",
-        "com/trmtgtnh/client/texture/AnisotropicBorder.java", "com/trmtgtnh/client/texture/WearCompositor.java" };
+        "com/trmtgtnh/client/texture/AnisotropicBorder.java", "com/trmtgtnh/client/texture/WearCompositor.java",
+        "com/trmtgtnh/util/UpdateCheck.java" };
 
     /**
      * Package roots that mean the game rather than the model.

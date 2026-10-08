@@ -1,7 +1,7 @@
 # Where the editions differ
 
 TRMT Reimagined is one mod with one version number. Every edition does the same thing by the same
-numbers and reads the same settings file, and twenty-nine classes are shared between them byte for
+numbers and reads the same settings file, and thirty classes are shared between them byte for
 byte, with a test in each that fails the build if the copies drift.
 
 This page is everything that is *not* the same, in one place. The manual says each of these in the
@@ -99,18 +99,30 @@ Forge ships those tags. Fabric does not, so the Fabric jar ships the vanilla one
 
 ### Shaders
 
-`client.inheritShaderMaterial` is written for all three and reachable on two. 1.7.10 calls
+| | 1.7.10 | 1.12.2 | 1.16.5 Forge | 1.16.5 Fabric |
+|---|---|---|---|---|
+| Worn ground keeps the covered block's shader material | Angelica | OptiFine | Oculus, OptiFine | Iris, Canvas |
+| Runs, with the pack's default material on worn ground | - | - | - | OptiFabric |
+
+`client.inheritShaderMaterial` is written for all three and reachable on all three. 1.7.10 calls
 `Iris.setShaderMaterialOverride`, a pair of methods **Angelica** added for this. The later editions
 reach what that pair is a convenience for, one step further in: the per-block holder a shader mod's
 own vertex writer reads. **Oculus** provides it on 1.16.5 Forge and **Iris** provides it on 1.16.5
 Fabric - Oculus being a fork of Iris that kept the upstream packages, so one seam answers for both.
 
-**1.12.2 has the seam and no loader to use it.** No public Oculus build exists for that version; the
-releases begin at 1.16.5. So the setting is one boolean read there until one does. **Optifine is not
-of the Iris family** and cannot stand in: its shader material comes from the shader pack's own
-`block.properties` at load time, and nothing in it lets a mod claim a block at render time.
+**OptiFine is not of the Iris family and has a holder of its own.** It works out a block's shader id
+from the pack's `block.properties` as the block's model starts and pushes it onto a stack the chunk's
+buffer carries; from 0.9.219 a ghost's entry there is written over, in place, with the block it
+stands in for - on 1.12.2, where no Oculus is published, and on 1.16.5 Forge. **Canvas** is asked
+another way again: a worn square takes the covered block's FREX material in its own pass.
 
-None of this does anything without a shader pack loaded.
+**Under OptiFabric the claim is out of reach.** OptiFabric defines OptiFine's classes after every
+mod's hooks have been prepared, so none can bind to them, and a worn square draws with the pack's
+default material. Nothing else about it differs.
+
+None of this does anything without a shader pack loaded. Every combination in the table was
+photographed under Complementary Reimagined and Sildurs Vibrant for 0.9.219, beside the same
+renderer without a pack and again after the pack was turned off mid-session.
 
 ### Companion mods
 
@@ -131,7 +143,7 @@ written is offered rather than accepted.
 
 | | 1.7.10 | 1.12.2 | 1.16.5 |
 |---|---|---|---|
-| Count | 3 client | 1 common, 1 client | 2 shared, 7 more on Forge, 16 on Fabric |
+| Count | 3 common, 10 client | 1 common, 7 client | 4 shared, 11 more on Forge, 21 on Fabric |
 
 A mixin that cannot bind - because something else in the pack has moved what it attaches to - costs
 the behaviour it carries and not the launch, in every edition. Nothing any of them hooks can damage

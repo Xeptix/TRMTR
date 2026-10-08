@@ -685,7 +685,11 @@ public class BlockGhost extends Block {
      */
     @Override
     public int getLightOpacity(IBlockState state, IBlockAccess world, BlockPos pos) {
-        return sunkAt(world, pos) ? 0 : 255;
+        if (sunkAt(world, pos)) return 0;
+        // Worn ice stops the light ice stops - the 1.7.10 edition's {@code clear ? lightOpacityFor :
+        // 255}, missing here until 0.9.219, when a path across a frozen lake darkened the water under it.
+        IBlockState covered = clearCovers(world, pos);
+        return covered == null ? 255 : covered.getLightOpacity();
     }
 
     /**
@@ -714,6 +718,11 @@ public class BlockGhost extends Block {
     public boolean doesSideBlockRendering(IBlockState state, IBlockAccess world, BlockPos pos,
         net.minecraft.util.EnumFacing side) {
         if (sunkAt(world, pos)) return false;
+        // Nor where it is clear: worn ice is still seen through, so the face beside it is still seen - the
+        // 1.7.10 edition's {@code !clear}. Dropped until 0.9.219, which the close-ups of the first yard
+        // found: the real ice under a worn top and the worn squares beside it left off every face they
+        // shared with it, and the yard's ice read as a pane with the next platform showing through.
+        if (clearCovers(world, pos) != null) return false;
         int outline = outlineAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         // A whole cube only. A slab or a path stands short, and a neighbour that left off its face
         // against one would show a hole where the square stops.
@@ -729,6 +738,72 @@ public class BlockGhost extends Block {
      */
     private static boolean sunkAt(IBlockAccess world, BlockPos pos) {
         return ErosionState.sinkOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
+    }
+
+    /**
+     * Whether this square stands in for a whole block, and so shades the corners beside it as that block did.
+     *
+     * <p>
+     * The 1.7.10 edition's {@code renderAsNormalBlock}, which is {@code !sunken} there - and its sunken variant is
+     * the hollowed one, chosen once the ground has sunk or from the start when the block covered is short: a
+     * slab, a stair, a path ({@code OverlayPainter.wantedGhost}, {@code shortBase || sink > 0}). Vanilla's
+     * ambient occlusion reads that through {@code isBlockNormalCube}, so there a whole ghost darkens the corners
+     * of the faces beside it, as the grass or stone it replaced did, and a hollowed one does not.
+     *
+     * <p>
+     * Missing here until 0.9.219, when the first yard's close-ups showed it: sunk earth beside a worn square
+     * that had not sunk was shaded toward it on 1.7.10 and evenly lit here, so a rut's edge drew flat. This
+     * version asks it of the state alone ({@code getAmbientOcclusionLightValue}), which cannot say - one ghost
+     * stands in for everything - so the renderers' own readings are corrected per position instead: Forge's
+     * light pipeline in {@link com.trmtgtnh.mixin.MixinGhostShadeForge}, and vanilla's, which OptiFine draws
+     * through, in {@link com.trmtgtnh.mixin.MixinGhostShadeVanilla}.
+     */
+    public static boolean wholeAt(IBlockAccess world, BlockPos pos) {
+        if (sunkAt(world, pos)) return false;
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        // Nothing known about what it covers: 1.7.10's isShort(null), which is no.
+        if (origin < 0) return true;
+        IBlockState covered = Block.getStateById(origin);
+        if (com.trmtgtnh.surface.SurfaceShape.of(covered.getBlock())
+            .isPartial()) return false;
+        try {
+            return covered.getBoundingBox(world, pos).maxY >= 0.999D;
+        } catch (RuntimeException awkwardBlock) {
+            return true;
+        }
+    }
+
+    /** The shade a whole ghost gives the corners beside it - vanilla's for a normal cube. See {@link #wholeAt}. */
+    public static final float WHOLE_SHADE = 0.2F;
+
+    /**
+     * The renderers seen reading a whole ghost's shade, each said once - proof the correction runs, not only applies.
+     */
+    private static final java.util.Set<String> SHADE_SEEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Says, once per renderer, that a whole ghost has shaded its neighbours through it. */
+    public static void shadeSeen(String renderer) {
+        if (SHADE_SEEN.add(renderer))
+            Trmt.LOG.info("Ghost shade: a whole ghost shades the corners beside it through {}", renderer);
+    }
+
+    /**
+     * The block a clear square covers, or null when the square is not clear.
+     *
+     * <p>
+     * Clear is the 1.7.10 edition's word, and its rule: the square is worn as ice, and the block under it
+     * does not fill its square to look at - ice, and not packed ice, which that edition gives a solid twin
+     * because a pack's decorative frost is ice by material and as solid to look at as stone. A square whose
+     * covered block is not known is clear, as that edition's ice stand-in is until told otherwise.
+     */
+    @Nullable
+    static IBlockState clearCovers(IBlockAccess world, BlockPos pos) {
+        short record = Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
+        if (ErosionState.familyOf(record) != SurfaceFamily.ICE) return null;
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        IBlockState covered = origin < 0 ? null : Block.getStateById(origin);
+        if (covered == null) covered = net.minecraft.init.Blocks.ICE.getDefaultState();
+        return covered.isOpaqueCube() ? null : covered;
     }
 
     @Override

@@ -73,8 +73,16 @@ public final class Notices {
      * It catches more than the class check did, and in the right direction: a stand-in written by a
      * mod that did not use Forge's class is caught too, and so is one on a loader that has no such
      * class to use. A real player has a connection from the moment they log in.
+     *
+     * <p>
+     * <strong>And this client's own player is somebody by definition</strong> - the one reading the
+     * screen. Until 0.9.219 the test was the server's alone, so every line said on the client side was
+     * taken for a machine's and dropped without a word: that the server owns the geometry, that the
+     * config file failed to read, that the server forces path visuals on. The older editions tell the
+     * client's player directly.
      */
-    private static boolean nobodyIsThere(Player player) {
+    static boolean nobodyIsThere(Player player) {
+        if (player.level != null && player.level.isClientSide()) return false;
         return !(player instanceof net.minecraft.server.level.ServerPlayer)
             || ((net.minecraft.server.level.ServerPlayer) player).connection == null;
     }

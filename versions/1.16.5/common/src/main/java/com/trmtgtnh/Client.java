@@ -146,6 +146,9 @@ public final class Client {
         /** The settings changed; what this client holds derived from them has to be rebuilt. */
         void onConfigChanged(com.trmtgtnh.config.ConfigReload.Delta delta);
 
+        /** Block ids moved; the surface table is rebuilt under them, on this client's own terms. */
+        void idsMoved();
+
         // ---- what the ghost block asks back ----
 
         short ghostRecordAt(BlockGetter level, int x, int y, int z);
@@ -177,6 +180,18 @@ public final class Client {
     /** Whether a client has told this where to put things yet. */
     public static boolean wired() {
         return side != null;
+    }
+
+    /**
+     * Block ids moved: a client takes the rebuild on its own terms and this answers true; with none, false,
+     * and the caller rebuilds where it stands. Read straight from the field rather than through the
+     * complaint below, because a server with no client in it is the ordinary case here and not news.
+     */
+    public static boolean idsMoved() {
+        Side at = side;
+        if (at == null) return false;
+        at.idsMoved();
+        return true;
     }
 
     /**
