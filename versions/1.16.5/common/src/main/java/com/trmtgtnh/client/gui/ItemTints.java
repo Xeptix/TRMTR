@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import com.trmtgtnh.Trmt;
 
 /**
- * The colour a block multiplies its own picture by, which the wear editor's previews are drawn in.
+ * The color a block multiplies its own picture by, which the wear editor's previews are drawn in.
  *
  * <p>
  * <strong>A seam for one object, and the reason is that the object is private.</strong> Both older
@@ -28,7 +28,7 @@ import com.trmtgtnh.Trmt;
  * <p>
  * A set built from vanilla's own handlers, once, and a warning once. That is a real answer rather
  * than nothing: every tinted block a ground family is likely to contain - grass, leaves, the vines -
- * is vanilla's and is coloured correctly by it. What it misses is a modded block with a colour
+ * is vanilla's and is colored correctly by it. What it misses is a modded block with a color
  * handler of its own, which would draw its preview untinted, and that is worth a line in the log
  * rather than a blank picture.
  */
@@ -43,8 +43,8 @@ public final class ItemTints {
     private ItemTints() {}
 
     /** Called once by each loader's client start, with the set the game is actually using. */
-    public static void use(ItemColors colours) {
-        told = colours;
+    public static void use(ItemColors colors) {
+        told = colors;
     }
 
     /** Whether a loader has handed the real set over. */
@@ -53,7 +53,7 @@ public final class ItemTints {
     }
 
     /**
-     * The colour this stack multiplies its own picture by, or plain white where it has none.
+     * The color this stack multiplies its own picture by, or plain white where it has none.
      *
      * <p>
      * Tint index nought, which is the one an ordinary block's own texture carries; a block with more
@@ -62,18 +62,18 @@ public final class ItemTints {
      */
     public static int of(ItemStack shown) {
         if (shown == null || shown.isEmpty()) return 0xFFFFFF;
-        ItemColors colours = colours();
-        if (colours == null) return 0xFFFFFF;
+        ItemColors colors = colors();
+        if (colors == null) return 0xFFFFFF;
         try {
-            return colours.getColor(shown, 0) & 0xFFFFFF;
+            return colors.getColor(shown, 0) & 0xFFFFFF;
         } catch (RuntimeException hostileHandler) {
-            // Somebody else's colour handler, asked about a stack outside a world. White is a
+            // Somebody else's color handler, asked about a stack outside a world. White is a
             // picture; a thrown exception is a screen that will not open.
             return 0xFFFFFF;
         }
     }
 
-    private static ItemColors colours() {
+    private static ItemColors colors() {
         if (told != null) return told;
         if (guessed == null) {
             Minecraft client = Minecraft.getInstance();
@@ -81,9 +81,9 @@ public final class ItemTints {
             if (!complained) {
                 complained = true;
                 Trmt.LOG.warn(
-                    "No loader handed over the game's own item colours, so the wear editor's previews are "
+                    "No loader handed over the game's own item colors, so the wear editor's previews are "
                         + "tinted from vanilla's handlers alone. Every tinted ground block vanilla has is "
-                        + "still right; a modded one with a colour handler of its own will draw untinted. "
+                        + "still right; a modded one with a color handler of its own will draw untinted. "
                         + "Said once.");
             }
             guessed = ItemColors.createDefault(client.getBlockColors());

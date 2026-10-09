@@ -17,7 +17,7 @@
     "client": [ "com.trmtgtnh.fabric.TrmtFabricClient" ],
     "modmenu": [ "com.trmtgtnh.fabric.FabricModMenu" ]
   },
-  "mixins": [ "trmtgtnh-common.mixins.json", "trmtgtnh-fabric.mixins.json" ],
+  "mixins": [ "trmtgtnh-common.mixins.json", "trmtgtnh-fabric.mixins.json", "trmtgtnh-fabric-canvas.mixins.json" ],
   "accessWidener": "trmtgtnh.accesswidener",
   "custom": {
     "waila:plugins": [

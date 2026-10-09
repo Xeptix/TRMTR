@@ -16,7 +16,7 @@ import com.trmtgtnh.Trmt;
  * only thing that marks one is a block packet arriving from the server - a chunk load, a block
  * change, a multi-block change. This mod never sends one. Wear advances by painting a cosmetic block
  * into the client's own copy of the world, which is the whole architecture, so as far as Xaero is
- * concerned nothing has happened and the square keeps the colour it had when the chunk was first
+ * concerned nothing has happened and the square keeps the color it had when the chunk was first
  * mapped. Stand on a path and wear it forty steps down and the minimap does not move.
  *
  * <p>
@@ -32,7 +32,7 @@ import com.trmtgtnh.Trmt;
  * <p>
  * <strong>Carried from the 1.7.10 edition, where the problem is identical and so is the field.</strong>
  * It is not made unnecessary by this edition answering {@code getMapColor} per position, which is
- * what made the two JourneyMap fixes unnecessary: that changes what colour a square is drawn, and
+ * what made the two JourneyMap fixes unnecessary: that changes what color a square is drawn, and
  * this is about whether it is drawn again at all.
  *
  * <p>

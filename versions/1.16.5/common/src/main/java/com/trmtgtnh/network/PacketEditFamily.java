@@ -185,8 +185,8 @@ public class PacketEditFamily implements Message {
             if (changed) property.set(kept.toArray(new String[kept.size()]));
         }
 
-        private static void say(ServerPlayer player, ChatFormatting colour, String message) {
-            player.sendMessage(new TextComponent(colour + message), net.minecraft.Util.NIL_UUID);
+        private static void say(ServerPlayer player, ChatFormatting color, String message) {
+            player.sendMessage(new TextComponent(color + message), net.minecraft.Util.NIL_UUID);
         }
     }
 }

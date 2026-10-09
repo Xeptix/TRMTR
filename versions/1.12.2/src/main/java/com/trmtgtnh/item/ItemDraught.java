@@ -106,7 +106,7 @@ public class ItemDraught extends Item {
     @Override
     @SideOnly(Side.CLIENT)
     public boolean hasEffect(ItemStack stack) {
-        // The enchantment shimmer, so a draught reads as something more than a coloured bottle.
+        // The enchantment shimmer, so a draught reads as something more than a colored bottle.
         return true;
     }
 
@@ -125,7 +125,7 @@ public class ItemDraught extends Item {
             lines.add(TextFormatting.RED + I18n.translateToLocal("trmtgtnh.draught.disabled"));
             return;
         }
-        // The effect line vanilla would have drawn on a brewed potion, in the colour vanilla uses
+        // The effect line vanilla would have drawn on a brewed potion, in the color vanilla uses
         // for one that helps and one that does not.
         String name = I18n.translateToLocal(effect.getName());
         lines.add(

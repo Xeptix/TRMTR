@@ -154,7 +154,7 @@ public class WailaCompat implements IWailaDataProvider {
                         + TextFormatting.DARK_GRAY
                         + "  "
                         + net.minecraft.util.text.translation.I18n
-                            .translateToLocal("trmtgtnh.light.colour." + ((glow >> 4) & 0xF)));
+                            .translateToLocal("trmtgtnh.light.color." + ((glow >> 4) & 0xF)));
             }
         }
 

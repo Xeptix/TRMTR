@@ -78,10 +78,11 @@ public final class PhysicalDecay {
      * How far the ground directly under a position has dropped, in block units.
      *
      * <p>
-     * The one number both sides settle a block's footing from. The server has the record and reads
-     * it; the client is asked through the proxy, which hands back the very figure the renderer moved
-     * the picture by. Derived from the collision depth rather than the drawn one on purpose: in
-     * visual mode the ground has not really moved, so nothing resting on it should move either.
+     * The server reads the record, and takes the collision depth: in visual mode the ground has not
+     * really moved there, so nothing resting on it moves either. The client is asked through the proxy,
+     * which hands back the very figure the renderer moved the picture by - GhostRendering.settledDrop,
+     * which on a worn whole block in visual mode is the drawn depth (Xep, 2026-10-08). The two sides
+     * then differ there by design, as they always have; see GhostLogic.collidedHeightAt.
      */
     public static double groundDropUnder(World world, int x, int y, int z) {
         if (world == null || y <= 0) return 0.0D;

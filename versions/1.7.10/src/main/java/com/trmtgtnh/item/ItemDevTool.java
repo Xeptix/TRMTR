@@ -133,8 +133,8 @@ public class ItemDevTool extends Item implements AirSwingTool {
         return false;
     }
 
-    private static void say(EntityPlayer player, EnumChatFormatting colour, String message) {
-        if (player != null) player.addChatMessage(new ChatComponentText(colour + message));
+    private static void say(EntityPlayer player, EnumChatFormatting color, String message) {
+        if (player != null) player.addChatMessage(new ChatComponentText(color + message));
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

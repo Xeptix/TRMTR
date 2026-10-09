@@ -1,6 +1,7 @@
 package com.trmtgtnh.client.texture;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -28,7 +29,7 @@ import com.trmtgtnh.surface.WearScale;
  * <p>
  * Two tiers. A small fallback tier, one set per family, built from the vanilla textures the
  * art was drawn against — always present, always correct enough. Then a per-surface tier
- * that gives individual blocks their own colour-matched wear, bounded by the room the block
+ * that gives individual blocks their own color-matched wear, bounded by the room the block
  * atlas actually has - measured at every stitch and priced by {@link AtlasPlan} - and by
  * {@code surfaces.maxTexturedSurfaces} on top of that, so a pack with a hundred kinds of dirt
  * cannot quietly blow up the atlas.
@@ -261,22 +262,27 @@ public final class WearTextures {
     private static FringeSprite[] overlaySprites = new FringeSprite[0];
 
     /**
-     * How many sprites are composed before any of them are installed.
+     * How many sprites are composed before any of them are installed - the 1.7.10 edition's number, carried.
      *
      * <p>
-     * Not a bound on the pass's peak memory, and not a tuning knob. Install keeps the composed picture as its
-     * sprite's frame, and every installed picture stays with its sprite, mipmaps and all, until the atlas uploads it
-     * after the stitch, so by the end of the pass every wear picture in the atlas is held at once whether they were
-     * installed a batch at a time or all together. A batch bounds only how far installing falls behind composing: at
-     * most four thousand-odd finished pictures wait for their install, four megabytes at sixteen pixels, and a batch
-     * is still far more work than enough to keep every thread busy. Until 0.9.212 each sprite also held the picture
-     * load had composed for it until its replacement was installed, so composing the whole atlas before installing
-     * any of it held a second full set beside the first, at eighty gradations the better part of two hundred
-     * megabytes; that is what this bound was first written against.
+     * Here it is the bound on the pixels the pass holds at once. What the pass keeps for the rest of the stitch is
+     * each picture encoded, which is what this edition's pack has always kept for every wear sprite from the atlas's
+     * first read of it to the end of the stitch ({@code GeneratedPack.answers}) - so by the time the atlas has read
+     * every size, every picture is held encoded whether the pass made them all at once or each load made its own. The
+     * pixels are not kept: a batch is composed, installed and encoded, and its pixels are let go before the next
+     * batch is composed, so at most four thousand-odd pictures are held as pixels at once, four megabytes at sixteen
+     * pixels. And a batch is still far more work than enough to keep every thread busy.
      */
     private static final int COMPOSE_BATCH = 4096;
 
-    /** What the pass has to say afterwards, gathered on the render thread only. */
+    /**
+     * What the pass has to say afterwards, gathered by the one thread running the pass and nowhere else.
+     *
+     * <p>
+     * Not the render thread, which is what this said until 0.9.220: the atlas loads its sprites on vanilla's
+     * background executor, and every one of six of those threads counted itself in here with a bare {@code ++}. Now
+     * the thread holding the pass's lock does all the counting, and the pool counts nothing.
+     */
     static final class Tally {
 
         int built; // installed
@@ -347,6 +353,46 @@ public final class WearTextures {
             }
             return counted == 0 ? -1 : (int) (sum / counted);
         }
+
+        /**
+         * One picture composed, installed and encoded, with the brightness its composed pixels came out at.
+         *
+         * <p>
+         * Every family, not only grass. The first cut of this asked about grass alone and answered 135 and 109 over
+         * twenty pictures and sixteen - correct, and about a family the drawn square turns out not to be. A worn grass
+         * square wears <em>to</em> earth, so by the last gradation its appearance is another family's and none of
+         * those were being looked at. First gradation against last for the reason this class's javadoc gives, and the
+         * darkest picture of the whole pass kept by name, because a mean over twelve thousand says nothing about the
+         * one that is actually on the ground.
+         */
+        void built(WearSprite sprite, int luma, boolean improvisedSource) {
+            built++;
+            if (luma >= 0) {
+                if (sprite.stage() == 0) {
+                    lumaFirstSum += luma;
+                    lumaFirstCount++;
+                } else if (sprite.stage() == sprite.stageCount() - 1) {
+                    lumaLastSum += luma;
+                    lumaLastCount++;
+                    if (luma < darkest) {
+                        darkest = luma;
+                        darkestName = sprite.originName() + " as " + sprite.appearance();
+                    }
+                    String family = String.valueOf(sprite.appearance());
+                    long[] row = lastByFamily.get(family);
+                    if (row == null) {
+                        row = new long[2];
+                        lastByFamily.put(family, row);
+                    }
+                    row[0] += luma;
+                    row[1]++;
+                }
+            }
+            if (improvisedSource) {
+                guessed++;
+                improvised.add(sprite.originName());
+            }
+        }
     }
 
     /**
@@ -354,12 +400,21 @@ public final class WearTextures {
      * stitch is over.
      *
      * <p>
-     * The other edition ran this pass all at once, inside an injection between the stitcher packing the atlas and the
+     * The 1.7.10 edition runs its pass all at once, inside an injection between the stitcher packing the atlas and the
      * game discarding every sprite's pixels, because its sprites loaded in the order a hash map iterates and were
-     * cleared straight after upload. 1.12.2 needs no window. A sprite names the textures it is made from, the atlas
-     * loads those first, and it keeps every sprite's pixels after upload. So each wear sprite composes itself in its
-     * own load, and this is what those loads share: the one reader, the sources harvested once per surface, and the
-     * tally the end of the stitch reports from. Serial, on the render thread, as every load is.
+     * cleared straight after upload. Here there is no such window to inject into: the atlas asks this mod's pack for
+     * each sprite's file, and the first of those asks is the earliest moment anything is wanted. So the first load of
+     * the stitch to ask for its picture runs the whole pass - {@link #composeAll}, the 1.7.10 loop - and every later load
+     * collects the picture the pass filed for it.
+     *
+     * <p>
+     * <strong>Not serial, and not on the render thread</strong>, which is what this said until 0.9.220. Vanilla's
+     * atlas reads every texture's size from its background executor, six {@code Worker-Main} threads at once here, and
+     * a stack trace taken inside the old per-load compose on 2026-10-08 showed exactly that in the Forge and the Fabric
+     * dev runs alike. Each of those loads used to harvest and count on its own with nothing between them. Everything on
+     * this object is therefore read and written only under its own monitor - {@link #pictureOf} takes it - and the one
+     * thread holding it is the only one that harvests, installs, counts or touches {@link #finished}; the pool sees the
+     * arrays and numbers {@link WearGeneration} hands it and nothing on here.
      */
     private static final class Pass {
 
@@ -369,10 +424,6 @@ public final class WearTextures {
 
         final FaceSource faces;
 
-        final Map<Block, Map<String, WearSprite.Source>> sourcesByBlock = new IdentityHashMap<Block, Map<String, WearSprite.Source>>();
-
-        final Map<String, WearSprite.Source> sourcesWithoutBlock = new HashMap<String, WearSprite.Source>();
-
         final Map<Block, Map<String, MovingLayerLedger.Pictures>> layerPictures;
 
         final Tally tally = new Tally();
@@ -380,6 +431,20 @@ public final class WearTextures {
         final long began = System.nanoTime();
 
         int loads;
+
+        /** Whether {@link #composeAll} has run for this stitch: once, on the first load to ask, whatever came of it. */
+        boolean composed;
+
+        /**
+         * Every picture the pass made, encoded, by the sprite it is for, until the stitch is over.
+         *
+         * <p>
+         * Kept, not handed over and forgotten, so a second ask for one sprite within the stitch gets the same answer
+         * rather than the placeholder. It costs a map entry a sprite: the bytes are the same array the pack keeps for
+         * the rest of the stitch, so this holds no picture the pack would not have held by the end of the atlas's
+         * first read anyway. Let go with the pass.
+         */
+        final Map<WearSprite, GeneratedPack.Sheet> finished = new IdentityHashMap<WearSprite, GeneratedPack.Sheet>();
 
         Pass(ResourceManager manager, int mipmapLevels,
             Map<Block, Map<String, MovingLayerLedger.Pictures>> layerPictures) {
@@ -390,8 +455,11 @@ public final class WearTextures {
         }
     }
 
-    /** The pass for the stitch in progress, or null between stitches. Render thread only. */
-    private static Pass pass;
+    /**
+     * The pass for the stitch in progress, or null between stitches. Set on the reload thread as registration ends,
+     * read from the atlas's loading threads and cleared on the render thread as the stitch finishes, hence volatile.
+     */
+    private static volatile Pass pass;
 
     /**
      * Readies this stitch's pass, as registration ends and before a single wear sprite loads.
@@ -416,121 +484,124 @@ public final class WearTextures {
     }
 
     /**
-     * Composes one wear sprite's picture, from inside its own load.
+     * One wear sprite's finished picture, from inside its own load: composed by the pass, which the first load of the
+     * stitch to ask runs for every sprite at once.
      *
      * <p>
-     * The surface's sources are harvested on the first of its sprites to load and kept for the rest, filed under the
-     * block object and then the rest of the key rather than one string that spelt the block as its id: two objects are
-     * never one key. A sprite whose source cannot be read, or whose picture cannot be composed, is left with the
-     * placeholder its caller gives it and marked unusable, and every lookup falls past it.
+     * Every load takes the pass's lock, so a load that arrives while the pass is running waits for it and then finds its
+     * picture filed. The first load holds that lock for the whole pass, which is the point rather than a cost: the
+     * atlas's other loading threads have nothing of this mod's to do until the pictures exist, and the pool composing
+     * them has a thread for every core but one, up to eight, and nothing else to do.
      *
-     * @return the picture, at the sprite's planned edge, or null where there is none to install
+     * @return the picture, encoded, at the sprite's planned edge; or null where there is none, and the load hands the
+     *         atlas its placeholder
      */
-    static int[] composeOne(WearSprite sprite) {
+    static GeneratedPack.Sheet pictureOf(WearSprite sprite) {
         Pass current = pass;
         if (current == null) return null;
-        current.loads++;
-
-        Block origin = sprite.origin();
-        Map<String, WearSprite.Source> sources;
-        if (origin == null) {
-            sources = current.sourcesWithoutBlock;
-        } else {
-            sources = current.sourcesByBlock.get(origin);
-            if (sources == null) {
-                sources = new HashMap<String, WearSprite.Source>();
-                current.sourcesByBlock.put(origin, sources);
-            }
-        }
-        String key = sprite.sourceKey();
-        WearSprite.Source source = sources.get(key);
-        if (source == null) {
-            // Held open round the harvest, so the one call in it that asks the budget prices every picture of the
-            // surface at once. No harvest runs anywhere else.
-            InnerLayers.openAsk(picturesOf(current.layerPictures, origin, key), current.mipmapLevels);
-            try {
-                source = sprite.harvest(current.faces, current.manager);
-            } catch (Throwable awkwardBlock) {
-                // One block refusing to hand over its texture is not worth the rest of the atlas, and it is third-party
-                // code either way.
-                Trmt.LOG.debug("Could not read the source of wear texture {}", sprite.name(), awkwardBlock);
-                source = WearSprite.Source.unreadable();
-            } finally {
-                InnerLayers.closeAsk();
-            }
-            sources.put(key, source);
-            current.tally.surfaces++;
-            if (source.scaled) {
-                current.tally.scaled++;
-                current.tally.scaledNames.add(sprite.originName());
-            }
-        }
-        if (source.isUnreadable()) {
-            current.tally.unreadable++;
-            return null;
-        }
-
-        int[] pixels;
-        try {
-            pixels = sprite.compose(source);
-        } catch (RuntimeException failed) {
-            Trmt.LOG.debug("Could not compose wear texture {}", sprite.name(), failed);
-            pixels = null;
-        }
-        if (pixels == null) {
-            current.tally.failed++;
-            return null;
-        }
-        if (pixels.length != sprite.plannedEdge() * sprite.plannedEdge()) {
-            current.tally.resized++;
-            current.tally.resizedNames.add(sprite.originName());
-        }
-        current.tally.built++;
-        // Every family, not only grass. The first cut of this asked about grass alone and answered
-        // 135 and 109 over twenty pictures and sixteen - correct, and about a family the drawn
-        // square turns out not to be. A worn grass square wears *to* earth, so by the last gradation
-        // its appearance is another family's and none of those were being looked at.
-        //
-        // First gradation against last for the reason Tally's javadoc gives, and the darkest picture
-        // of the whole pass kept by name, because a mean over twelve thousand says nothing about the
-        // one that is actually on the ground.
-        int luma = Tally.luma(pixels);
-        if (luma >= 0) {
-            if (sprite.stage() == 0) {
-                current.tally.lumaFirstSum += luma;
-                current.tally.lumaFirstCount++;
-            } else if (sprite.stage() == sprite.stageCount() - 1) {
-                current.tally.lumaLastSum += luma;
-                current.tally.lumaLastCount++;
-                if (luma < current.tally.darkest) {
-                    current.tally.darkest = luma;
-                    current.tally.darkestName = sprite.originName() + " as " + sprite.appearance();
+        synchronized (current) {
+            current.loads++;
+            if (!current.composed) {
+                // Set first, so a pass that throws part way is not run again by the next load and the next.
+                current.composed = true;
+                try {
+                    composeAll(current);
+                } catch (RuntimeException stoppedPartWay) {
+                    // Whatever was filed stands; every sprite the pass did not reach keeps its placeholder and stays
+                    // unusable, so the lookup falls past it. Said once, here, rather than left to end the atlas's load.
+                    Trmt.LOG.error("The wear texture pass stopped part way; the pictures it had not reached are left out",
+                        stoppedPartWay);
                 }
-                String family = String.valueOf(sprite.appearance());
-                long[] row = current.tally.lastByFamily.get(family);
-                if (row == null) {
-                    row = new long[2];
-                    current.tally.lastByFamily.put(family, row);
-                }
-                row[0] += luma;
-                row[1]++;
             }
+            return current.finished.get(sprite);
         }
-        if (source.improvised) {
-            current.tally.guessed++;
-            current.tally.improvised.add(sprite.originName());
-        }
-        return pixels;
     }
 
-    /** The source a sprite's picture was composed from, for its install, which adopts a moving layer from it. */
-    static WearSprite.Source sourceOf(WearSprite sprite) {
-        Pass current = pass;
-        if (current == null) return null;
-        Block origin = sprite.origin();
-        Map<String, WearSprite.Source> sources = origin == null ? current.sourcesWithoutBlock
-            : current.sourcesByBlock.get(origin);
-        return sources == null ? null : sources.get(sprite.sourceKey());
+    /**
+     * Composes every wear sprite registered this stitch, once, across threads, and files each finished picture.
+     *
+     * <p>
+     * The 1.7.10 edition's sprite pass, run on the thread holding the pass's lock. Three phases, and the split between
+     * them is the whole of what makes threading safe here rather than merely faster. Everything that touches a resource
+     * manager, a block's own code, the moving-layer budget or the maps of sources is done first, on this thread, and
+     * once per surface rather than once per sprite - fewer than two hundred reads serving twenty-odd thousand sprites,
+     * which is what keeps the serial half flat as the gradation count rises. What crosses to a worker is arrays and
+     * numbers, and the only code a worker runs is pixel arithmetic that allocates its own output and the PNG encoding
+     * of a finished picture. Everything that writes a sprite or counts anything comes back here afterwards. See
+     * {@link WearGeneration} for the rule and for why each piece sits where it does.
+     *
+     * <p>
+     * The surface's sources are filed under the block object and then the rest of the key rather than one string that
+     * spelt the block as its id: two objects are never one key. Held only for this method, as the 1.7.10 edition holds
+     * them, and let go when it returns.
+     */
+    private static void composeAll(Pass current) {
+        Tally tally = current.tally;
+        Map<Block, Map<String, WearSprite.Source>> sourcesByBlock = new IdentityHashMap<Block, Map<String, WearSprite.Source>>();
+        Map<String, WearSprite.Source> sourcesWithoutBlock = new HashMap<String, WearSprite.Source>();
+        List<WearSprite> pending = new ArrayList<WearSprite>(COMPOSE_BATCH);
+        List<WearSprite.Source> ingredients = new ArrayList<WearSprite.Source>(COMPOSE_BATCH);
+
+        java.util.concurrent.ExecutorService pool = WearGeneration.newPool();
+        try {
+            for (WearSprite sprite : REGISTERED) {
+                // A sprite with no edge, or one too large for a picture to hold, is never composed: its load hands the
+                // atlas the placeholder and it stays unusable.
+                if (!sprite.composable()) continue;
+
+                // Phase one, on this thread: the resource manager, the block's own faces and models, and the moving
+                // layer's budget. Shared by every gradation and rotation of the same surface, which is what makes
+                // reading cheap.
+                Block origin = sprite.origin();
+                Map<String, WearSprite.Source> sources;
+                if (origin == null) {
+                    sources = sourcesWithoutBlock;
+                } else {
+                    sources = sourcesByBlock.get(origin);
+                    if (sources == null) {
+                        sources = new HashMap<String, WearSprite.Source>();
+                        sourcesByBlock.put(origin, sources);
+                    }
+                }
+                String key = sprite.sourceKey();
+                WearSprite.Source source = sources.get(key);
+                if (source == null) {
+                    // Held open round the harvest, so the one call in it that asks the budget prices every picture of
+                    // the surface at once. No harvest runs anywhere else.
+                    InnerLayers.openAsk(picturesOf(current.layerPictures, origin, key), current.mipmapLevels);
+                    try {
+                        source = sprite.harvest(current.faces, current.manager);
+                    } catch (Throwable awkwardBlock) {
+                        // One block refusing to hand over its texture is not worth the rest of the atlas, and it is
+                        // third-party code either way.
+                        Trmt.LOG.debug("Could not read the source of wear texture {}", sprite.name(), awkwardBlock);
+                        source = WearSprite.Source.unreadable();
+                    } finally {
+                        InnerLayers.closeAsk();
+                    }
+                    sources.put(key, source);
+                    tally.surfaces++;
+                    if (source.scaled) {
+                        tally.scaled++;
+                        tally.scaledNames.add(sprite.originName());
+                    }
+                }
+                if (source.isUnreadable()) {
+                    sprite.markUnusable();
+                    tally.unreadable++;
+                    continue;
+                }
+
+                pending.add(sprite);
+                ingredients.add(source);
+                if (pending.size() >= COMPOSE_BATCH) {
+                    WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished);
+                }
+            }
+            WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished);
+        } finally {
+            WearGeneration.shutDown(pool);
+        }
     }
 
     /**
@@ -540,14 +611,25 @@ public final class WearTextures {
      * Written at the end rather than as each picture is made, so a stitch writes its few lines in one place and they
      * read the same as the other edition's; timed from the stitch event to here, which is the whole of what composing
      * cost, spread across the atlas's own loading.
+     *
+     * <p>
+     * Read under the pass's lock, so what the thread that ran the pass counted is what this reports, however a loader
+     * orders the end of the stitch against the threads that loaded it.
      */
-
-
     private static void finishPass() {
         Pass current = pass;
         pass = null;
         if (current == null) return;
+        synchronized (current) {
+            report(current);
+        }
+    }
+
+    /** The lines {@link #finishPass} writes, from the pass it was handed. */
+    private static void report(Pass current) {
         try {
+            // Every state sharing a see-through set is a window first, not only the one its pixels were read from.
+            InnerLayers.spreadWindows(lookup.sets);
             InnerLayers.publishWindows();
         } finally {
             Tally tally = current.tally;
@@ -802,44 +884,13 @@ public final class WearTextures {
     /** The other end of the same pair, as that stitch finishes. */
     public static void endStitch(TextureAtlas atlas) {
         resolve(atlas);
+        // Whatever the pack still holds for this stitch is let go now; see GeneratedPack.answers.
+        GeneratedPack.forgetAll();
         finishPass();
-        lastPlan = null;
-        WearPatterns.clearHeaderWidths();
+        // Says what did not run, and clears every figure this stitch measured, the plan with them - so a later
+        // stitch is judged and planned on its own. Until 0.9.220 nothing called it here.
+        reportStitchHooks();
     }
-
-    /**
-     * The measure the other edition took by injection, taken here from the texture names 1.12.2's model loader has
-     * already gathered.
-     *
-     * <p>
-     * The stitch event fires before the models' textures are registered in the atlas - {@code TextureAtlas.loadSprites}
-     * fires it and only then registers them - but the loader collected every one of those names before it began,
-     * and Forge hands them out. Priced from each file's header, exactly as the other edition priced the atlas's own
-     * list. What is not in it: a texture another mod registers from its own handler of this event, which room the plan
-     * left unused absorbs first, as the other edition's comment on this says.
-     */
-    private static void measureFromModels(ResourceManager manager, int mipmapLevels) {
-        // Not taken on this version, and the fallback for it is the one this file already had.
-        //
-        // Both older editions read the list of texture names the model loader gathered - the 1.7.10 edition by
-        // injection, the 1.12.2 edition through a package-private method on Forge's ModelLoaderRegistry - and price
-        // the atlas's remaining room from it. Neither loader hands that list out here: Forge's stitch event offers
-        // the atlas and a way to add to it, Fabric's offers a registry, and neither says what is already in it.
-        //
-        // So nothing is measured, and the plan takes the branch it already takes when the measurement cannot be
-        // read: it assumes the pack took half the atlas, and says so where it says the rest of its figures. That is
-        // a carried behaviour rather than a new one, which is the only reason this is acceptable - a plan that
-        // silently assumed it had the whole atlas would overfill it.
-        if (!measurementSaid) {
-            measurementSaid = true;
-            Trmt.LOG.info(
-                "No loader on this version hands out the list of textures a stitch is about to take, so the wear "
-                    + "textures are planned without measuring the atlas. Half of it is assumed taken. This is said "
-                    + "once.");
-        }
-    }
-
-    private static volatile boolean measurementSaid;
 
     /**
      * Every picture that could take a moving layer, by its block and the key the sprite pass files its sources under.
@@ -956,21 +1007,21 @@ public final class WearTextures {
     // Whether the hooks that build all of this actually ran
     // ------------------------------------------------------------------
 
-    /** Whether the injection that measures the atlas reached this class during the current stitch. */
-    private static boolean roomHookRan;
+    // Volatile, all of them: a stitch is planned, measured and counted on a worker thread of the resource reload,
+    // and reported on at its end on the render thread.
 
-    /** Whether the injection that builds every worn picture reached it. */
-    private static boolean buildHookRan;
+    /** Whether the injection that measures the atlas reached this class during the current stitch. */
+    private static volatile boolean roomHookRan;
 
     /** Whether the injection that counts what went to the stitcher reached this class during the current stitch. */
-    private static boolean stitchCounted;
+    private static volatile boolean stitchCounted;
 
     /**
      * Whether the line saying what went to the stitcher was written this stitch, which the count alone does not
      * promise: Forge's skipped first stitch at start-up is counted, finds none of this mod's sprites loaded, and
      * writes nothing, so the end of that stitch must not point at a line above it.
      */
-    private static boolean stitchReported;
+    private static volatile boolean stitchReported;
 
     /** What this mod registered this stitch: its wear sprites and its grass-side fringes. */
     private static int registeredThisStitch;
@@ -979,34 +1030,93 @@ public final class WearTextures {
     private static int fringesRegistered;
 
     /** The plan this stitch was built to, kept until the stitch reports on itself. */
-    private static AtlasPlan lastPlan;
+    private static volatile AtlasPlan lastPlan;
 
     /**
-     * The other edition's report on its three injections, which this edition does not have. What stands in for the one
-     * that mattered - that a stitch composed nothing - is said by {@link #finishPass}.
+     * Says so, loudly, when the injections this stitch depends on did not run, and clears every figure the stitch
+     * kept - the 1.7.10 edition's WearTextures.reportStitchHooks, as far as this edition has those injections.
+     *
+     * <p>
+     * That edition checks three. Two are injections here too and are checked the same way: the measure (each loader's
+     * MixinTextureAtlas, before anything is planned) and the count (the same mixins, as the atlas goes to the
+     * stitcher). The third, the injection that builds every worn picture, has no counterpart: this edition's pictures
+     * are drawn by the pack the atlas asks for its files, and what stands in for that check - a stitch that composed
+     * nothing - is said by {@link #finishPass}. Every injection carries {@code require = 0}, as that edition's do, and
+     * an optional injection that fails to bind writes nothing anywhere, so this is where its absence becomes audible.
+     *
+     * <p>
+     * Said from the end of the stitch, which each loader reaches by an event or a reload's own tail rather than by
+     * anything that can go missing the same way. Every figure is cleared as it is read, so a later stitch - a resource
+     * reload, a pack change - is judged and planned on its own rather than on the first one's.
      */
     public static void reportStitchHooks() {
+        reportStitchSearch(stitchReported || !stitchCounted && lastPlan != null);
+        if (!roomHookRan) {
+            // The pointer at the stitcher's line is given only where that line was written.
+            if (lastPlan == null) {
+                Trmt.LOG.warn(LINE_J_NO_PLAN);
+            } else if (stitchReported) {
+                Trmt.LOG.warn(LINE_J + LINE_J_REPORTED, Integer.valueOf(lastPlan.side));
+            } else if (stitchCounted) {
+                Trmt.LOG.warn(LINE_J + LINE_J_LOADED_NOTHING, Integer.valueOf(lastPlan.side));
+            } else {
+                Trmt.LOG.warn(LINE_J + ".", Integer.valueOf(lastPlan.side));
+            }
+        }
+        if (lastPlan != null && !stitchCounted) Trmt.LOG.warn(LINE_I);
         roomHookRan = false;
-        buildHookRan = false;
         stitchCounted = false;
         stitchReported = false;
+        packDemand = 0;
+        packRead = 0;
+        packReadCells = 0L;
+        packReadMillis = 0L;
+        glMaximum = 0;
+        packAnisotropic = false;
+        stitcherLevels = -1;
+        WearPatterns.clearHeaderWidths();
+        lastPlan = null;
     }
 
-    private static final String LINE_I = "The injection that counts what went to the stitcher never ran, although the one that builds the wear textures did, so this stitch cannot say what went to the stitcher against what the plan priced. Both wait for the same call to Stitcher.doStitch in the same mixin, so this should not happen, and an optional injection writes nothing to this log when it does not run, so no earlier line will say why.";
+    /**
+     * Says what the stitcher took over the block atlas and what its shortcut spared it (AtlasPlan.Search), for a
+     * stitch that carried this mod's sprites: one the count reported on, or one the count never reached that planned
+     * them, since OptiFine on 1.12.2 replaces the method the count waits in and the stitcher's own figures are then the
+     * only ones there are. Read either way, so a stitch that carried none - a stitch of
+     * another atlas only - does not leave its figures for the next report.
+     */
+    private static void reportStitchSearch(boolean carriedOurs) {
+        long[] report = AtlasPlan.Search.take();
+        if (!carriedOurs || report[0] == 0L) return;
+        if (report[2] == 0L && report[0] >= SEARCH_HEARD_FROM) {
+            Trmt.LOG.warn(LINE_SEARCH_UNSPARED, Long.valueOf(report[0]), Long.valueOf(report[1]));
+        } else {
+            Trmt.LOG.info(LINE_SEARCH, Long.valueOf(report[0]), Long.valueOf(report[1]), Long.valueOf(report[2]));
+        }
+    }
+
+    /** Sprites past which a stitch that turned no search back can only mean the shortcut never bound. */
+    private static final int SEARCH_HEARD_FROM = 1000;
+
+    private static final String LINE_SEARCH = "The stitcher placed the block atlas's {} sprites in {} ms, and turned back {} searches at slots it already knew were too full for the sprite in hand. Each sprite is where vanilla's own search would put it, which walks each of those slots to the bottom for every sprite and with sprites of mixed sizes took minutes - short of a sprite vanilla's would lay over others, which this puts somewhere free.";
+
+    private static final String LINE_SEARCH_UNSPARED = "The stitcher placed the block atlas's {} sprites in {} ms without turning back a single search, so this mod's shortcut through its slot search never ran: another mod has replaced Stitcher.Region.add, or this mod's mixins did not apply - look earlier in this log for a mixin config that failed to load. Nothing is wrong with the atlas. With many sprites of mixed sizes it is only slow, because vanilla's search walks every filled slot for every sprite.";
+
+    private static final String LINE_I = "The injection that counts what went to the stitcher never ran, so this stitch cannot say what went to the stitcher against what the plan priced. It waits for the atlas's call to Stitcher.stitch inside TextureAtlas.prepareToStitch, and an optional injection writes nothing to this log when it does not run: a mixin config that failed to load, earlier in this log, or something that has rewritten that method - OptiFine patches it - would explain it.";
 
     /** Line J, one placeholder, ended by exactly one of the three tails below or a full stop. */
     private static final String LINE_J = "The injection that measures the atlas never ran, so the wear textures were planned as though the rest of the pack had taken half of a {}-pixel square, rather than from what it had actually taken. The ramp may be coarser than it needed to be, or, on a pack that fills more than half, the atlas may not fit; the line from planning above gives the figures";
 
     private static final String LINE_J_REPORTED = ", and the line written as the atlas went to the stitcher says what the pack really took.";
 
-    private static final String LINE_J_LOADED_NOTHING = ". None of this mod's sprites had been loaded when the atlas went to the stitcher, which is what Forge's skipped first stitch at start-up does, loading nothing, so there was nothing to hold to the plan and no line says what went to the stitcher; the next stitch plans again, and its own lines say what the pack really took.";
+    private static final String LINE_J_LOADED_NOTHING = ". None of this mod's sprites went to the stitcher, although they were planned, so there was nothing to hold to the plan and no line says what went to the stitcher: the atlas found no file for any of them, which means the pack that answers for them was not among the resources this stitch read.";
 
     /**
      * Line J where no plan reached the end of the stitch. The plan is kept in the last lines of the Pre handler, and
      * an exception out of that handler ends the stitch before this event, so a missing plan here means the handler
      * never ran, or stopped part way inside a TextureAtlas that swallowed the exception.
      */
-    private static final String LINE_J_NO_PLAN = "The injection that measures the atlas never ran, and no plan for the wear textures reached the end of this stitch: this mod's handler for TextureStitchEvent.Pre either never ran or stopped before it finished, so nothing this mod registers can be counted on from this stitch, and ground may show no wear however far it is walked. Most likely something has rewritten net.minecraft.client.renderer.texture.TextureAtlas.loadTextureAtlas so that it no longer fires that event through ForgeHooksClient.onTextureStitchedPre, although it still stitches and fires the event that follows; an error earlier in this log would mean planning stopped part way instead.";
+    private static final String LINE_J_NO_PLAN = "The injection that measures the atlas never ran, and no plan for the wear textures reached the end of this stitch: this mod's planning, which runs as the block atlas begins to stitch, either never ran or stopped before it finished, so nothing this mod registers can be counted on from this stitch, and ground may show no wear however far it is walked. Most likely something has rewritten net.minecraft.client.renderer.texture.TextureAtlas.prepareToStitch so that this mod's hooks into it never ran, although it still stitches and reloads; an error earlier in this log would mean planning stopped part way instead.";
 
     /** One picture per gradation a record can hold. Below this, consecutive gradations share again. */
     private static final int MIN_GRADATIONS = SurfaceFamily.MAX_STAGES;
@@ -1093,44 +1203,69 @@ public final class WearTextures {
     }
 
     /**
-     * Reported by {@code MixinTextureMap} as the atlas goes to the stitcher: every sprite it holds by
-     * then, which is what the plan's prices can be held to.
+     * Measures the block atlas before anything is planned - the 1.7.10 edition's MixinTextureMap.trmt$noteAtlasRoom.
      *
      * <p>
-     * Counted at the mipmap levels the stitcher was built with, which the measure noted. The atlas's
-     * own field may have dropped below those since, when a texture narrower than the mipmap stride
-     * loaded, and is used only when nothing measured it, which the line then says. Forge's skipped first
-     * stitch at start-up loads nothing, so every sprite of this mod's still has no size and that stitch
-     * writes no line here; the lines written while planning point here only for a stitch that loads its
-     * textures, and the end of an unmeasured stitch says when none was written. A sprite vanilla refused
-     * this stitch can keep the size it was given before it was refused and is counted anyway, which errs
-     * high; missingno is added, at the size vanilla gives it.
+     * Called by each loader's mixin with every texture name the atlas has gathered from the models, before this
+     * mod's planner runs: Forge's as the set is handed to the stitch event, Fabric's as prepareToStitch begins and
+     * before this mod names its own. Until 0.9.220 this edition said no loader hands that list out, and planned every
+     * stitch as though the pack had taken half the atlas; the list was there all along, in the method both loaders
+     * already hooked. Priced from each file's header, as there; the largest texture is the game's own figure; no
+     * anisotropic border, which went at 1.12; and the mipmap levels the atlas is being built at, which the stitcher
+     * takes from the same option.
      */
-    public static void noteStitched(Map<?, ?> registered, int mipmapLevels) {
+    public static void measureAtlas(Collection<ResourceLocation> names) {
+        Map<String, Boolean> registered = new java.util.LinkedHashMap<String, Boolean>();
+        for (ResourceLocation name : names) {
+            if (name != null) registered.put(name.toString(), Boolean.TRUE);
+        }
+        Minecraft game = Minecraft.getInstance();
+        noteAtlasRoom(
+            game.getResourceManager(),
+            registered,
+            com.mojang.blaze3d.systems.RenderSystem.maxSupportedTextureSize(),
+            false,
+            game.options.mipmapLevels);
+    }
+
+    /** What every sprite this mod plans is named under (spriteNamed), and nothing else of its own is. */
+    private static final String OWN_PREFIX = GeneratedPack.FOLDER.substring("textures/".length()) + "/";
+
+    /**
+     * Reported by each loader's mixin as the block atlas goes to the stitcher: every sprite description the atlas
+     * handed it, missingno among them, which is what the plan's prices can be held to - the 1.7.10 edition's
+     * MixinTextureMap.trmt$countStitchedSprites.
+     *
+     * <p>
+     * That edition counts finished sprites at this moment. On this version nothing is a sprite until after the
+     * stitch, and a description carries the same three things - its name, and the size the stitcher rounds - so it is
+     * counted instead. Ours by path rather than by namespace: every sprite this mod plans is under block/wear, and
+     * its other textures - its blocks' and items' own - are the pack's like anyone's, which is where that edition
+     * counts them too. Counted at the mipmap levels the stitcher itself was built with, which the loader hands over
+     * from the call that built it, so the line always says the levels the stitcher rounds at. Said before the stitch,
+     * as there, so that a stitch which then fails to fit still leaves its figures in the log.
+     */
+    public static void noteStitched(Collection<TextureAtlasSprite.Info> infos, int mipmapLevels) {
         stitchCounted = true;
         AtlasPlan plan = lastPlan;
         if (plan == null) return;
-        boolean stitcherLevelsKnown = roomHookRan && stitcherLevels >= 0;
-        AtlasPlan.Stitched stitched = new AtlasPlan.Stitched(stitcherLevelsKnown ? stitcherLevels : mipmapLevels);
-        for (Object value : registered.values()) {
-            if (!(value instanceof TextureAtlasSprite)) continue;
-            TextureAtlasSprite sprite = (TextureAtlasSprite) value;
-            // Ours by namespace rather than by class. Both older editions can ask whether a sprite is one
-            // of this mod's by testing its type, because there this mod's sprites *are* sprites; here they are
-            // files in this mod's namespace and the atlas's entry for one is an ordinary sprite like any other.
+        AtlasPlan.Stitched stitched = new AtlasPlan.Stitched(mipmapLevels);
+        for (TextureAtlasSprite.Info info : infos) {
+            if (info == null) continue;
+            ResourceLocation name = info.name();
             stitched.add(
-                Trmt.MODID.equals(
-                    sprite.getName()
-                        .getNamespace()),
-                sprite.getWidth(),
-                sprite.getHeight());
+                Trmt.MODID.equals(name.getNamespace()) && name.getPath()
+                    .startsWith(OWN_PREFIX),
+                info.width(),
+                info.height());
         }
         if (stitched.ownSprites() == 0) return;
-        int missing = WearPatterns.ART_SIZE + (plan.measure.anisotropic ? AtlasPlan.ANISOTROPIC_GROWTH : 0);
-        stitched.add(false, missing, missing);
-        int late = plan.measure.taken ? Math.max(0, registered.size() - plan.measure.packSprites - registeredThisStitch)
+        // missingno is among the descriptions - the atlas hands it to the stitcher like any other - so it is not
+        // added again, and it is not one of the pack's own textures either.
+        int late = plan.measure.taken
+            ? Math.max(0, infos.size() - 1 - plan.measure.packSprites - registeredThisStitch)
             : 0;
-        reportStitched(plan, stitched, late, stitcherLevelsKnown);
+        reportStitched(plan, stitched, late, true);
     }
 
     /**
@@ -1297,6 +1432,9 @@ public final class WearTextures {
         // which case whatever they hold is an earlier stitch's.
         WearPatterns.clearCaches();
         if (!roomHookRan) WearPatterns.clearHeaderWidths();
+        // This stitch's layers behind blocks, before the sets are planned: a set is keyed on the layer as well
+        // as the face and the family. See planSurfaceSets.
+        InnerLayers.readTable();
 
         ResourceManager manager = Minecraft.getInstance()
             .getResourceManager();
@@ -1312,9 +1450,10 @@ public final class WearTextures {
         // Before anything is priced or planned, since both ask which texture each surface draws on its
         // top, and in this edition the answer is read out of the surface's model. See ModelFaces.
         ModelFaces.survey(SurfaceRegistry.texturableStates());
-        // And the measure, taken here rather than by an injection: 1.12.2 names every texture the models
-        // will register before this event fires, even though it registers them only after.
-        measureFromModels(manager, 0);
+        // The measure was taken a moment ago by each loader's injection, before this planner ran, from every texture
+        // the atlas had gathered (measureAtlas): Forge's as the set is handed to the stitch event, Fabric's as
+        // prepareToStitch begins. Where neither ran, the plan assumes half the atlas taken, and the end of the stitch
+        // says the injection never ran.
         AtlasPlan.Measure measure = measureThisStitch();
         int edge = wearEdge(manager);
         FacePricing pricing = new FacePricing(manager, edge);
@@ -1733,7 +1872,7 @@ public final class WearTextures {
     /**
      * Line C: the room drew a coarser ramp than was asked for, and which settings would move it. With
      * client.perSurfaceTextures off no face is priced or kept, so the line says the fallbacks alone set the
-     * ramp rather than that faces still wear their own colours, which line A of the same stitch denies.
+     * ramp rather than that faces still wear their own colors, which line A of the same stitch denies.
      */
     private static void warnRampCoarsened(AtlasPlan plan, boolean perSurface) {
         StringBuilder text = new StringBuilder(
@@ -1746,7 +1885,7 @@ public final class WearTextures {
             " - take {} slots a gradation at {} rotations, and with the side walls would want {} of the {} slots left in the block atlas at the gradations asked for. ");
         text.append(
             perSurface
-                ? "Every face the ceilings admit still wears in its own colours; the ramp between its gradations is coarser."
+                ? "Every face the ceilings admit still wears in its own colors; the ramp between its gradations is coarser."
                 : "No face wears its own pixels, because client.perSurfaceTextures is off; it is the family fallbacks, the grass fringe and the side walls alone that the room could not hold at the gradations asked for, so only the ramp between their gradations is coarser.");
         List<Object> args = new ArrayList<Object>();
         args.add(Integer.valueOf(plan.gradations));
@@ -2087,6 +2226,13 @@ public final class WearTextures {
         //
         // Keyed on the family as well as the face, because the family decides which appearances a
         // set holds. Two blocks that look alike and erode differently must not share.
+        //
+        // And on the layer innerLayerTextures names behind the block, because that is painted into
+        // every picture of the set: the same face with lava behind it and with water behind it are two
+        // different sets of pictures. Chisel for 1.12.2 cuts its lavastone and waterstone from one set
+        // of carvings, and keyed on the face alone every waterstone there shared its lavastone's set -
+        // lava in its holes, and no window filed. Found on 1.12.2 on 2026-10-08 and carried to every
+        // edition to keep the rule one rule.
         Map<String, Integer> byFace = new HashMap<String, Integer>();
 
         for (SurfaceRegistry.SurfaceState state : surfaces) {
@@ -2133,7 +2279,8 @@ public final class WearTextures {
                     String raw = FaceSource.iconName(state.block, 1);
                     if (raw == null) continue;
 
-                    String face = family.ordinal() + " " + raw;
+                    String behind = InnerLayers.textureFor(state.block, meta);
+                    String face = family.ordinal() + " " + raw + (behind == null ? "" : " behind " + behind);
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);
@@ -2741,7 +2888,7 @@ public final class WearTextures {
      *
      * <p>
      * A sprite whose source could not be read, or that was never composed, carries placeholder
-     * pixels so the atlas has something to stitch. Drawing those would put a flat colour on the
+     * pixels so the atlas has something to stitch. Drawing those would put a flat color on the
      * ground; skipping them lets a block's own wear fall through to its family's, a grass wall to
      * the fallback wall and a mended side to the block's own plain side, while a family fallback
      * that cannot draw leaves nothing, which the end of the stitch names. That is the honest answer

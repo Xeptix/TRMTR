@@ -16,7 +16,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * {@link FamilySettings} objects they had been stamped onto, and {@code TrmtConfig.read} does not
  * edit those objects, it replaces the map wholesale from the file. So any config read while
  * connected quietly handed the whole lot back: a player who opened the settings screen on a server,
- * changed a colour and pressed Done was returned to their own geometry, and nothing said so.
+ * changed a color and pressed Done was returned to their own geometry, and nothing said so.
  *
  * <p>
  * Which mattered, because the two halves then disagree about where the floor is. Depth itself is on

@@ -60,11 +60,11 @@ public final class TrmtFabricClient implements ClientModInitializer {
         // asked about every variant the game loads - see GhostModelProvider for what it answers.
         ModelLoadingRegistry.INSTANCE.registerVariantProvider(manager -> new GhostModelProvider());
 
-        // Which pass the ghost draws in, and what colour it is at a place. Both are things a block
+        // Which pass the ghost draws in, and what color it is at a place. Both are things a block
         // tells the client rather than the game, both are one line per loader, and neither was said
         // on this edition: the ghost drew in the solid pass, where a cut-out texture's holes are
         // filled in, and asked for tints nothing answered. Worn grass came out as grey slabs for
-        // both reasons at once. See BlockGhost for the pass and GhostTint for the colour; the Forge
+        // both reasons at once. See BlockGhost for the pass and GhostTint for the color; the Forge
         // module says the same two things in ForgeClientSetup.
         net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap.INSTANCE
             .putBlock(com.trmtgtnh.block.ModBlocks.ghost(), net.minecraft.client.renderer.RenderType.cutoutMipped());
@@ -82,7 +82,7 @@ public final class TrmtFabricClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.rendereregistry.v1.EntityRendererRegistry.INSTANCE.register(
             com.trmtgtnh.entity.ModEntities.golemType(),
             (dispatcher, context) -> new com.trmtgtnh.client.render.RenderGolemOfWays(dispatcher));
-        // The game's own item colour handlers, which the wear editor's previews are tinted with.
+        // The game's own item color handlers, which the wear editor's previews are tinted with.
         // Private at this version with no accessor; Forge patches one back on and this side opens
         // the field with a line of access widener. See ItemTints.
         com.trmtgtnh.client.gui.ItemTints.use(net.minecraft.client.Minecraft.getInstance().itemColors);

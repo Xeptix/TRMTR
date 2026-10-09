@@ -46,6 +46,16 @@ public final class ForgeClientSetup {
         // behind it rather than through it.
         net.minecraft.client.renderer.ItemBlockRenderTypes
             .setRenderLayer(com.trmtgtnh.block.ModBlocks.ghost(), com.trmtgtnh.client.GhostLayers::claims);
+        // And how a covered block's own pass is found, which on Forge is its predicate rather than the chunk table
+        // vanilla keeps: a modded block registers through setRenderLayer, which that table never sees, so asking the
+        // table answered solid for every one of them (0.9.220). The first pass the block draws in, in the game's own
+        // order - solid, cut-out mipped, cut-out, translucent.
+        com.trmtgtnh.client.GhostLayers.lookUpPassesWith(state -> {
+            for (net.minecraft.client.renderer.RenderType pass : net.minecraft.client.renderer.RenderType.chunkBufferLayers()) {
+                if (net.minecraft.client.renderer.ItemBlockRenderTypes.canRenderInLayer(state, pass)) return pass;
+            }
+            return null;
+        });
 
         // What draws a Golem of Ways. Both older editions need a factory class for this - 1.12.2
         // because the render manager is built after the proxy runs, 1.7.10 because it registers the
@@ -67,7 +77,7 @@ public final class ForgeClientSetup {
         // to the question.
         tamperGrades();
 
-        // The game's own item colour handlers, which the wear editor's previews are tinted with.
+        // The game's own item color handlers, which the wear editor's previews are tinted with.
         // Private at this version with no accessor; Forge patches one back on, and Fabric's copy of
         // this line reads the field through a line of access widener. See ItemTints.
         com.trmtgtnh.client.gui.ItemTints.use(
@@ -78,17 +88,17 @@ public final class ForgeClientSetup {
     }
 
     /**
-     * What colour a ghost is at a place.
+     * What color a ghost is at a place.
      *
      * <p>
-     * Its own event rather than a line in {@link #client}: the block colours are built after setup
+     * Its own event rather than a line in {@link #client}: the block colors are built after setup
      * and Forge hands them over here, which is the only moment there is a registry to put this in.
      * The rule itself is {@code GhostTint}'s and is shared - Fabric registers the same object with
-     * its own registry - because what colour worn grass is has nothing to do with which loader is
+     * its own registry - because what color worn grass is has nothing to do with which loader is
      * asking.
      */
     @SubscribeEvent
-    public static void colours(net.minecraftforge.client.event.ColorHandlerEvent.Block event) {
+    public static void colors(net.minecraftforge.client.event.ColorHandlerEvent.Block event) {
         event.getBlockColors()
             .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghost());
     }

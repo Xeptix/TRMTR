@@ -50,8 +50,8 @@ public final class ChunkTamperActions {
                     + value));
     }
 
-    private static void tell(EntityPlayer player, EnumChatFormatting colour, String message) {
-        if (player != null) player.addChatMessage(new ChatComponentText(colour + message));
+    private static void tell(EntityPlayer player, EnumChatFormatting color, String message) {
+        if (player != null) player.addChatMessage(new ChatComponentText(color + message));
     }
 
     /**

@@ -103,7 +103,7 @@ public class ItemDraught extends Item {
 
     @Override
     public boolean isFoil(ItemStack stack) {
-        // The enchantment shimmer, so a draught reads as something more than a coloured bottle.
+        // The enchantment shimmer, so a draught reads as something more than a colored bottle.
         return true;
     }
 
@@ -123,7 +123,7 @@ public class ItemDraught extends Item {
             lines.add(ChatFormatting.RED + com.trmtgtnh.util.Translate.get("trmtgtnh.draught.disabled"));
             return;
         }
-        // The effect line vanilla would have drawn on a brewed potion, in the colour vanilla uses
+        // The effect line vanilla would have drawn on a brewed potion, in the color vanilla uses
         // for one that helps and one that does not.
         String name = com.trmtgtnh.util.Translate.get(effect.getDescriptionId());
         lines.add(

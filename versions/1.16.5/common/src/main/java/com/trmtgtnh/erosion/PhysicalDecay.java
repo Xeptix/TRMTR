@@ -12,6 +12,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Material;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -141,6 +142,26 @@ public final class PhysicalDecay {
     }
 
     /**
+     * What the block under a snow layer offers it to lie on: the block's own shape where the ground is worn, and
+     * otherwise whatever the shape read answered, another mod's hook on it included.
+     *
+     * <p>
+     * The 1.7.10 edition lets snow lie on any opaque block, worn or not, and draws it settled into the rut. This
+     * version's snow asks instead whether the top of the shape below is whole, and the worn shape {@link #shapeAt}
+     * hands every collision read says no on any square that has sunk - so until 0.9.220 a worn road could hold no
+     * snow: snow never fell on it, and snow already lying there was taken away at the next update beside it. Found
+     * by the second yard's snow photograph, where 1.7.10 and 1.12.2 laid a layer on every square and this edition
+     * kept one. Asked by each loader's MixinSnowRestsOnWornGround in SnowLayerBlock.canSurvive.
+     */
+    public static VoxelShape restingShape(BlockState below, BlockGetter access, BlockPos pos, VoxelShape asked) {
+        if (!active || below == null || pos == null || !isSinkable(below.getBlock())) return asked;
+        Level level = levelOf(access);
+        if (level == null || shapeOfWorn(level, pos.getX(), pos.getY(), pos.getZ(), below) == null) return asked;
+        return below.getBlock()
+            .getCollisionShape(below, access, pos, CollisionContext.empty());
+    }
+
+    /**
      * The level behind whatever the collision system happened to be holding.
      *
      * <p>
@@ -242,15 +263,13 @@ public final class PhysicalDecay {
         // Something planted here holds the ground level whatever the record says it has taken.
         if (GroundCover.holdsAt(world, x, y, z)) return 0;
 
-        // By the block's own thickness rather than by what class it is, which is the same rule the
-        // ghost uses on the other side: half a block of stone cannot lose eight pixels and still be
-        // there, whatever it was cut from.
+        // By what class the block is, as the ghost decides it on the other side and as the 1.7.10 edition
+        // decides it: a slab class is a slab, anything else whole. Until 0.9.220 this judged by thickness;
+        // Xep chose the other edition's rule on 2026-10-08.
         return SinkProfile.collides(
             entry.getFamily(),
             entry.getSink(),
-            com.trmtgtnh.block.BlockGhost.shapeOf(
-                com.trmtgtnh.block.BlockGhost
-                    .outlineOf(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z), world, new BlockPos(x, y, z))));
+            SurfaceShape.of(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z)));
     }
 
     /**
@@ -293,12 +312,11 @@ public final class PhysicalDecay {
         // which is where it was before this mod arrived.
         if (!fillsItsFootprint(state, world, x, y, z)) return null;
 
-        // The block's own outline, less what it has sunk from its own top - the same arithmetic the
-        // ghost does on the other side, through the same method, so the two cannot disagree about
-        // where the ground is.
-        int outline = com.trmtgtnh.block.BlockGhost.outlineOf(state, world, new BlockPos(x, y, z));
-        double floor = com.trmtgtnh.block.BlockGhost.floorOf(outline);
-        double worn = Math.max(floor, com.trmtgtnh.block.BlockGhost.topOf(outline) - sink / 16.0D);
+        // The 1.7.10 edition's boxAt, the same rule the ghost's solidBox gives the client: anything but a slab is a
+        // full cell less the depth, from the top of the cell; a slab wears from its own top and stops at its floor.
+        if (!shape.isPartial()) return Shapes.box(0.0D, 0.0D, 0.0D, 1.0D, SinkProfile.heightFor(sink), 1.0D);
+        double floor = SurfaceShape.bottomOf(shape, state);
+        double worn = Math.max(floor, SurfaceShape.topOf(shape, state) - sink / 16.0D);
         if (worn <= floor) return Shapes.empty();
         // In the block's own space rather than the world's, which is what a shape is at this version:
         // the game offsets one by the position when it uses it. Both older editions build the box in

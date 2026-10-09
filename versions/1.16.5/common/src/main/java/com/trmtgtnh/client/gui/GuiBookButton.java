@@ -17,7 +17,7 @@ import net.minecraft.client.gui.components.Button;
  *
  * <p>
  * Nothing in here binds a texture and nothing draws through {@code Gui.drawString}, so no label
- * carries a drop shadow and no leftover texture colour can tint the page.
+ * carries a drop shadow and no leftover texture color can tint the page.
  *
  * <p>
  * Every label is cut to the width it was given before it is stored, never at draw time, so a

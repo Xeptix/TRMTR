@@ -260,9 +260,7 @@ public class BlockGhost extends Block {
         // a block you fall through into a block you stand on.
         AxisAlignedBB own = GhostInherit.ownFootingAt(world, pos, origin);
         if (own != GhostInherit.ORDINARY) return own;
-        int outline = outlineAt(world, pos, origin);
-        int sink = collisionSink(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
-        return box(outline, sink);
+        return solidBox(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
     }
 
     /**
@@ -288,30 +286,119 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * The outline, which follows the picture rather than the footing.
+     * The outline, which follows the footing rather than the picture - the 1.7.10 edition's GhostLogic.outlineBox,
+     * "Selection follows collision, not the visuals".
      *
      * <p>
-     * In visual mode the two differ: the ground is drawn sunk and walked on at full height. The box a
-     * player aims at should be the one they can see.
+     * In visual mode the two differ: the ground is drawn sunk and walked on at full height, and the box a player
+     * aims at is the one they stand on. Until 0.9.220 this edition outlined the picture instead; Xep chose the
+     * other edition's rule on 2026-10-08. Never nothing, which collision may be - a block you walk through says so
+     * with no box at all, and an outline is drawn from whatever it is handed: then the covered block's own box,
+     * which is what is really there and what was being pointed at, and failing that the whole cell.
      */
     @Override
     public AxisAlignedBB getBoundingBox(IBlockState state, IBlockAccess world, BlockPos pos) {
         // As vanilla's own stair does: the box a player aims at is the whole cell, however the steps
         // are cut. Fine-grained outlines on stairs are a later version's idea and copying one here
         // would make a worn stair the only stair in the world that aims differently.
-        if (stairCodeAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) >= 0) {
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        if (stairCodeAt(world, pos, origin) >= 0) {
             return FULL_BLOCK_AABB;
         }
-        int outline = outlineAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
-        int sink = drawnSink(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
-        return box(outline, sink);
+        AxisAlignedBB own = GhostInherit.ownFootingAt(world, pos, origin);
+        AxisAlignedBB solid = own != GhostInherit.ORDINARY ? own
+            : solidBox(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
+        if (solid != null) return solid;
+        IBlockState covered = coveredState(origin);
+        if (covered != null) {
+            try {
+                AxisAlignedBB mine = covered.getBoundingBox(world, pos);
+                if (mine != null) return mine;
+            } catch (RuntimeException awkwardBlock) {
+                // An outline in the wrong place is a smaller fault than none; the whole cell below.
+            }
+        }
+        return FULL_BLOCK_AABB;
     }
 
-    /** The outline, less however far it has sunk from its own top. */
-    private static AxisAlignedBB box(int outline, int sink) {
-        double floor = floorOf(outline);
-        double top = Math.max(floor, topOf(outline) - sink / 16.0D);
-        return new AxisAlignedBB(0.0D, floor, 0.0D, 1.0D, top, 1.0D);
+    /**
+     * The box a worn square is stood on - the 1.7.10 edition's GhostLogic.solidBox, rule for rule.
+     *
+     * <p>
+     * A slab wears from its own top, by the collision depth its shape allows, and stops at its own floor. Anything
+     * else is a full cell less the collision depth, measured from the top of the cell, not from the top of the
+     * block - which is the same thing for a whole cube, and for a block already short means its first pixel of
+     * wear goes into its own shortfall. Until 0.9.220 this edition took every depth off the block's own top, a
+     * pixel deeper for a short block; Xep chose the other edition's rule on 2026-10-08.
+     */
+    static AxisAlignedBB solidBox(short record, int origin) {
+        IBlockState covered = coveredState(origin);
+        SurfaceShape shape = SurfaceShape.of(covered == null ? null : covered.getBlock());
+        if (shape.isPartial()) {
+            double floor = SurfaceShape.bottomOf(shape, covered);
+            double top = SurfaceShape.topOf(shape, covered);
+            return new AxisAlignedBB(
+                0.0D,
+                floor,
+                0.0D,
+                1.0D,
+                Math.max(floor, top - collisionSink(record, shape) / 16.0D),
+                1.0D);
+        }
+        return new AxisAlignedBB(
+            0.0D,
+            0.0D,
+            0.0D,
+            1.0D,
+            SinkProfile.heightFor(collisionSink(record, SurfaceShape.FULL)),
+            1.0D);
+    }
+
+    /**
+     * The height a square stands at, drawn (footing false) or stood on (footing true) - the 1.7.10 edition's
+     * GhostLogic.heightAt, rule for rule.
+     *
+     * <p>
+     * A slab: its own top less the depth its shape allows - the drawn one, or the collision one for footing - and
+     * never below its own floor. Anything else: the block's own top, or the cell's top less the drawn depth if that
+     * is lower. <strong>The drawn depth for footing too</strong>, on anything but a slab, which is that edition's
+     * code rather than its comment: snow resting on worn ground in visual mode comes down into the drawn rut, and
+     * Xep chose the code on 2026-10-08.
+     */
+    public static double heightAt(short record, int origin, int outline, boolean footing) {
+        IBlockState covered = coveredState(origin);
+        SurfaceShape shape = SurfaceShape.of(covered == null ? null : covered.getBlock());
+        if (shape.isPartial()) {
+            double top = SurfaceShape.topOf(shape, covered);
+            double floor = SurfaceShape.bottomOf(shape, covered);
+            int sunk = footing ? collisionSink(record, shape) : drawnSink(record, shape);
+            return Math.max(floor, top - sunk / 16.0D);
+        }
+        return Math.min(topOf(outline), SinkProfile.heightFor(drawnSink(record, SurfaceShape.FULL)));
+    }
+
+    /** Where the space a square stands in begins - only ever above nought for an upper slab. 1.7.10's bottomAt. */
+    public static double bottomAt(int origin) {
+        IBlockState covered = coveredState(origin);
+        SurfaceShape shape = SurfaceShape.of(covered == null ? null : covered.getBlock());
+        return shape.isPartial() ? SurfaceShape.bottomOf(shape, covered) : 0.0D;
+    }
+
+    /**
+     * The block a square stands in for, or null.
+     *
+     * <p>
+     * Its shape is decided by what class it is, as the 1.7.10 edition decides it (SurfaceShape.of): a slab class is
+     * a slab and anything else whole, whatever its thickness. Until 0.9.220 this edition judged by thickness, which
+     * wore a half-height block that is not a slab as a slab; Xep chose the other edition's rule on 2026-10-08.
+     */
+    private static IBlockState coveredState(int origin) {
+        if (origin < 0) return null;
+        try {
+            return Block.getStateById(origin);
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -462,9 +549,21 @@ public class BlockGhost extends Block {
      * Without it every ghost drew in the cut-out pass: worn ice drew over what was behind it instead
      * of through it, and a wear picture with holes in it had those holes punched through the ground
      * rather than filled, which is what "you can see through the top of a worn path" was.
+     *
+     * <p>
+     * <strong>Except a window, which blends whatever pass its block draws in</strong> - the other
+     * edition's window twin answers {@code getRenderBlockPass() { return clear || window ? 1 : 0; }},
+     * and the window half of that was not carried until 2026-10-08. Chisel's waterstone draws in the
+     * solid pass, which ignores alpha, so its picture's holes - the water, about two thirds opaque -
+     * were written as solid blue stone. See {@code client.model.GhostWindows}. Client only: the model
+     * is the one caller, and both questions here are the client's.
      */
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
     public static net.minecraft.util.BlockRenderLayer layerOf(int origin) {
         if (origin < 0) return net.minecraft.util.BlockRenderLayer.CUTOUT_MIPPED;
+        if (com.trmtgtnh.client.model.GhostWindows.windowOf(origin)) {
+            return net.minecraft.util.BlockRenderLayer.TRANSLUCENT;
+        }
         try {
             net.minecraft.util.BlockRenderLayer layer = Block.getStateById(origin)
                 .getBlock()
@@ -508,17 +607,6 @@ public class BlockGhost extends Block {
     private static final AxisAlignedBB AABB_OCT_BOT_NE = new AxisAlignedBB(0.5D, 0.0D, 0.0D, 1.0D, 0.5D, 0.5D);
     private static final AxisAlignedBB AABB_OCT_BOT_SW = new AxisAlignedBB(0.0D, 0.0D, 0.5D, 0.5D, 0.5D, 1.0D);
     private static final AxisAlignedBB AABB_OCT_BOT_SE = new AxisAlignedBB(0.5D, 0.0D, 0.5D, 1.0D, 0.5D, 1.0D);
-
-    /**
-     * Which of the mod's shapes an outline is, for the rule that halves how far a shape may sink.
-     *
-     * <p>
-     * By its own thickness rather than by asking the block again: half a block of stone cannot lose eight
-     * pixels and still be there, and that is true of anything half a block thick whatever class it is.
-     */
-    public static SurfaceShape shapeOf(int outline) {
-        return topOf(outline) - floorOf(outline) <= 0.5F ? SurfaceShape.SLAB : SurfaceShape.FULL;
-    }
 
     /**
      * How far a record's picture has sunk, in sixteenths.
@@ -723,10 +811,37 @@ public class BlockGhost extends Block {
         // found: the real ice under a worn top and the worn squares beside it left off every face they
         // shared with it, and the yard's ice read as a pane with the next platform showing through.
         if (clearCovers(world, pos) != null) return false;
-        int outline = outlineAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        // Nor where it is a window: its holes show the cell behind them, so the faces in that cell are
+        // drawn - the third clause of the 1.7.10 edition's {@code !sunken && !clear && !window}, which
+        // this lacked until 2026-10-08. With the pass alone put right, the block below and the squares
+        // beside a worn waterstone went on leaving off the faces it shares with them, and its water
+        // showed an empty cell.
+        if (Trmt.proxy.ghostWindowOf(origin)) return false;
+        int outline = outlineAt(world, pos, origin);
         // A whole cube only. A slab or a path stands short, and a neighbour that left off its face
         // against one would show a hole where the square stops.
         return floorOf(outline) <= 0F && topOf(outline) >= 1F;
+    }
+
+    /**
+     * Two windows side by side hide the face between them, the way two panes of glass do - the
+     * 1.7.10 edition's {@code BlockGhost.shouldSideBeRendered}, carried on 2026-10-08.
+     *
+     * <p>
+     * Without it a road of worn waterstone draws every face inside it, each a blue sheet seen through
+     * the one in front, now that a window no longer hides the faces beside it. Only squares that share a
+     * pane take the shortcut: whole ones, because two hollows of different depths leave part of the
+     * taller one's side open onto its own rut, and wearing as the same family, because the other
+     * edition's rule asks for the same window twin. See {@code GhostWindows.paneAt}.
+     */
+    @Override
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    public boolean shouldSideBeRendered(IBlockState state, IBlockAccess world, BlockPos pos,
+        net.minecraft.util.EnumFacing side) {
+        int pane = com.trmtgtnh.client.model.GhostWindows.paneAt(world, pos);
+        if (pane != 0 && pane == com.trmtgtnh.client.model.GhostWindows.paneAt(world, pos.offset(side))) return false;
+        return super.shouldSideBeRendered(state, world, pos, side);
     }
 
     /**
@@ -795,9 +910,13 @@ public class BlockGhost extends Block {
      * does not fill its square to look at - ice, and not packed ice, which that edition gives a solid twin
      * because a pack's decorative frost is ice by material and as solid to look at as stone. A square whose
      * covered block is not known is clear, as that edition's ice stand-in is until told otherwise.
+     *
+     * <p>
+     * Public for {@code GhostWindows.paneAt}: clear ice has no window twin in that edition, so it shares
+     * no pane.
      */
     @Nullable
-    static IBlockState clearCovers(IBlockAccess world, BlockPos pos) {
+    public static IBlockState clearCovers(IBlockAccess world, BlockPos pos) {
         short record = Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
         if (ErosionState.familyOf(record) != SurfaceFamily.ICE) return null;
         int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
@@ -816,12 +935,12 @@ public class BlockGhost extends Block {
      *
      * <p>
      * Everything that draws a map reads this - the vanilla map item, every minimap, and anything
-     * rendering the world at a distance - so answering with the origin's own colour makes a worn path
+     * rendering the world at a distance - so answering with the origin's own color makes a worn path
      * read as the ground it is rather than as an unknown block, once and for all of them.
      *
      * <p>
      * <strong>This is where the other edition needs per-mod code and this one does not.</strong>
-     * There the question is only {@code getMapColor(int metadata)}: a ghost is asked what colour it
+     * There the question is only {@code getMapColor(int metadata)}: a ghost is asked what color it
      * is with no way to know which square is being asked about, so it can answer only from the family
      * its own class stands for - and a minimap that ignored the answer, as JourneyMap did for
      * anything descending from the grass block, had to be reached into by reflection and corrected.
@@ -839,9 +958,9 @@ public class BlockGhost extends Block {
                     MapColor own = origin.getBlock()
                         .getMapColor(origin, world, pos);
                     // Darkened, so there is a road on the map rather than only a change of material
-                    // where one has worn through. One colour rather than a shade per gradation,
-                    // which is all sixty-four fixed palette entries can carry - see GhostMapColour.
-                    if (own != null) return shows(record) ? GhostMapColour.worn(own) : own;
+                    // where one has worn through. One color rather than a shade per gradation,
+                    // which is all sixty-four fixed palette entries can carry - see GhostMapColor.
+                    if (own != null) return shows(record) ? GhostMapColor.worn(own) : own;
                 } catch (RuntimeException hostileBlock) {
                     // A block of somebody else's asked about a position it does not own. Its family's
                     // stand-in below is a better answer than taking the map down.
@@ -854,7 +973,7 @@ public class BlockGhost extends Block {
         }
         MapColor earth = net.minecraft.init.Blocks.DIRT.getDefaultState()
             .getMapColor(world, pos);
-        return shows(record) ? GhostMapColour.worn(earth) : earth;
+        return shows(record) ? GhostMapColor.worn(earth) : earth;
     }
 
     /**

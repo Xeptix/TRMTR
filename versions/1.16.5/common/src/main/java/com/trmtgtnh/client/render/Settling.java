@@ -6,6 +6,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.WoolCarpetBlock;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -21,6 +22,9 @@ import com.trmtgtnh.erosion.PhysicalDecay;
  * no bounds to move, but every renderer at this version - vanilla's, the Sodium family's, FRAPI's and
  * OptiFine's - adds a block state's own offset to its model, the one vanilla scatters flowers with. So a
  * settling block answers that offset with the drop of the rut under it, and nothing else about it changes.
+ * Canvas asks for the offset only of a block whose type says it has one, which snow and carpet do not, so
+ * under Canvas they stayed up until 0.9.220; the Fabric module tells Canvas they have one
+ * ({@link #offsetTypeFor}), and vanilla's own offset still reads none, so nothing is scattered.
  * The drop is the figure the footing is moved by as well, in {@code PhysicalDecay}, so the picture and the
  * footing cannot part company.
  *
@@ -42,17 +46,37 @@ public final class Settling {
     }
 
     /**
-     * How far the ground under a position has dropped, from the height that can be stood on rather than
-     * the one drawn - in visual mode the ground is drawn sunk and walked on at full height, and snow drawn
-     * down into a rut nobody can walk into would sit below the floor.
+     * The offset type a renderer that asks before it offsets is told: one with an offset, for a block that settles,
+     * so that it goes on to ask the state where to draw it - Canvas, which otherwise skips every block whose type is
+     * none, snow and carpet among them, and so never drew them down. Only that asking is changed. Vanilla's own
+     * offset reads the block's real type, so a settling block not on worn ground is still drawn where it stands and
+     * never scattered as a flower is.
+     */
+    public static BlockBehaviour.OffsetType offsetTypeFor(Block block) {
+        return settles(block) ? BlockBehaviour.OffsetType.XZ : block.getOffsetType();
+    }
+
+    /**
+     * How far the ground under a position has dropped: the block it stands in for, less the height it can be stood
+     * on at - the 1.7.10 edition's GhostRendering.settledDrop.
+     *
+     * <p>
+     * Read off the ghost below, because what wants matching is what is there: a ghost knows both how far it has
+     * sunk and how tall the block it stands in for was, and those are not the same question on a grass path that
+     * already stood short. The height stood on is BlockGhost.heightAt's footing, which on anything but a slab is the
+     * drawn one - so in visual mode snow and carpet come down into the drawn rut, the other edition's code rather
+     * than its comment, Xep's choice on 2026-10-08. Until 0.9.220 this took the collision depth, which kept them up.
      */
     public static double dropFor(BlockGetter level, BlockPos pos) {
         if (level == null || pos == null) return 0.0D;
         BlockPos below = pos.below();
         if (!(level.getBlockState(below)
             .getBlock() instanceof BlockGhost)) return 0.0D;
-        return BlockGhost.collisionSink(com.trmtgtnh.Client.ghostRecordAt(level, below.getX(), below.getY(), below.getZ()))
-            / 16.0D;
+        int origin = com.trmtgtnh.Client.ghostOriginAt(below.getX(), below.getY(), below.getZ());
+        short record = com.trmtgtnh.Client.ghostRecordAt(level, below.getX(), below.getY(), below.getZ());
+        int outline = BlockGhost.outlineAt(level, below, origin);
+        double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
+        return drop > 0.0D ? drop : 0.0D;
     }
 
     /** The offset a settling block is drawn at - vanilla's, dropped by the rut under it - or null for unchanged. */

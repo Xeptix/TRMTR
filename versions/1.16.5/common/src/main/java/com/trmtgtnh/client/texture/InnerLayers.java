@@ -37,9 +37,10 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * that pass ends and {@link #reportAnimation} after it; {@link #textureFor} from the pass's count of pictures and from
  * {@code WearSprite.harvest}, and {@link #animationOf} and {@link #mayMove} only from that harvest, which runs only
  * inside the pass and is the half of it allowed to ask a block or a pack anything; {@link #noteAnimated} from
- * {@code WearSprite.adoptLayer}, as a picture takes its layer; {@link #isWindow} only from the painter; and
- * {@link #newTick} and {@link #mayUpload} only from the client tick and the atlas's own animation tick. Nothing here is
- * ever read from a worker, so nothing here needs to be synchronised.
+ * {@code WearSprite.adoptLayer}, as a picture takes its layer; {@link #isWindow} and {@link #anyWindows} from
+ * GhostWindows and GhostLayers, which meshers reach them through; and {@link #newTick} and {@link #mayUpload} only from
+ * the client tick and the atlas's own animation tick. Nothing else here is read from a worker, and what is - the window
+ * filing - is published whole through one volatile field and never written after, so it needs no lock either.
  */
 public final class InnerLayers {
 
@@ -63,6 +64,16 @@ public final class InnerLayers {
         unpriced = 0;
         closeAsk();
         uploads.forget();
+        readTable();
+    }
+
+    /**
+     * Reads the config list into the lookup {@link #textureFor} answers from. Render thread. Called by {@link #prime},
+     * and before that by registration, which plans the sets of pictures and keys them on the layer behind each block,
+     * so the table has to be this stitch's by then: read only as the sprite pass began, the planner of a first stitch
+     * saw an empty table and the stitch after it the previous one (2026-10-08).
+     */
+    public static void readTable() {
         String[] lines = TrmtConfig.innerLayerTextures;
         if (lines == null || lines.length == 0) {
             table = Collections.emptyMap();
@@ -149,6 +160,41 @@ public final class InnerLayers {
     }
 
     /**
+     * Files as a window every covered state drawn from a set of pictures one of whose states was noted as one. Render
+     * thread, as the sprite pass ends and before {@link #publishWindows}.
+     *
+     * <p>
+     * A window is noted by the harvest, which reads the pixels of one state per set - the one the set was made from -
+     * and the planner gives every state that reports the same face, family and layer that same set: their pictures are
+     * the same pictures, see-through or not. Noted for the one state only, the rest draw a see-through picture in their
+     * block's own pass, which writes what is behind the holes opaque. Found on 1.12.2 on 2026-10-08, where two of
+     * Chisel's carvings share a face, and carried to every edition to keep the rule one rule. Meta is nought on this
+     * version, so every state filed is one the block draws.
+     *
+     * @param sets each covered state with pictures of its own, to the set holding them, as this stitch filed them
+     */
+    static void spreadWindows(final StateFiling<Block, Integer> sets) {
+        if (sets == null) return;
+        final Set<Integer> seeThrough = new java.util.HashSet<Integer>();
+        windowsBuilding.forEach(new StateFiling.Visitor<Block, Boolean>() {
+
+            @Override
+            public void visit(Block block, int meta, Boolean noted) {
+                Integer set = sets.get(block, meta);
+                if (set != null) seeThrough.add(set);
+            }
+        });
+        if (seeThrough.isEmpty()) return;
+        sets.forEach(new StateFiling.Visitor<Block, Integer>() {
+
+            @Override
+            public void visit(Block block, int meta, Integer set) {
+                if (seeThrough.contains(set)) windowsBuilding.file(block, meta, Boolean.TRUE);
+            }
+        });
+    }
+
+    /**
      * Makes what this stitch noted the set the painter reads. Render thread, as the sprite pass ends.
      *
      * <p>
@@ -165,6 +211,14 @@ public final class InnerLayers {
      */
     public static boolean isWindow(Block origin, int meta) {
         return origin != null && windows.has(origin, meta);
+    }
+
+    /**
+     * Whether any covered state is a window and the player has asked for windows - the one check a renderer pays for
+     * a pack with no window anywhere, which is most of them, before it asks anything per square.
+     */
+    public static boolean anyWindows() {
+        return TrmtConfig.seeThroughInnerLayers && !windows.isEmpty();
     }
 
     /**

@@ -61,7 +61,7 @@ public class CommandTrmt extends CommandBase {
         "golem",
         "showcase",
         "demonstrate",
-        "mapcolour");
+        "mapcolor");
 
     @Override
     public String getCommandName() {
@@ -70,7 +70,7 @@ public class CommandTrmt extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolour|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
     }
 
     @Override
@@ -163,14 +163,14 @@ public class CommandTrmt extends CommandBase {
     private static final class LateSender implements ICommandSender {
 
         /**
-         * A colour or style code, stripped from what goes to the log.
+         * A color or style code, stripped from what goes to the log.
          *
          * <p>
          * Stripped here rather than by the game's own helper for it, which exists only on a client: a
          * dedicated server has it taken out when the class loads, and calling it there stopped the server
          * the first time a command handed over from another thread said anything.
          */
-        private static final java.util.regex.Pattern COLOUR_CODES = java.util.regex.Pattern
+        private static final java.util.regex.Pattern COLOR_CODES = java.util.regex.Pattern
             .compile("(?i)\u00a7[0-9a-fk-or]");
 
         private final ICommandSender asked;
@@ -196,7 +196,7 @@ public class CommandTrmt extends CommandBase {
             Trmt.LOG.info(
                 "[/trmt for {}] {}",
                 asked.getCommandSenderName(),
-                COLOUR_CODES.matcher(message.getUnformattedText())
+                COLOR_CODES.matcher(message.getUnformattedText())
                     .replaceAll(""));
         }
 
@@ -244,8 +244,8 @@ public class CommandTrmt extends CommandBase {
                 "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there: chunks heal as they reload, and the first sweep after /trmt enable pays out the rest. Purge is the one that throws wear away.");
         } else if ("purge".equals(sub)) {
             purge(sender);
-        } else if ("mapcolour".equals(sub) || "mapcolor".equals(sub)) {
-            reportMapColour(sender);
+        } else if ("mapcolor".equals(sub)) {
+            reportMapColor(sender);
         } else if ("reload".equals(sub)) {
             ConfigReload.Delta delta = ConfigReload.fromDisk();
             if (delta == null) {
@@ -2055,12 +2055,12 @@ public class CommandTrmt extends CommandBase {
         }
     }
 
-    private static void reply(ICommandSender sender, EnumChatFormatting colour, String message) {
-        sender.addChatMessage(new ChatComponentText(colour + message));
+    private static void reply(ICommandSender sender, EnumChatFormatting color, String message) {
+        sender.addChatMessage(new ChatComponentText(color + message));
     }
 
     /**
-     * Prints what decides each ghost's colour on a map.
+     * Prints what decides each ghost's color on a map.
      *
      * <p>
      * An earlier version of this probed the block under the player, which was useless: a
@@ -2071,12 +2071,12 @@ public class CommandTrmt extends CommandBase {
      * <p>
      * What actually decides the answer is the class. JourneyMap keeps a table of block classes
      * that take a biome tint and matches with {@code isAssignableFrom}; {@code BlockGrass} is in
-     * it, and a flagged block has its palette colour thrown away in favour of a hardcoded grey
+     * it, and a flagged block has its palette color thrown away in favour of a hardcoded grey
      * multiplied by the block's tint. While every ghost inherited from grass, every worn surface
      * drew as that grey. Only the grass variants should be in that table, and this says which
      * are.
      */
-    private static void reportMapColour(ICommandSender sender) {
+    private static void reportMapColor(ICommandSender sender) {
         reply(sender, EnumChatFormatting.AQUA, "Ghost blocks and what a map mod makes of them:");
         for (Block block : ModBlocks.all()) {
             boolean tinted = block instanceof BlockGrass;
@@ -2092,7 +2092,7 @@ public class CommandTrmt extends CommandBase {
                     name,
                     block.getClass()
                         .getSimpleName(),
-                    tinted ? "biome-tinted (grass)" : "own colour"));
+                    tinted ? "biome-tinted (grass)" : "own color"));
         }
         reply(
             sender,

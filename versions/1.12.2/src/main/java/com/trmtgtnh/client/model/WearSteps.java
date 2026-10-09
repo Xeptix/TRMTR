@@ -34,17 +34,6 @@ public final class WearSteps {
 
     private WearSteps() {}
 
-    /**
-     * How far a square's picture has sunk, as a fraction of a block, for a ghost of a given outline.
-     *
-     * <p>
-     * Here rather than in the model so that the depth and the shape it is held against are worked out in one
-     * place: a shape half a block thick may only sink half as far, which is a fact about the shape and not
-     * about the record.
-     */
-    public static float sunk(short record, int outline) {
-        return com.trmtgtnh.block.BlockGhost.drawnSink(record, com.trmtgtnh.block.BlockGhost.shapeOf(outline)) / 16F;
-    }
 
     /**
      * A layer within one run, spread onto the counted space, for a record the arithmetic below cannot place.

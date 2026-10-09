@@ -91,7 +91,7 @@ public final class Tooltips {
      * <p>
      * Only {@code add} does anything unusual. Everything else is the list underneath, because a
      * tooltip is read back as well as written to - the first entry is the item's own name, and code
-     * that recolours it does so by index - and a view that quietly refused those would break the very
+     * that recolors it does so by index - and a view that quietly refused those would break the very
      * thing it was meant to leave alone.
      */
     private static final class Wrapping extends AbstractList<String> {

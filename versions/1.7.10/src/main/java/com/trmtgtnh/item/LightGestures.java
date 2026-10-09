@@ -18,12 +18,12 @@ import com.trmtgtnh.network.TrmtNetwork;
 import com.trmtgtnh.server.MaterialCost;
 
 /**
- * Lighting a stretch of ground, recolouring it, and putting it out.
+ * Lighting a stretch of ground, recoloring it, and putting it out.
  *
  * <p>
- * Right-click to light a block, right-click a lit one to step its colour on, sneak and right-click
- * to put it out; left-click steps the colour back, which matters when there are sixteen of them and
- * the one you want is one behind. Lighting costs a material, the Wayfarer paying half; recolouring
+ * Right-click to light a block, right-click a lit one to step its color on, sneak and right-click
+ * to put it out; left-click steps the color back, which matters when there are sixteen of them and
+ * the one you want is one behind. Lighting costs a material, the Wayfarer paying half; recoloring
  * and dousing are only a scratch on the tool, because having paid for the light once is enough.
  *
  * <p>
@@ -42,14 +42,14 @@ public final class LightGestures {
 
     private LightGestures() {}
 
-    /** Right-click: lights the block, steps its colour on, or puts it out when sneaking. */
+    /** Right-click: lights the block, steps its color on, or puts it out when sneaking. */
     public static boolean right(World world, int x, int y, int z, EntityPlayer player, ItemStack stack) {
         boolean sneaking = player != null && player.isSneaking();
         if (sneaking) return douse(world, x, y, z, player, stack);
         return light(world, x, y, z, player, stack, 1);
     }
 
-    /** Left-click: steps the colour back, or puts it out when sneaking. */
+    /** Left-click: steps the color back, or puts it out when sneaking. */
     public static boolean left(World world, int x, int y, int z, EntityPlayer player, ItemStack stack,
         boolean sneaking) {
         if (sneaking) return douse(world, x, y, z, player, stack);
@@ -57,7 +57,7 @@ public final class LightGestures {
     }
 
     /**
-     * Lights an unlit block, or moves a lit one along the colour wheel.
+     * Lights an unlit block, or moves a lit one along the color wheel.
      *
      * @param step which way to turn the wheel when the block is already lit
      */
@@ -76,12 +76,12 @@ public final class LightGestures {
         boolean alreadyLit = (packed & 0xF) != 0;
 
         if (alreadyLit) {
-            int colours = GhostLight.colourCount();
-            int next = (((packed >> 4) & 0xF) + step + colours) % colours;
+            int colors = GhostLight.colorCount();
+            int next = (((packed >> 4) & 0xF) + step + colors) % colors;
             apply(world, x, y, z, TrmtConfig.lightLevel, next);
             world.playSoundEffect(x + 0.5D, y + 0.5D, z + 0.5D, "random.orb", 0.3f, 1.8f);
             damage(stack, player);
-            say(player, EnumChatFormatting.AQUA, msg("trmtgtnh.light.colour") + " " + colourName(next));
+            say(player, EnumChatFormatting.AQUA, msg("trmtgtnh.light.color") + " " + colorName(next));
             return true;
         }
 
@@ -146,7 +146,7 @@ public final class LightGestures {
      * are told so they can rebuild the chunk mesh. Miss the second and a lit block is a bright
      * texture in the dark; miss the third and only the server knows.
      */
-    private static void apply(World world, int x, int y, int z, int level, int colour) {
+    private static void apply(World world, int x, int y, int z, int level, int color) {
         int dimension = world.provider.dimensionId;
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
@@ -157,7 +157,7 @@ public final class LightGestures {
         ErosionEntry entry = data.get(key);
         // Never invents a record: a glow needs a ghost, and a ghost is the caller's precondition.
         if (entry == null || !entry.isVisible()) return;
-        entry.setLight(level, colour);
+        entry.setLight(level, color);
         if (level > 0) com.trmtgtnh.block.GhostLight.noteLit();
         data.markDirty();
         ErosionStore.get()
@@ -184,16 +184,16 @@ public final class LightGestures {
         }
     }
 
-    /** The colour's own name, so the chat line says "green" rather than "colour 5". */
-    private static String colourName(int index) {
-        return StatCollector.translateToLocal("trmtgtnh.light.colour." + index);
+    /** The color's own name, so the chat line says "green" rather than "color 5". */
+    private static String colorName(int index) {
+        return StatCollector.translateToLocal("trmtgtnh.light.color." + index);
     }
 
     private static String msg(String key) {
         return StatCollector.translateToLocal(key);
     }
 
-    private static void say(EntityPlayer player, EnumChatFormatting colour, String message) {
-        if (player != null) player.addChatMessage(new ChatComponentText(colour + message));
+    private static void say(EntityPlayer player, EnumChatFormatting color, String message) {
+        if (player != null) player.addChatMessage(new ChatComponentText(color + message));
     }
 }

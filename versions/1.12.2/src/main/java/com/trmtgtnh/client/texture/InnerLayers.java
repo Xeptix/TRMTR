@@ -32,14 +32,23 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * tomorrow with one line in a config file and no release of this mod.
  *
  * <p>
- * Render thread only, end to end. {@link #prime} is called beside the other tables the sprite pass fills before it
- * hands any work out, {@link #openAsk} and {@link #closeAsk} round each surface's harvest, {@link #publishWindows} as
- * that pass ends and {@link #reportAnimation} after it; {@link #textureFor} from the pass's count of pictures and from
- * {@code WearSprite.harvest}, and {@link #animationOf} and {@link #mayMove} only from that harvest, which runs only
- * inside the pass and is the half of it allowed to ask a block or a pack anything; {@link #noteAnimated} from
- * {@code WearSprite.adoptLayer}, as a picture takes its layer; {@link #isWindow} only from the painter; and
- * {@link #newTick} and {@link #mayUpload} only from the client tick and the atlas's own animation tick. Nothing here is
- * ever read from a worker, so nothing here needs to be synchronised.
+ * Render thread only, end to end, but for one question. {@link #readTable} is called as a stitch begins, before
+ * {@link ModelFaces} reads which face is a block's own and which is the layer behind it, and {@link #prime} beside the
+ * other tables the sprite pass fills before it hands any work out, {@link #openAsk} and {@link #closeAsk} round each
+ * surface's harvest, {@link #publishWindows} as that pass ends and {@link #reportAnimation} after it;
+ * {@link #textureFor} from that survey, the pass's count of pictures and {@code WearSprite.harvest}, and
+ * {@link #animationOf} and {@link #mayMove} only from that harvest, which runs only inside the pass and is the half of
+ * it allowed to ask a block or a pack anything; {@link #noteAnimated} from {@code WearSprite.adoptLayer}, as a picture
+ * takes its layer; and {@link #newTick} and {@link #mayUpload} only from the client tick and the atlas's own animation
+ * tick. Nothing of those is ever read from a worker, so none of it needs to be synchronised.
+ *
+ * <p>
+ * The one question is {@link #isWindow}, and it is asked from the chunk mesher's threads: by
+ * {@code client.model.GhostWindows}, for the pass a worn square draws in, whether it hides the faces beside it, and
+ * whether it shares a pane with its neighbour. The 1.7.10 edition asks it once, in its painter, to choose which
+ * stand-in block to paint; this edition paints one ghost for everything and decides per square as it is meshed, so
+ * the question moved to where the decision is made (2026-10-08). It is safe there because what it reads is published
+ * whole through one volatile field and never written after - see {@code windows}.
  */
 public final class InnerLayers {
 
@@ -50,7 +59,7 @@ public final class InnerLayers {
 
     private InnerLayers() {}
 
-    /** Reads the config list into a lookup. Render thread, once, before any sprite is harvested. */
+    /** Readies everything a sprite pass asks of this class. Render thread, once, before any sprite is harvested. */
     public static void prime() {
         unresolved.clear();
         // A fresh set to note into, rather than the painter's emptied in place: what is drawn goes on
@@ -63,6 +72,20 @@ public final class InnerLayers {
         unpriced = 0;
         closeAsk();
         uploads.forget();
+        readTable();
+    }
+
+    /**
+     * Reads the config list into a lookup. Render thread, as a stitch begins.
+     *
+     * <p>
+     * Apart from {@link #prime} because it is wanted earlier than the rest: {@link ModelFaces} reads which of a
+     * block's faces is its own and which is the layer named behind it before anything is planned, and the sprite pass
+     * that {@code prime} readies comes after the plan. Read again by {@code prime} from the same config, so both see
+     * the
+     * same entries.
+     */
+    public static void readTable() {
         String[] lines = TrmtConfig.innerLayerTextures;
         if (lines == null || lines.length == 0) {
             table = Collections.emptyMap();
@@ -115,8 +138,9 @@ public final class InnerLayers {
      * whether a layer is see-through is a property of the texture a pack supplied and not of the
      * name somebody typed. Lava has no transparency in it at all, so a lavastone never enters this
      * set and nothing about it changes; a pack that shipped clear lava would put it in, and a pack
-     * that shipped solid water would leave waterstone out. Read by the painter, which turns the origin
-     * it remembers for a position back into a block under the ids in force before it asks.
+     * that shipped solid water would leave waterstone out. Read as each worn square is meshed, by
+     * {@code client.model.GhostWindows}, which turns the origin the painter remembered for the position back
+     * into a block under the ids in force before it asks - where the other edition's painter asks it.
      *
      * <p>
      * By the object and no longer by the block's id packed with its metadata. A stitch filed under the ids
@@ -131,9 +155,9 @@ public final class InnerLayers {
      * anything but the sprites.
      *
      * <p>
-     * Replaced whole at the end of a stitch rather than filled in place, so the painter reads the last
-     * stitch's set or this one's and never one half built. Volatile for that one publication, not for any
-     * worker, none of which reads it.
+     * Replaced whole at the end of a stitch rather than filled in place, so a square is meshed against the
+     * last stitch's set or this one's and never one half built. Volatile for that one publication, which the
+     * mesher's threads read through {@link #isWindow}; none of the sprite pass's workers reads it.
      */
     private static volatile StateFiling<Block, Boolean> windows = StateFiling.<Block, Boolean>empty();
 
@@ -149,10 +173,61 @@ public final class InnerLayers {
     }
 
     /**
-     * Makes what this stitch noted the set the painter reads. Render thread, as the sprite pass ends.
+     * Files as a window every covered state drawn from a set of pictures one of whose states was noted as one. Render
+     * thread, as the sprite pass ends and before {@link #publishWindows}.
      *
      * <p>
-     * A filing built whole rather than the builder handed over, so the painter reads one finished set and nothing noted
+     * A window is noted by the harvest, which reads the pixels of one state per set - the one the set was made from -
+     * and the planner gives every state that reports the same face, family and layer that same set: their pictures are
+     * the same pictures, see-through or not. Noted for the one state only, the rest drew a see-through picture in their
+     * block's own pass, which writes the water in the holes opaque. Chisel for 1.12.2 is where that bites: two of its
+     * waterstone carvings share one face, and every carving that overflows the atlas's ceiling is pointed at a
+     * sibling's
+     * set. GTNH's Chisel on 1.7.10 gives each of its seven waterstones a face of its own, so the other edition, which
+     * notes the same one state, never meets it (2026-10-08).
+     *
+     * @param sets each covered state with pictures of its own, to the set holding them, as this stitch filed them
+     */
+    static void spreadWindows(final StateFiling<Block, Integer> sets) {
+        if (sets == null) return;
+        final Set<Integer> seeThrough = new java.util.HashSet<Integer>();
+        windowsBuilding.forEach(new StateFiling.Visitor<Block, Boolean>() {
+
+            @Override
+            public void visit(Block block, int meta, Boolean noted) {
+                Integer set = sets.get(block, meta);
+                if (set != null) seeThrough.add(set);
+            }
+        });
+        if (seeThrough.isEmpty()) return;
+        sets.forEach(new StateFiling.Visitor<Block, Integer>() {
+
+            @Override
+            public void visit(Block block, int meta, Integer set) {
+                if (seeThrough.contains(set) && drawn(block, meta)) windowsBuilding.file(block, meta, Boolean.TRUE);
+            }
+        });
+    }
+
+    /**
+     * Whether a metadata is one the block draws, rather than one detection claimed and no state of the block answers
+     * to. Detection claims all sixteen of every block it finds and the planner files them all, so Chisel's
+     * waterstone2, one carving, has fifteen more on file that its block turns back into the first; spread to those,
+     * the log counted 48 windows where Chisel has 33 carvings behind water.
+     */
+    private static boolean drawn(Block block, int meta) {
+        try {
+            return block.getMetaFromState(block.getStateFromMeta(meta)) == meta;
+        } catch (RuntimeException awkwardBlock) {
+            return false;
+        }
+    }
+
+    /**
+     * Makes what this stitch noted the set worn squares are meshed against. Render thread, as the sprite pass ends.
+     *
+     * <p>
+     * A filing built whole rather than the builder handed over, so the mesher reads one finished set and nothing noted
      * afterwards can reach it.
      */
     static void publishWindows() {
@@ -162,6 +237,11 @@ public final class InnerLayers {
     /**
      * Whether this covered state has anything see-through behind it. A null block, which is a position with
      * nothing recorded under it, has not.
+     *
+     * <p>
+     * Any thread: one read of a filing published whole and never written after. Asked whether or not the setting
+     * is on, which is the asker's business - {@code GhostWindows.windowOf} asks the setting first, as the other
+     * edition's painter does.
      */
     public static boolean isWindow(Block origin, int meta) {
         return origin != null && windows.has(origin, meta);

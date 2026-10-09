@@ -187,8 +187,8 @@ public class PacketEditFamily implements IMessage {
             if (changed) property.set(kept.toArray(new String[kept.size()]));
         }
 
-        private static void say(EntityPlayerMP player, EnumChatFormatting colour, String message) {
-            player.addChatMessage(new ChatComponentText(colour + message));
+        private static void say(EntityPlayerMP player, EnumChatFormatting color, String message) {
+            player.addChatMessage(new ChatComponentText(color + message));
         }
     }
 }

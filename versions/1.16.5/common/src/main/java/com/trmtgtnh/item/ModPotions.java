@@ -159,7 +159,7 @@ public final class ModPotions {
     }
 
     /**
-     * Nothing but a name, a colour and a borrowed icon; all the behaviour is asked for elsewhere.
+     * Nothing but a name, a color and a borrowed icon; all the behaviour is asked for elsewhere.
      *
      * <p>
      * The icon is not chosen here and cannot be: the game finds it by the effect's registry name.
@@ -168,11 +168,11 @@ public final class ModPotions {
      */
     private static final class Draught extends MobEffect {
 
-        private Draught(boolean bad, int colour) {
+        private Draught(boolean bad, int color) {
             super(
                 bad ? net.minecraft.world.effect.MobEffectCategory.HARMFUL
                     : net.minecraft.world.effect.MobEffectCategory.BENEFICIAL,
-                colour);
+                color);
         }
     }
 }

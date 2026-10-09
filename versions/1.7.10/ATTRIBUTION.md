@@ -89,7 +89,7 @@ indication of prior modifications, and a list that stops a year short of the cod
 - Block textures derived from the original art by rotation, to work around 1.7.10's lack
   of model rotation
 - The authored art decomposed into a reusable per-pixel coverage sequence and re-applied to each
-  block's own textures, so modded surfaces wear in their own colours
+  block's own textures, so modded surfaces wear in their own colors
 - Eleven procedural wear looks added, worked entirely from the block's own pixels, for surfaces
   nobody drew art for. `polish` and `sand` are retired names from an earlier set and are still
   read so that no config file breaks
@@ -123,12 +123,12 @@ indication of prior modifications, and a list that stops a year short of the cod
   of every detected surface, look and golem upgrade for judging a change at a glance
 - An in-game config screen, five preset choosers, and a wear table that draws all eleven looks on
   the player's own blocks before they choose one
-- JourneyMap colouring that travels toward what the ground is becoming, with an optional
+- JourneyMap coloring that travels toward what the ground is becoming, with an optional
   desire-path highlight
 - Xaero's Minimap support, reached through the one question any 1.7.10 map asks about a particular
   square, with the tile it caches marked dirty as a record moves - since wear is painted into the
   client's own world and no block packet is ever sent
-- A correction for modded turf, whose map colour is green before a biome tint is applied to it, so a
+- A correction for modded turf, whose map color is green before a biome tint is applied to it, so a
   path through it stops reading as a bright stripe rather than as worn ground
 - A wear editor that previews the whole run it is about to publish, and a mobs list that stops a mob
   wearing the ground by writing it down at nought, which a wildcard line cannot override, rather than

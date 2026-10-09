@@ -235,9 +235,16 @@ public final class TrmtConfig {
 
     /**
      * A ceiling of the player's own on wear sprites, counting every one this mod registers; at the default it is above
-     * any room the atlas can have, so it never binds.
+     * any room an 8192 atlas can have, so it never binds there.
      */
     public static int maxWearSprites = 262144;
+
+    /**
+     * Whether the wear may be planned into an atlas past an 8192 square, up to 16384 where the card reports it: the
+     * player's word that their card can hold one, off by default because a card that cannot draws every block black
+     * without a word. Handed to AtlasPlan as it is read.
+     */
+    public static boolean largerAtlas;
 
     /** Upper bound on how many distinct block faces get their own generated wear textures. */
     public static int maxTexturedSurfaces = 1024;
@@ -665,12 +672,12 @@ public final class TrmtConfig {
     /** What one of its blows takes off, in half-hearts. */
     public static float golemAttackDamage = 4.0f;
 
-    /** How far a fully worn square darkens on a map, as a fraction of its own colour. */
-    /** How far a fully worn square is pulled toward the desire-path colour on a map. 0 is off. */
+    /** How far a fully worn square darkens on a map, as a fraction of its own color. */
+    /** How far a fully worn square is pulled toward the desire-path color on a map. 0 is off. */
     public static float desirePathHighlight = 0f;
 
-    /** That colour as the file writes it, kept so the setting round-trips unchanged. */
-    public static String desirePathColour = "#AA44CC";
+    /** That color as the file writes it, kept so the setting round-trips unchanged. */
+    public static String desirePathColor = "#AA44CC";
 
     /** The parsed form, which is what the map path actually reads. */
     public static int desirePathRgb = 0xAA44CC;
@@ -679,7 +686,7 @@ public final class TrmtConfig {
     public static boolean mapWearThroughTint = true;
 
     /**
-     * Whether a map draws a worn square in a colour that says how worn it is. Read by the colour handler this mod hands
+     * Whether a map draws a worn square in a color that says how worn it is. Read by the color handler this mod hands
      * to JourneyMap, and by the wear shade a world-reading map is given through the block tint, so switching it off
      * takes the wear off both. A modded turf's tint correction for such a map is not wear and is not affected.
      */
@@ -1055,7 +1062,7 @@ public final class TrmtConfig {
 
     /**
      * Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt
-     * wears in its own colours instead of vanilla's.
+     * wears in its own colors instead of vanilla's.
      */
     public static boolean perSurfaceTextures = true;
 
@@ -1069,13 +1076,31 @@ public final class TrmtConfig {
     public static double layeredBlockShellLift = 0.002d;
 
     /**
+     * Every lavastone and waterstone Chisel for 1.12.2 registers, each with the liquid the 1.7.10 edition pairs it
+     * with.
+     *
+     * <p>
+     * Six names where that edition has two, because Chisel for 1.12.2 builds each family's thirty-three carvings as
+     * blocks of sixteen called {@code lavastone}, {@code lavastone1} and {@code lavastone2}, where GTNH's Chisel keeps
+     * a family under one name and tells the carvings apart by metadata. Read out of Chisel-MC1.12.2-1.0.2.45 on
+     * 2026-10-08 ({@code ChiselBlockBuilder.build}); with the two names alone, seventeen of each family's carvings
+     * had nothing behind them. {@code waterstoneextra}, which Chisel declares a holder for, is no block it registers.
+     */
+    static final String[] INNER_LAYER_TEXTURES = { "chisel:lavastone=lava_still", "chisel:lavastone1=lava_still",
+        "chisel:lavastone2=lava_still", "chisel:waterstone=water_still", "chisel:waterstone1=water_still",
+        "chisel:waterstone2=water_still" };
+
+    /** The default until 0.9.220, the 1.7.10 edition's two entries; {@link #widenInnerLayerTextures} moves it on. */
+    static final String[] INNER_LAYER_TEXTURES_WAS = { "chisel:lavastone=lava_still", "chisel:waterstone=water_still" };
+
+    /**
      * What is drawn behind a block whose own texture is cut away to show a second layer.
      *
      * <p>
      * Entries are {@code modid:block[:meta]=texture}. Read once per resource reload and never at
      * render time: what it decides is baked into the wear sprite while the atlas is being built.
      */
-    public static String[] innerLayerTextures = { "chisel:lavastone=lava_still", "chisel:waterstone=water_still" };
+    public static String[] innerLayerTextures = INNER_LAYER_TEXTURES.clone();
 
     /** Whether that layer moves, where the texture named for it is one that moves. */
     public static boolean animateInnerLayers = true;
@@ -1084,7 +1109,21 @@ public final class TrmtConfig {
     public static boolean seeThroughInnerLayers;
 
     /** The most memory, in megabytes, moving layers may hold for the session. */
-    public static int innerLayerAnimationBudgetMb = 64;
+    public static int innerLayerAnimationBudgetMb = 128;
+
+    /**
+     * The default of client.innerLayerAnimationBudgetMb: 128 from 0.9.220, where every edition had 64. Xep's choice on
+     * 2026-10-08, because 64 kept eight of the sixty-four lava and water surfaces Chisel for 1.12.2 builds still - they
+     * need 80 MiB at the gradations the atlas allows - where the 1.7.10 edition moves all of GT New Horizons' Chisel in
+     * thirteen. Only this edition's default moved.
+     */
+    static final int ANIMATION_BUDGET = 128;
+
+    /** The default {@link #ANIMATION_BUDGET} replaced; nothing but {@link #raiseAnimationBudget} reads it. */
+    static final int ANIMATION_BUDGET_WAS = 64;
+
+    /** Whether the file being read was written before 0.9.220, taken before anything declares a setting from then. */
+    private static boolean writtenBefore0920;
 
     /** How many moving layers may be redrawn in one tick. */
     public static int innerLayerUploadsPerTick = 256;
@@ -1208,22 +1247,22 @@ public final class TrmtConfig {
      * Says once when a map setting has been set to something this edition cannot do.
      *
      * <p>
-     * Two of the map settings describe a colour this version has no way to produce. 1.7.10 reaches
-     * into JourneyMap's own colour lookup and hands it an RGB value per position, so it can tint a
+     * Two of the map settings describe a color this version has no way to produce. 1.7.10 reaches
+     * into JourneyMap's own color lookup and hands it an RGB value per position, so it can tint a
      * square by any fraction and blend a route toward a violet that is not a material at all. Every
      * map here reads one vanilla answer instead - {@code getMapColor}, which is handed the position,
      * which is the whole reason this edition needs no map integration at all - and that answer is one
-     * of sixty-four fixed palette entries. A per-position tint and a highlight colour are both
-     * fractions of a colour, and there are no fractions here.
+     * of sixty-four fixed palette entries. A per-position tint and a highlight color are both
+     * fractions of a color, and there are no fractions here.
      *
      * <p>
      * Darkening is not one of the two, and this method used to say it was. A palette entry can be
      * picked for being darker even though it cannot be dimmed, so a worn square reports the nearest
-     * entry to its own colour darkened by {@code mapWearDarkening} - one colour rather than a shade
-     * per gradation. A road is visible on a map; how worn it is, is not. See {@code GhostMapColour}.
+     * entry to its own color darkened by {@code mapWearDarkening} - one color rather than a shade
+     * per gradation. A road is visible on a map; how worn it is, is not. See {@code GhostMapColor}.
      *
      * <p>
-     * What needs no setting at all: a worn square reports the colour of whatever it is standing in
+     * What needs no setting at all: a worn square reports the color of whatever it is standing in
      * for, so a path travels from green to earth as it wears through, because by then the square's
      * appearance really is earth.
      *
@@ -1244,7 +1283,7 @@ public final class TrmtConfig {
             named.append(one);
         }
         com.trmtgtnh.Trmt.LOG.info(
-            "These map settings do nothing on 1.12.2 and are left in the file so a pack can move between versions: {}. Every map here reads one vanilla answer, which is a choice of sixty-four fixed palette entries, so there is no per-position tint to give and no highlight colour to travel toward. What does work: a worn square reports the colour of whatever it stands in for, darkened by surfaces.mapWearDarkening to the nearest entry the palette has - one colour rather than a shade per gradation, so a road is visible on a map but how worn it is is not.",
+            "These map settings do nothing on 1.12.2 and are left in the file so a pack can move between versions: {}. Every map here reads one vanilla answer, which is a choice of sixty-four fixed palette entries, so there is no per-position tint to give and no highlight color to travel toward. What does work: a worn square reports the color of whatever it stands in for, darkened by surfaces.mapWearDarkening to the nearest entry the palette has - one color rather than a shade per gradation, so a road is visible on a map but how worn it is is not.",
             named);
     }
 
@@ -1300,12 +1339,31 @@ public final class TrmtConfig {
 
     /** Every setting the parsed config currently holds, as "category.key". */
     private static Set<String> keysOnRecord() {
+        return keysOnRecord(config);
+    }
+
+    /**
+     * {@link #keysOnRecord()}, of the settings given, with a name the next read carries across counted
+     * as the name it is carried to.
+     *
+     * <p>
+     * A file from before 0.9.220 holds the desire-path color under its old name, and the read that
+     * follows a reload moves it to the new one. Forge's parser merges a reloaded file into what it
+     * holds, so on 1.7.10 the new name is still on record and the guard against a truncated file is
+     * never asked; this edition's parser starts afresh on every load, so without this every older
+     * file put back by hand, and every config snapshot taken before the rename, would be refused as
+     * truncated.
+     */
+    static Set<String> keysOnRecord(ConfigFile from) {
         Set<String> keys = new java.util.HashSet<String>();
-        for (String name : config.getCategoryNames()) {
-            Category category = config.getCategory(name);
+        for (String name : from.getCategoryNames()) {
+            Category category = from.getCategory(name);
             for (String key : category.keySet()) {
                 keys.add(name + '.' + key);
             }
+        }
+        if (keys.contains(CATEGORY_CLIENT + '.' + DESIRE_PATH_COLOR_WAS)) {
+            keys.add(CATEGORY_CLIENT + ".desirePathColor");
         }
         return keys;
     }
@@ -1330,6 +1388,8 @@ public final class TrmtConfig {
             Trmt.LOG.warn("Not applying settings: the config file failed to read, fix it and use /trmt reload");
             return;
         }
+        // Taken before readSurfaces declares client.largerAtlas, after which every file would look current.
+        writtenBefore0920 = writtenBefore0920(config);
         readGeneral();
         readSurfaces();
         readMultipliers();
@@ -1399,7 +1459,7 @@ public final class TrmtConfig {
             CATEGORY_INTEGRATION,
             "gtnhEnhanced",
             ModsPresent.has("gregtech"),
-            "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map colouring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
+            "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map coloring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
         gtnhEnhanced = enhanced.getBoolean();
         dimensionListIsWhitelist = config.getBoolean(
             "dimensionListIsWhitelist",
@@ -1528,7 +1588,13 @@ public final class TrmtConfig {
             262144,
             768,
             262144,
-            "A ceiling on the wear sprites this mod plans into the block atlas, counting every one it registers: worn faces, the family fallbacks, the grass-side fringes, the grass side walls and the mended sides. It is not what decides whether they fit. At every stitch the mod measures how much of the atlas the rest of the pack has already taken and how large a texture this card will address, and plans no further than the room left: an 8192 square at most, less a sixteenth held back for the stitcher, less the pack's own textures, each at the size its file says it is. That room is counted in sixteen-pixel slots, and a wear sprite is drawn at the resolution of the face it is worn from, so it takes one slot for a sixteen-pixel face, four for a thirty-two and sixteen for a sixty-four. While anisotropic filtering is on, every texture the game loads into the atlas for itself is sixteen pixels wider and taller, and the pack's own are priced that way; a wear sprite is not, because it is made from its face with that border taken off, so a sixteen-pixel face's wear takes one slot either way. Even with nothing else in the atlas that is 245,760 sprites at one slot apiece, under this default of 262,144, so at the default this setting never takes effect at all: it exists to be turned down. Turned down far enough, it binds before the room does, which keeps the wear textures' share of video memory small on a machine short of it - 65,536 sixteen-pixel sprites are a 4096 square's worth, about eighty-five megabytes once mipmaps are counted, against about three hundred and forty for an 8192 square's worth. When it stops the plan, the ramp keeps its gradations and the faces last in registry-name order wear their family's generic art instead, and the log says so. The family fallbacks, fringes and walls are always planned in full, whatever this says and even where the room will not hold them, because without them worn ground has nothing to draw, and they count against this ceiling before any face does. Out of the box they come to three thousand eight hundred and forty sprites at eighty gradations and four rotations, and one hundred and ninety-two at sixteen and one, plus one for every grass wall and mended side and one for the wall an unknown grass falls back on: twelve appearances at every gradation and rotation, a fallback for each of the ten families that wear, one more for the earth under grass, and the fringe. Turning general.wearThroughToOtherSurfaces on, or joining a server whose rules turn it on, adds a fallback for every surface a family wears through into, which at the shipped families.<name>.wearsThroughTo makes eighteen appearances and those figures five thousand seven hundred and sixty and two hundred and eighty-eight. Set below what they come to, this gives no block its own wear at all and saves nothing further, and the log says so, and gives the figure that lets the first face in wherever the room would take it. Every face that wears with its own pixels costs gradations times rotations sprites, twice that for grass, which carries its earth as well. Where this ceiling stops the plan, lowering client.wearGradations fits more faces under it, but only below the count the log says was drawn, and never below sixteen; lowering client.wearRotations fits more too, though where the log also says the room drew fewer gradations than were asked, a rotation given up is spent on finer gradations first, up to the count asked for, and only what is left over brings faces back. Either way the log works out how many faces each change would keep. Where the room stops the plan, the ramp is at sixteen already, and lowering client.wearRotations is the only one of the two that can bring faces back. The log says how much room was measured and how much of it was used, every stitch.");
+            "A ceiling on the wear sprites this mod plans into the block atlas, counting every one it registers: worn faces, the family fallbacks, the grass-side fringes, the grass side walls and the mended sides. It is not what decides whether they fit. At every stitch the mod measures how much of the atlas the rest of the pack has already taken and how large a texture this card will address, and plans no further than the room left: an 8192 square at most, or 16384 with client.largerAtlas, less a sixteenth held back for the stitcher, less the pack's own textures, each at the size its file says it is. That room is counted in sixteen-pixel slots, and a wear sprite is drawn at the resolution of the face it is worn from, so it takes one slot for a sixteen-pixel face, four for a thirty-two and sixteen for a sixty-four. While anisotropic filtering is on, every texture the game loads into the atlas for itself is sixteen pixels wider and taller, and the pack's own are priced that way; a wear sprite is not, because it is made from its face with that border taken off, so a sixteen-pixel face's wear takes one slot either way. Even with nothing else in an 8192 atlas that is 245,760 sprites at one slot apiece, under this default of 262,144, so at the default this setting never takes effect there at all: it exists to be turned down. With client.largerAtlas on the room can be four times that, and this default then holds the wear to an 8192 square's worth of sixteen-pixel sprites - which only a pack worn mostly at sixteen pixels reaches, since a larger face takes several slots for one sprite. Turned down far enough, it binds before the room does, which keeps the wear textures' share of video memory small on a machine short of it - 65,536 sixteen-pixel sprites are a 4096 square's worth, about eighty-five megabytes once mipmaps are counted, against about three hundred and forty for an 8192 square's worth. When it stops the plan, the ramp keeps its gradations and the faces last in registry-name order wear their family's generic art instead, and the log says so. The family fallbacks, fringes and walls are always planned in full, whatever this says and even where the room will not hold them, because without them worn ground has nothing to draw, and they count against this ceiling before any face does. Out of the box they come to three thousand eight hundred and forty sprites at eighty gradations and four rotations, and one hundred and ninety-two at sixteen and one, plus one for every grass wall and mended side and one for the wall an unknown grass falls back on: twelve appearances at every gradation and rotation, a fallback for each of the ten families that wear, one more for the earth under grass, and the fringe. Turning general.wearThroughToOtherSurfaces on, or joining a server whose rules turn it on, adds a fallback for every surface a family wears through into, which at the shipped families.<name>.wearsThroughTo makes eighteen appearances and those figures five thousand seven hundred and sixty and two hundred and eighty-eight. Set below what they come to, this gives no block its own wear at all and saves nothing further, and the log says so, and gives the figure that lets the first face in wherever the room would take it. Every face that wears with its own pixels costs gradations times rotations sprites, twice that for grass, which carries its earth as well. Where this ceiling stops the plan, lowering client.wearGradations fits more faces under it, but only below the count the log says was drawn, and never below sixteen; lowering client.wearRotations fits more too, though where the log also says the room drew fewer gradations than were asked, a rotation given up is spent on finer gradations first, up to the count asked for, and only what is left over brings faces back. Either way the log works out how many faces each change would keep. Where the room stops the plan, the ramp is at sixteen already, and lowering client.wearRotations is the only one of the two that can bring faces back. The log says how much room was measured and how much of it was used, every stitch.");
+        largerAtlas = config.getBoolean(
+            "largerAtlas",
+            CATEGORY_CLIENT,
+            false,
+            "Let this mod plan its wear into a block atlas larger than an 8192 square - up to 16384, where your graphics card says it can address one. Off, the wear is planned into what an 8192 square has left once the pack's own textures are in, and a pack whose faces will not all fit at client.wearGradations draws every surface's ramp more coarsely, never below sixteen gradations, before any face falls back to its family's generic art; Chisel for 1.12.2's carvings, for one, drew every ramp at 62 of 80. On, they fit, and the price is video memory: a 16384 atlas is four times an 8192 one, about one and a third gigabytes with its smaller copies against about three hundred and forty megabytes. Turn it on only if your card has that to spare. The game builds the atlas without checking that the card accepted it, so a card that cannot hold one draws every block in the game black, with nothing in the log to say why - if that happens, turn this off again. A pack that needs more than 8192 for its own textures gets it from the game either way; this only lets the wear ask for the room. client.maxWearSprites still applies. Takes effect on the next resource reload.");
+        com.trmtgtnh.client.texture.AtlasPlan.allowLarger(largerAtlas);
         maxTexturedSurfaces = config.getInt(
             "maxTexturedSurfaces",
             CATEGORY_SURFACES,
@@ -1596,7 +1662,7 @@ public final class TrmtConfig {
             CATEGORY_CLIENT,
             "wearCurve",
             1.0d,
-            "How far every wear pattern's run is pushed away from the shape measured for it. One leaves each pattern on its own number and is what should normally be here. Below one the early steps of every run do more and the later ones less, so a path appears quickly and then deepens slowly; above one the reverse, and ground stays nearly untouched for a while before going all at once. This used to be a single exponent applied to every pattern alike, and that was the mistake it is now a scale to avoid: a crack spreads its own change almost evenly and goes on paying for a straight line to the end of its run, while a rub has barely started by the halfway mark and needs the curve to pull its late work forward - so the one number that suited the cracked families left the rubbed ones changing by a fifth of a colour level a step, which is nothing. This is not the same question as how worn the ground gets, which is the family's own wearStrength and maxWear; it is only how the journey there is divided up. Two things to know before moving it far. Because it multiplies, the reachable range differs by pattern: 0.2 to 3.0 here is an effective 0.20 to 3.00 on the cracked and buffed patterns but only 0.12 to 1.80 on the rub, so setting three and finding the rub stopped at 1.8 is the setting working rather than failing. And the rub's own shape is sharp - taking this to about 1.3 costs it more than half of its smallest step, long before anything looks wrong on stone.",
+            "How far every wear pattern's run is pushed away from the shape measured for it. One leaves each pattern on its own number and is what should normally be here. Below one the early steps of every run do more and the later ones less, so a path appears quickly and then deepens slowly; above one the reverse, and ground stays nearly untouched for a while before going all at once. This used to be a single exponent applied to every pattern alike, and that was the mistake it is now a scale to avoid: a crack spreads its own change almost evenly and goes on paying for a straight line to the end of its run, while a rub has barely started by the halfway mark and needs the curve to pull its late work forward - so the one number that suited the cracked families left the rubbed ones changing by a fifth of a color level a step, which is nothing. This is not the same question as how worn the ground gets, which is the family's own wearStrength and maxWear; it is only how the journey there is divided up. Two things to know before moving it far. Because it multiplies, the reachable range differs by pattern: 0.2 to 3.0 here is an effective 0.20 to 3.00 on the cracked and buffed patterns but only 0.12 to 1.80 on the rub, so setting three and finding the rub stopped at 1.8 is the setting working rather than failing. And the rub's own shape is sharp - taking this to about 1.3 costs it more than half of its smallest step, long before anything looks wrong on stone.",
             0.2d,
             3.0d)
             .getDouble();
@@ -1629,6 +1695,9 @@ public final class TrmtConfig {
     /** Whether the warning about a file naming both chunk tamper settings has been given this run. */
     private static boolean retiredChunkTamperSaid;
 
+    /** Whether the warning about a file naming both names of the desire-path setting has been given this run. */
+    private static boolean retiredDesirePathSaid;
+
     /**
      * Whether the file just read names a setting outright, rather than the setting being merged in from
      * what was already held.
@@ -1640,7 +1709,12 @@ public final class TrmtConfig {
      * difference. A file that cannot be read names nothing.
      */
     private static boolean fileNames(String key) {
-        java.io.File file = config.getConfigFile();
+        return fileNames(config, key);
+    }
+
+    /** {@link #fileNames(String)}, asked of the file behind the settings given rather than the mod's own. */
+    private static boolean fileNames(ConfigFile from, String key) {
+        java.io.File file = from.getConfigFile();
         if (file == null || !file.isFile()) return false;
         try {
             String text = new String(
@@ -1681,6 +1755,69 @@ public final class TrmtConfig {
         property.set(DEMO_CONTAINER);
         Trmt.LOG.info("Pointed demoContainer at the roomier Iron Chest, which is what its default now asks for");
         return DEMO_CONTAINER;
+    }
+
+    /**
+     * Gives an innerLayerTextures written before 0.9.220 the Chisel names its default now holds and it lacks.
+     *
+     * <p>
+     * Until 0.9.220 the default was the 1.7.10 edition's two entries, which here name only the first sixteen of each
+     * family's thirty-three carvings - see {@link #INNER_LAYER_TEXTURES}. A config keeps whatever its file holds and
+     * gets a default only where the file has none, so every file written with Chisel installed - which is every file
+     * a player of that pack has - would keep the two for ever.
+     *
+     * <p>
+     * <strong>Additive, and not a swap of a list that matches the old default exactly</strong>, which is how
+     * {@link #repointDemoContainer} moves its own default on. A list that still holds both old entries is a list the
+     * old default is still standing in, whatever else somebody has added beside it: a player's own block, or the test
+     * rig's fixture entry, which every rig target carries from 2026-10-08. Matched exactly, any one extra entry stopped
+     * the move for good - in the rig, on every target. So the four new names are put in, each after the old entry of
+     * its own family, and every other entry stays exactly where and as it was.
+     *
+     * <p>
+     * Once, though, and never against a choice. It stands down as soon as any of the four new names is already there:
+     * a list that has been widened once, or that somebody has written those names into, is theirs, and taking one of
+     * them out again sticks rather than being put back at the next read. A list without both old entries is never
+     * touched either - removing them is how a player says they want none of it. Marking the setting changed is what has
+     * the save after the read write the new names out.
+     */
+    static String[] widenInnerLayerTextures(Setting property) {
+        String[] current = property.getStringList();
+        if (current == null) return current;
+        for (String added : INNER_LAYER_TEXTURES) {
+            if (!holds(INNER_LAYER_TEXTURES_WAS, added) && holds(current, added)) return current;
+        }
+        for (String was : INNER_LAYER_TEXTURES_WAS) {
+            if (!holds(current, was)) return current;
+        }
+        java.util.List<String> widened = new java.util.ArrayList<String>(current.length + INNER_LAYER_TEXTURES.length);
+        for (String entry : current) {
+            widened.add(entry);
+            String held = entry == null ? "" : entry.trim();
+            if (!holds(INNER_LAYER_TEXTURES_WAS, held)) continue;
+            // lavastone1 and lavastone2 after lavastone, the waterstones after waterstone: the new names whose block
+            // is the old entry's block with its number added, as Chisel names them.
+            String family = held.substring(0, held.indexOf('='));
+            for (String added : INNER_LAYER_TEXTURES) {
+                if (holds(INNER_LAYER_TEXTURES_WAS, added) || widened.contains(added)) continue;
+                if (added.startsWith(family)) widened.add(added);
+            }
+        }
+        String[] out = widened.toArray(new String[widened.size()]);
+        property.set(out);
+        Trmt.LOG.info(
+            "Added the {} lavastones and waterstones Chisel for 1.12.2 registers that innerLayerTextures did not name, which its default now does",
+            Integer.valueOf(out.length - current.length));
+        return out;
+    }
+
+    /** Whether a list holds an entry, its spacing aside. */
+    private static boolean holds(String[] list, String entry) {
+        for (String each : list) {
+            if (each != null && each.trim()
+                .equals(entry)) return true;
+        }
+        return false;
     }
 
     private static void readMultipliers() {
@@ -2074,12 +2211,12 @@ public final class TrmtConfig {
             "mapTracksWear",
             CATEGORY_SURFACES,
             true,
-            "Whether a map draws worn ground differently from ground nobody has crossed. <strong>Reduced at this version, and worth knowing how.</strong> Every map here reads one vanilla answer - getMapColor, handed the position - and that answer is one of sixty-four fixed palette entries, so there is no shade per gradation to give: a worn square that shows at all is drawn in the palette entry nearest its own colour darkened by surfaces.mapWearDarkening, and does not darken further as it wears. A road is visible on the map; how worn it is, is not. Where the palette holds nothing darker than a particular ground, that ground keeps its colour and the log says so once. What follows is what this setting means where a colour can be dimmed by a fraction. On, a worn square is drawn in a colour that has travelled toward whatever that ground is turning into - a turf path leaves green and arrives at earth in step with how far along its run it has walked - and darkened by how heavily it has been used. Which is a map that answers 'where do people go' as well as 'what is this made of', and it is why a road shows up on a minimap at all. Off, every square is drawn as the material it started as, and the darkening a world-reading map is given through client.mapWearThroughTint goes with it. One correction still reaches such a map with this off, because it is not wear: a modded turf has its tint put right, so a path through it does not read as a green stripe. What a map with no per-position colour handler can do is coarser and cannot be helped: the vanilla map item works from a fixed palette of sixty-four colours with no darker sibling to pick, so it is given the right material and nothing about how worn it is. JourneyMap is asked per position and gets all of it; a map that reads the world, Xaero's Minimap among them, gets the darkening.");
+            "Whether a map draws worn ground differently from ground nobody has crossed. <strong>Reduced at this version, and worth knowing how.</strong> Every map here reads one vanilla answer - getMapColor, handed the position - and that answer is one of sixty-four fixed palette entries, so there is no shade per gradation to give: a worn square that shows at all is drawn in the palette entry nearest its own color darkened by surfaces.mapWearDarkening, and does not darken further as it wears. A road is visible on the map; how worn it is, is not. Where the palette holds nothing darker than a particular ground, that ground keeps its color and the log says so once. What follows is what this setting means where a color can be dimmed by a fraction. On, a worn square is drawn in a color that has travelled toward whatever that ground is turning into - a turf path leaves green and arrives at earth in step with how far along its run it has walked - and darkened by how heavily it has been used. Which is a map that answers 'where do people go' as well as 'what is this made of', and it is why a road shows up on a minimap at all. Off, every square is drawn as the material it started as, and the darkening a world-reading map is given through client.mapWearThroughTint goes with it. One correction still reaches such a map with this off, because it is not wear: a modded turf has its tint put right, so a path through it does not read as a green stripe. What a map with no per-position color handler can do is coarser and cannot be helped: the vanilla map item works from a fixed palette of sixty-four colors with no darker sibling to pick, so it is given the right material and nothing about how worn it is. JourneyMap is asked per position and gets all of it; a map that reads the world, Xaero's Minimap among them, gets the darkening.");
         mapWearDarkening = (float) config.get(
             CATEGORY_SURFACES,
             "mapWearDarkening",
             0.62d,
-            "How far a worn square is darkened on a map, as a fraction of the colour it would otherwise be. <strong>Read once at full strength here rather than spread over the run</strong>: this version has sixty-four fixed palette entries to draw a map with and no fraction to apply, so what this figure decides is which entry is picked - the nearest one to the ground's colour darkened by this much - and every square that shows wear is drawn in it. Raising it reaches for a darker entry and may land on the same one; at nought the square keeps its own colour. What follows is the run-long easing this means on 1.7.10. The darkening is spread evenly over every gradation the ground has - eighty for most families - so this also sets how much one step of wear is worth: at the default, about eight tenths of one per cent each. Raise it to tell the levels apart more easily, at the cost of a worn road reading as a darker material rather than as the same material worn. There is a floor on what can be shown either way: eight-bit colour has only so many values between a block's own shade and a fraction of it, and on already-dark ground several gradations will land on the same one however wide this is set. Nought means no darkening at all, and now genuinely does: it used to be read as a request for the default, so a pack that turned this off silently got it back.",
+            "How far a worn square is darkened on a map, as a fraction of the color it would otherwise be. <strong>Read once at full strength here rather than spread over the run</strong>: this version has sixty-four fixed palette entries to draw a map with and no fraction to apply, so what this figure decides is which entry is picked - the nearest one to the ground's color darkened by this much - and every square that shows wear is drawn in it. Raising it reaches for a darker entry and may land on the same one; at nought the square keeps its own color. What follows is the run-long easing this means on 1.7.10. The darkening is spread evenly over every gradation the ground has - eighty for most families - so this also sets how much one step of wear is worth: at the default, about eight tenths of one per cent each. Raise it to tell the levels apart more easily, at the cost of a worn road reading as a darker material rather than as the same material worn. There is a floor on what can be shown either way: eight-bit color has only so many values between a block's own shade and a fraction of it, and on already-dark ground several gradations will land on the same one however wide this is set. Nought means no darkening at all, and now genuinely does: it used to be read as a request for the default, so a pack that turned this off silently got it back.",
             0.0d,
             0.9d)
             .getDouble();
@@ -2292,7 +2429,7 @@ public final class TrmtConfig {
             1,
             0,
             64,
-            "How many of the material lighting one block costs. The Wayfarer's tamper pays half. Recolouring an already-lit block and putting one out are free but for a scratch of durability. 0 makes lighting free.");
+            "How many of the material lighting one block costs. The Wayfarer's tamper pays half. Recoloring an already-lit block and putting one out are free but for a scratch of durability. 0 makes lighting free.");
         lightMaterials = config.get(
             CATEGORY_LIGHT,
             "materials",
@@ -2631,10 +2768,10 @@ public final class TrmtConfig {
     }
 
     /**
-     * A {@code #RRGGBB} colour, or the fallback with one line in the log.
+     * A {@code #RRGGBB} color, or the fallback with one line in the log.
      *
      * <p>
-     * Said aloud rather than swallowed. A mistyped colour that quietly drew black would look
+     * Said aloud rather than swallowed. A mistyped color that quietly drew black would look
      * exactly like the feature working, because worn ground is meant to be dark anyway - so the
      * one mistake somebody is likely to make is the one that would be hardest to notice.
      */
@@ -2644,11 +2781,101 @@ public final class TrmtConfig {
         else if (hex.regionMatches(true, 0, "0x", 0, 2)) hex = hex.substring(2);
         try {
             if (hex.length() == 6) return Integer.parseInt(hex, 16) & 0xFFFFFF;
-        } catch (NumberFormatException notAColour) {
+        } catch (NumberFormatException notAColor) {
             // Falls through to the complaint below.
         }
-        Trmt.LOG.warn("client.desirePathColour is not a #RRGGBB colour ('{}'); using the default", text);
+        Trmt.LOG.warn("client.desirePathColor is not a #RRGGBB color ('{}'); using the default", text);
         return fallback;
+    }
+
+    /**
+     * The name {@code client.desirePathColor} was saved under until 0.9.220. Nothing reads it but
+     * {@link #carryDesirePathColor}, and nothing writes it at all.
+     */
+    static final String DESIRE_PATH_COLOR_WAS = "desirePathColour";
+
+    /**
+     * Moves a player's desire-path color from the name it was saved under until 0.9.220 to the name it has
+     * now.
+     *
+     * <p>
+     * The mod's spelling became "color" in 0.9.220, and this is the one place where renaming took more
+     * than an edit: a name the file does not hold is read as a setting nobody has set, so a bare rename
+     * would have put every color a player had chosen back to the default violet without a word.
+     *
+     * <p>
+     * The same three cases as the chunk tamper's rename in {@link #readGeneral}, and the 1.7.10
+     * edition's three. A file that names only the old setting has its value carried to the new name -
+     * created if the new name is not held, written over it if it is. A file that names both has been
+     * edited since the rename, and the new name is the one somebody chose; the old one is dropped and
+     * said once. Either way the old name leaves the settings, which {@link ConfigFile} counts as a
+     * change, so the save that follows every read writes the file out under the new name.
+     *
+     * <p>
+     * Called before {@link #readClient} reads the setting, and it has to be: read first, and the field
+     * would already hold the default this exists to keep out of it.
+     */
+    /**
+     * Whether a file was written by a build before 0.9.220: one with a client heading and no client.largerAtlas, which
+     * every build since writes. Forge-style files carry no version of their own, and a setting first written in a
+     * release is the one mark a file gets of which release last saved it. A file with no client heading has nothing
+     * an older build left in it, so it is answered no.
+     */
+    static boolean writtenBefore0920(ConfigFile from) {
+        return from.hasCategory(CATEGORY_CLIENT) && !from.getCategory(CATEGORY_CLIENT)
+            .containsKey("largerAtlas");
+    }
+
+    /**
+     * Raises a client.innerLayerAnimationBudgetMb that an older build wrote at its old default to the default it has
+     * now, once.
+     *
+     * <p>
+     * A file keeps whatever it holds and gets a default only where it holds none, so the raise would otherwise reach
+     * nobody who ran 0.9.219 - every 1.12.2 player there is. As {@link #repointDemoContainer} draws the line, the mod
+     * may replace what the mod wrote and never what somebody typed: only a file from before 0.9.220 holding exactly the
+     * old default is moved, and the same read writes client.largerAtlas into it, so it is never asked again. Somebody
+     * who sets 64 afterwards keeps it. Called before {@link #readClient} reads the setting, which would otherwise
+     * already hold the old figure.
+     */
+    static void raiseAnimationBudget(ConfigFile from, boolean writtenBefore) {
+        if (!writtenBefore) return;
+        Category client = from.getCategory(CATEGORY_CLIENT);
+        if (!client.containsKey("innerLayerAnimationBudgetMb")) return;
+        Setting held = client.get("innerLayerAnimationBudgetMb");
+        if (!String.valueOf(ANIMATION_BUDGET_WAS)
+            .equals(
+                held.getString()
+                    .trim())) {
+            return;
+        }
+        held.set(ANIMATION_BUDGET);
+        Trmt.LOG.info(
+            "Raised client.innerLayerAnimationBudgetMb from {}, the default this file was written with, to {}, its default since 0.9.220; set it back to keep the old figure, and it stays",
+            Integer.valueOf(ANIMATION_BUDGET_WAS),
+            Integer.valueOf(ANIMATION_BUDGET));
+    }
+
+    static void carryDesirePathColor(ConfigFile from) {
+        Category client = from.getCategory(CATEGORY_CLIENT);
+        if (!client.containsKey(DESIRE_PATH_COLOR_WAS)) return;
+        String carried = client.get(DESIRE_PATH_COLOR_WAS)
+            .getString();
+        if (fileNames(from, "desirePathColor")) {
+            if (!retiredDesirePathSaid) {
+                retiredDesirePathSaid = true;
+                Trmt.LOG.warn(
+                    "Ignoring client.{}={}: the file also sets desirePathColor, which replaced it in 0.9.220",
+                    DESIRE_PATH_COLOR_WAS,
+                    carried);
+            }
+        } else if (client.containsKey("desirePathColor")) {
+            client.get("desirePathColor")
+                .set(carried);
+        } else {
+            client.put("desirePathColor", new Setting("desirePathColor", carried, ConfigFile.Type.STRING));
+        }
+        client.remove(DESIRE_PATH_COLOR_WAS);
     }
 
     private static void readClient() {
@@ -2674,7 +2901,7 @@ public final class TrmtConfig {
             CATEGORY_CLIENT,
             "perSurfaceTextures",
             true,
-            "Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt wears in its own colours instead of vanilla's. Costs extra sprites in the block atlas at the resolution of the faces they are worn from, bounded by surfaces.maxTexturedSurfaces and client.maxWearSprites. Where the atlas has not the room for them all at client.wearGradations, every surface's ramp is drawn more coarsely first, the family fallbacks that everything else wears included, never below sixteen gradations, and only past that do the faces last in registry-name order fall back; the log says which. On a large pack, or one drawn at thirty-two pixels, that means this setting can cost every worn block in the world some of its gradations, and switching it off gives that room back to the ramp. Off, no worn block is drawn from its own pixels, so nothing named in client.innerLayerTextures is drawn into worn ground either: Chisel's lavastone and waterstone wear their family's generic art with no lava or water in it. The potato quality rung turns this off.");
+            "Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt wears in its own colors instead of vanilla's. Costs extra sprites in the block atlas at the resolution of the faces they are worn from, bounded by surfaces.maxTexturedSurfaces and client.maxWearSprites. Where the atlas has not the room for them all at client.wearGradations, every surface's ramp is drawn more coarsely first, the family fallbacks that everything else wears included, never below sixteen gradations, and only past that do the faces last in registry-name order fall back; the log says which. On a large pack, or one drawn at thirty-two pixels, that means this setting can cost every worn block in the world some of its gradations, and switching it off gives that room back to the ramp. Off, no worn block is drawn from its own pixels, so nothing named in client.innerLayerTextures is drawn into worn ground either: Chisel's lavastone and waterstone wear their family's generic art with no lava or water in it. The potato quality rung turns this off.");
         perSurface.setLanguageKey("trmtgtnh.config.perSurfaceTextures");
         perSurface.setRequiresMcRestart(true);
         perSurfaceTextures = perSurface.getBoolean();
@@ -2701,64 +2928,66 @@ public final class TrmtConfig {
             "liftLayeredBlockShell",
             CATEGORY_CLIENT,
             ModsPresent.has("chisel"),
-            "Stops the lava and water inside Chisel's lavastone and waterstone from flickering against the carved stone drawn over it. Those blocks are two full cubes occupying exactly the same space - the liquid first, the stone over it - and two surfaces at the same depth give a graphics card no way to say which is in front. On a plain client that settles itself, because both are worked out from the same corners and so come to the same depth; what unsettles it is the crack fix that comes with the modern chunk builder, which grows every full-cube face a thousandth of a block sideways to hide the seams between chunks and does it in only the first of the two passes. The liquid's face moves, the stone's does not, and the two argue pixel by pixel. This lifts the stone a hair proud of the liquid so the argument cannot arise. Purely visual and yours alone: it changes nothing about where the block is, what it collides with, how it is lit, which of its faces are drawn, or what anybody else sees. Defaults on when Chisel is installed, does nothing whatever when it is not, and is quietly skipped if a future Chisel draws these blocks some other way - the log says once, at the first one drawn, whether it is doing anything.");
+            "Does nothing on this edition, and is kept so that every edition's settings are the same settings. On 1.7.10 it stops the lava and water inside Chisel's lavastone and waterstone flickering against the carved stone drawn over it: those blocks are two full cubes in exactly the same space, and the crack fix that comes with that version's modern chunk builder grows the liquid's faces a thousandth of a block and not the stone's, so the two fight pixel by pixel until the stone is lifted a hair proud. On this edition Chisel draws the two as one model, which no renderer here grows unevenly - photographed close up on 2026-10-08, worn and unworn, with nothing to see - so there is nothing for it to lift, and nothing reads it.");
         layeredBlockShellLift = config.get(
             CATEGORY_CLIENT,
             "layeredBlockShellLift",
             0.002d,
-            "How far, in blocks, the setting above lifts the carved stone off the liquid beneath it. Depth precision falls away with the square of the distance to your eye, so no fixed figure lasts for ever: a five-hundredth of a block holds to roughly forty blocks away, a two-hundred-and-fiftieth to sixty, a hundredth to ninety. Raise it if the flicker comes back across a long view; lower it if you can see the stone standing proud of the blocks beside it close up, which at the default is a thirty-second of a texture pixel and should not be visible at all. The lift only ever reaches into a neighbouring cell you can see through, because a face against a solid neighbour is never drawn in the first place, so there is nothing there for it to poke through. Nought disables the lift while leaving the setting above on, which is how to check whether the lift is what you are looking at; a twentieth exaggerates it until the stone visibly balloons, which is how to check whether it is being applied at all.",
+            "How far, in blocks, the 1.7.10 edition lifts the carved stone of a layered block off the liquid beneath it. Does nothing on this edition, as the setting above says, and is kept so that every edition's settings are the same settings.",
             0.0d,
             0.05d)
             .getDouble();
-        innerLayerTextures = config.get(
-            CATEGORY_CLIENT,
-            "innerLayerTextures",
-            new String[] { "chisel:lavastone=lava_still", "chisel:waterstone=water_still" },
-            "What to draw behind a worn block whose own texture is cut away to show something underneath. A few blocks are a shell with a second layer behind them - Chisel's lavastone and waterstone are stone with lava or water showing through the gaps - and they draw that layer in a pass of their own. Worn ground is drawn by this mod in one pass and cannot do that, so before this setting existed the gaps in the shell were simply gaps: between a twentieth and three quarters of every face of a worn one was a hole with nothing behind it, and a worn waterstone came out plain grey with no water in it at all. Each entry says which texture belongs behind which block, written as modid:block=texture or modid:block:meta=texture, and the layer is painted into the worn picture once while the textures are being built rather than drawn again every frame - so it costs nothing at all while you are playing, and it sinks with the ground because it is part of the picture the ground is drawn with. Naming a block from a mod you do not have does nothing; the two entries shipped here are inert without Chisel, and a texture that cannot be found is said once in the log rather than quietly ignored. Emptying the list turns the whole thing off and gives the holes back. A layer is only ever laid into a worn picture made from the block's own pixels, so it is gone from any block that wears its family's generic art instead: every block while client.perSurfaceTextures is off, which the potato quality rung also does, and any block that surfaces.maxTexturedSurfaces, client.maxWearSprites or the room in the block atlas turns away, which the log says at the stitch where it happens. Where the texture named is one that moves, the layer moves with it and keeps step with the unworn blocks around it; see animateInnerLayers, which is what decides that and what it costs. Takes effect on the next resource reload.")
-            .getStringList();
+        innerLayerTextures = widenInnerLayerTextures(
+            config.get(
+                CATEGORY_CLIENT,
+                "innerLayerTextures",
+                INNER_LAYER_TEXTURES,
+                "What to draw behind a worn block whose own texture is cut away to show something underneath. A few blocks are a shell with a second layer behind them - Chisel's lavastone and waterstone are stone with lava or water showing through the gaps - and they draw that layer in a pass of their own. Worn ground is drawn by this mod in one pass and cannot do that, so before this setting existed the gaps in the shell were simply gaps: between a twentieth and three quarters of every face of a worn one was a hole with nothing behind it, and a worn waterstone came out plain grey with no water in it at all. Each entry says which texture belongs behind which block, written as modid:block=texture or modid:block:meta=texture, and the layer is painted into the worn picture once while the textures are being built rather than drawn again every frame - so it costs nothing at all while you are playing, and it sinks with the ground because it is part of the picture the ground is drawn with. Naming a block from a mod you do not have does nothing; the six entries shipped here are every lavastone and waterstone Chisel registers on this version of the game, which builds each of the two as three blocks of up to sixteen carvings apiece, and they are inert without Chisel. A list still holding both of the two entries every build before 0.9.220 shipped is given the other four once, as it is read, whatever else it holds; once any of those four is there the list is left as it is, so taking one out again sticks, and a list without both of the old two is never touched. A texture that cannot be found is said once in the log rather than quietly ignored. Emptying the list turns the whole thing off and gives the holes back. A layer is only ever laid into a worn picture made from the block's own pixels, so it is gone from any block that wears its family's generic art instead: every block while client.perSurfaceTextures is off, which the potato quality rung also does, and any block that surfaces.maxTexturedSurfaces, client.maxWearSprites or the room in the block atlas turns away, which the log says at the stitch where it happens. Where the texture named is one that moves, the layer moves with it and keeps step with the unworn blocks around it; see animateInnerLayers, which is what decides that and what it costs. Takes effect on the next resource reload."));
         seeThroughInnerLayers = config.getBoolean(
             "seeThroughInnerLayers",
             CATEGORY_CLIENT,
             ModsPresent.has("chisel"),
-            "Let the layer behind a worn block be seen through, where it has any transparency of its own. Chisel's waterstone is stone with water behind it, and vanilla's water is drawn with about a third of its light coming from whatever is on the other side - but the block it belongs to is solid, and so is the worn ground this mod paints over it, so that third has nowhere to come from and the water reads as blue stone. On, the gaps a carving leaves are left genuinely open: the carved stone stays solid, and only the holes let anything through. It is a deliberate departure from what the block looks like unworn rather than a correction to it, which is why it asks first. How much comes through depends entirely on which chiselling it is, and on three of the seven it is almost nothing. The gaps in a carved face run from a thirty-second of it to three eighths, and vanilla's water is never less than two thirds solid in any of its thirty-two frames - so across a whole face the light arriving from behind is about one part in a hundred on the cobble, black and creeper carvings, one in thirty on the tiled, one in twenty on the chaotic, and one in nine on the plain panel, which is the only one where it is plainly a different block. Turning this on and looking at a worn cobble waterstone shows nothing whatever, and that is the setting working rather than failing; the panel and the chaotic are the ones to look at. Nothing at all is drawn through where the layer is solid, so lava is untouched by this and always will be. Costs nothing when off, and nothing at all without a mod that has such a block. Takes effect on the next resource reload.");
+            "Let the layer behind a worn block be seen through, where it has any transparency of its own. Chisel's waterstone is carved stone with water behind it, and vanilla's water is drawn with about three tenths of its light coming from whatever is on the other side - but the block it belongs to is solid, and so is the worn ground this mod paints over it, so that share has nowhere to come from and the water reads as blue stone. On, the gaps a carving leaves are left genuinely open: the carved stone stays solid, and only the holes let anything through. It is a deliberate departure from what the block looks like unworn rather than a correction to it, which is why it asks first. How much comes through depends on which carving it is. Chisel for this version cuts away between an eighth and a half of a face - the large tiles least, the small chaotic bricks most - and vanilla's water is seven tenths solid in every one of its thirty-two frames, so across a whole face the light arriving from behind runs from about one part in twenty-eight on the large tiles to one in six on the small chaotic bricks, and is between one in eight and one in fourteen on most of the thirty-three carvings that have a picture of their own. The large tiles and the slanted carving are where it is hardest to see; the small chaotic, ornate and twisted carvings are where to look. Nothing at all is drawn through where the layer is solid, so lava is untouched by this and always will be. Costs nothing when off, and nothing at all without a mod that has such a block. Takes effect on the next resource reload.");
         animateInnerLayers = config.getBoolean(
             "animateInnerLayers",
             CATEGORY_CLIENT,
             true,
-            "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, including while you are looking the other way, wherever client.innerLayerUploadsPerTick lets it be redrawn. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - a little over eleven megabytes for Chisel's fifteen faces at sixteen pixels and the settings shipped here, and about forty-five at thirty-two. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
+            "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, including while you are looking the other way, wherever client.innerLayerUploadsPerTick lets it be redrawn. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - about seventy-nine megabytes for the sixty-four lava and water faces Chisel for this version builds, at the settings shipped here and the sixty-two gradations an 8192 atlas holds them at, and about a hundred and one with client.largerAtlas on and all eighty drawn. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
+        raiseAnimationBudget(config, writtenBefore0920);
         innerLayerAnimationBudgetMb = config.getInt(
             "innerLayerAnimationBudgetMb",
             CATEGORY_CLIENT,
-            64,
+            ANIMATION_BUDGET,
             0,
             512,
-            "The most memory, in megabytes, that moving layers may hold for the session. A surface whose layer moves is priced whole before any of it is granted, and the price is everything moving it makes the game keep: the shell of every worn picture of the surface, the still picture and its smaller copies that the atlas keeps for anything that moves and lets go of for everything else, and one copy of the liquid's frames for the surface, cut at the size its worn pictures are drawn at. So it rises with how many blocks you have named in innerLayerTextures, with client.wearGradations and client.wearRotations, the two settings that decide how many pictures a surface is drawn with, and with the square of the texture's resolution. At sixteen pixels, eighty gradations, four rotations and the game's default of four mipmap levels, one lavastone comes to three quarters of a megabyte and Chisel's eight lavastones and seven waterstones to a little over eleven, so the default has room for more than five times that; at thirty-two pixels each costs four times as much. Anisotropic filtering changes none of these figures. Surfaces are granted in the order they are built, each whole or not at all, and one the budget will not stretch to keeps its layer's first frame in every picture while a cheaper surface after it can still move. Below the price of a single surface nothing moves at all - a thirty-two pixel lavastone needs just under three megabytes, so two here moves nothing on such a pack - and the log says so rather than leaving it to be noticed. What is held, by kind, and the surfaces kept still, counted by the texture behind them, with what moving them would have needed, are written to the log at the end of every resource reload. Nought declines the whole thing, which is the same picture as turning the setting above off.");
+            "The most memory, in megabytes, that moving layers may hold for the session. A surface whose layer moves is priced whole before any of it is granted, and the price is everything moving it makes the game keep: the shell of every worn picture of the surface, the still picture and its smaller copies that the atlas keeps for anything that moves and lets go of for everything else, and one copy of the liquid's frames for the surface, cut at the size its worn pictures are drawn at. So it rises with how many blocks you have named in innerLayerTextures, with client.wearGradations and client.wearRotations, the two settings that decide how many pictures a surface is drawn with, and with the square of the texture's resolution. Chisel for this version builds sixty-four lava and water faces, most at sixteen pixels and some at thirty-two, forty-eight or sixty-four, and at the settings shipped here they come to about seventy-nine megabytes: the sixty-two gradations an 8192 atlas holds them at, four rotations and the game's default of four mipmap levels. With client.largerAtlas on and all eighty gradations drawn they come to about a hundred and one, so the default of 128 moves every one of them either way, where 64, the default until 0.9.220, left eight standing still. A file written before 0.9.220 that still holds 64 is raised to 128 once, as it is read, and any other figure is kept. A sixteen-pixel water face is the cheapest, at about six tenths of a megabyte, and a face at thirty-two pixels costs four times what the same face costs at sixteen. Anisotropic filtering changes none of these figures. Surfaces are granted in the order they are built, each whole or not at all, and one the budget will not stretch to keeps its layer's first frame in every picture while a cheaper surface after it can still move. Below the price of a single surface nothing moves at all - a thirty-two pixel lavastone needs just under three megabytes, so two here moves nothing on such a pack - and the log says so rather than leaving it to be noticed. What is held, by kind, and the surfaces kept still, counted by the texture behind them, with what moving them would have needed, are written to the log at the end of every resource reload. Nought declines the whole thing, which is the same picture as turning the setting above off.");
         innerLayerUploadsPerTick = config.getInt(
             "innerLayerUploadsPerTick",
             CATEGORY_CLIENT,
             256,
             16,
             8192,
-            "How many moving layers may be redrawn in one tick. Every worn picture of a lavastone wants its lava laid again on the same tick, because they all follow one clock, so without a ceiling, on a plain client, every worn picture of a moving liquid on the atlas would send its upload on the same tick, whether or not any is in view - several thousand for Chisel's fifteen faces - and drop a frame doing it. A picture over the ceiling is not redrawn late: it keeps the frame it shows until its layer next moves and asks again, and because the pictures of a liquid all ask on the same ticks in the same order, past the ceiling it is the same pictures that miss out each time and stand still. The first tick after a resource reload that turns any picture away is written to the log with how many asked. A modern chunk builder already redraws only what is on screen, so on a client that has one this is almost never reached; on a plain client every moving picture asks, and Chisel's fifteen faces at the settings shipped here are four thousand eight hundred pictures. On a plain client the ceiling covers every moving picture on the atlas wherever you are, the menu included, so a regular stutter everywhere that goes away with client.animateInnerLayers off is the sign to lower it; only with a chunk builder that redraws what is on screen does the count follow how much worn chiselled ground is in view. Raise it if the log says it turned pictures away and you would rather see more of the liquid move.");
+            "How many moving layers may be redrawn in one tick. Every worn picture of a lavastone wants its lava laid again on the same tick, because they all follow one clock, so without a ceiling, on a plain client, every worn picture of a moving liquid on the atlas would send its upload on the same tick, whether or not any is in view - nearly sixteen thousand for Chisel's sixty-four faces at the settings shipped here - and drop a frame doing it. A picture over the ceiling is not redrawn late: it keeps the frame it shows until its layer next moves and asks again, and because the pictures of a liquid all ask on the same ticks in the same order, past the ceiling it is the same pictures that miss out each time and stand still. The first tick after a resource reload that turns any picture away is written to the log with how many asked. A modern chunk builder already redraws only what is on screen, so on a client that has one this is almost never reached; on a plain client every moving picture asks, and Chisel's sixty-four faces at the settings shipped here are 15,872 pictures, of which the default lets 256 move and keeps the rest on the frame they last showed. On a plain client the ceiling covers every moving picture on the atlas wherever you are, the menu included, so a regular stutter everywhere that goes away with client.animateInnerLayers off is the sign to lower it; only with a chunk builder that redraws what is on screen does the count follow how much worn chiselled ground is in view. Raise it if the log says it turned pictures away and you would rather see more of the liquid move.");
 
         mapWearThroughTint = config.getBoolean(
             "mapWearThroughTint",
             CATEGORY_CLIENT,
             true,
-            "Whether worn ground reports how worn it is through its own tint, which is the one question about a particular square that a minimap reading the world can ask a block. JourneyMap does not need this and is not affected by it either way - it is handed a colour handler of its own and asks that. Every other map on 1.7.10 works its colours out from the block, and for them this is the difference between a road that darkens as it wears and a road that looks exactly like the ground beside it. It costs nothing where nothing asks. What it rests on is worth knowing before switching it off for no reason, and worth knowing before leaving it on if something looks wrong: the tint is given only to a caller that hands over the world itself, because the renderer hands over a view of one chunk instead, and worn ground is already darkened in the picture it is drawn with - so a renderer told the same thing twice would draw it twice as dark. That test holds for vanilla's own mesher and for this pack's, both checked by name, and it is an inference about who is asking rather than a promise anybody made. If a future renderer or shader starts handing the whole world over, every worn block in the world goes too dark and this is the setting that puts it right. One thing already falls the wrong side of it and is left alone: the cracks drawn on a block you are breaking take the shade too, for as long as the swing lasts. Two further things are worth knowing before judging whether this is working. Xaero's asks in its Accurate block-colour mode, which is the one it ships with, and in its Vanilla mode only when 'Biomes in Vanilla Color Mode' is also on - in plain Vanilla mode it takes the block's map colour and hands it back without asking anything about the position, so this changes nothing there and a path shows only where the ground has worn through into a different material. And a map that keeps the tiles it has drawn only redraws one when something tells it the chunk changed; this mod tells Xaero's directly, because nothing else would, but any other map that caches the same way will show the wear as of the last time it drew that square.");
+            "Whether worn ground reports how worn it is through its own tint, which is the one question about a particular square that a minimap reading the world can ask a block. JourneyMap does not need this and is not affected by it either way - it is handed a color handler of its own and asks that. Every other map on 1.7.10 works its colors out from the block, and for them this is the difference between a road that darkens as it wears and a road that looks exactly like the ground beside it. It costs nothing where nothing asks. What it rests on is worth knowing before switching it off for no reason, and worth knowing before leaving it on if something looks wrong: the tint is given only to a caller that hands over the world itself, because the renderer hands over a view of one chunk instead, and worn ground is already darkened in the picture it is drawn with - so a renderer told the same thing twice would draw it twice as dark. That test holds for vanilla's own mesher and for this pack's, both checked by name, and it is an inference about who is asking rather than a promise anybody made. If a future renderer or shader starts handing the whole world over, every worn block in the world goes too dark and this is the setting that puts it right. One thing already falls the wrong side of it and is left alone: the cracks drawn on a block you are breaking take the shade too, for as long as the swing lasts. Two further things are worth knowing before judging whether this is working. Xaero's asks in its Accurate block-color mode, which is the one it ships with, and in its Vanilla mode only when 'Biomes in Vanilla Color Mode' is also on - in plain Vanilla mode it takes the block's map color and hands it back without asking anything about the position, so this changes nothing there and a path shows only where the ground has worn through into a different material. And a map that keeps the tiles it has drawn only redraws one when something tells it the chunk changed; this mod tells Xaero's directly, because nothing else would, but any other map that caches the same way will show the wear as of the last time it drew that square.");
         desirePathHighlight = readFloat(
             CATEGORY_CLIENT,
             "desirePathHighlight",
             0f,
             0f,
             1f,
-            "How far a worn square's colour on the map is pulled toward the desire-path colour below, at the point it is fully worn. Nought is off and off is what ships, so this means nothing at all until somebody deliberately raises it. Left alone, a map goes on drawing worn ground as the ground it is - travelling toward what it is turning into and darkening as it goes, which is what surfaces.mapTracksWear does. Turn this up and the map stops answering 'what material is this square' for worn ground and starts answering 'where does everybody actually walk'. That is a different map and a deliberate trade: a road drawn in violet is no longer a road drawn in stone. One puts a fully worn square entirely in the highlight colour; a half leaves both readings at once, the material still recognisable with the traffic laid over it, and is the setting to try first. The pull is scaled by how worn each square is, so ground nobody has ever crossed is left exactly as it was - but be ready for how much ground is not that, because a square counts from its first crossing and around a base that is most of it. The scale is deliberately not a straight line but the square root of the wear, because a route is interesting the moment somebody starts using it and a straight line leaves a new one invisible until it is half worn out. Two things it cannot do: it needs JourneyMap and does nothing whatever without it, because the highlight is applied by the colour handler this mod hands to JourneyMap and no other map is given one; and it does not repaint a map already drawn, so ground near you recolours as it is mapped again while ground you explored last week keeps its old colours until you go back. The log says once, the first time a square is actually highlighted, that all of this is working.");
-        desirePathColour = config.getString(
-            "desirePathColour",
+            "How far a worn square's color on the map is pulled toward the desire-path color below, at the point it is fully worn. Nought is off and off is what ships, so this means nothing at all until somebody deliberately raises it. Left alone, a map goes on drawing worn ground as the ground it is - travelling toward what it is turning into and darkening as it goes, which is what surfaces.mapTracksWear does. Turn this up and the map stops answering 'what material is this square' for worn ground and starts answering 'where does everybody actually walk'. That is a different map and a deliberate trade: a road drawn in violet is no longer a road drawn in stone. One puts a fully worn square entirely in the highlight color; a half leaves both readings at once, the material still recognisable with the traffic laid over it, and is the setting to try first. The pull is scaled by how worn each square is, so ground nobody has ever crossed is left exactly as it was - but be ready for how much ground is not that, because a square counts from its first crossing and around a base that is most of it. The scale is deliberately not a straight line but the square root of the wear, because a route is interesting the moment somebody starts using it and a straight line leaves a new one invisible until it is half worn out. Two things it cannot do: it needs JourneyMap and does nothing whatever without it, because the highlight is applied by the color handler this mod hands to JourneyMap and no other map is given one; and it does not repaint a map already drawn, so ground near you recolors as it is mapped again while ground you explored last week keeps its old colors until you go back. The log says once, the first time a square is actually highlighted, that all of this is working.");
+        carryDesirePathColor(config);
+        desirePathColor = config.getString(
+            "desirePathColor",
             CATEGORY_CLIENT,
             "#AA44CC",
-            "The colour worn ground is pulled toward when desirePathHighlight is above nought, as #RRGGBB. The default is a violet chosen for being a colour no ground is: a map is greens, browns, greys and blues in every dimension this mod wears ground in, including the red of the Nether and the pale yellow of the End, so a violet path cannot be misread as a material the way an ochre or a red one could - and it stays separable for the common forms of colour blindness, where an orange road over green terrain does not. Change it if it collides with something else your map draws. Anything that is not six hex digits falls back to the default and says so once in the log rather than quietly drawing black, because black is what a mistyped colour would draw and worn ground is meant to be dark anyway, so the mistake would look exactly like the feature working. This is also the quickest way to find out whether any of it is running: set this to #00FF00, put desirePathHighlight to 1, and walk a path you know is worn.");
-        desirePathRgb = parseRgb(desirePathColour, 0xAA44CC);
+            "The color worn ground is pulled toward when desirePathHighlight is above nought, as #RRGGBB. The default is a violet chosen for being a color no ground is: a map is greens, browns, greys and blues in every dimension this mod wears ground in, including the red of the Nether and the pale yellow of the End, so a violet path cannot be misread as a material the way an ochre or a red one could - and it stays separable for the common forms of color blindness, where an orange road over green terrain does not. Change it if it collides with something else your map draws. Anything that is not six hex digits falls back to the default and says so once in the log rather than quietly drawing black, because black is what a mistyped color would draw and worn ground is meant to be dark anyway, so the mistake would look exactly like the feature working. This is also the quickest way to find out whether any of it is running: set this to #00FF00, put desirePathHighlight to 1, and walk a path you know is worn.");
+        desirePathRgb = parseRgb(desirePathColor, 0xAA44CC);
         describeCategories();
     }
 

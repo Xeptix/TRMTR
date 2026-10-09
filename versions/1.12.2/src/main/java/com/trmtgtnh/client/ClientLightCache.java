@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.trmtgtnh.erosion.ErosionKey;
 
 /**
- * Which positions the client believes are glowing, and in what colour.
+ * Which positions the client believes are glowing, and in what color.
  *
  * <p>
  * Kept apart from {@link ClientErosionCache} rather than folded into its overlay, because the two
@@ -34,7 +34,7 @@ public final class ClientLightCache {
         return INSTANCE;
     }
 
-    /** The packed light byte at a position: level in the low nibble, colour in the high one. */
+    /** The packed light byte at a position: level in the low nibble, color in the high one. */
     public int at(int x, int y, int z) {
         LitChunk chunk = chunks.get(Long.valueOf(ClientErosionCache.chunkKey(x >> 4, z >> 4)));
         if (chunk == null) return 0;

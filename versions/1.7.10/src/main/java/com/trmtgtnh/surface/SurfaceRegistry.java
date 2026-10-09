@@ -828,7 +828,7 @@ public final class SurfaceRegistry {
     // ------------------------------------------------------------------
 
     /**
-     * The distinct block states worth generating colour-matched wear textures for.
+     * The distinct block states worth generating color-matched wear textures for.
      *
      * <p>
      * Detection claims all sixteen metadata values per block, but most blocks only use one

@@ -91,8 +91,15 @@ public final class WearPatterns {
      * <p>
      * Several hundred sprites are generated per stitch and they all draw on the same handful
      * of PNGs, so without this the atlas would decode the same grass art a couple of thousand
-     * times. Cleared when a stitch begins, and single-threaded because the atlas builds
-     * sprites on the client thread.
+     * times. Cleared when a stitch begins.
+     *
+     * <p>
+     * The images are read and written under their own map's lock, and that is not caution. This said they were
+     * single-threaded because the atlas builds sprites on the client thread, which is not so here: the atlas loads
+     * from six threads of vanilla's background executor, every grass-side fringe reads its overlay through
+     * {@link #readIcon} from whichever of them loads it, and the sprite pass's harvests read their faces through it at
+     * the same moment. The orders are primed before any sprite loads, and the pass's pool touches none of the three:
+     * its workers are handed the orders a harvest read, as arrays.
      */
     private static final Map<String, BufferedImage> IMAGE_CACHE = new HashMap<String, BufferedImage>();
     private static final Map<Integer, float[]> ORDER_CACHE = new HashMap<Integer, float[]>();
@@ -102,7 +109,9 @@ public final class WearPatterns {
 
     /** Drops everything cached for a stitch. */
     public static void clearCaches() {
-        IMAGE_CACHE.clear();
+        synchronized (IMAGE_CACHE) {
+            IMAGE_CACHE.clear();
+        }
         ORDER_CACHE.clear();
         MODULATION_CACHE.clear();
     }
@@ -331,10 +340,13 @@ public final class WearPatterns {
 
     private static BufferedImage readLocation(ResourceManager resources, ResourceLocation location) {
         String key = location.toString();
-        if (IMAGE_CACHE.containsKey(key)) return IMAGE_CACHE.get(key);
-        BufferedImage image = decode(resources, location);
-        IMAGE_CACHE.put(key, image);
-        return image;
+        // Held across the read, so two threads asking for one file decode it once; see IMAGE_CACHE.
+        synchronized (IMAGE_CACHE) {
+            if (IMAGE_CACHE.containsKey(key)) return IMAGE_CACHE.get(key);
+            BufferedImage image = decode(resources, location);
+            IMAGE_CACHE.put(key, image);
+            return image;
+        }
     }
 
     private static BufferedImage decode(ResourceManager resources, ResourceLocation location) {

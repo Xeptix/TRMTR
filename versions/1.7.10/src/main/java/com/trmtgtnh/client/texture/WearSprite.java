@@ -28,7 +28,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <p>
  * Nothing is shipped pre-composited. The pixels are built at stitch time from the block's own
  * textures and the decomposed wear pattern, which is what lets a Twilight Forest dirt or a
- * Biomes O' Plenty grass wear in its own colours, keeps the mod honest about not
+ * Biomes O' Plenty grass wear in its own colors, keeps the mod honest about not
  * redistributing Mojang's art, and means a resource pack retextures worn ground for free.
  */
 public class WearSprite extends TextureAtlasSprite {
@@ -44,8 +44,8 @@ public class WearSprite extends TextureAtlasSprite {
      */
     private static final int MIPMAP_SLOTS = 5;
 
-    /** The colour of the placeholder a sprite is stitched with until the pass installs its picture. */
-    private static final int PLACEHOLDER_COLOUR = 0xFF7A6A55;
+    /** The color of the placeholder a sprite is stitched with until the pass installs its picture. */
+    private static final int PLACEHOLDER_COLOR = 0xFF7A6A55;
 
     /**
      * One placeholder chain per edge, shared by every sprite of that edge: a flat picture with every mip level the
@@ -75,7 +75,7 @@ public class WearSprite extends TextureAtlasSprite {
     /**
      * Whether anything should draw this sprite. False until the sprite pass installs its picture, and false again
      * when its source cannot be read or composing or installing it fails: until then it carries a placeholder so the
-     * atlas has something to stitch, and a lookup that drew it would put a flat colour on the ground.
+     * atlas has something to stitch, and a lookup that drew it would put a flat color on the ground.
      */
     private volatile boolean usable;
 
@@ -448,9 +448,9 @@ public class WearSprite extends TextureAtlasSprite {
         // The face this appearance is drawn from, at the size it was read, so a surface whose face was not the size
         // its plan priced can be named at the end of the pass.
         int drawnFrom = cover ? Math.max(edgeOf(top), edgeOf(bottom)) : revealsEarth ? edgeOf(bottom) : edgeOf(top);
-        if (FaceRules.standsInForEarth(cover, revealsEarth, FaceRules.isColourless(bottom))) {
+        if (FaceRules.standsInForEarth(cover, revealsEarth, FaceRules.isColorless(bottom))) {
             // The block had no earth to show. A turf block whose every face is one greyscale texture
-            // is not a green thing on a brown thing; it is a grey mask that only becomes a colour
+            // is not a green thing on a brown thing; it is a grey mask that only becomes a color
             // once the biome tint runs through it, and revealing it once the tint has been dropped
             // turns the ground grey the moment it starts to sink. Drawn at this sprite's edge rather
             // than at the art's sixteen, so the size a sprite is stitched at depends on the widths its
@@ -619,7 +619,7 @@ public class WearSprite extends TextureAtlasSprite {
      * mipmaps through a vanilla routine that is not safe to run twice at once: the blend for a frame
      * with a transparent pixel in it reads and writes one shared static array of four, so two
      * threads mipmapping a grass overlay or a fringe at the same moment would interleave into it and
-     * produce wrong colours in the lower levels - silently, on somebody else's machine.
+     * produce wrong colors in the lower levels - silently, on somebody else's machine.
      *
      * <p>
      * The picture arrives at this sprite's own edge, because compose draws every picture at the edge its plan
@@ -850,7 +850,7 @@ public class WearSprite extends TextureAtlasSprite {
      * <p>
      * Neither face is corrected on the way in. That has been tried twice and failed twice, and it
      * was always going to: a correction has to assume some particular green, the real one is a
-     * property of the biome, and any gap between them shows as a colour cast - guess low and worn
+     * property of the biome, and any gap between them shows as a color cast - guess low and worn
      * earth is olive, guess high and it is pink. The tint is dealt with where the real one is
      * actually known, which is at render time; see GhostRendering.
      */
@@ -1034,7 +1034,7 @@ public class WearSprite extends TextureAtlasSprite {
      * reads shallower, and less walked flat, than it did. What it does not cost is the track's
      * shape: the pixel count, the connectivity and the piece count the fraction above is written
      * around are untouched at every strength, which is what picking the depth rather than the
-     * coverage buys. The corner itself is 0.04 of a colour level, where the run already has one of
+     * coverage buys. The corner itself is 0.04 of a color level, where the run already has one of
      * 0.34 at its sixty-ninth gradation that nobody has ever reported.
      */
     private static final float CRACKED_RUB_SETTLE = 0.15f;
@@ -1262,12 +1262,12 @@ public class WearSprite extends TextureAtlasSprite {
      *
      * <p>
      * The rub is the opposite and that is the whole of why one number cannot do.
-     * {@link WearCompositor#applyOverlay} works by rank, recolouring the most exposed pixels and
+     * {@link WearCompositor#applyOverlay} works by rank, recoloring the most exposed pixels and
      * leaving every other one bit-identical, and early in a run both the count it has claimed and
      * the depth it has taken them to are small at once. Measured, it has done four to eight per
      * cent of its run at a parameter of a fifth and a quarter to two fifths at a half. A straight
      * line through that spends almost the entire run in its last few gradations: at an exponent of
-     * one the rub's smallest step is 0.23 of a colour level, which is nothing, against 1.73 here.
+     * one the rub's smallest step is 0.23 of a color level, which is nothing, against 1.73 here.
      * Five shipped families draw it - dirt, sand, gravel, snow and ice - so it decides what most
      * worn ground looks like.
      *
@@ -1321,7 +1321,7 @@ public class WearSprite extends TextureAtlasSprite {
      * surround's relief away and the fissures arrive against a flatter ground, so the crack's own
      * saturation lands later than it does on an unbuffed face. Earned rather than tidy: the sweep
      * reads 1.80, 1.89, 1.99, 2.09, 1.94 across exponents from 0.95 to 1.15, a smooth hump rather
-     * than a spike, and a straight line here costs a fifth of a colour level - which is real where
+     * than a spike, and a straight line here costs a fifth of a color level - which is real where
      * the tenths given up elsewhere are not.
      */
     private static final float CURVE_SMOOTHED_CRACK = 1.10f;
@@ -1353,7 +1353,7 @@ public class WearSprite extends TextureAtlasSprite {
      * lighter rub measures three hundredths better on its own at 0.55, well inside the spread
      * between one rotation and the next. The lighter cracked-and-rubbed does not: its own sweep
      * peaks at 0.90 rather than at its parent's 1.00, and at eighty gradations that peak was worth
-     * 0.2187 of a colour level against 0.0039 here. {@link #COVERAGE_FLOOR} has since taken the
+     * 0.2187 of a color level against 0.0039 here. {@link #COVERAGE_FLOOR} has since taken the
      * straight line to 0.2461, so it now measures better than the peak it gave up.
      *
      * <p>
@@ -1399,7 +1399,7 @@ public class WearSprite extends TextureAtlasSprite {
      * The eighth is the lighter rub, which gains seven hundredths and is the one honest cost of
      * removing it: it is the only look whose first step IS its smallest step, which is exactly why
      * a lift helps it and nothing else. No shipped family selects it, and seven hundredths of a
-     * colour level out of 255 does not buy back a discontinuity every other look is paying for.
+     * color level out of 255 does not buy back a discontinuity every other look is paying for.
      *
      * <p>
      * Told the pattern rather than the family on purpose. Two families that both name the same look
@@ -1511,7 +1511,7 @@ public class WearSprite extends TextureAtlasSprite {
         int length = size * size;
         for (int level = 0; level < MIPMAP_SLOTS; level++) {
             chain[level] = new int[length];
-            Arrays.fill(chain[level], PLACEHOLDER_COLOUR);
+            Arrays.fill(chain[level], PLACEHOLDER_COLOR);
             length >>= 2;
         }
         PLACEHOLDERS.put(key, chain);

@@ -614,12 +614,24 @@ public final class SurfaceRegistry {
         // simply clear. Asking for a full cube by sight would refuse every frozen surface in
         // the game, so this asks whether the block fills its space instead.
         boolean clearButSolid = material == Material.ICE || material == Material.PACKED_ICE;
+        // And a block that says outright it fills its whole cell while saying it is no opaque cube
+        // is the same exception by its own word. Chisel's waterstone is the one this is for: GTNH's
+        // Chisel on 1.7.10 makes it a plain opaque cube, so that edition wears it, while Chisel for
+        // 1.12.2 builds it opaque(false) - its water shows through a carved shell drawn in the pass
+        // that blends - so it answers no to both questions below and yes only to isFullBlock, and was
+        // never detected at all until 2026-10-08. Chisel's ice is built the same way and was missed
+        // for the same reason, ice by material or not, where the other edition wears chisel:ice and
+        // chisel:ice_pillar. Vanilla's isFullBlock is its opacity, set from the same answer when a
+        // block is made, so no vanilla block moves.
+        boolean wholeButSeenThrough = block.getDefaultState()
+            .isFullBlock() && !block.isOpaqueCube(block.getDefaultState());
         // A slab is the one thing that is not a full cube and is still plainly ground: you walk on
         // it, and the top of it is the same sixteen by sixteen picture the block it was cut from
         // has. Whether it counts is the family's own decision, taken once the family is known, so
         // the shape is let past here and refused further down.
-        if (!shape.isPartial() && (!block.getDefaultState()
-            .isFullCube() || (!block.isOpaqueCube(block.getDefaultState()) && !clearButSolid))) {
+        if (!shape.isPartial() && !wholeButSeenThrough
+            && (!block.getDefaultState()
+                .isFullCube() || (!block.isOpaqueCube(block.getDefaultState()) && !clearButSolid))) {
             return null;
         }
 
@@ -876,7 +888,7 @@ public final class SurfaceRegistry {
     // ------------------------------------------------------------------
 
     /**
-     * The distinct block states worth generating colour-matched wear textures for.
+     * The distinct block states worth generating color-matched wear textures for.
      *
      * <p>
      * Detection claims all sixteen metadata values per block, but most blocks only use one

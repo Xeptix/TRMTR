@@ -9,7 +9,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import io.netty.buffer.ByteBuf;
 
 /**
- * Server to client: one position was lit, recoloured, or put out.
+ * Server to client: one position was lit, recolored, or put out.
  *
  * <p>
  * A packed byte whose level nibble is zero means "no longer lit", which needs no separate sentinel:

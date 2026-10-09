@@ -1,8 +1,87 @@
 # TRMT Reimagined - changelog
 
-One version number across every edition. 0.9.219 is the same release on Minecraft 1.7.10, 1.12.2
+One version number across every edition. 0.9.220 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.220 - 2026-10-08
+
+**Chisel on 1.12.2 wears as it does on 1.7.10.**
+
+- **Worn lavastone and waterstone show their lava and water**, with the water drawn through the carving's
+  open gaps: each gap is left genuinely open, the carved stone stays solid, and the faces behind a worn
+  square are drawn so there is something to see through it.
+- **Every Chisel carving wears its own pixels**, and so do most 1.12.2 mods' blocks: the mod now reads a
+  block's texture from the model Forge built for it, where it had fallen back to the family's stock
+  texture, and the liquid is only ever painted into a block's own pixels. Chisel's waterstone and ice wear
+  as ground at all, where they had been passed over.
+- **All six of Chisel's lava and water stones** are named in `client.innerLayerTextures` by default; a list
+  an earlier release wrote, holding the two names it shipped, is given the other four once.
+- **All of their lava and water can move.** `client.innerLayerAnimationBudgetMb` is 128 megabytes by
+  default on 1.12.2: Chisel's sixty-four lava and water faces hold about 79 at the shipped settings and 101
+  with the larger atlas below, and 64, the default everywhere else, kept eight of them still. A config from
+  an earlier release that still holds 64 is raised once; a figure you chose is kept.
+- **No shell lift on 1.12.2.** On 1.7.10 the carved stone is lifted a hair clear of the liquid, because a
+  renderer there makes the two flicker against each other. Photographed close up, worn and unworn, 1.12.2
+  shows no flicker - Chisel draws the two as one model - so its two lift settings say they do nothing on
+  that edition, and on 1.16.5, whose Chisel has no lava or water stones.
+
+**The block atlas stitches in under a second where it took minutes.** The game's own stitcher places each
+texture by searching every filled part of the atlas from the top, and never remembers which parts are
+full, so it slows with the square of the number of textures - unnoticeable while they are all one size,
+not once they are not. Wearing Chisel's carvings at their own size put four sizes of texture into the
+1.12.2 atlas, and the stitch took nearly three minutes. The stitcher now skips any part of the atlas that
+has already turned away a texture at least as large, in every edition and on both 1.16.5 loaders; that
+pack loads its textures in about eleven seconds, and GT: New Horizons with Chisel on 1.7.10 stitches
+111,486 textures in under two. Every texture lands where the game would have put it, short of one the game
+would have laid over others, which goes somewhere free instead. The end of every stitch says in the log
+what it took.
+
+**Worn ground under OptiFabric keeps the shader material of the block it covers**, on 1.16.5 Fabric, as it
+already did under OptiFine, Oculus, Iris and Canvas. 0.9.219 said this was out of reach; it was not.
+
+**1.16.5:**
+
+- **Snow lies on worn ground, and ground wears under snow, carpets and slabs.** Every snow layer, carpet,
+  slab and fence counted as a solid cube, so the ground under them was taken as covered and never wore,
+  and snow could not stay on a worn square: it found nothing there to rest on. Under Canvas, snow and
+  carpet on a rut now come down with it as under every other renderer: Canvas asks whether a block has an
+  offset before it asks where to draw it, and snow and carpet said they had none, so they had stood at the
+  road's height since 0.9.219 brought them down everywhere else.
+- **Worn ground with something see-through behind it is drawn through**, as on 1.7.10: a block given a
+  see-through layer in `client.innerLayerTextures` shows it through its gaps once worn, lit from the
+  brightest light around it. On Forge a modded block's worn ground is drawn in the block's own render
+  pass, where it was always drawn as solid.
+- **The wear textures load faster.** The game reads its textures on six threads, and every one of them ran
+  the mod's texture pass at once, building most textures twice; it runs once now, on up to eight threads
+  as on 1.7.10, and writes each picture in memory rather than through a temporary file - 22,407 pictures
+  in about five seconds instead of nineteen. Under OptiFabric the mod loads in half the time.
+- **The atlas is measured** before the wear is planned into it, as on 1.7.10, rather than assumed half
+  full, and the end of every stitch says what went into it.
+
+**1.12.2:** the end of every stitch says what went to the stitcher against what was planned, as on
+1.7.10 - it had been carried over and never called.
+
+**Worn shapes on 1.12.2 and 1.16.5 follow 1.7.10 exactly:** how deep a rut is drawn, the outline you see
+when you look at worn ground, which blocks wear as slabs, and how snow rests on a worn block.
+
+**Every edition:**
+
+- **An early build is told when its release is out.** A build handed out before its release - named like
+  `0.9.220-snapshot.4`, or `-early.2` - is told, like a release, when the release it was made for is out,
+  and never about an older one. Builds held at a stage - an alpha, a beta, a nightly - are read the same
+  way. A build marked bad tells its players so, and names the build to use instead.
+- **A larger block atlas, if you ask for it.** `client.largerAtlas`, off by default, lets the wear use an
+  atlas up to 16384 pixels square where your graphics card says it can address one, for a pack whose
+  faces will not all fit an 8192 square at full detail - Chisel on 1.12.2 drew every ramp at 62 of its 80
+  gradations without it. A 16384 atlas takes four times the video memory, and the game builds it without
+  checking the card accepted it, so a card that cannot hold one draws every block black; the setting's
+  description says so.
+- **Worn ground keyed on what is behind it.** Two blocks with the same face and different layers behind
+  them had shared one set of worn pictures, so one wore the other's liquid. Found by Chisel on 1.12.2, and
+  fixed in every edition.
+- **"Color", never "colour".** `/trmt mapcolour` is now `/trmt mapcolor`, and the desire-path color you set
+  is carried over to the setting's new name, `client.desirePathColor`.
 
 ## 0.9.219 - 2026-10-07
 
@@ -80,7 +159,7 @@ stood beyond showing through. It is drawn through as ice is now, and stops only 
   demonstration platform that melted and poured off the yard.
 - **Messages the mod speaks from the client reach you on 1.16.5** - every one was being dropped - and the
   in-game guide no longer tells a Fabric player the mod runs on Forge alone.
-- **On 1.16.5 the demonstration's roads, its golem pens and JourneyMap's colour for worn grass used the
+- **On 1.16.5 the demonstration's roads, its golem pens and JourneyMap's color for worn grass used the
   grass plant and the snow layer** where they meant the grass block and the snow block.
 - **Moved block ids rebuild the surface table** on both, and the moving layers behind worn Chisel stone
   move again on 1.12.2.
@@ -141,10 +220,10 @@ collection to the log, which on a large pack is a string long enough to exhaust 
 the 1.16.5 edition died that way at startup. Each now prints a sample and says how many it stood for.
 
 **A road is visible on a map again, on 1.12.2 and 1.16.5.** Both of those read one vanilla answer for
-a block's map colour, out of sixty-four fixed palette entries, so there is no fraction to darken by -
+a block's map color, out of sixty-four fixed palette entries, so there is no fraction to darken by -
 and both had therefore given the darkening up, which left a path showing on a minimap only once it
 had worn through into another material. A palette entry can be picked for being darker even though a
-colour cannot be dimmed, so a worn square now reports the nearest entry to its own colour darkened by
+color cannot be dimmed, so a worn square now reports the nearest entry to its own color darkened by
 `surfaces.mapWearDarkening`. Grass is drawn as dark earth. The road is there; how worn it is cannot be
 read off the map, and the setting, the log and the manual all say so.
 
@@ -268,7 +347,7 @@ Source: https://github.com/Xeptix/TRMTR
 #### How worn ground looks
 
 - Every wear texture is generated from the block's own pixels, taken out of the running game's atlas, so a
-  modded surface wears in its own colours instead of vanilla's. The authored art was
+  modded surface wears in its own colors instead of vanilla's. The authored art was
   decomposed into a reusable per-pixel coverage sequence to make that possible.
 - Eleven wear looks, each worked entirely from the block's own pixels, for the surfaces nobody drew art
   for - rubbed, cracked, cracked-and-rubbed and the rest. A picker
@@ -363,13 +442,13 @@ Source: https://github.com/Xeptix/TRMTR
 
 #### Maps and other mods
 
-- JourneyMap is handed a colour that travels toward what the ground is becoming rather than saying it has
+- JourneyMap is handed a color that travels toward what the ground is becoming rather than saying it has
   become something else, with an optional desire-path highlight and a depth the player sets.
 - Xaero's Minimap shows worn ground, and is told when it changes - it caches every tile it writes and
   nothing here sends a block packet to mark one dirty.
 - A path through modded turf stopped reading as a bright green stripe, which it did because that turf's map
-  colour is green before the biome's tint is applied to it. Gravel and end stone stopped reporting
-  the map colour of the wrong material.
+  color is green before the biome's tint is applied to it. Gravel and end stone stopped reporting
+  the map color of the wrong material.
 - Waila reads worn ground and unworn ground alike, showing reinforcement and wards on a square that
   has not yet been stepped on.
 - Every integration - Waila, JourneyMap, Xaero's, Angelica/Iris, Chisel, GregTech, Amazing Trophies,
@@ -514,7 +593,7 @@ Source: https://github.com/Xeptix/TRMTR
   Hwyla here and Waila there.
 - **The two minimap integrations are gone and nothing replaced them**. The other edition
   carries three hundred and fifty-seven lines of reflection against JourneyMap and a hundred and
-  nineteen against Xaero's, because there a block is asked its colour with nothing but a metadata.
+  nineteen against Xaero's, because there a block is asked its color with nothing but a metadata.
   1.12.2 hands the position in, so one override answers for every map at once. It found a real gap on
   the way: the ghost had no `getMapColor` at all, so every worn square painted dirt brown whatever it
   was made of.
@@ -522,10 +601,10 @@ Source: https://github.com/Xeptix/TRMTR
 
 #### Commands
 
-- The `/trmt` family: status, enable, disable, purge, reload, surfaces, here, golem and mapcolour,
+- The `/trmt` family: status, enable, disable, purge, reload, surfaces, here, golem and mapcolor,
   then showcase and demonstrate with the yard of pens behind them.
-- `/trmt mapcolour` answers a different question here, because the grey-map bug it was written to find
-  cannot happen: it reports whether the square under your feet draws the same colour as the ground
+- `/trmt mapcolor` answers a different question here, because the grey-map bug it was written to find
+  cannot happen: it reports whether the square under your feet draws the same color as the ground
   beside it.
 
 #### Settings
@@ -533,7 +612,7 @@ Source: https://github.com/Xeptix/TRMTR
 - **`TrmtConfig` is the other edition's file, not a translation of it**. Three thousand lines
   of settings, carried by a script that makes only the renames that are pure renames between the two
   Forge versions, so a packmaker's edits move between the two editions unchanged.
-- Four of its map settings describe a colour 1.12.2 cannot produce, and the mod names them in the log
+- Four of its map settings describe a color 1.12.2 cannot produce, and the mod names them in the log
   as it loads rather than ignoring them quietly.
 - **The mod reads and writes its own settings file**, in Forge's format with none of Forge's
   code. `ConfigFile` is a reader and writer of the same `.cfg` the other edition uses - the same

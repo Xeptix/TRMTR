@@ -174,10 +174,10 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
         return false;
     }
 
-    private static void say(Player player, ChatFormatting colour, String key) {
+    private static void say(Player player, ChatFormatting color, String key) {
         if (player == null) return;
         player.sendMessage(
-            new TextComponent(colour + com.trmtgtnh.util.Translate.get(key)),
+            new TextComponent(color + com.trmtgtnh.util.Translate.get(key)),
             net.minecraft.Util.NIL_UUID);
     }
 

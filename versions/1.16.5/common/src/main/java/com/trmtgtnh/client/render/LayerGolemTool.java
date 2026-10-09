@@ -87,7 +87,7 @@ public class LayerGolemTool
                     pose,
                     buffers);
         } finally {
-            // No colour to put back: there is no global colour to have changed. The try/finally
+            // No color to put back: there is no global color to have changed. The try/finally
             // stays for the matrix, which there still is.
             pose.popPose();
         }

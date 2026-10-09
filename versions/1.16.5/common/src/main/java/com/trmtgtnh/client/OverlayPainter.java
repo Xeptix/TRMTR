@@ -249,7 +249,7 @@ public final class OverlayPainter {
 
         // Told outside any "did anything change" test, deliberately. A position can move along its
         // chain and want the very same ghost at the very same record, so nothing is touched and the
-        // colour a map works out from it still moves - which is exactly the sub-step this exists to
+        // color a map works out from it still moves - which is exactly the sub-step this exists to
         // show. See XaeroMinimap for why a map needs telling at all.
         com.trmtgtnh.client.xaero.XaeroMinimap.chunkChangedAt(world, chunkX, chunkZ);
 
@@ -404,11 +404,12 @@ public final class OverlayPainter {
      * Opaque cubes only. A slab or a fence leaves the ground around it in plain view, and a path that
      * vanished under a fence post would be a stranger sight than one that did not. A sunken ghost is
      * not an opaque cube either, so worn ground under worn ground still shows the dip it has been given.
+     * Asked through {@link com.trmtgtnh.util.Worlds#isOpaque}: until 0.9.220 this asked canOcclude, which a snow
+     * layer, a carpet, a slab and a fence all answer yes to, so worn ground under any of them was left undrawn.
      */
     static boolean covered(net.minecraft.world.level.BlockGetter world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
-        BlockState above = world.getBlockState(new BlockPos(x, y + 1, z));
-        return above.canOcclude();
+        return com.trmtgtnh.util.Worlds.isOpaque(world, x, y + 1, z);
     }
 
     /** Puts one painted position back to what it was covering, and marks it undrawn. */

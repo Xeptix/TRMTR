@@ -83,10 +83,10 @@ public final class ErosionEntry {
     private byte ward;
 
     /**
-     * The glow set on this position: level in the low nibble, colour index in the high one.
+     * The glow set on this position: level in the low nibble, color index in the high one.
      *
      * <p>
-     * Zero means unlit, which is why the level and not the colour occupies the low bits - a colour
+     * Zero means unlit, which is why the level and not the color occupies the low bits - a color
      * on its own is not a light, and packing it this way makes "is anything set here" a test against
      * zero rather than a mask. Like the ward it rides in the same record as the family, so lighting
      * ground that has never worn keeps that ground's identity.
@@ -229,7 +229,7 @@ public final class ErosionEntry {
     // Light
     // ------------------------------------------------------------------
 
-    /** The whole packed light byte: level in the low nibble, colour in the high one. */
+    /** The whole packed light byte: level in the low nibble, color in the high one. */
     public int getLight() {
         return light & 0xFF;
     }
@@ -243,15 +243,15 @@ public final class ErosionEntry {
         return light & 0xF;
     }
 
-    /** Which of the sixteen dye colours it glows, meaningful only when it is lit at all. */
-    public int getLightColour() {
+    /** Which of the sixteen dye colors it glows, meaningful only when it is lit at all. */
+    public int getLightColor() {
         return (light >> 4) & 0xF;
     }
 
     /** Sets both halves at once, because setting one without the other is never what is meant. */
-    public void setLight(int level, int colour) {
+    public void setLight(int level, int color) {
         int clamped = level < 0 ? 0 : level > 15 ? 15 : level;
-        this.light = (byte) (clamped | ((colour & 0xF) << 4));
+        this.light = (byte) (clamped | ((color & 0xF) << 4));
     }
 
     public boolean isLit() {

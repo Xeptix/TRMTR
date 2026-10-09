@@ -209,7 +209,7 @@ final class GhostLogic {
         return family == SurfaceFamily.ICE ? 3 : 255;
     }
 
-    /** The vanilla block this appearance stands in for, used for map colour and fallbacks. */
+    /** The vanilla block this appearance stands in for, used for map color and fallbacks. */
     static Block vanillaCounterpart(SurfaceFamily appearance) {
         switch (appearance) {
             case GRASS:
@@ -236,10 +236,10 @@ final class GhostLogic {
     }
 
     /**
-     * Two colours mixed channel by channel, part of the way from the first toward the second.
+     * Two colors mixed channel by channel, part of the way from the first toward the second.
      *
      * <p>
-     * Rounded exactly the way {@link #darkenBy} rounds, so a colour that goes through both comes
+     * Rounded exactly the way {@link #darkenBy} rounds, so a color that goes through both comes
      * out the same whichever order they are applied in.
      */
     public static int blendToward(int from, int to, float amount) {
@@ -259,24 +259,24 @@ final class GhostLogic {
     }
 
     /**
-     * The map colour of a ghost that is standing in for something, told whether it is tinted.
+     * The map color of a ghost that is standing in for something, told whether it is tinted.
      *
      * <p>
      * The untinted grass variants draw bare earth rather than turf - that is what untinted means
-     * here - and reporting turf's colour for them was the map calling a dirt path a lawn. A
+     * here - and reporting turf's color for them was the map calling a dirt path a lawn. A
      * vanilla map item cannot be given more than this: its palette is sixty-four fixed entries
      * with no darker sibling to choose, so there is no honest way to vary it by how worn a square
      * is. Anything finer than this belongs to a map mod that asks per position.
      */
-    static MapColor mapColour(SurfaceFamily appearance, boolean untinted) {
+    static MapColor mapColor(SurfaceFamily appearance, boolean untinted) {
         if (untinted && appearance == SurfaceFamily.GRASS) {
             return net.minecraft.init.Blocks.dirt.getMapColor(0);
         }
-        return mapColour(appearance);
+        return mapColor(appearance);
     }
 
     /**
-     * A colour pulled toward the desire-path highlight, for how worn the position is.
+     * A color pulled toward the desire-path highlight, for how worn the position is.
      *
      * <p>
      * Applied after the darkening rather than instead of it, so the two readings compose: at half
@@ -289,7 +289,7 @@ final class GhostLogic {
      * darkening uses. Darkening answers "how deep is this rut", and a straight line is honest for
      * that. This answers "does anybody walk here", where the interesting case is a route somebody
      * has just started using - and on a straight line a tenth-worn square is a tenth of the way to
-     * the colour, which is nothing anybody can see. Nought wear still gives nought pull, so ground
+     * the color, which is nothing anybody can see. Nought wear still gives nought pull, so ground
      * nobody has touched comes back untouched whatever this is set to.
      */
     public static int highlightBy(int rgb, float worn) {
@@ -301,23 +301,23 @@ final class GhostLogic {
     }
 
     /**
-     * The colour a map draws this family in, when it has nothing finer to go on.
+     * The color a map draws this family in, when it has nothing finer to go on.
      *
      * <p>
      * Vanilla's own answer for the covered block, except where vanilla's answer names the wrong
-     * material. Two do. Gravel is Material.sand, so it reports the pale cream sand colour and a
+     * material. Two do. Gravel is Material.sand, so it reports the pale cream sand color and a
      * worn gravel road draws as a bright streak across grey ground; end stone is Material.rock, so
      * it reports grey and a worn end road draws as a dark band across a pale plain. In both cases
-     * the mistake is not that the colour is ugly but that it reads as a change of MATERIAL rather
+     * the mistake is not that the color is ugly but that it reads as a change of MATERIAL rather
      * than a change of condition, which is the one thing a map of worn ground must not say.
      *
      * <p>
      * This is the answer far more maps use than it looks. A map that averages a block's texture
      * reads that texture off disk by name, and this mod's wear sprites are generated at stitch time
      * and have no file - so the lookup misses and the map falls back here. Xaero's is the one that
-     * was measured, and it lands here on every ghost, in both of its colour modes.
+     * was measured, and it lands here on every ghost, in both of its color modes.
      */
-    static MapColor mapColour(SurfaceFamily appearance) {
+    static MapColor mapColor(SurfaceFamily appearance) {
         // Keeps minimaps, JourneyMap and Distant Horizons showing a path as the ground it is
         // rather than as an unknown block.
         if (appearance == SurfaceFamily.GRAVEL) return MapColor.stoneColor;
@@ -326,19 +326,19 @@ final class GhostLogic {
     }
 
     /**
-     * The family's fallback map colour as a plain 0xRRGGBB int.
+     * The family's fallback map color as a plain 0xRRGGBB int.
      *
      * <p>
      * Used by the JourneyMap handler when a position has no recorded origin - the same
-     * family-generic answer {@link #mapColour} gives, in the form the handler needs.
+     * family-generic answer {@link #mapColor} gives, in the form the handler needs.
      */
-    public static int fallbackMapColour(SurfaceFamily appearance) {
-        MapColor colour = mapColour(appearance);
-        return colour == null ? 0x7F7F7F : colour.colorValue;
+    public static int fallbackMapColor(SurfaceFamily appearance) {
+        MapColor color = mapColor(appearance);
+        return color == null ? 0x7F7F7F : color.colorValue;
     }
 
     // ------------------------------------------------------------------
-    // Colour
+    // Color
     // ------------------------------------------------------------------
 
     /**
@@ -347,23 +347,23 @@ final class GhostLogic {
      * <p>
      * This is a multiplier over the block's texture. The texture a worn block reports is
      * already the worn one — it carries how far along the wear is in its own pixels — so a
-     * darkening factor here as well would count that twice for everything whose colour is in
+     * darkening factor here as well would count that twice for everything whose color is in
      * those pixels.
      *
      * <p>
      * This is not dead code, and a comment here used to say it was. JourneyMap reaches it
      * through {@code VanillaColorHandler.loadTextureColor} for every metadata above zero,
      * because a ghost has no item form and so only its meta-0 entry is ever written to the
-     * colour palette. For stages one and up this is what decides the colour drawn on the map.
+     * color palette. For stages one and up this is what decides the color drawn on the map.
      */
     @SideOnly(Side.CLIENT)
-    static int renderColour(SurfaceFamily appearance, int meta, boolean untinted) {
+    static int renderColor(SurfaceFamily appearance, int meta, boolean untinted) {
         int base = 0xFFFFFF;
         // Untinted means the cover has worn off and what is showing is the earth underneath.
         // Earth is brown in its own pixels and wants no multiplier; telling a map it is grass
-        // green would paint bare ground the colour of a lawn.
+        // green would paint bare ground the color of a lawn.
         if (appearance == SurfaceFamily.GRASS && !untinted) {
-            // Grass has to say what colour grass is, because its texture does not: vanilla's
+            // Grass has to say what color grass is, because its texture does not: vanilla's
             // grass_top is grey and only becomes grass once a biome tint runs through it. A map
             // averaging that texture drew every worn patch of turf as grey stone.
             base = 0x91BD59;
@@ -379,17 +379,17 @@ final class GhostLogic {
     }
 
     /**
-     * A colour dimmed for how far along its wear this stage is.
+     * A color dimmed for how far along its wear this stage is.
      *
      * <p>
-     * Shared by {@link #renderColour} and the JourneyMap handler so a worn block reads as worn by
-     * the same curve wherever its colour is decided - the map has no wear texture to carry the
+     * Shared by {@link #renderColor} and the JourneyMap handler so a worn block reads as worn by
+     * the same curve wherever its color is decided - the map has no wear texture to carry the
      * darkening in its pixels the way the in-world sprite does, so it has to be applied to the
-     * colour instead. Full brightness at the first stage, easing to {@code MAP_DARKENING} off it
+     * color instead. Full brightness at the first stage, easing to {@code MAP_DARKENING} off it
      * at the last.
      */
     /**
-     * A colour dimmed by an already-worked-out fraction of the whole run.
+     * A color dimmed by an already-worked-out fraction of the whole run.
      *
      * <p>
      * The map path knows where a position sits along its entire chain, because it can see the
@@ -616,14 +616,15 @@ final class GhostLogic {
      * make the path visibly grow the moment it started wearing.
      */
     /**
-     * The height the ground here can actually be stood on, which is not always the height it is
-     * drawn at.
+     * The height the ground here can be stood on, for anything resting on it - which is not always the
+     * height it is drawn at.
      *
      * <p>
-     * The two are one number in the ordinary case and part company in visual mode, where the rut is
-     * a picture and the server still holds a block of full height. Anything resting on this ground
-     * has to follow this one rather than the drawn one, or it is drawn into a hollow nobody can
-     * walk into.
+     * On a slab the two part company in visual mode, where the rut is a picture and the server still
+     * holds a block of full height: this takes the collision depth and the drawn one does not. On
+     * anything else heightAt takes the drawn depth for both, so in visual mode snow and carpet resting
+     * on a worn whole block come down into the drawn rut. That is the rule - Xep's, on 2026-10-08, when
+     * this comment was found saying otherwise; the ports follow it.
      */
     static double collidedHeightAt(GhostBlock ghost, net.minecraft.world.IBlockAccess world, int x, int y, int z) {
         return heightAt(ghost, world, x, y, z, true);
@@ -653,6 +654,8 @@ final class GhostLogic {
 
         double base = originTop(ghost, x, y, z);
         if (!ghost.isSunken()) return base;
+        // The drawn depth whether or not this is footing - see collidedHeightAt. Deliberate since
+        // 2026-10-08, when it was found and Xep chose it over the comment that said otherwise.
         return Math.min(base, SinkProfile.heightFor(SinkProfile.shown(ghost.appearance(), heldSink(world, x, y, z))));
     }
 
@@ -868,8 +871,8 @@ final class GhostLogic {
             // because that is what the sprite actually is.
             // Deliberately the unworn one, whatever the metadata says. Map mods average this
             // texture once per block and keep the answer, so it has to be the surface's own
-            // colour rather than one gradation's; how worn a spot is comes through the render
-            // colour above, which they apply on top.
+            // color rather than one gradation's; how worn a spot is comes through the render
+            // color above, which they apply on top.
             IIcon worn = WearTextures.icon(null, 0, appearance, appearance, 0, 0);
             if (worn != null) return worn;
             return ghost.fallbackIcon() != null ? ghost.fallbackIcon() : Blocks.dirt.getIcon(1, 0);

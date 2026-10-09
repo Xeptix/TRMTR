@@ -50,24 +50,24 @@ import cpw.mods.fml.relauncher.SideOnly;
 public final class GhostRendering {
 
     /**
-     * The map colour for a worn position, from a base colour darkened for its wear stage.
+     * The map color for a worn position, from a base color darkened for its wear stage.
      *
      * <p>
      * A public seam for the JourneyMap handler, which lives in another package and must not
      * reach into {@link GhostLogic} directly. The darkening curve is the one the in-world
-     * render colour uses, so a block reads as equally worn on the map and underfoot.
+     * render color uses, so a block reads as equally worn on the map and underfoot.
      */
-    public static int mapColourFor(SurfaceFamily appearance, int wearMeta, int baseRgb) {
+    public static int mapColorFor(SurfaceFamily appearance, int wearMeta, int baseRgb) {
         return GhostLogic.darkenForWear(baseRgb, appearance, wearMeta);
     }
 
     /** As above, told outright how far along the whole run the position is. */
     /**
-     * A map colour for a worn square, faded toward whatever the ground is turning into.
+     * A map color for a worn square, faded toward whatever the ground is turning into.
      *
      * <p>
      * Darkening alone said "this is worn" and left the map calling a bare dirt track a lawn all
-     * the way to the bottom of its run, because the colour was taken from the block the record
+     * the way to the bottom of its run, because the color was taken from the block the record
      * started as and never from what it had become. Now it travels: a turf path leaves green and
      * arrives at earth, in step with how far along its own chain it has walked, and every family
      * that wears through into something else does the same without being named.
@@ -78,27 +78,27 @@ public final class GhostRendering {
      * mean: fade decides which material this square reads as, and darkening then says how heavily
      * that material has been used. A square is one thing at a time and then a shade of it.
      *
-     * @param towardRgb what this ground is becoming, or the same colour again where it becomes
+     * @param towardRgb what this ground is becoming, or the same color again where it becomes
      *                  nothing - sand under sand is sand, and passing itself makes the fade a
      *                  no-op rather than a special case
      */
-    public static int mapColourFor(float worn, int baseRgb, int towardRgb) {
+    public static int mapColorFor(float worn, int baseRgb, int towardRgb) {
         if (!TrmtConfig.mapTracksWear) return baseRgb;
         // Material first, then how used it is, then - only if somebody has asked for it -
-        // pulled toward a colour that is not a material at all. Each reading is laid over
+        // pulled toward a color that is not a material at all. Each reading is laid over
         // the last rather than replacing it, so turning the third off leaves the first two
         // exactly as they were.
         int shaded = GhostLogic.darkenBy(GhostLogic.blendToward(baseRgb, towardRgb, worn), worn);
         return GhostLogic.highlightBy(shaded, worn);
     }
 
-    public static int mapColourFor(float worn, int baseRgb) {
+    public static int mapColorFor(float worn, int baseRgb) {
         return GhostLogic.darkenBy(baseRgb, worn);
     }
 
-    /** The family-generic map colour, for a position whose origin is not known. */
-    public static int mapFallbackColour(SurfaceFamily appearance) {
-        return GhostLogic.fallbackMapColour(appearance);
+    /** The family-generic map color, for a position whose origin is not known. */
+    public static int mapFallbackColor(SurfaceFamily appearance) {
+        return GhostLogic.fallbackMapColor(appearance);
     }
 
     /**
@@ -148,12 +148,14 @@ public final class GhostRendering {
      */
     public static double settledDrop(GhostBlock ghost, IBlockAccess world, int x, int y, int z) {
         if (ghost == null || !ghost.isSunken()) return 0.0D;
-        // Taken from the height that can be stood on rather than the one that is drawn. The two are
-        // the same figure in the ordinary case and are not in visual mode, where the server still
-        // believes this ground is full height and the player still stands at full height on it - so
-        // a course of snow drawn down into a rut nobody can walk into would sit below the floor.
-        // This is also what lets the footing follow the picture at all: one number, so the two
-        // cannot part company.
+        // Taken from GhostLogic.collidedHeightAt, the height that can be stood on, which is not the same
+        // figure for every shape. On a slab it is the collision depth, so in visual mode - where the
+        // server still believes the ground is full height - snow on a worn slab stays up. On anything
+        // else heightAt answers footing from the drawn depth as well, so in visual mode snow and carpet
+        // on a worn whole block come down into the drawn rut while the player still stands at full
+        // height. This comment said, until 2026-10-08, that they stay up there too; the code never did,
+        // and Xep chose the code that day - the ports were changed to it, and this was corrected.
+        // One number either way, so the footing and the picture of what rests on it cannot part company.
         double drop = GhostLogic.originTop(ghost, x, y, z) - GhostLogic.collidedHeightAt(ghost, world, x, y, z);
         return drop > 0.0D ? drop : 0.0D;
     }
@@ -365,7 +367,7 @@ public final class GhostRendering {
      * particles are spawned after the block has finished answering: Forge asks the block first and
      * only builds them when it declines. A tick is the smallest window that covers the spawn, and
      * what it costs is that a map asking about the very square being mined, in that one tick, gets
-     * the unworn colour - which it will ask again for as soon as the chunk is next redrawn.
+     * the unworn color - which it will ask again for as soon as the chunk is next redrawn.
      */
     private static volatile boolean shadeOffForDust;
 
@@ -394,24 +396,24 @@ public final class GhostRendering {
     }
 
     /**
-     * What an untinted turf top averages to, which is the colour a biome tint is meant to be
+     * What an untinted turf top averages to, which is the color a biome tint is meant to be
      * applied to.
      *
      * <p>
      * Vanilla's own {@code grass_top.png}, measured the way a minimap measures it. It is a grey
      * because that is the whole design of tinted grass: the texture carries the light and shade and
-     * none of the colour, and the biome decides the rest.
+     * none of the color, and the biome decides the rest.
      */
     private static final int UNTINTED_TURF = 0x969696;
 
     /**
-     * Cancels the green already sitting in a fallback map colour, for a map that will tint on top.
+     * Cancels the green already sitting in a fallback map color, for a map that will tint on top.
      *
      * <p>
      * A map that cannot read this mod's generated sprites falls back to asking the block for its map
-     * colour, and for turf that answer is {@code MapColor.grassColor} - which is green already,
+     * color, and for turf that answer is {@code MapColor.grassColor} - which is green already,
      * having been chosen for a map that does no tinting of its own. A map that then multiplies by
-     * this block's tint applies the biome's green to a colour that is green twice over, and a path
+     * this block's tint applies the biome's green to a color that is green twice over, and a path
      * through modded turf comes out a vivid stripe against the duller grass around it.
      *
      * <p>
@@ -419,7 +421,7 @@ public final class GhostRendering {
      * vanilla's own {@code grass_top}, a real file, so the map finds it, averages the grey, and the
      * tint lands on exactly what it was meant to land on. This puts every other turf on the same
      * footing by scaling the tint so that grassColor times the tint arrives where grey times the
-     * tint would have - which is why the factor is the ratio of the two and not a colour anybody
+     * tint would have - which is why the factor is the ratio of the two and not a color anybody
      * picked.
      *
      * <p>
@@ -483,7 +485,7 @@ public final class GhostRendering {
      * Asked of the run rather than of the gradation, so a position reads by how far along its whole
      * chain it has come - the same fraction, from the same chain, that the JourneyMap handler works
      * from. Neither the fade toward the material underneath nor the desire-path highlight can come
-     * with it: both are blends toward an absolute colour, and a multiplier cannot carry those.
+     * with it: both are blends toward an absolute color, and a multiplier cannot carry those.
      */
     static int wearShade(GhostBlock ghost, IBlockAccess world, SurfaceFamily base, int x, int y, int z) {
         if (!TrmtConfig.mapWearThroughTint || !TrmtConfig.mapTracksWear) return 0xFFFFFF;
@@ -515,14 +517,14 @@ public final class GhostRendering {
             "colorFor family=" + ghost
                 .appearance() + " mimicsGrassTop=" + ghost.mimicsVanillaGrassTop() + " untinted=" + ghost.isUntinted());
         // A glow is a deliberate act and outranks every rule below about when ground should and
-        // should not be tinted - somebody chose this colour for this block, so it wins.
+        // should not be tinted - somebody chose this color for this block, so it wins.
         int glow = GhostLight.packedAt(world, x, y, z);
 
         int packedOrigin = ClientErosionCache.get()
             .originAt(x, y, z);
         Block origin = originBlock(packedOrigin);
         // Nothing recorded here, so there is no run to read a position off and nothing to shade by.
-        if (origin == null) return GhostLight.colourOf(glow);
+        if (origin == null) return GhostLight.colorOf(glow);
 
         int originMeta = packedOrigin & 0xF;
         SurfaceFamily originFamily = SurfaceRegistry.familyOf(origin, originMeta);
@@ -536,36 +538,36 @@ public final class GhostRendering {
         // Once a surface has worn past its own family, or past the point where a biome tint
         // still helps, it is mostly bare earth. Tinting that is what would turn a path olive.
         if (originFamily != ghost.appearance() || ghost.isUntinted()) {
-            return blend(GhostLight.colourOf(glow), shade);
+            return blend(GhostLight.colorOf(glow), shade);
         }
 
         // The tint the covered block would take, eased off as its cover wears away.
         //
-        // A face gets one colour, and by the end of the grass run most of that face is the earth
+        // A face gets one color, and by the end of the grass run most of that face is the earth
         // underneath, which wants no tint at all. Holding the tint at full strength leaves worn
         // earth olive; correcting the earth in the texture instead means guessing which green to
         // correct against, and every biome that is not the guess comes out wrong in one
         // direction or the other. This is the one place the real tint is known, so this is where
         // it gets decided: full strength while the face is mostly grass, easing toward none as
         // the earth takes over. What little grass is left at that point is under-tinted, which
-        // is a far smaller error than earth the colour of moss.
+        // is a far smaller error than earth the color of moss.
         try {
             // Asked through a view that gives the covered block back its own metadata. Straight
             // off the world it would read ours, which at this position is the wear stage - and a
-            // block whose colour switches on metadata then answers for a subtype it never was.
+            // block whose color switches on metadata then answers for a subtype it never was.
             // Natura's turf did exactly that: at stage one it came back the blue of bluegrass,
             // at stage two the orange of the autumnal kind, in flat squares across the face.
             int tint = origin.colorMultiplier(new OriginView(world, x, y, z, origin, originMeta), x, y, z);
             // Corrected for a map and never for the renderer, and only where a map will have
-            // fallen back to a green map colour to tint. Its own question rather than the wear
+            // fallen back to a green map color to tint. Its own question rather than the wear
             // one, because this is wrong at nought wear too. See untintCorrection.
             if (fromOutsideTheRenderer(world) && ghost.appearance() == SurfaceFamily.GRASS
                 && !ghost.mimicsVanillaGrassTop()) {
                 tint = untintCorrection(tint);
             }
-            return blend(blend(tint, GhostLight.colourOf(glow)), shade);
+            return blend(blend(tint, GhostLight.colorOf(glow)), shade);
         } catch (RuntimeException awkwardBlock) {
-            return blend(GhostLight.colourOf(glow), shade);
+            return blend(GhostLight.colorOf(glow), shade);
         }
     }
 
@@ -573,7 +575,7 @@ public final class GhostRendering {
      * Two tints, multiplied channel by channel.
      *
      * <p>
-     * Which is what a colour multiplier already is, so a lit block gets its biome colour and its
+     * Which is what a color multiplier already is, so a lit block gets its biome color and its
      * glow at once rather than one replacing the other - grass in a swamp still reads as swamp
      * grass when somebody lights it green.
      */
@@ -592,7 +594,7 @@ public final class GhostRendering {
      * <p>
      * Only the block and its metadata are answered differently, and only at that position.
      * Everything else - the biome above all, which is where a grass tint actually comes from -
-     * is the real world's answer, because the point is to let a block colour itself correctly,
+     * is the real world's answer, because the point is to let a block color itself correctly,
      * not to show it a world that does not exist.
      */
     /**
@@ -644,7 +646,7 @@ public final class GhostRendering {
      * texture's name against {@code grass_side}. A mended side carries the covered block's own
      * earth with vanilla's grass baked into the rows its texture cuts away - which is the right
      * picture underneath, but under a name the renderer does not recognise, so the fringe that
-     * gives it its biome colour would never be drawn. The de-greened wall of worn grass is the
+     * gives it its biome color would never be drawn. The de-greened wall of worn grass is the
      * same case.
      *
      * <p>
@@ -788,7 +790,7 @@ public final class GhostRendering {
      * is the only thing it has to speak with. Every later run drops the block a pixel on its way
      * past, which is real geometry rather than a texture, and is legible without any help. Spread
      * by step count, the first run keeps four of the sixteen pictures and tops out at picture
-     * three: a fresh path across ground that has not sunk accumulates 8.3 colour levels of change
+     * three: a fresh path across ground that has not sunk accumulates 8.3 color levels of change
      * where it had 19.2, which is not a coarser path but a path half as far along. Note what does
      * NOT change there - the smallest step inside the first run is 2.74 either way, because
      * consecutive pictures are always one gradation apart. It is the run's length that goes, not
@@ -939,14 +941,14 @@ public final class GhostRendering {
      * the chain, on the reasoning that with enough pictures to go round there is nothing to ration.
      * The count was the wrong thing to count. Handed straight through, all seventy-one of the
      * transitions that can show anything new do - and every one of them shows the same amount, 0.43
-     * of a colour level on dirt and 0.70 on stone, from the first step to the last, because the
+     * of a color level on dirt and 0.70 on stone, from the first step to the last, because the
      * chain's progress maps onto the pictures in a straight line.
      *
      * <p>
      * Flat is the fault rather than the cure. The first sixteen steps are the only ones with nothing
      * but the picture to speak with: every later run drops the block a pixel on its way past, and a
      * rut with walls on four sides carries its own reading. Nine stored levels of wear on stone used
-     * to move not one pixel of two hundred and fifty-six by a colour difference anybody can see,
+     * to move not one pixel of two hundred and fifty-six by a color difference anybody can see,
      * against grass's twenty at the first level alone - and grass is the one look nobody has
      * complained about. So the share is applied at every gradation count now. At forty hundredths,
      * sixty-two of the seventy-nine transitions show something new and the longest run that shows

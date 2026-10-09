@@ -16,7 +16,7 @@ import com.trmtgtnh.entity.EntityGolemOfWays;
  * <p>
  * Every golem gets it and not only the fitted ones, because the thing worth seeing at night is that
  * the figure standing in your road is a golem rather than a monster. An unfitted one carries a dull
- * ember and a fitted one carries its own colour, which is the same fact the skin says in daylight.
+ * ember and a fitted one carries its own color, which is the same fact the skin says in daylight.
  *
  * <p>
  * <strong>Where this is simpler than the other edition.</strong> There the extra pass is a method on
@@ -28,9 +28,9 @@ import com.trmtgtnh.entity.EntityGolemOfWays;
  * <p>
  * The fog is simpler too, and that is the larger saving. Fixed-function fog is applied to a fragment
  * <em>before</em> the blend stage, so a texel that is black in the texture does not reach the blender
- * black - it reaches it as the fog colour, scaled by distance, which under an additive blend turns
+ * black - it reaches it as the fog color, scaled by distance, which under an additive blend turns
  * the golem into a brighter blob instead of a dark shape with two lit points. The other edition
- * discovered that and had to read the fog colour back with {@code glGetFloat} and hand a black one
+ * discovered that and had to read the fog color back with {@code glGetFloat} and hand a black one
  * to {@code glFog} itself, which cost a version to get right: the read wants sixteen floats and the
  * write wants exactly four, and sixteen into four is an overflow thrown inside a catch-all, logged,
  * and otherwise invisible except that the golem silently stopped holding its tool. 1.12.2 has

@@ -290,7 +290,7 @@ public class PacketEditMob implements IMessage {
         return shown.toString();
     }
 
-    private static void tell(EntityPlayerMP player, EnumChatFormatting colour, String key, Object... args) {
-        player.addChatMessage(new ChatComponentText(colour + StatCollector.translateToLocalFormatted(key, args)));
+    private static void tell(EntityPlayerMP player, EnumChatFormatting color, String key, Object... args) {
+        player.addChatMessage(new ChatComponentText(color + StatCollector.translateToLocalFormatted(key, args)));
     }
 }

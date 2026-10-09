@@ -119,7 +119,7 @@ public final class WailaCompat {
                         + ChatFormatting.DARK_GRAY
                         + "  "
                         + com.trmtgtnh.util.Translate
-                            .get("trmtgtnh.light.colour." + ((glow >> 4) & 0xF)));
+                            .get("trmtgtnh.light.color." + ((glow >> 4) & 0xF)));
             }
         }
 

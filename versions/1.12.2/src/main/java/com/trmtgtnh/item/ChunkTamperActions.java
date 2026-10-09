@@ -50,8 +50,8 @@ public final class ChunkTamperActions {
                     + value));
     }
 
-    private static void tell(EntityPlayer player, TextFormatting colour, String message) {
-        if (player != null) player.sendMessage(new TextComponentString(colour + message));
+    private static void tell(EntityPlayer player, TextFormatting color, String message) {
+        if (player != null) player.sendMessage(new TextComponentString(color + message));
     }
 
     /**

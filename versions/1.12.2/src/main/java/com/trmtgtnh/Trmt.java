@@ -130,8 +130,9 @@ public class Trmt {
      *
      * <p>
      * Anything that appeared since init is picked up, and a second pass that finds nothing new
-     * writes nothing. The 1.7.10 edition follows this with stamping every block that can sink and
-     * surveying what the ghosts stand in for; neither of those exists here yet.
+     * writes nothing. Then, as the 1.7.10 edition does, every block that can sink is stamped. That edition
+     * also surveys what the ghosts stand in for, which this one does not need: the ghost asks the covered
+     * state's own box each time (GhostInherit.ownFootingAt).
      */
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {

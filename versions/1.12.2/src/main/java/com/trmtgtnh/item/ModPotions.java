@@ -140,7 +140,7 @@ public final class ModPotions {
     }
 
     /**
-     * Nothing but a name, a colour and a borrowed icon; all the behaviour is asked for elsewhere.
+     * Nothing but a name, a color and a borrowed icon; all the behaviour is asked for elsewhere.
      *
      * <p>
      * Jump Boost's icon and Slowness's, borrowed rather than drawn, exactly as the other edition
@@ -150,8 +150,8 @@ public final class ModPotions {
      */
     private static final class Draught extends Potion {
 
-        private Draught(boolean bad, int colour, int iconColumn, int iconRow) {
-            super(bad, colour);
+        private Draught(boolean bad, int color, int iconColumn, int iconRow) {
+            super(bad, color);
             setIconIndex(iconColumn, iconRow);
         }
     }

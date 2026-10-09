@@ -186,13 +186,13 @@ public final class GhostSides {
     }
 
     /**
-     * Whether this square's wear picture is a grey one waiting for the biome's grass colour.
+     * Whether this square's wear picture is a grey one waiting for the biome's grass color.
      *
      * <p>
      * Two things have to be true and only one of them used to be asked. The square has to be wearing
      * as grass - and the block it covers has to <em>be</em> a lawn, because the picture is composited
      * from that block's own pixels. Vanilla's grass top is stored grey and is green only because the
-     * game multiplies a biome colour into it; anything else is stored in its own colours and
+     * game multiplies a biome color into it; anything else is stored in its own colors and
      * multiplying grass green into those is just darkening them.
      *
      * <p>

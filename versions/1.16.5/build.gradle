@@ -72,7 +72,11 @@ allprojects {
     apply plugin: "maven-publish"
 
     archivesBaseName = "trmtr-${rootProject.minecraft_version}"
-    version = rootProject.mod_version
+    // A VERSION in the environment overrides gradle.properties, as GTNH's convention does on 1.7.10. It is
+    // how an early build is stamped 0.9.220-early.2 without a tracked file changing (early_release.py sets
+    // it for the one build it runs). A VERSION left set cannot reach a release: check_jars.py refuses a
+    // jar whose version is not the one being published.
+    version = System.getenv("VERSION") ?: rootProject.mod_version
     group = rootProject.mod_group
 
     repositories {

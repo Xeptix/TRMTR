@@ -161,8 +161,8 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
         return false;
     }
 
-    private static void say(EntityPlayer player, EnumChatFormatting colour, String key) {
-        if (player != null) player.addChatMessage(new ChatComponentText(colour + StatCollector.translateToLocal(key)));
+    private static void say(EntityPlayer player, EnumChatFormatting color, String key) {
+        if (player != null) player.addChatMessage(new ChatComponentText(color + StatCollector.translateToLocal(key)));
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

@@ -171,8 +171,8 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
         return false;
     }
 
-    private static void say(EntityPlayer player, TextFormatting colour, String key) {
-        if (player != null) player.sendMessage(new TextComponentString(colour + I18n.translateToLocal(key)));
+    private static void say(EntityPlayer player, TextFormatting color, String key) {
+        if (player != null) player.sendMessage(new TextComponentString(color + I18n.translateToLocal(key)));
     }
 
     /** See {@link ItemTamper#addInformation} for why this one says which side it is on. */

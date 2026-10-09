@@ -41,7 +41,7 @@ import cpw.mods.fml.relauncher.SideOnly;
  * <p>
  * This is the variant for every family that is not grass. It extends plain {@link Block}, and
  * that is the whole point: this class used to extend {@code BlockGrass}, which made JourneyMap
- * flag worn sand, gravel, stone and cobble as biome-coloured grass and paint every one of them
+ * flag worn sand, gravel, stone and cobble as biome-colored grass and paint every one of them
  * the same flat grey. See {@link GhostBlock}. Grass itself is {@link BlockGhostGrass}; the
  * behaviour both share is in {@link GhostLogic}.
  */
@@ -246,12 +246,12 @@ public class BlockGhost extends Block implements GhostBlock {
     @SideOnly(Side.CLIENT)
     @Override
     public int getRenderColor(int meta) {
-        return GhostLogic.renderColour(appearance, meta, untinted);
+        return GhostLogic.renderColor(appearance, meta, untinted);
     }
 
     @Override
     public MapColor getMapColor(int meta) {
-        return GhostLogic.mapColour(appearance, untinted);
+        return GhostLogic.mapColor(appearance, untinted);
     }
 
     @Override

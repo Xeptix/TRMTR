@@ -16,7 +16,7 @@ accessWidener	v1	named
 accessible	method	net/minecraft/client/renderer/item/ItemProperties	register	(Lnet/minecraft/world/item/Item;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/client/renderer/item/ItemPropertyFunction;)V
 # And one private field, for the same kind of reason.
 #
-# The game's own set of item colour handlers - the one every mod registers into - is what the wear
+# The game's own set of item color handlers - the one every mod registers into - is what the wear
 # editor tints its previews with, and it is private with no accessor at this version. Forge patches
 # one back on and needs nothing here; this is Fabric's way of reaching the same field. ItemTints is
 # what both hand it to, and says what happens if neither does.

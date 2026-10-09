@@ -14,7 +14,7 @@ import io.netty.buffer.ByteBuf;
  * Server to client: every lit position in one chunk.
  *
  * <p>
- * Three bytes each - two of key, one of packed level and colour - and only for positions that are
+ * Three bytes each - two of key, one of packed level and color - and only for positions that are
  * actually lit, which in most chunks is none at all. A chunk with nothing lit produces no packet,
  * so the common case costs nothing on the wire.
  */

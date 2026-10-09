@@ -34,6 +34,14 @@ import com.trmtgtnh.client.render.OptiFineMaterial;
  * intermediary ones, where OptiFabric remaps OptiFine into them. Only one of the two exists in any game,
  * which {@code require = 0} lets be. The handler itself is written once, in this tree's names, and the
  * build turns those into whichever loader's it is going to.
+ *
+ * <p>
+ * <strong>This seat is Forge's; OptiFabric has its own.</strong> Under OptiFabric the seat does not bind -
+ * OptiFabric defines OptiFine's classes after Mixin has read every config - and binding would not help: there a
+ * ghost's FRAPI model is drawn by Indigo, handed the chunk's buffer from OptiFine's rebuild past OptiFine's own
+ * push, so no push for a ghost arrives. There the Fabric ghost model pushes the covered block's entry itself
+ * (GhostModelFabric, 0.9.220). The intermediary name stays, costing nothing, against an OptiFabric that one day
+ * loads OptiFine sooner.
  */
 @Pseudo
 @Mixin(targets = OculusGate.OPTIFINE_SEAT, remap = false)

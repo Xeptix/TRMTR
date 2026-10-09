@@ -45,18 +45,18 @@ import com.trmtgtnh.surface.SurfaceRegistry;
 public final class GhostQuads {
 
     /**
-     * The tint slot a grass-coloured face asks for.
+     * The tint slot a grass-colored face asks for.
      *
      * <p>
-     * Only grass takes the biome's colour. Worn through to dirt, a square has no grass left to tint,
+     * Only grass takes the biome's color. Worn through to dirt, a square has no grass left to tint,
      * and a dirt rut washed green by a jungle would be a very strange road.
      */
     public static final int GRASS_TINT = 0;
 
-    /** The tint slot for everything that carries its own colour. */
+    /** The tint slot for everything that carries its own color. */
     public static final int LIGHT_TINT = 1;
 
-    /** Position, colour, texture, light, normal: vanilla's block format, eight ints a vertex. */
+    /** Position, color, texture, light, normal: vanilla's block format, eight ints a vertex. */
     public static final int INTS_PER_VERTEX = 8;
 
     private GhostQuads() {}
@@ -92,11 +92,12 @@ public final class GhostQuads {
         boolean snowed, Direction side, List<AABB> boxes) {
         if (boxes != null && !boxes.isEmpty()) return stairs(record, origin, rotation, fringeTurn, snowed, side, boxes);
         SurfaceFamily appearance = ErosionState.familyOf(record);
-        float floor = BlockGhost.floorOf(outline);
-        // Sunk from the block's own top rather than from the top of its cell, and never below its
-        // floor: a slab worn through would otherwise be drawn as a sheet of nothing hanging in its
-        // own space.
-        float height = Math.max(floor, BlockGhost.topOf(outline) - WearSteps.sunk(record, outline));
+        // The other edition's GhostLogic.bottomAt and heightAt, drawn: a slab from its own floor and never below
+        // it - worn through, it would otherwise be a sheet of nothing hanging in its own space - and anything else
+        // from the top of its cell, so a block already short loses its first pixel into its own shortfall. Until
+        // 0.9.220 this sank everything from the block's own top; Xep chose the other edition's rule on 2026-10-08.
+        float floor = (float) BlockGhost.bottomAt(origin);
+        float height = (float) BlockGhost.heightAt(record, origin, outline, false);
 
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
@@ -107,7 +108,7 @@ public final class GhostQuads {
         // top still says so. The 1.7.10 edition's rule; see ShaderMaterial, which holds all of this.
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
-        // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
+        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
         // that block's own pixels.
         int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
@@ -215,7 +216,7 @@ public final class GhostQuads {
         TextureAtlasSprite earth = earth();
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
-        // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
+        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
         // that block's own pixels.
         int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
@@ -355,7 +356,7 @@ public final class GhostQuads {
      * One vertex, in the eight ints vanilla's block format wants.
      *
      * <p>
-     * Position as three floats, then the colour, then the texture as two floats, then the packed
+     * Position as three floats, then the color, then the texture as two floats, then the packed
      * light, then the normal as four signed bytes. White and unlit, because a chunk's own lighting
      * is applied over this - writing anything else here would be a second tint nobody asked for.
      */

@@ -160,7 +160,7 @@ public final class WearCompositor {
      * <p>
      * Dividing rather than subtracting is the point: a ratio transfers to a texture of a
      * different brightness and hue, so red sand wears red and Twilight Forest dirt wears in
-     * its own colour, while a difference would drag everything toward vanilla's palette.
+     * its own color, while a difference would drag everything toward vanilla's palette.
      *
      * @return {@code size * size * 3} channel ratios
      */
@@ -239,15 +239,15 @@ public final class WearCompositor {
     }
 
     /**
-     * Moves a colour toward white by the given amount.
+     * Moves a color toward white by the given amount.
      *
      * <p>
      * Used to weaken the biome tint on a worn grass block in proportion to how much bare earth
      * is showing. The tint applies to the whole face, so the more earth there is, the more of
      * the tint lands somewhere it does not belong; pulling it toward white as the grass thins
-     * keeps the earth honest without ever pushing a colour anywhere it could not already go.
+     * keeps the earth honest without ever pushing a color anywhere it could not already go.
      * Unlike correcting the texture against a fixed reference green, this cannot overshoot in a
-     * biome whose grass is a different colour from the one it was calibrated against.
+     * biome whose grass is a different color from the one it was calibrated against.
      */
     /**
      * Eases a tint toward none, in proportion to how little of the face still wants it.
@@ -258,14 +258,14 @@ public final class WearCompositor {
      * would brighten the dark channels far faster than the light ones and drift the hue on the
      * way.
      */
-    public static int easeTint(int colour, float worn) {
-        if (worn <= 0f) return colour;
+    public static int easeTint(int color, float worn) {
+        if (worn <= 0f) return color;
         if (worn >= 1f) return 0xFFFFFF;
 
         int result = 0;
         for (int channel = 0; channel < 3; channel++) {
             int shift = 16 - channel * 8;
-            float fraction = ((colour >>> shift) & 0xFF) / 255f;
+            float fraction = ((color >>> shift) & 0xFF) / 255f;
             int eased = Math.round((float) Math.pow(fraction, 1f - worn) * 255f);
             if (eased < 0) eased = 0;
             if (eased > 255) eased = 255;
@@ -274,20 +274,20 @@ public final class WearCompositor {
         return result;
     }
 
-    public static int lerpTowardWhite(int colour, float amount) {
-        if (amount <= 0f) return colour;
+    public static int lerpTowardWhite(int color, float amount) {
+        if (amount <= 0f) return color;
         if (amount > 1f) amount = 1f;
         int result = 0;
         for (int channel = 0; channel < 3; channel++) {
             int shift = 16 - channel * 8;
-            int value = (colour >>> shift) & 0xFF;
+            int value = (color >>> shift) & 0xFF;
             result |= Math.round(value + (255 - value) * amount) << shift;
         }
         return result;
     }
 
-    /** Multiplies a texture by a colour, as the game's biome tint would at render time. */
-    public static int[] tint(int[] pixels, int colour) {
+    /** Multiplies a texture by a color, as the game's biome tint would at render time. */
+    public static int[] tint(int[] pixels, int color) {
         int[] out = new int[pixels.length];
         for (int i = 0; i < pixels.length; i++) {
             int pixel = pixels[i];
@@ -295,7 +295,7 @@ public final class WearCompositor {
             for (int channel = 0; channel < 3; channel++) {
                 int shift = 16 - channel * 8;
                 int value = (pixel >>> shift) & 0xFF;
-                int factor = (colour >>> shift) & 0xFF;
+                int factor = (color >>> shift) & 0xFF;
                 result |= ((value * factor) / 255) << shift;
             }
             out[i] = result;
@@ -304,7 +304,7 @@ public final class WearCompositor {
     }
 
     /**
-     * Pre-divides a texture by a colour so that multiplying it back by that colour restores
+     * Pre-divides a texture by a color so that multiplying it back by that color restores
      * the original.
      *
      * <p>
@@ -319,14 +319,14 @@ public final class WearCompositor {
      * partly uncompensated, which is no worse than not compensating at all. That is why this
      * is safe to apply to a texture from a mod nobody has looked at.
      */
-    public static int[] precompensate(int[] pixels, int colour, float strength) {
+    public static int[] precompensate(int[] pixels, int color, float strength) {
         int[] out = new int[pixels.length];
         float[] scale = new float[3];
         for (int channel = 0; channel < 3; channel++) {
-            int factor = (colour >>> (16 - channel * 8)) & 0xFF;
+            int factor = (color >>> (16 - channel * 8)) & 0xFF;
             // Raising the correction to a power short of one splits the difference between the
             // biome this was calibrated for and every other one, so the earth is never far from
-            // its true colour anywhere rather than exact in one biome and lurid in the rest.
+            // its true color anywhere rather than exact in one biome and lurid in the rest.
             scale[channel] = factor == 0 ? 1f : (float) Math.pow(255.0 / factor, strength);
         }
 
@@ -399,7 +399,7 @@ public final class WearCompositor {
     }
 
     /**
-     * Wears a surface by flattening it toward its own average colour and darkening it.
+     * Wears a surface by flattening it toward its own average color and darkening it.
      *
      * <p>
      * Because it works from the texture's own mean, a path on granite comes out granite and a
@@ -501,7 +501,7 @@ public final class WearCompositor {
     /**
      * The four things that make a face muddy: how far each pixel is pulled toward its own
      * neighbours, how much of the face's overall contrast goes, how much darker the whole thing
-     * settles, and how much of the colour goes with the dust.
+     * settles, and how much of the color goes with the dust.
      *
      * <p>
      * This is the part the old operator had none of, and its absence is what made worn stone look
@@ -550,7 +550,7 @@ public final class WearCompositor {
      * The fissures are only half of it, and the smaller half. Before anything is cut, the face is
      * worn down the way a trodden surface actually goes: each pixel is drawn toward its
      * neighbours so the fine detail rubs off, the whole face's light and dark close up, dirt
-     * collects in broad patches with grit scattered through it, and a little of the colour goes
+     * collects in broad patches with grit scattered through it, and a little of the color goes
      * with the dust. That is what makes a late gradation muddier than an early one rather than
      * merely darker, and it is why a stone brick still reads as a stone brick after all of it.
      *
@@ -565,7 +565,7 @@ public final class WearCompositor {
      * The field is built at a fixed resolution and area-averaged down to whatever the block uses,
      * so the edge of a crack is a fraction of a pixel rather than all or nothing, and a
      * 128-pixel texture costs what a 16-pixel one does. Every pixel is scaled on all three
-     * channels at once, so a crack is a shadow in the surface's own colour and never a grey line
+     * channels at once, so a crack is a shadow in the surface's own color and never a grey line
      * painted over it.
      *
      * @param seed varies the whole network between rotations, so a path is not the same crack
@@ -704,7 +704,7 @@ public final class WearCompositor {
                 float wornGreen = green * scale;
                 float wornBlue = blue * scale;
                 // The last of it is dust, which is grey. Taken from the pixel's own brightness
-                // rather than from any colour of ours, so nothing is invented: this can only ever
+                // rather than from any color of ours, so nothing is invented: this can only ever
                 // move a pixel toward a grey it is already exactly as light as.
                 float grey = (wornRed + wornGreen + wornBlue) / 3f;
                 int result = 0xFF000000 | (clampByte(wornRed + (grey - wornRed) * dust) << 16)
@@ -870,9 +870,9 @@ public final class WearCompositor {
             if (wanted < 0f) wanted = 0f;
 
             // Every channel moves by the same factor, which is the whole point: the pixel gets
-            // darker and flatter without its colour changing at all. Working channel by channel
+            // darker and flatter without its color changing at all. Working channel by channel
             // against a per-channel mean, as this used to, pulls each one a different distance
-            // and quietly drains the colour out — which is why worn sand came out pale next to
+            // and quietly drains the color out — which is why worn sand came out pale next to
             // the real thing, and why worn stone had no stone left in it.
             float scale = brightness <= 0.5f ? 0f : wanted / brightness;
             int result = 0xFF000000;
@@ -903,16 +903,16 @@ public final class WearCompositor {
      *
      * <p>
      * So two things happen and only two. A mask decides which pixels are worn, and it grows with
-     * coverage. Those pixels are recoloured toward a tone the block already contains. Every other
+     * coverage. Those pixels are recolored toward a tone the block already contains. Every other
      * pixel comes out bit-identical to the source, which is what keeps a cobble looking like
      * cobble rather than a grey smear: at full wear a third of the face is still untouched, and
      * that surviving relief is the whole difference.
      *
      * <p>
-     * The recolour is one scale applied to all three channels. Hue and saturation are ratios
+     * The recolor is one scale applied to all three channels. Hue and saturation are ratios
      * between channels, so scaling them together cannot shift either. Red sand wears to darker
      * red sand and stone wears to stone's own shadow, with no palette to look up and no list of
-     * which blocks are which colour.
+     * which blocks are which color.
      *
      * @param source   the block's own pixels
      * @param size     edge length of the square
@@ -931,13 +931,13 @@ public final class WearCompositor {
         }
 
         float cut = coverageThreshold(order, coverage);
-        // Tones the block itself uses. Taking the worn colour from the source's own dark end is
+        // Tones the block itself uses. Taking the worn color from the source's own dark end is
         // what makes this work on a block nobody has ever heard of: there is nothing to look up,
         // because the answer is already in the texture.
         float shadow = lumaQuantile(source, 0.15f);
         // A guard against a worn pixel going black, not a target. Sitting it AT the block's own
         // darkest tone was a mistake that cost a whole round of tuning: nearly every worn pixel
-        // clamped onto it, so the worn patch came out one flat colour and no amount of adjusting
+        // clamped onto it, so the worn patch came out one flat color and no amount of adjusting
         // the flattening changed anything, because the flattening was never what decided it.
         float floor = lumaQuantile(source, 0.03f) * (1f - 0.35f * depth);
         // Enough to see. These were gentle enough that a worn patch on a low-contrast block -
@@ -1144,7 +1144,7 @@ public final class WearCompositor {
      * <p>
      * Cracking first wins on both halves at once, which is what makes it an answer rather than a
      * preference. What makes a track a track is how far the worn part sits below the part left
-     * alone: a plain rub separates them by 41.98 colour levels, this order keeps 30.29 of that and
+     * alone: a plain rub separates them by 41.98 color levels, this order keeps 30.29 of that and
      * the reverse keeps 10.61. The reason is in {@link #applyCrack} rather than in taste - it blurs
      * across a three by three window, and a track's edge is a per-pixel ranked mask, so a crack run
      * afterwards smears out the very boundary that makes a track a track.
@@ -1265,12 +1265,12 @@ public final class WearCompositor {
      * Composed pixels with the source's own transparency put back, channel for channel.
      *
      * <p>
-     * Every operator in this file writes a fully opaque pixel, and each is right to: the colour
+     * Every operator in this file writes a fully opaque pixel, and each is right to: the color
      * arithmetic they do - flattening towards a quantile, scaling three channels by one factor,
-     * blending a fracture field - is defined on a colour and says nothing about how much of that
-     * colour there is. Teaching nine operators about transparency would risk moving what a worn
+     * blending a fracture field - is defined on a color and says nothing about how much of that
+     * color there is. Teaching nine operators about transparency would risk moving what a worn
      * cobble looks like for the sake of a channel none of them ever touched, so the channel is
-     * restored afterwards instead and the colour arithmetic stays byte for byte what it was.
+     * restored afterwards instead and the color arithmetic stays byte for byte what it was.
      *
      * <p>
      * Applied to every worn face rather than only to the see-through ones, and that is deliberate. A
@@ -1305,7 +1305,7 @@ public final class WearCompositor {
      * The band frays from the bottom up: the dangling lower pixels of the fringe go first and the
      * topmost row survives longest, which reads as grass dying back to its roots rather than the
      * whole strip fading at once. A stable per-pixel jitter ragged the edge so it does not recede
-     * as a straight line. Nothing is recoloured - a pixel is either the overlay's own colour or
+     * as a straight line. Nothing is recolored - a pixel is either the overlay's own color or
      * cleared to nothing - because the render pass tints what survives.
      *
      * @param overlay  the grey overlay's own pixels, ARGB, its transparent parts already clear
@@ -1357,7 +1357,7 @@ public final class WearCompositor {
 
         for (int i = 0; i < out.length && i < overlay.length; i++) {
             boolean keep = order[i] != Float.NEGATIVE_INFINITY && order[i] >= cut;
-            // Cleared to alpha zero where the fringe has gone; the colour is left under it so the
+            // Cleared to alpha zero where the fringe has gone; the color is left under it so the
             // atlas's mipmaps have something to average rather than bleeding black into the edge.
             out[i] = keep ? overlay[i] : (overlay[i] & 0x00FFFFFF);
         }
@@ -1389,7 +1389,7 @@ public final class WearCompositor {
             }
             if (cleanRow <= 0) continue; // top row already earth, or the column is earth all down
             // A grass cap is a few rows deep. Anything deeper than that is not a cap over earth -
-            // it is a texture that is coloured most of the way down, and filling it from the first
+            // it is a texture that is colored most of the way down, and filling it from the first
             // row that happens to read as earth would smear that row across half the face.
             if (cleanRow > Math.max(1, size / 4)) continue;
             int fill = 0xFF000000 | (side[cleanRow * size + x] & 0xFFFFFF);

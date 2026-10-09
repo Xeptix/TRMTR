@@ -9,10 +9,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageOutputStream;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.TextComponent;
@@ -44,9 +48,11 @@ import com.trmtgtnh.Trmt;
  * expects to find one.
  *
  * <p>
- * <strong>Nothing is cached.</strong> The atlas asks for each sprite once per reload, so a cache
- * would hold megabytes of encoded PNG for the rest of the session to save work that is not going to
- * be repeated. The composing itself is the older editions' own code, unchanged, and it was fast
+ * <strong>Each picture is drawn once a stitch, and kept only for that stitch.</strong> This said, until
+ * 0.9.220, that nothing was cached because the atlas asks for each sprite once per reload. It asks twice -
+ * once to learn its size, once to load it - and OptiFine three times, so every wear sprite was drawn two or
+ * three times over: 44,174 pictures for 22,080 sprites, 66,261 under OptiFabric, each under a log line
+ * saying "once each". See {@link #answers}. The composing itself is the older editions' own code, unchanged, and it was fast
  * enough to run inside a stitch there.
  *
  * <p>
@@ -55,10 +61,13 @@ import com.trmtgtnh.Trmt;
  */
 public final class GeneratedPack implements PackResources {
 
-    /** One generated image, as the compositor leaves it. */
+    /** One generated image, as the compositor leaves it, or already encoded as the PNG this pack serves. */
     public static final class Sheet {
 
-        /** ARGB, {@code width * height} of them, which is what the compositor already works in. */
+        /**
+         * ARGB, {@code width * height} of them, which is what the compositor already works in; null once the picture
+         * is {@link #encoded}, when the bytes are all anybody reads and the pixels are let go.
+         */
         public final int[] pixels;
 
         public final int width;
@@ -68,11 +77,32 @@ public final class GeneratedPack implements PackResources {
         /** The {@code .mcmeta} this sprite wants, or null for a still one. */
         public final String mcmeta;
 
+        /** The PNG, where the picture was encoded before it was asked for, or null for this pack to encode on its read. */
+        final byte[] png;
+
         public Sheet(int[] pixels, int width, int height, String mcmeta) {
+            this(pixels, width, height, mcmeta, null);
+        }
+
+        private Sheet(int[] pixels, int width, int height, String mcmeta, byte[] png) {
             this.pixels = pixels;
             this.width = width;
             this.height = height;
             this.mcmeta = mcmeta;
+            this.png = png;
+        }
+
+        /**
+         * The same picture as the PNG this pack would make of it, with the pixels let go.
+         *
+         * <p>
+         * Safe on any thread: pixels, two sizes and a string in, bytes out, through nothing but the JDK's own writer -
+         * which is how the sprite pass's pool can encode for the pack. The bytes are exactly the ones a read of the
+         * unencoded sheet would produce, because they are made by the same method.
+         */
+        public Sheet encoded() throws IOException {
+            if (png != null) return this;
+            return new Sheet(null, width, height, mcmeta, encode(this));
         }
     }
 
@@ -95,6 +125,7 @@ public final class GeneratedPack implements PackResources {
 
     public GeneratedPack(Sheets sheets) {
         this.sheets = sheets;
+        latest = this;
     }
 
     @Override
@@ -109,40 +140,62 @@ public final class GeneratedPack implements PackResources {
     }
 
     /**
-     * The last sheet drawn on this thread, so the three questions about one sprite cost one drawing.
+     * Each sprite's answer - its PNG and its {@code .mcmeta} - from the first time the atlas asks for it until the
+     * stitch ends.
      *
      * <p>
-     * The resource manager asks about a texture in a run: has it got the metadata, then take the
-     * metadata, then take the image. Answering the first honestly means knowing whether the sprite
-     * is animated, and the only way to know that is to draw it - so without this, every sprite is
-     * drawn two or three times, and the atlas loads sprites on worker threads so a shared slot would
-     * need a lock. One slot per thread needs none, and the run is always on one thread.
+     * Vanilla's atlas opens every texture once to learn its size (getBasicSpriteInfos) and once more to load it
+     * (getLoadedSprites), OptiFine's opens it a third time, and each opening asks about the metadata before it
+     * takes the picture. Answering honestly about the metadata means knowing whether the sprite is animated, which
+     * is known only once it is drawn - a sprite moves, and its sheet is a strip, only if its moving layer is
+     * adopted while composing - so the size cannot be worked out ahead and the picture itself is what is kept:
+     * encoded, which is a fraction of the pixels, and only for the one stitch. Until 0.9.220 one sheet was kept per
+     * thread instead, which saved the questions inside one opening and none across them.
      *
      * <p>
-     * Still not a cache in the sense rejected earlier: it holds one sheet, and the next name
-     * replaces it. Nothing is retained after a reload.
+     * Held to the end of the stitch rather than let go at some count of reads, because the count is the
+     * renderer's: the first version let go at the second and still drew everything twice under OptiFabric. Let go
+     * wholly at the end of every stitch ({@link #forgetAll}) and when the pack is closed, so nothing outlives the
+     * stitch it was drawn for; a read after that draws it again, as before. The atlas reads on worker threads - six at
+     * once, vanilla's background executor - hence the concurrent map; two threads asking for one name at once is not
+     * something it does, and if it did the second answer would simply be thrown away. A wear sprite's answer is the
+     * same either way, since the sprite pass keeps what it filed until the stitch ends.
      */
-    private final ThreadLocal<Drawn> recent = new ThreadLocal<Drawn>();
+    private final Map<ResourceLocation, Answer> answers = new ConcurrentHashMap<ResourceLocation, Answer>();
 
-    private static final class Drawn {
+    /** The pack the current reload opened, whose answers the end of the stitch lets go. */
+    private static volatile GeneratedPack latest;
 
-        final ResourceLocation name;
+    private static final class Answer {
 
-        final Sheet sheet;
+        final byte[] png;
 
-        Drawn(ResourceLocation name, Sheet sheet) {
-            this.name = name;
-            this.sheet = sheet;
+        final String mcmeta;
+
+        Answer(byte[] png, String mcmeta) {
+            this.png = png;
+            this.mcmeta = mcmeta;
         }
     }
 
-    /** The sheet for this image, drawing it only if it is not the one just drawn on this thread. */
-    private Sheet drawn(ResourceLocation image) {
-        Drawn held = recent.get();
-        if (held != null && held.name.equals(image)) return held.sheet;
-        Sheet made = sheets.sheet(image);
-        recent.set(new Drawn(image, made));
-        return made;
+    /**
+     * The answer for one image: kept from an earlier read in this stitch, or drawn now - and encoded now, unless it
+     * arrived encoded, which every wear sprite's does: the sprite pass encodes on its pool.
+     */
+    private Answer answer(ResourceLocation image) throws IOException {
+        Answer kept = answers.get(image);
+        if (kept != null) return kept;
+        Sheet sheet = sheets.sheet(image);
+        if (sheet == null) return null;
+        Answer made = new Answer(sheet.png != null ? sheet.png : encode(sheet), sheet.mcmeta);
+        Answer first = answers.putIfAbsent(image, made);
+        return first != null ? first : made;
+    }
+
+    /** Lets go of every answer the current reload's pack still holds - the end of a stitch. */
+    public static void forgetAll() {
+        GeneratedPack pack = latest;
+        if (pack != null) pack.answers.clear();
     }
 
     @Override
@@ -155,8 +208,13 @@ public final class GeneratedPack implements PackResources {
         // A still sprite has no metadata file, and saying it has one is not a small lie: the manager
         // asks this before it takes, and a yes it cannot honour comes back as "using missing
         // texture" for the sprite itself. Which is what it did.
-        Sheet sheet = drawn(image);
-        return sheet != null && sheet.mcmeta != null;
+        try {
+            Answer answer = answer(image);
+            return answer != null && answer.mcmeta != null;
+        } catch (IOException unencoded) {
+            // Said by the picture's own read, which tries again and throws.
+            return false;
+        }
     }
 
     @Override
@@ -169,16 +227,16 @@ public final class GeneratedPack implements PackResources {
             throw new IOException(location + " is not one of this mod's generated textures");
         }
 
-        Sheet sheet = drawn(image);
-        if (sheet == null) throw new IOException(image + " could not be drawn");
+        Answer answer = answer(image);
+        if (answer == null) throw new IOException(image + " could not be drawn");
 
         boolean metadata = location.getPath()
             .endsWith(METADATA_SUFFIX);
         if (metadata) {
-            if (sheet.mcmeta == null) throw new IOException(image + " is not animated");
-            return new ByteArrayInputStream(sheet.mcmeta.getBytes(StandardCharsets.UTF_8));
+            if (answer.mcmeta == null) throw new IOException(image + " is not animated");
+            return new ByteArrayInputStream(answer.mcmeta.getBytes(StandardCharsets.UTF_8));
         }
-        return new ByteArrayInputStream(encode(sheet));
+        return new ByteArrayInputStream(answer.png);
     }
 
     @Override
@@ -240,7 +298,9 @@ public final class GeneratedPack implements PackResources {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        answers.clear();
+    }
 
     /**
      * The image a request is for, whether it asked for the image or for its metadata, or null when
@@ -272,13 +332,32 @@ public final class GeneratedPack implements PackResources {
      * both older editions all along. {@code NativeImage} would do it too and is what the atlas
      * decodes into, but going through it here would mean composing into one and the compositor is
      * portable code that names nothing from the game.
+     *
+     * <p>
+     * <strong>Written through a stream held in memory, never the one ImageIO picks.</strong> Handed an
+     * {@code OutputStream}, ImageIO wraps it in a {@code FileCacheImageOutputStream} wherever the
+     * temporary folder is writable - a file created in it, written, read back and deleted, for every
+     * picture. Until 0.9.220 that was every wear picture of every stitch: measured on 2026-10-08, the
+     * encoding took ninety seconds of thread time across the atlas's six loading threads, where the
+     * composing took two, and a pool of eight encoding it was no faster, because what it was waiting
+     * on was the disk. The writer, the
+     * image and the bytes it writes are the same either way - only where the writer keeps them while
+     * it goes back to fill in each chunk's length differs - which {@code PoolComposesWhatOneThreadDoesTest}
+     * holds against the old route byte for byte. The JDK's own switch for this, {@code ImageIO.setUseCache},
+     * is global to the game and every other mod in it, so it is left alone.
      */
     static byte[] encode(Sheet sheet) throws IOException {
         BufferedImage image = new BufferedImage(sheet.width, sheet.height, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, sheet.width, sheet.height, sheet.pixels, 0, sheet.width);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        if (!ImageIO.write(image, "PNG", out)) {
-            throw new IOException("no PNG writer, which no JDK should be without");
+        ImageOutputStream stream = new MemoryCacheImageOutputStream(out);
+        try {
+            if (!ImageIO.write(image, "PNG", stream)) {
+                throw new IOException("no PNG writer, which no JDK should be without");
+            }
+        } finally {
+            // Flushes what the cache still holds into the bytes, and leaves them open; there is nothing to close.
+            stream.close();
         }
         return out.toByteArray();
     }

@@ -108,15 +108,14 @@ public final class PhysicalDecay {
         // Something planted here holds the ground level whatever the record says it has taken.
         if (GroundCover.holdsAt(world, x, y, z)) return 0;
 
-        // By the block's own thickness rather than by what class it is, which is the same rule the ghost
-        // uses on the other side: half a block of stone cannot lose eight pixels and still be there,
-        // whatever it was cut from.
+        // By what class the block is, as the ghost decides it on the other side and as the 1.7.10 edition
+        // decides it: a slab class is a slab, anything else whole. Until 0.9.220 this judged by thickness;
+        // Xep chose the other edition's rule on 2026-10-08.
         return SinkProfile.collides(
             entry.getFamily(),
             entry.getSink(),
-            com.trmtgtnh.block.BlockGhost.shapeOf(
-                com.trmtgtnh.block.BlockGhost
-                    .outlineOf(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z), world, new BlockPos(x, y, z))));
+            SurfaceShape.of(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z)
+                .getBlock()));
     }
 
     /**
@@ -185,14 +184,13 @@ public final class PhysicalDecay {
         // which is where it was before this mod arrived.
         if (!fillsItsFootprint(state, world, x, y, z)) return null;
 
-        // The block's own outline, less what it has sunk from its own top - the same arithmetic the ghost
-        // does on the other side, through the same method, so the two cannot disagree about where the
-        // ground is. The other edition works the outline out from the shape instead, because 1.7.10 has no
-        // way to ask a block where its edges are without a bounding box shared between every block of its
-        // kind; here the state answers for itself.
-        int outline = com.trmtgtnh.block.BlockGhost.outlineOf(state, world, new BlockPos(x, y, z));
-        double floor = com.trmtgtnh.block.BlockGhost.floorOf(outline);
-        double worn = Math.max(floor, com.trmtgtnh.block.BlockGhost.topOf(outline) - sink / 16.0D);
+        // The 1.7.10 edition's boxAt, the same rule the ghost's solidBox gives the client: anything but a slab is a
+        // full cell less the depth, from the top of the cell; a slab wears from its own top and stops at its floor.
+        if (!shape.isPartial()) {
+            return new AxisAlignedBB(x, y, z, x + 1.0D, y + SinkProfile.heightFor(sink), z + 1.0D);
+        }
+        double floor = SurfaceShape.bottomOf(shape, state);
+        double worn = Math.max(floor, SurfaceShape.topOf(shape, state) - sink / 16.0D);
         return new AxisAlignedBB(x, y + floor, z, x + 1.0D, y + worn, z + 1.0D);
     }
 

@@ -15,8 +15,15 @@
 // Read through the provider API rather than by running git during configuration, so the
 // configuration cache stays usable. A tree with no git, or with no tags in it yet, keeps whatever
 // gradle.properties says: somebody cloning this to look at it should not have to make a tag first.
+//
+// A VERSION in the environment overrides both, as GTNH's convention does on 1.7.10. It is how an early
+// build is stamped 0.9.220-early.2 without a tracked file changing (early_release.py sets it for the one
+// build it runs). A VERSION left set cannot reach a release: check_jars.py refuses a jar whose version
+// is not the one being published.
 
 apply from: 'gradle/scripts/helpers.gradle'
+
+def overridden = providers.environmentVariable('VERSION').map { it.trim() }.getOrElse('')
 
 def described = providers.exec {
     commandLine 'git', 'describe', '--tags', '--always', '--dirty=-dirty'
@@ -24,7 +31,10 @@ def described = providers.exec {
     ignoreExitValue = true
 }.standardOutput.asText.map { it.trim() }.getOrElse('')
 
-if (described.isEmpty()) {
+if (!overridden.isEmpty()) {
+    logger.lifecycle("Version override from the environment: ${overridden}")
+    project.setProperty('mod_version', overridden)
+} else if (described.isEmpty()) {
     logger.lifecycle("No git description available; the version stays at ${propertyString('mod_version')} from gradle.properties")
 } else {
     project.setProperty('mod_version', described)

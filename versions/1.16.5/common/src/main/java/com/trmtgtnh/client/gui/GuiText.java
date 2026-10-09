@@ -16,7 +16,7 @@ import net.minecraft.network.chat.Style;
  * does not answer in strings.</strong> Both older editions ask
  * {@code fontRenderer.listFormattedStringToWidth(text, width)} and get a list of strings back. At
  * this version a font splits text through a {@code StringSplitter} into a list of
- * {@code FormattedText} - which is the better answer for coloured text and the wrong shape for every
+ * {@code FormattedText} - which is the better answer for colored text and the wrong shape for every
  * caller in this mod, all of which hand it a plain translated sentence and draw the lines centred.
  *
  * <p>
@@ -66,9 +66,9 @@ public final class GuiText {
      *
      * <p>
      * <strong>The section signs survive, which is the point.</strong> Every tooltip in this mod
-     * carries its own colour as a {@code §7} at the head of each line, which is how both older
-     * editions colour them. A component built from literal text keeps those and the font still
-     * reads them, so nothing about the colouring has to be rewritten.
+     * carries its own color as a {@code §7} at the head of each line, which is how both older
+     * editions color them. A component built from literal text keeps those and the font still
+     * reads them, so nothing about the coloring has to be rewritten.
      */
     public static List<net.minecraft.network.chat.Component> components(List<String> lines) {
         List<net.minecraft.network.chat.Component> out =

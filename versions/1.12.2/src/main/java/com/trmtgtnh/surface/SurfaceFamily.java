@@ -27,7 +27,7 @@ public enum SurfaceFamily {
     DIRT(true),
     /** Loose granular surfaces: sand, red sand, modded equivalents. */
     SAND(true),
-    /** Gravel and its variants: granular like sand, but keeps its own colouring. */
+    /** Gravel and its variants: granular like sand, but keeps its own coloring. */
     GRAVEL(true),
     /** Smooth rock: stone, granite, marble, GregTech's stone types. Wears very slowly. */
     STONE(true),

@@ -144,9 +144,9 @@ public class ItemDevTool extends Item implements AirSwingTool {
         return false;
     }
 
-    private static void say(Player player, ChatFormatting colour, String message) {
+    private static void say(Player player, ChatFormatting color, String message) {
         if (player == null) return;
-        player.sendMessage(new TextComponent(colour + message), net.minecraft.Util.NIL_UUID);
+        player.sendMessage(new TextComponent(color + message), net.minecraft.Util.NIL_UUID);
     }
 
     /** See {@link ItemTamper#addInformation} for why this one says which side it is on. */

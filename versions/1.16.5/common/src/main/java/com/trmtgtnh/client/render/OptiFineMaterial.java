@@ -70,6 +70,11 @@ public final class OptiFineMaterial {
 
         /** Set while this thread's own push is in flight, which is not a new block arriving. */
         boolean claiming;
+
+        /** The buffer this thread pushed a ghost's claim onto under OptiFabric, and the depth it pushed from. */
+        BufferBuilder pushedOn;
+
+        int pushedFrom;
     }
 
     private OptiFineMaterial() {}
@@ -156,12 +161,100 @@ public final class OptiFineMaterial {
      * own line comes only with a ghost. Under OptiFabric on 2026-10-07 neither came. OptiFabric defines
      * OptiFine's classes itself, from a cache of its own and after Mixin has prepared every config, so no
      * mixin binds to one there - the log says "Error loading class: net/optifine/shaders/SVertexBuilder"
-     * the moment one tries - and worn ground under OptiFabric keeps the ghost's own entry.
+     * the moment one tries. Binding it would not have helped either: there Indigo draws the ghost and
+     * cancels OptiFine's renderModel before OptiFine's push, so no push for a ghost ever arrives to seat.
+     * OptiFabric has its own route since 0.9.220 - {@link #pushClaim}.
      */
     private static void noteReached() {
         if (reachedSaid) return;
         reachedSaid = true;
         Trmt.LOG.info("OptiFine's shader stack reaches the material seat");
+    }
+
+    /**
+     * Whether OptiFine's shader stack is here to push onto at all, worked out once - so a renderer without OptiFine,
+     * which is every Fabric client but OptiFabric's, pays one field read per square for asking.
+     */
+    public static boolean pushes() {
+        if (!TrmtConfig.inheritShaderMaterial) return false;
+        if (!looked) look();
+        return push != null;
+    }
+
+    /**
+     * Pushes the claimed block's entry for a ghost, the way OptiFine pushes any vanilla block's - for the one
+     * arrangement where OptiFine pushes nothing for a ghost: OptiFabric, where Indigo hands the ghost's FRAPI model
+     * the chunk's buffer straight from OptiFine's rebuild, past OptiFine's own push (GhostModelFabric,
+     * OptiFabricEntry). Undone by {@link #popClaim} at the end of the same draw.
+     *
+     * <p>
+     * Pushed rather than written over, unlike the seat, because here there is nothing to write over: the top of
+     * the stack is the entry of whatever block was drawn before. The pop is in hand this time - the same method's
+     * return, which nothing cancels - and it takes the stack back to the depth found here and never further.
+     */
+    public static void pushClaim(BlockState claim, VertexConsumer consumer) {
+        if (!TrmtConfig.inheritShaderMaterial || claim == null) return;
+        if (!(consumer instanceof BufferBuilder)) return;
+        if (!looked) look();
+        if (push == null) return;
+        Seat seat = SEAT.get();
+        if (seat == null) {
+            seat = new Seat();
+            SEAT.set(seat);
+        }
+        try {
+            Object builder = vertexBuilder.get(consumer);
+            int from = depth.getInt(builder);
+            // Room for one more, or nothing is pushed at all: a full stack is OptiFine's to overflow.
+            if (from + 1 >= ((long[]) stack.get(builder)).length) return;
+            // Our own push is not a block arriving, so a seat bound beside this one must not give itself up.
+            seat.claiming = true;
+            try {
+                push.invoke(null, claim, consumer);
+            } finally {
+                seat.claiming = false;
+            }
+            seat.pushedOn = (BufferBuilder) consumer;
+            seat.pushedFrom = from;
+            notePushed();
+        } catch (Throwable awkward) {
+            push = null;
+            pop = null;
+            vertexBuilder = null;
+            stack = null;
+            depth = null;
+            Trmt.LOG.warn("Giving up on the shader material override under OptiFabric: {}", awkward.toString());
+        }
+    }
+
+    /** Takes this thread's push back off the same buffer, to the depth it was made from and never further. */
+    public static void popClaim(VertexConsumer consumer) {
+        Seat seat = SEAT.get();
+        if (seat == null || seat.pushedOn == null || seat.pushedOn != consumer) return;
+        BufferBuilder buffer = seat.pushedOn;
+        int from = seat.pushedFrom;
+        seat.pushedOn = null;
+        if (pop == null) return;
+        try {
+            Object builder = vertexBuilder.get(buffer);
+            while (depth.getInt(builder) > from) pop.invoke(null, buffer);
+        } catch (Throwable awkward) {
+            push = null;
+            pop = null;
+            vertexBuilder = null;
+            stack = null;
+            depth = null;
+            Trmt.LOG.warn("Giving up on the shader material override under OptiFabric: {}", awkward.toString());
+        }
+    }
+
+    private static volatile boolean pushedSaid;
+
+    /** Said once, so a run can tell "never reached" from "working" - a feature that never ran logs nothing. */
+    private static void notePushed() {
+        if (pushedSaid) return;
+        pushedSaid = true;
+        Trmt.LOG.info("Under OptiFabric, worn ground hands OptiFine the block it covers");
     }
 
     /** Whether this thread holds a ghost's seat - the only thing worth working a claim out for. */

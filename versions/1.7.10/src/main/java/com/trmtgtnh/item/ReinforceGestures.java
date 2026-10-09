@@ -216,7 +216,7 @@ public final class ReinforceGestures {
             .markModified(world, chunkX, chunkZ);
     }
 
-    private static void say(EntityPlayer player, EnumChatFormatting colour, String message) {
-        if (player != null) player.addChatMessage(new ChatComponentText(colour + message));
+    private static void say(EntityPlayer player, EnumChatFormatting color, String message) {
+        if (player != null) player.addChatMessage(new ChatComponentText(color + message));
     }
 }

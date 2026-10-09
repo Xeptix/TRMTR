@@ -92,7 +92,7 @@ indication of prior modifications, and a list that stops a year short of the cod
   themselves: on 1.7.10 because a model cannot be rotated, and here because there is no authored
   model to rotate - a worn square's picture is composed per position from the covered block's pixels
 - The authored art decomposed into a reusable per-pixel coverage sequence and re-applied to each
-  block's own textures, so modded surfaces wear in their own colours
+  block's own textures, so modded surfaces wear in their own colors
 - Eleven procedural wear looks added, worked entirely from the block's own pixels, for surfaces
   nobody drew art for. `polish` and `sand` are retired names from an earlier set and are still
   read so that no config file breaks
@@ -126,14 +126,14 @@ indication of prior modifications, and a list that stops a year short of the cod
   of every detected surface, look and golem upgrade for judging a change at a glance
 - An in-game config screen, five preset choosers, and a wear table that draws all eleven looks on
   the player's own blocks before they choose one
-- Map colouring that travels toward what the ground is becoming - answered once, per position, so
+- Map coloring that travels toward what the ground is becoming - answered once, per position, so
   the vanilla map item and every minimap read the same answer. On 1.7.10 this takes a reflective
   integration against JourneyMap's internals and another against Xaero's, because there a block is
-  asked its colour with nothing but a metadata and cannot tell which square is being asked about;
+  asked its color with nothing but a metadata and cannot tell which square is being asked about;
   1.12.2 hands the position in, so neither integration exists in this edition. The optional
   desire-path highlight and the wear darkening are 1.7.10 only: both need an RGB value, and the
   answer every 1.12.2 map reads is one of sixty-four fixed palette entries
-- A correction for modded turf, whose map colour is green before a biome tint is applied to it, so a
+- A correction for modded turf, whose map color is green before a biome tint is applied to it, so a
   path through it stops reading as a bright stripe rather than as worn ground
 - A wear editor that previews the whole run it is about to publish, and a mobs list that stops a mob
   wearing the ground by writing it down at nought, which a wildcard line cannot override, rather than

@@ -76,7 +76,7 @@ Among what runs before a release:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
   thirty classes starts naming a Minecraft type.
-- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds sixty files across
+- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds sixty-one files across
   seven packages that may name Minecraft and may not name Forge, and lists the eleven files outside
   it with what each needs Forge for. It fails both ways, so neither the fence nor the list of
   exceptions can rot. It is there for the ports after 1.12.2.

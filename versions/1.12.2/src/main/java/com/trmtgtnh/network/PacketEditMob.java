@@ -289,7 +289,7 @@ public class PacketEditMob implements IMessage {
         return shown.toString();
     }
 
-    private static void tell(EntityPlayerMP player, TextFormatting colour, String key, Object... args) {
-        player.sendMessage(new TextComponentString(colour + I18n.translateToLocalFormatted(key, args)));
+    private static void tell(EntityPlayerMP player, TextFormatting color, String key, Object... args) {
+        player.sendMessage(new TextComponentString(color + I18n.translateToLocalFormatted(key, args)));
     }
 }

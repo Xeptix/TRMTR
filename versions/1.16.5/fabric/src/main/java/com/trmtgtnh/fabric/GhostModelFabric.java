@@ -20,6 +20,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import com.trmtgtnh.Client;
 import com.trmtgtnh.block.BlockGhost;
 import com.trmtgtnh.client.model.GhostQuads;
+import com.trmtgtnh.client.render.OptiFineMaterial;
 import com.trmtgtnh.erosion.Rotations;
 
 /**
@@ -76,17 +77,29 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
                 .of(GhostQuads.claimOf(record, origin, rotation), com.trmtgtnh.client.GhostLayers.of(origin));
             if (claimed != null) material = claimed;
         }
-        emit(
-            context,
-            GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
-            null,
-            material);
-        for (Direction side : Direction.values()) {
+        // Under OptiFabric, OptiFine never pushes a shader entry for a model drawn this way - Indigo hands it here
+        // from OptiFine's chunk rebuild before OptiFine's own push - so the block this square claims to be goes on
+        // the stack of the very buffer its quads land in, and comes off after. Nowhere else is there a buffer to
+        // push onto, or anything to push it for. See OptiFabricEntry.
+        com.mojang.blaze3d.vertex.VertexConsumer optifine = OptiFineMaterial.pushes()
+            ? OptiFabricEntry.bufferOf(context, com.trmtgtnh.client.GhostLayers.of(origin))
+            : null;
+        if (optifine != null) OptiFineMaterial.pushClaim(GhostQuads.claimOf(record, origin, rotation), optifine);
+        try {
             emit(
                 context,
-                GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
-                side,
+                GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
+                null,
                 material);
+            for (Direction side : Direction.values()) {
+                emit(
+                    context,
+                    GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
+                    side,
+                    material);
+            }
+        } finally {
+            if (optifine != null) OptiFineMaterial.popClaim(optifine);
         }
     }
 

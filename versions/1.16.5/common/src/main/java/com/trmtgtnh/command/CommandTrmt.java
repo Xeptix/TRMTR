@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.trmtgtnh.Trmt;
-import com.trmtgtnh.block.GhostMapColour;
+import com.trmtgtnh.block.GhostMapColor;
 import com.trmtgtnh.block.ModBlocks;
 import com.trmtgtnh.config.ConfigReload;
 import com.trmtgtnh.config.FamilySettings;
@@ -61,7 +61,7 @@ public final class CommandTrmt {
         "golem",
         "showcase",
         "demonstrate",
-        "mapcolour");
+        "mapcolor");
 
     /**
      * The whole of what this command accepts, in one line.
@@ -71,7 +71,7 @@ public final class CommandTrmt {
      * command is mistyped; there is no such method here, so the string is the string and the
      * refusals below carry it themselves.
      */
-    private static final String USAGE = "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolour|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+    private static final String USAGE = "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
 
     private CommandTrmt() {}
 
@@ -198,7 +198,7 @@ public final class CommandTrmt {
                 Trmt.LOG.info(
                     "[/trmt for {}] {}",
                     asked.getTextName(),
-                    COLOUR_CODES.matcher(message.getString())
+                    COLOR_CODES.matcher(message.getString())
                         .replaceAll(""));
             }
 
@@ -230,14 +230,14 @@ public final class CommandTrmt {
     }
 
     /**
-     * A colour or style code, stripped from what goes to the log.
+     * A color or style code, stripped from what goes to the log.
      *
      * <p>
      * Stripped here rather than by the game's own helper for it, which exists only on a client: a
      * dedicated server has it taken out when the class loads, and calling it there stopped the server
      * the first time a command handed over from another thread said anything.
      */
-    private static final java.util.regex.Pattern COLOUR_CODES = java.util.regex.Pattern
+    private static final java.util.regex.Pattern COLOR_CODES = java.util.regex.Pattern
         .compile("(?i)\u00a7[0-9a-fk-or]");
 
     private static void runCommand(CommandSourceStack sender, String[] args)
@@ -269,8 +269,8 @@ public final class CommandTrmt {
                 "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there: chunks heal as they reload, and the first sweep after /trmt enable pays out the rest. Purge is the one that throws wear away.");
         } else if ("purge".equals(sub)) {
             purge(sender);
-        } else if ("mapcolour".equals(sub) || "mapcolor".equals(sub)) {
-            reportMapColour(sender);
+        } else if ("mapcolor".equals(sub)) {
+            reportMapColor(sender);
         } else if ("reload".equals(sub)) {
             ConfigReload.Delta delta = ConfigReload.fromDisk();
             if (delta == null) {
@@ -788,11 +788,11 @@ public final class CommandTrmt {
      * <p>
      * A block cannot answer this on its own any more: the same block is opaque or not depending on
      * which state it is in - a slab, a snow layer - so it is handed its state. Asked of the state
-     * directly, which is where 1.12.2 keeps the answer.
+     * directly, which is where 1.12.2 keeps the answer, and as an opaque cube (Worlds.isOpaque): until
+     * 0.9.220 this asked canOcclude, which a slab and a snow layer both answer yes to.
      */
     private static boolean opaqueAt(Level world, int x, int y, int z) {
-        return world.getBlockState(new BlockPos(x, y, z))
-            .canOcclude();
+        return com.trmtgtnh.util.Worlds.isOpaque(world, x, y, z);
     }
 
     /**
@@ -2067,7 +2067,7 @@ public final class CommandTrmt {
      * {@code Blocks.GRASS} is the plant that grows on a grass block and {@code Blocks.SNOW} the thin layer,
      * and both stood here until 0.9.219, carried across from the older editions' spelling: the roads were
      * laid in grass plants and snow layers, the golem pens floored with them, and JourneyMap took its stock
-     * colour for worn grass from the plant. Found while the walk harness was being taught to ask the yard
+     * color for worn grass from the plant. Found while the walk harness was being taught to ask the yard
      * where each family's road block was laid, which would have found no platform of either.
      */
     public static Block roadBlock(SurfaceFamily family) {
@@ -2225,8 +2225,8 @@ public final class CommandTrmt {
         }
     }
 
-    private static void reply(CommandSourceStack sender, ChatFormatting colour, String message) {
-        sender.sendSuccess(new TextComponent(colour + message), true);
+    private static void reply(CommandSourceStack sender, ChatFormatting color, String message) {
+        sender.sendSuccess(new TextComponent(color + message), true);
     }
 
     /**
@@ -2243,11 +2243,11 @@ public final class CommandTrmt {
      * None of that can happen here. There is one ghost block, it inherits from nothing that carries a
      * tint, and {@code getMapColor} is handed a position - so it answers from whatever the square is
      * standing in for rather than from the family its class stands for. The question worth asking is
-     * therefore the other one: for the square under your feet, does the ghost report the same colour
+     * therefore the other one: for the square under your feet, does the ghost report the same color
      * as the ground it is pretending to be? That is what a map draws, and a disagreement is the whole
      * of what could go wrong.
      */
-    private static void reportMapColour(CommandSourceStack sender) {
+    private static void reportMapColor(CommandSourceStack sender) {
         if (!(sender.getEntity() instanceof ServerPlayer)) {
             reply(sender, ChatFormatting.RED, "Only a player can ask what a map makes of where they are standing.");
             return;
@@ -2283,12 +2283,12 @@ public final class CommandTrmt {
             "  the ground one step east is " + SurfaceRegistry.registryName(control.getBlock())
                 + " at "
                 + hex(plain)
-                + (drawn == plain ? " - the same colour, which is what unworn ground beside it should read as"
-                    : " - a different colour, which is right only if the two are different ground"));
+                + (drawn == plain ? " - the same color, which is what unworn ground beside it should read as"
+                    : " - a different color, which is right only if the two are different ground"));
 
         // And what a map that reads the client's world makes of a worn square here, which is a
         // different answer from the one above and is the one a player sees on a minimap.
-        net.minecraft.world.level.material.MaterialColor worn = GhostMapColour.worn(drawn);
+        net.minecraft.world.level.material.MaterialColor worn = GhostMapColor.worn(drawn);
         reply(
             sender,
             ChatFormatting.AQUA,
@@ -2300,11 +2300,11 @@ public final class CommandTrmt {
         reply(
             sender,
             ChatFormatting.GRAY,
-            "Two maps and two answers, both correct. The vanilla map item is drawn from the server's own blocks, where this mod has written nothing and no worn square exists, so it draws the ground as it really is - the first two lines above. A minimap that reads this client's copy of the world sees the worn square the mod paints there, and that square reports the third line: the ground's colour darkened to the nearest palette entry, one colour for any wear rather than a shade per gradation, because sixty-four fixed entries is what a map has to draw with at this version. Switch it off with surfaces.mapTracksWear.");
+            "Two maps and two answers, both correct. The vanilla map item is drawn from the server's own blocks, where this mod has written nothing and no worn square exists, so it draws the ground as it really is - the first two lines above. A minimap that reads this client's copy of the world sees the worn square the mod paints there, and that square reports the third line: the ground's color darkened to the nearest palette entry, one color for any wear rather than a shade per gradation, because sixty-four fixed entries is what a map has to draw with at this version. Switch it off with surfaces.mapTracksWear.");
     }
 
-    /** A map colour as a reader can compare it, or a word when there is none. */
-    private static String hex(net.minecraft.world.level.material.MaterialColor colour) {
-        return colour == null ? "nothing" : String.format(Locale.ROOT, "#%06x", Integer.valueOf(colour.col));
+    /** A map color as a reader can compare it, or a word when there is none. */
+    private static String hex(net.minecraft.world.level.material.MaterialColor color) {
+        return color == null ? "nothing" : String.format(Locale.ROOT, "#%06x", Integer.valueOf(color.col));
     }
 }

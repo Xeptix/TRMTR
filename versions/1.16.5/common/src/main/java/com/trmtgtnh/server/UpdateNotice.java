@@ -45,6 +45,9 @@ public final class UpdateNotice {
     /** The sentence, with its four places, in case a language file has none or the wrong number of them. */
     private static final String FALLBACK = "%s is out - this world is running %s. Get it from %s or %s.";
 
+    /** The known-issues sentence, the same way. */
+    private static final String BAD_FALLBACK = "This world is running %s, which has known issues - %s is the build to use. Get it from %s or %s.";
+
     /** Who has been told since they last joined, so an answer arriving late tells each of them once. */
     private static final Set<UUID> TOLD = new HashSet<UUID>();
 
@@ -127,10 +130,11 @@ public final class UpdateNotice {
         if (answer == null || answer.newer == null) return;
         if (TOLD.contains(player.getUUID()) || !canUpdate(player)) return;
         TOLD.add(player.getUUID());
-        Component said = line(answer.newer, answer.running);
+        Component said = line(answer.newer, answer.running, answer.bad);
         player.sendMessage(said, net.minecraft.Util.NIL_UUID);
         Trmt.LOG.info(
-            "Update notice: told {} that {} is out",
+            answer.bad ? "Update notice: told {} that this build has known issues, and {} is the one to use"
+                : "Update notice: told {} that {} is out",
             player.getGameProfile()
                 .getName(),
             answer.newer);
@@ -159,11 +163,19 @@ public final class UpdateNotice {
 
     /** The line: the mod's mark, the sentence, and the two links in their places. */
     static Component line(String newer, String running) {
-        String[] pieces = UpdateCheck.pieces(Translate.get("trmtgtnh.update.available"));
-        if (pieces == null) pieces = UpdateCheck.pieces(FALLBACK);
+        return line(newer, running, false);
+    }
+
+    /**
+     * The line, or - for a build marked bad (Xep, 2026-10-08) - the known-issues line: the running build first, then
+     * the one to use, which may be older.
+     */
+    static Component line(String newer, String running, boolean bad) {
+        String[] pieces = UpdateCheck.pieces(Translate.get(bad ? "trmtgtnh.update.bad" : "trmtgtnh.update.available"));
+        if (pieces == null) pieces = UpdateCheck.pieces(bad ? BAD_FALLBACK : FALLBACK);
         // Notices.line builds the root as a text component; it is handed back under the plainer type.
         MutableComponent root = (MutableComponent) Notices.line("", null, true);
-        root.append(words(pieces[0] + newer + pieces[1] + running + pieces[2]));
+        root.append(words(pieces[0] + (bad ? running : newer) + pieces[1] + (bad ? newer : running) + pieces[2]));
         root.append(link("CurseForge", UpdateCheck.CURSEFORGE));
         root.append(words(pieces[3]));
         root.append(link("Modrinth", UpdateCheck.MODRINTH));

@@ -26,7 +26,7 @@ import com.trmtgtnh.client.model.GhostBakedModel;
 import com.trmtgtnh.client.texture.WearTextures;
 
 /**
- * Everything only a client does: textures, models, block colour, and painting ghosts.
+ * Everything only a client does: textures, models, block color, and painting ghosts.
  *
  * <p>
  * The same division the 1.7.10 edition has and for the same reason - a dedicated server must never
@@ -57,9 +57,9 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void init() {
         super.init();
-        // Grass colour, asked per position. This is all that replaces MixinGrassTint, which in the
+        // Grass color, asked per position. This is all that replaces MixinGrassTint, which in the
         // 1.7.10 edition had to make RenderBlocks' identity comparison against Blocks.grass succeed
-        // for a block that was not Blocks.grass. 1.12.2 lets a block say what colour it is at a
+        // for a block that was not Blocks.grass. 1.12.2 lets a block say what color it is at a
         // place, and there is nothing left to trick.
         Minecraft.getMinecraft()
             .getBlockColors()
@@ -70,7 +70,7 @@ public class ClientProxy extends CommonProxy {
                     int tintIndex) {
                     if (tintIndex != GhostBakedModel.GRASS_TINT && tintIndex != GhostBakedModel.LIGHT_TINT) return -1;
                     // The path light, multiplied into both: a glow outranks every rule about when ground is
-                    // tinted, because somebody chose this colour for this square.
+                    // tinted, because somebody chose this color for this square.
                     int glow = world == null || pos == null ? 0
                         : com.trmtgtnh.block.GhostLight.packedAt(world, pos.getX(), pos.getY(), pos.getZ());
                     if (tintIndex == GhostBakedModel.LIGHT_TINT) {
@@ -780,20 +780,20 @@ public class ClientProxy extends CommonProxy {
         }
     }
 
+    @Override
+    public boolean ghostWindowOf(int origin) {
+        return com.trmtgtnh.client.model.GhostWindows.windowOf(origin);
+    }
+
     /**
-     * How far the ground under a block has dropped, as this client's ghost there stands.
-     *
-     * <p>
-     * The footing, not the picture: in visual mode the ground is drawn sunk and walked on at full
-     * height, and nothing resting on it should move either.
+     * How far the ground under a block has dropped, as this client's ghost there stands - the very figure the
+     * renderer moved the block resting on it by (Settling.dropFor), as the 1.7.10 edition's proxy answers it.
      */
     @Override
     public double settledDropUnder(int x, int y, int z) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.world == null) return 0.0D;
-        if (!(mc.world.getBlockState(new BlockPos(x, y, z))
-            .getBlock() instanceof com.trmtgtnh.block.BlockGhost)) return 0.0D;
-        return com.trmtgtnh.block.BlockGhost.collisionSink(ghostRecordAt(mc.world, x, y, z)) / 16.0D;
+        return com.trmtgtnh.client.render.Settling.dropFor(mc.world, new BlockPos(x, y + 1, z));
     }
 
     // -- what a server tells a client about itself --

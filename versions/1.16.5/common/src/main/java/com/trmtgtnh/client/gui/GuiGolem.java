@@ -18,7 +18,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * The golem's orders, its tools, and its upgrade, on one screen.
  *
  * <p>
- * Drawn rather than skinned - the panel is rectangles in the mod's own colours, which saves an
+ * Drawn rather than skinned - the panel is rectangles in the mod's own colors, which saves an
  * asset and lets the screen be exactly as tall as whatever the golem is carrying. A plain golem
  * holds sixteen tools and a wide one sixty-four, and the screen grows to fit.
  *
@@ -568,26 +568,26 @@ public class GuiGolem extends AbstractContainerScreen<ContainerGolem> {
         // In ordinary running they agree, and if they ever do not, that is worth seeing rather
         // than averaging into a single cheerful answer.
         String note;
-        int colour;
+        int color;
         ItemStack tool = golem.getMainHandItem();
         if (!golem.isArmed()) {
             note = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.noTamper");
-            colour = 0xB03A2A;
+            color = 0xB03A2A;
         } else if (tool == null) {
             note = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.toolMissing");
-            colour = 0xB03A2A;
+            color = 0xB03A2A;
         } else if (!golem.hasMendingStock()) {
             note = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.noStock");
-            colour = 0x8A6A2A;
+            color = 0x8A6A2A;
         } else if (!golem.watchedOrders()) {
             note = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.noOrders");
-            colour = 0x8A7A5E;
+            color = 0x8A7A5E;
         } else {
             note = tool.getHoverName()
                 .getString();
-            colour = 0x3A5A2A;
+            color = 0x3A5A2A;
         }
-        font.draw(pose, trim(note, RIGHT - MARGIN), MARGIN, STATUS_DY, colour);
+        font.draw(pose, trim(note, RIGHT - MARGIN), MARGIN, STATUS_DY, color);
 
         int headerY = ordersTop + HEADER_DY + 2;
         font.draw(pose, 
@@ -681,23 +681,23 @@ public class GuiGolem extends AbstractContainerScreen<ContainerGolem> {
         font.draw(pose, trim(name, RIGHT - MARGIN), MARGIN, nameY, 0x3A2A14);
 
         String text;
-        int colour;
+        int color;
         if (shown == EntityGolemOfWays.NO_BLOCK_TARGET) {
             text = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.asFamily");
-            colour = 0x8A7A5E;
+            color = 0x8A7A5E;
         } else if (shown < 0) {
             text = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.ignored");
-            colour = 0x8A7A5E;
+            color = 0x8A7A5E;
         } else {
             text = shown + "%";
-            colour = 0x2A5A2A;
+            color = 0x2A5A2A;
         }
-        value(pose, trim(text, VALUE_RIGHT - MARGIN), rowY, colour);
+        value(pose, trim(text, VALUE_RIGHT - MARGIN), rowY, color);
     }
 
     /** Sets a value against the right edge of the value column, clear of the first button. */
-    private void value(com.mojang.blaze3d.vertex.PoseStack pose, String text, int y, int colour) {
-        font.draw(pose, text, VALUE_RIGHT - font.width(text), y, colour);
+    private void value(com.mojang.blaze3d.vertex.PoseStack pose, String text, int y, int color) {
+        font.draw(pose, text, VALUE_RIGHT - font.width(text), y, color);
     }
 
     /** Keeps a string inside its column, whatever a translation or another mod called the thing. */
@@ -707,7 +707,7 @@ public class GuiGolem extends AbstractContainerScreen<ContainerGolem> {
     }
 
     /**
-     * A small flat button in the panel's own colours.
+     * A small flat button in the panel's own colors.
      *
      * <p>
      * Vanilla's widget texture is twenty pixels tall and is blitted at whatever height the button

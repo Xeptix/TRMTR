@@ -156,7 +156,7 @@ public class WailaCompat implements IWailaDataProvider {
                         + EnumChatFormatting.DARK_GRAY
                         + "  "
                         + net.minecraft.util.StatCollector
-                            .translateToLocal("trmtgtnh.light.colour." + ((glow >> 4) & 0xF)));
+                            .translateToLocal("trmtgtnh.light.color." + ((glow >> 4) & 0xF)));
             }
         }
 

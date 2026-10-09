@@ -285,9 +285,9 @@ public class PacketEditMob implements Message {
         return shown.toString();
     }
 
-    private static void tell(ServerPlayer player, ChatFormatting colour, String key, Object... args) {
+    private static void tell(ServerPlayer player, ChatFormatting color, String key, Object... args) {
         player.sendMessage(
-            new TextComponent(colour + com.trmtgtnh.util.Translate.get(key, args)),
+            new TextComponent(color + com.trmtgtnh.util.Translate.get(key, args)),
             net.minecraft.Util.NIL_UUID);
     }
 }

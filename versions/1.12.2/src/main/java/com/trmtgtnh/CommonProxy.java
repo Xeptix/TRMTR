@@ -164,7 +164,7 @@ public class CommonProxy {
         return 0;
     }
 
-    /** The same, with the colour in the high nibble. */
+    /** The same, with the color in the high nibble. */
     public int clientLightPacked(int x, int y, int z) {
         return 0;
     }
@@ -287,6 +287,15 @@ public class CommonProxy {
     /** What a ghost is standing over, as a block state id, or -1. Only a client has ghosts. */
     public int ghostOriginAt(int x, int y, int z) {
         return -1;
+    }
+
+    /**
+     * Whether the block a ghost stands over is drawn through the holes in its worn picture. Only a client has
+     * ghosts, and pictures to see through; asked by the ghost block, which is shared code, so it can open its cell
+     * without naming the client's half of the mod (2026-10-08).
+     */
+    public boolean ghostWindowOf(int origin) {
+        return false;
     }
 
     /**

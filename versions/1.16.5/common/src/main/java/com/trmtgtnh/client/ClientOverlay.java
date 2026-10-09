@@ -407,17 +407,12 @@ public final class ClientOverlay {
     }
 
     /**
-     * How far the ground under a block has dropped, as this client's ghost there stands.
-     *
-     * <p>
-     * The footing, not the picture: in visual mode the ground is drawn sunk and walked on at full
-     * height, and nothing resting on it should move either.
+     * How far the ground under a block has dropped, as this client's ghost there stands - the very figure the
+     * renderer moved the block resting on it by (Settling.dropFor), as the 1.7.10 edition's proxy answers it.
      */
     public double settledDropUnder(int x, int y, int z) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return 0.0D;
-        if (!(mc.level.getBlockState(new BlockPos(x, y, z))
-            .getBlock() instanceof com.trmtgtnh.block.BlockGhost)) return 0.0D;
-        return com.trmtgtnh.block.BlockGhost.collisionSink(ghostRecordAt(mc.level, x, y, z)) / 16.0D;
+        return com.trmtgtnh.client.render.Settling.dropFor(mc.level, new BlockPos(x, y + 1, z));
     }
 }

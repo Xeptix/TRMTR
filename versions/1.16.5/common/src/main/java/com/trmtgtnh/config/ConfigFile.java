@@ -131,10 +131,18 @@ public final class ConfigFile {
      * something edits it afterwards. Only the first used to be counted, which made every edit made
      * through {@link Setting#set} - the wear editor, the mob multipliers, a restored snapshot -
      * apply for the session and never reach the disk.
+     *
+     * <p>
+     * And asks each category, which changes when a setting is taken out of it or put into it - a
+     * retired setting removed, or its value carried onto the name that replaced it. Forge's own
+     * category counts both as a change, and the mod's retirements were written against that. A read
+     * marks the file changed anyway, because every category it makes is new, so the save after one
+     * has always written them out; until 0.9.220 a setting taken out after a save went nowhere.
      */
     public boolean hasChanged() {
         if (changed) return true;
         for (Category category : categories.values()) {
+            if (category.changed) return true;
             for (Setting setting : category.settings.values()) {
                 if (setting.changed) return true;
             }
@@ -544,6 +552,7 @@ public final class ConfigFile {
             }
             changed = false;
             for (Category category : categories.values()) {
+                category.changed = false;
                 for (Setting setting : category.settings.values()) {
                     setting.changed = false;
                 }
@@ -672,6 +681,9 @@ public final class ConfigFile {
 
         private String comment = "";
 
+        /** Whether a setting has been taken out or put in since the file was last read or written. */
+        private boolean changed;
+
         Category(String name) {
             this.name = name;
         }
@@ -702,14 +714,16 @@ public final class ConfigFile {
             return settings.containsKey(name);
         }
 
-        /** Takes a setting out, for a setting the mod has retired. */
+        /** Takes a setting out, for a setting the mod has retired, so the next save leaves it out of the file. */
         public void remove(String name) {
             settings.remove(name);
+            changed = true;
         }
 
         /** Puts a setting in, for the places that carry a retired setting's value onto its heir. */
         public void put(String name, Setting setting) {
             settings.put(name, setting);
+            changed = true;
         }
     }
 

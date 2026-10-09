@@ -144,14 +144,19 @@ public final class Worlds {
     }
 
     /**
-     * Whether the block at a position is an opaque cube.
+     * Whether the block at a position is an opaque cube - the other editions' {@code isOpaqueCube}.
      *
      * <p>
-     * The state answers it now, and under a name that says what it is for: whether this block lets the
-     * renderer stop drawing what is behind it.
+     * {@code isSolidRender}, a whole cube that hides what is behind it. Until 0.9.220 this asked {@code canOcclude},
+     * which says only that a block may hide faces by its shape at all, and every snow layer, carpet, slab and fence
+     * says yes to that. So on this edition ground under a snow layer never wore and the snow never took a step,
+     * ground under a carpet or a slab never wore, and the painter left worn ground undrawn beneath all four, where
+     * the other two editions wear it and draw it. Found by the second yard's bench photographs.
      */
     public static boolean isOpaque(BlockGetter access, int x, int y, int z) {
-        return stateAt(access, x, y, z).canOcclude();
+        BlockPos pos = new BlockPos(x, y, z);
+        return access.getBlockState(pos)
+            .isSolidRender(access, pos);
     }
 
     /**

@@ -47,20 +47,26 @@ public final class Settling {
     }
 
     /**
-     * How far the ground under a position has dropped, from the height that can be stood on.
+     * How far the ground under a position has dropped: the block it stands in for, less the height it can be stood
+     * on at - the 1.7.10 edition's GhostRendering.settledDrop.
      *
      * <p>
-     * The height stood on rather than the one drawn, as the 1.7.10 edition takes it: in visual mode the
-     * ground is drawn sunk and still walked on at full height, and snow drawn down into a rut nobody can
-     * walk into would sit below the floor.
+     * Read off the ghost below, because what wants matching is what is there: a ghost knows both how far it has
+     * sunk and how tall the block it stands in for was, and those are not the same question on ground that already
+     * stood short. The height stood on is BlockGhost.heightAt's footing, which on anything but a slab is the drawn
+     * one - so in visual mode snow and carpet come down into the drawn rut, the other edition's code rather than its
+     * comment, Xep's choice on 2026-10-08. Until 0.9.220 this took the collision depth, which kept them up.
      */
     public static double dropFor(IBlockAccess world, BlockPos pos) {
         if (world == null || pos == null || pos.getY() <= 0) return 0.0D;
         BlockPos below = pos.down();
         if (!(world.getBlockState(below)
             .getBlock() instanceof BlockGhost)) return 0.0D;
-        return BlockGhost.collisionSink(Trmt.proxy.ghostRecordAt(world, below.getX(), below.getY(), below.getZ()))
-            / 16.0D;
+        int origin = Trmt.proxy.ghostOriginAt(below.getX(), below.getY(), below.getZ());
+        short record = Trmt.proxy.ghostRecordAt(world, below.getX(), below.getY(), below.getZ());
+        int outline = BlockGhost.outlineAt(world, below, origin);
+        double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
+        return drop > 0.0D ? drop : 0.0D;
     }
 
     /** The offset a settling block is drawn at - vanilla's, dropped by the rut under it - or null for unchanged. */

@@ -40,7 +40,7 @@ public class RenderGolemOfWays extends RenderLiving {
      * <p>
      * The count is the generator's, and the two have to agree - it writes exactly this many
      * numbered frames and this asks for them by number. Three ticks a step puts a full turn at a
-     * second and a half, which reads as a colour moving; at one tick it reads as a colour
+     * second and a half, which reads as a color moving; at one tick it reads as a color
      * flickering, which is a different and much worse thing to have on a golem.
      */
     private static final int OMNI_FRAMES = 10;
@@ -100,21 +100,21 @@ public class RenderGolemOfWays extends RenderLiving {
     }
 
     /**
-     * The fog colour in force outside the glow pass, and the black it is swapped for inside it.
+     * The fog color in force outside the glow pass, and the black it is swapped for inside it.
      *
      * <p>
      * Fixed-function fog is applied to a fragment <em>before</em> the blend stage, so a texel that
-     * is black in the texture does not reach the blender black - it reaches it as the fog colour,
+     * is black in the texture does not reach the blender black - it reaches it as the fog color,
      * scaled by how far away the thing is. Under an additive blend that is not nothing: it is the
-     * fog colour added over all twenty-one boxes, which turns the golem into a solid brighter blob
-     * instead of a dark shape with two lit points. Black is the correct fog colour for an additive
+     * fog color added over all twenty-one boxes, which turns the golem into a solid brighter blob
+     * instead of a dark shape with two lit points. Black is the correct fog color for an additive
      * pass rather than a workaround: fading a glow toward black <em>is</em> fading it out.
      *
      * <p>
-     * The limits matter and cost a version to learn. Reading the colour back wants sixteen floats,
+     * The limits matter and cost a version to learn. Reading the color back wants sixteen floats,
      * because that is the largest thing {@code glGetFloat} can be asked for and it checks the
      * buffer against the worst case. Handing one to {@code glFog} wants exactly four, because a
-     * state manager that caches the fog colour copies everything the buffer has left into its own
+     * state manager that caches the fog color copies everything the buffer has left into its own
      * four - and sixteen into four is a {@code BufferOverflowException}, thrown inside the base
      * class's catch-all, logged, and otherwise invisible except that everything after it in the
      * method silently stops happening. What stopped happening was the golem's held tool.
@@ -132,7 +132,7 @@ public class RenderGolemOfWays extends RenderLiving {
     }
 
     /**
-     * Whether the fog colour can be swapped at all on this stack.
+     * Whether the fog color can be swapped at all on this stack.
      *
      * <p>
      * Turned off for good the first time either call complains. The glow is a nicety; the tool in
@@ -141,7 +141,7 @@ public class RenderGolemOfWays extends RenderLiving {
      */
     private static boolean fogSwappable = true;
 
-    /** Whether the glow pass has taken the fog colour and owes it back. */
+    /** Whether the glow pass has taken the fog color and owes it back. */
     private boolean fogTaken;
 
     /** The same model the base class holds, kept typed so the tool can be hung off its free arm. */
@@ -177,7 +177,7 @@ public class RenderGolemOfWays extends RenderLiving {
      * <p>
      * Every golem gets it and not only the fitted ones, because the thing worth seeing at night is
      * that the figure standing in your road is a golem rather than a monster. An unfitted one
-     * carries a dull ember and a fitted one carries its own colour, which is the same fact the
+     * carries a dull ember and a fitted one carries its own color, which is the same fact the
      * skin says in daylight.
      */
     @Override
@@ -203,7 +203,7 @@ public class RenderGolemOfWays extends RenderLiving {
             } catch (RuntimeException beyondUs) {
                 fogSwappable = false;
                 fogTaken = false;
-                Trmt.LOG.warn("Leaving the fog colour alone for the golem glow: " + beyondUs);
+                Trmt.LOG.warn("Leaving the fog color alone for the golem glow: " + beyondUs);
             }
         }
         // Vanilla's own two numbers for the brightest corner of the lightmap, unpacked the way it
@@ -251,7 +251,7 @@ public class RenderGolemOfWays extends RenderLiving {
                 GL11.glFog(GL11.GL_FOG_COLOR, FOG_KEPT);
             } catch (RuntimeException beyondUs) {
                 fogSwappable = false;
-                Trmt.LOG.warn("Leaving the fog colour alone for the golem glow: " + beyondUs);
+                Trmt.LOG.warn("Leaving the fog color alone for the golem glow: " + beyondUs);
             }
         }
 
@@ -295,7 +295,7 @@ public class RenderGolemOfWays extends RenderLiving {
 
             // Vanilla's own two-branch draw. No tamper in the mod asks for either the extra passes
             // or the tint, so this is one pass and plain white today; it is written out because a
-            // tool from somewhere else may ask, and a tool drawn in the wrong colour is a bug
+            // tool from somewhere else may ask, and a tool drawn in the wrong color is a bug
             // report about this mod.
             if (held.requiresMultipleRenderPasses()) {
                 for (int pass = 0; pass < held.getRenderPasses(shown.getItemDamage()); pass++) {
@@ -312,7 +312,7 @@ public class RenderGolemOfWays extends RenderLiving {
         }
     }
 
-    /** Sets the drawing colour from one of vanilla's packed item tints. */
+    /** Sets the drawing color from one of vanilla's packed item tints. */
     private static void tint(int packed) {
         GL11.glColor4f((packed >> 16 & 255) / 255F, (packed >> 8 & 255) / 255F, (packed & 255) / 255F, 1F);
     }

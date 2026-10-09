@@ -102,9 +102,13 @@ public final class TrophyCompat {
      * Write the trophy definitions, if they are wanted and not already current.
      *
      * <p>
-     * Called in init, after the items exist and before Amazing Trophies reads its folder. Anything
-     * that goes wrong is logged and swallowed: a missing trophy is a cosmetic disappointment, and
-     * nothing here is worth taking a world down for.
+     * Called in post-init, after the recipes, because the definitions describe what the recipe pass has
+     * just decided exists. The 1.7.10 edition writes them in init instead, and says why it must: Amazing
+     * Trophies reads its folder in its own post-init, and a write from post-init lost that race. No build
+     * of Amazing Trophies for 1.12.2 is known, so nothing reads this folder yet; if one appears, this has to
+     * move to init as that edition's did (noted 2026-10-08). Anything that goes wrong is logged and
+     * swallowed: a missing trophy is a cosmetic disappointment, and nothing here is worth taking a world
+     * down for.
      */
     public static void writeDefinitions() {
         try {

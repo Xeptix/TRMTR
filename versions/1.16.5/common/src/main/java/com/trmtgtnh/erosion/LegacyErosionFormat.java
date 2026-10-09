@@ -10,7 +10,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <p>
  * The old record held a family and a stage, and how far the ground had physically dropped was
  * worked out from that stage's place in its family's run: the last few stages sank, the earlier
- * ones only discoloured. Depth is a stored number now, so the conversion has to answer two
+ * ones only discolored. Depth is a stored number now, so the conversion has to answer two
  * questions that used to be one — how far down is this, and how worn does it look.
  *
  * <p>

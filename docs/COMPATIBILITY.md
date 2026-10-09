@@ -27,34 +27,34 @@ integration is behind a mod-loaded check.
 
 | | 1.7.10 | 1.12.2 | 1.16.5 |
 |---|---|---|---|
-| Worn ground coloured per position | yes | yes | yes |
+| Worn ground colored per position | yes | yes | yes |
 | How | reflection into JourneyMap's and Xaero's internals | one block override, no map mod named | one block override, no map mod named |
-| A road darkens as it wears | by any fraction | to **one** darker colour | to **one** darker colour |
+| A road darkens as it wears | by any fraction | to **one** darker color | to **one** darker color |
 | `surfaces.mapTracksWear` | switchable | switchable | switchable |
-| `surfaces.mapWearDarkening` | the fraction itself | picks *which* darker colour | picks *which* darker colour |
+| `surfaces.mapWearDarkening` | the fraction itself | picks *which* darker color | picks *which* darker color |
 | `client.desirePathHighlight` | works | does nothing | does nothing |
 | `client.mapWearThroughTint` | works | does nothing | does nothing |
 
-On 1.7.10 a block is asked its colour with nothing but a metadata value, so a worn square cannot
-tell which position is being asked about. Reaching into those two mods' own colour lookups is the
+On 1.7.10 a block is asked its color with nothing but a metadata value, so a worn square cannot
+tell which position is being asked about. Reaching into those two mods' own color lookups is the
 only way to answer per position - and because it hands them a real RGB value, that edition can
 darken a road by any fraction and pull a route toward a violet that is not a material at all.
 
 From 1.12.2 on the position is handed in. One override answers every map that reads the world, so
 both integrations disappear and there is nothing to go stale when a map mod changes its internals.
 The cost is that the answer is one of vanilla's sixty-four fixed palette entries: there are no
-fractions, so a worn square reports the nearest entry to its own colour darkened by
+fractions, so a worn square reports the nearest entry to its own color darkened by
 `surfaces.mapWearDarkening`, and does not darken further as it wears. Grass at `#7fb238` is drawn as
 `#392923`. **A road is visible on the map; how worn it is, is not.** Where a pack's ground has
-nothing darker in the palette worth picking it keeps its colour, and the log says so once, by name.
+nothing darker in the palette worth picking it keeps its color, and the log says so once, by name.
 
-The two settings that still do nothing are both fractions of a colour, which is the thing this
+The two settings that still do nothing are both fractions of a color, which is the thing this
 mechanism has not got. They stay in the file so a pack can move between versions and find its edits
 where it left them, and the mod names any of them you have changed, once, as it loads.
 
 **The vanilla map item never shows wear, in any edition.** It is drawn from the server's own blocks,
 and no worn square exists there - this mod paints them into each client's copy of the world and
-writes nothing into the save. Minimaps that read the client's world show the path. `/trmt mapcolour`
+writes nothing into the save. Minimaps that read the client's world show the path. `/trmt mapcolor`
 reports both answers for the square you are standing on.
 
 ### Progression
@@ -101,8 +101,7 @@ Forge ships those tags. Fabric does not, so the Fabric jar ships the vanilla one
 
 | | 1.7.10 | 1.12.2 | 1.16.5 Forge | 1.16.5 Fabric |
 |---|---|---|---|---|
-| Worn ground keeps the covered block's shader material | Angelica | OptiFine | Oculus, OptiFine | Iris, Canvas |
-| Runs, with the pack's default material on worn ground | - | - | - | OptiFabric |
+| Worn ground keeps the covered block's shader material | Angelica | OptiFine | Oculus, OptiFine | Iris, Canvas, OptiFabric |
 
 `client.inheritShaderMaterial` is written for all three and reachable on all three. 1.7.10 calls
 `Iris.setShaderMaterialOverride`, a pair of methods **Angelica** added for this. The later editions
@@ -112,16 +111,17 @@ Fabric - Oculus being a fork of Iris that kept the upstream packages, so one sea
 
 **OptiFine is not of the Iris family and has a holder of its own.** It works out a block's shader id
 from the pack's `block.properties` as the block's model starts and pushes it onto a stack the chunk's
-buffer carries; from 0.9.219 a ghost's entry there is written over, in place, with the block it
-stands in for - on 1.12.2, where no Oculus is published, and on 1.16.5 Forge. **Canvas** is asked
+buffer carries; a ghost's entry there is written over, in place, with the block it stands in for -
+on 1.12.2, where no Oculus is published, and on 1.16.5 Forge. **Canvas** is asked
 another way again: a worn square takes the covered block's FREX material in its own pass.
 
-**Under OptiFabric the claim is out of reach.** OptiFabric defines OptiFine's classes after every
-mod's hooks have been prepared, so none can bind to them, and a worn square draws with the pack's
-default material. Nothing else about it differs.
+**Under OptiFabric** the claim is made from the other side. OptiFabric defines OptiFine's classes after
+every mod's hooks have been prepared, so none can bind to them, and Fabric's own renderer draws a worn
+square there, so OptiFine never pushes an entry for it at all: the mod's model pushes the claim onto that
+stack itself, around the quads it hands Fabric's renderer, and takes it off again after.
 
 None of this does anything without a shader pack loaded. Every combination in the table but Canvas
-was photographed under Complementary Reimagined and Sildurs Vibrant for 0.9.219, beside the same
+has been photographed under Complementary Reimagined and Sildurs Vibrant, beside the same
 renderer without a pack and again after the pack was turned off mid-session; Canvas draws through its
 own pipeline and was photographed under that.
 

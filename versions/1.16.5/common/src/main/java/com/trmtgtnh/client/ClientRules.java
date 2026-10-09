@@ -214,10 +214,10 @@ public final class ClientRules {
         serverPricing = null;
     }
 
-    private static void tell(ChatFormatting colour, String text) {
+    private static void tell(ChatFormatting color, String text) {
         Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null) return;
-        com.trmtgtnh.server.Notices.say(client.player, com.trmtgtnh.server.Notices.line(text, colour, true));
+        com.trmtgtnh.server.Notices.say(client.player, com.trmtgtnh.server.Notices.line(text, color, true));
     }
 
     public void setMayEditFamilies(boolean allowed) {

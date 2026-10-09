@@ -31,6 +31,12 @@ public abstract class MixinSettledFaces {
     @Inject(method = "shouldRenderFace", at = @At("RETURN"), cancellable = true)
     private static void trmt$keepSettledFace(BlockState state, BlockGetter level, BlockPos pos, Direction face,
         CallbackInfoReturnable<Boolean> callback) {
+        // Two windows side by side hide the face between them, the way two panes of glass do - the 1.7.10 edition's
+        // shouldSideBeRendered on its window twins (0.9.220). See GhostWindows.sharesPane.
+        if (callback.getReturnValueZ() && com.trmtgtnh.client.model.GhostWindows.sharesPane(state, level, pos, face)) {
+            callback.setReturnValue(Boolean.FALSE);
+            return;
+        }
         if (!callback.getReturnValueZ() && com.trmtgtnh.client.render.Settling.keepsFace(state, level, pos, face)) {
             callback.setReturnValue(Boolean.TRUE);
         }

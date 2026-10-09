@@ -328,8 +328,8 @@ public class GuiWearTable extends Screen {
         }
 
         WearMath.Row live = WearMath.rowFor(family);
-        int nameColour = live.wears ? 0xFFFFFF : 0xFF808080;
-        drawString(pose, font, fit(family.key(), 36), cl + 20, y1, nameColour);
+        int nameColor = live.wears ? 0xFFFFFF : 0xFF808080;
+        drawString(pose, font, fit(family.key(), 36), cl + 20, y1, nameColor);
 
         if (!live.wears) {
             drawString(pose, font, com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.inert"), cl + 20, y2, 0xFF808080);
@@ -373,9 +373,9 @@ public class GuiWearTable extends Screen {
         int vw = font.width(value);
         if (!Double.isNaN(delta) && Math.abs(delta) >= 0.5d) {
             String tag = (delta > 0 ? "+" : "-") + compact(Math.abs(delta));
-            int colour = delta > 0 ? 0xFF6AD46A : 0xFFE0605A;
+            int color = delta > 0 ? 0xFF6AD46A : 0xFFE0605A;
             int tw = font.width(tag);
-            drawString(pose, font, tag, rightX - vw - 3 - tw, y, colour);
+            drawString(pose, font, tag, rightX - vw - 3 - tw, y, color);
         }
         drawString(pose, font, value, rightX - vw, y, 0xFFFFFF);
     }

@@ -16,7 +16,7 @@ import com.trmtgtnh.Trmt;
  * slot". See {@link EnchReinforce} for the full account of why the id is the awkward part.
  *
  * <p>
- * The enchantment only unlocks the mode. Lighting a block, recolouring it and putting it out are
+ * The enchantment only unlocks the mode. Lighting a block, recoloring it and putting it out are
  * all in {@link LightGestures}.
  */
 public final class EnchLight {

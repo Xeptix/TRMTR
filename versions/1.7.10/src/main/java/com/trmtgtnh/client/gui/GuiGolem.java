@@ -24,7 +24,7 @@ import cpw.mods.fml.relauncher.SideOnly;
  * The golem's orders, its tools, and its upgrade, on one screen.
  *
  * <p>
- * Drawn rather than skinned - the panel is rectangles in the mod's own colours, which saves an
+ * Drawn rather than skinned - the panel is rectangles in the mod's own colors, which saves an
  * asset and lets the screen be exactly as tall as whatever the golem is carrying. A plain golem
  * holds sixteen tools and a wide one sixty-four, and the screen grows to fit.
  *
@@ -542,25 +542,25 @@ public class GuiGolem extends GuiContainer {
         // In ordinary running they agree, and if they ever do not, that is worth seeing rather
         // than averaging into a single cheerful answer.
         String note;
-        int colour;
+        int color;
         ItemStack tool = golem.getHeldItem();
         if (!golem.isArmed()) {
             note = StatCollector.translateToLocal("trmtgtnh.golem.gui.noTamper");
-            colour = 0xB03A2A;
+            color = 0xB03A2A;
         } else if (tool == null) {
             note = StatCollector.translateToLocal("trmtgtnh.golem.gui.toolMissing");
-            colour = 0xB03A2A;
+            color = 0xB03A2A;
         } else if (!golem.hasMendingStock()) {
             note = StatCollector.translateToLocal("trmtgtnh.golem.gui.noStock");
-            colour = 0x8A6A2A;
+            color = 0x8A6A2A;
         } else if (!golem.watchedOrders()) {
             note = StatCollector.translateToLocal("trmtgtnh.golem.gui.noOrders");
-            colour = 0x8A7A5E;
+            color = 0x8A7A5E;
         } else {
             note = tool.getDisplayName();
-            colour = 0x3A5A2A;
+            color = 0x3A5A2A;
         }
-        fontRendererObj.drawString(trim(note, RIGHT - MARGIN), MARGIN, STATUS_DY, colour);
+        fontRendererObj.drawString(trim(note, RIGHT - MARGIN), MARGIN, STATUS_DY, color);
 
         int headerY = ordersTop + HEADER_DY + 2;
         fontRendererObj.drawString(
@@ -655,23 +655,23 @@ public class GuiGolem extends GuiContainer {
         fontRendererObj.drawString(trim(name, RIGHT - MARGIN), MARGIN, nameY, 0x3A2A14);
 
         String text;
-        int colour;
+        int color;
         if (shown == EntityGolemOfWays.NO_BLOCK_TARGET) {
             text = StatCollector.translateToLocal("trmtgtnh.golem.gui.asFamily");
-            colour = 0x8A7A5E;
+            color = 0x8A7A5E;
         } else if (shown < 0) {
             text = StatCollector.translateToLocal("trmtgtnh.golem.gui.ignored");
-            colour = 0x8A7A5E;
+            color = 0x8A7A5E;
         } else {
             text = shown + "%";
-            colour = 0x2A5A2A;
+            color = 0x2A5A2A;
         }
-        value(trim(text, VALUE_RIGHT - MARGIN), rowY, colour);
+        value(trim(text, VALUE_RIGHT - MARGIN), rowY, color);
     }
 
     /** Sets a value against the right edge of the value column, clear of the first button. */
-    private void value(String text, int y, int colour) {
-        fontRendererObj.drawString(text, VALUE_RIGHT - fontRendererObj.getStringWidth(text), y, colour);
+    private void value(String text, int y, int color) {
+        fontRendererObj.drawString(text, VALUE_RIGHT - fontRendererObj.getStringWidth(text), y, color);
     }
 
     /** Keeps a string inside its column, whatever a translation or another mod called the thing. */
@@ -681,7 +681,7 @@ public class GuiGolem extends GuiContainer {
     }
 
     /**
-     * A small flat button in the panel's own colours.
+     * A small flat button in the panel's own colors.
      *
      * <p>
      * Vanilla's widget texture is twenty pixels tall and is blitted at whatever height the button

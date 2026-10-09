@@ -32,7 +32,7 @@ import com.trmtgtnh.surface.WearScale;
  * <p>
  * Two tiers. A small fallback tier, one set per family, built from the vanilla textures the
  * art was drawn against — always present, always correct enough. Then a per-surface tier
- * that gives individual blocks their own colour-matched wear, bounded by the room the block
+ * that gives individual blocks their own color-matched wear, bounded by the room the block
  * atlas actually has - measured at every stitch and priced by {@link AtlasPlan} - and by
  * {@code surfaces.maxTexturedSurfaces} on top of that, so a pack with a hundred kinds of dirt
  * cannot quietly blow up the atlas.
@@ -420,7 +420,9 @@ public final class WearTextures {
         } finally {
             // Published here, once every harvest that notes a see-through layer is over, and whatever
             // became of the pass: the painter reads one whole filing, and a stitch that stopped part
-            // way still replaces the one an earlier stitch made about sprites registered afresh since.
+            // way still replaces the one an earlier stitch made about sprites registered afresh since. Every
+            // state sharing a see-through set is a window first, not only the one its pixels were read from.
+            InnerLayers.spreadWindows(lookup.sets);
             InnerLayers.publishWindows();
             WearGeneration.shutDown(pool);
         }
@@ -633,6 +635,7 @@ public final class WearTextures {
      * first one's luck.
      */
     public static void reportStitchHooks() {
+        reportStitchSearch(stitchReported || !stitchCounted && lastPlan != null);
         if (!buildHookRan) {
             Trmt.LOG.error(
                 "The injection that builds every worn picture never ran, so no ground will show any wear at all however far it is walked. Either something has replaced net.minecraft.client.renderer.texture.TextureMap, or this mod's mixins did not apply; look earlier in this log for a mixin config that failed to load.");
@@ -666,6 +669,30 @@ public final class WearTextures {
         WearPatterns.clearHeaderWidths();
         lastPlan = null;
     }
+
+    /**
+     * Says what the stitcher took over the block atlas and what its shortcut spared it (AtlasPlan.Search), for a
+     * stitch that carried this mod's sprites: one the count reported on, or one the count never reached that planned
+     * them, since OptiFine on 1.12.2 replaces the method the count waits in and the stitcher's own figures are then the
+     * only ones there are. Read either way, so a stitch that carried none - Forge's skipped first
+     * one at start-up - does not leave its figures for the next report.
+     */
+    private static void reportStitchSearch(boolean carriedOurs) {
+        long[] report = AtlasPlan.Search.take();
+        if (!carriedOurs || report[0] == 0L) return;
+        if (report[2] == 0L && report[0] >= SEARCH_HEARD_FROM) {
+            Trmt.LOG.warn(LINE_SEARCH_UNSPARED, Long.valueOf(report[0]), Long.valueOf(report[1]));
+        } else {
+            Trmt.LOG.info(LINE_SEARCH, Long.valueOf(report[0]), Long.valueOf(report[1]), Long.valueOf(report[2]));
+        }
+    }
+
+    /** Sprites past which a stitch that turned no search back can only mean the shortcut never bound. */
+    private static final int SEARCH_HEARD_FROM = 1000;
+
+    private static final String LINE_SEARCH = "The stitcher placed the block atlas's {} sprites in {} ms, and turned back {} searches at slots it already knew were too full for the sprite in hand. Each sprite is where vanilla's own search would put it, which walks each of those slots to the bottom for every sprite and with sprites of mixed sizes took minutes - short of a sprite vanilla's would lay over others, which this puts somewhere free.";
+
+    private static final String LINE_SEARCH_UNSPARED = "The stitcher placed the block atlas's {} sprites in {} ms without turning back a single search, so this mod's shortcut through its slot search never ran: another mod has replaced Stitcher.Slot.addSlot, or this mod's mixins did not apply - look earlier in this log for a mixin config that failed to load. Nothing is wrong with the atlas. With many sprites of mixed sizes it is only slow, because vanilla's search walks every filled slot for every sprite.";
 
     private static final String LINE_I = "The injection that counts what went to the stitcher never ran, although the one that builds the wear textures did, so this stitch cannot say what went to the stitcher against what the plan priced. Both wait for the same call to Stitcher.doStitch in the same mixin, so this should not happen, and an optional injection writes nothing to this log when it does not run, so no earlier line will say why.";
 
@@ -968,6 +995,9 @@ public final class WearTextures {
         // which case whatever they hold is an earlier stitch's.
         WearPatterns.clearCaches();
         if (!roomHookRan) WearPatterns.clearHeaderWidths();
+        // This stitch's layers behind blocks, before the sets are planned: a set is keyed on the layer as well
+        // as the face and the family. See planSurfaceSets.
+        InnerLayers.readTable();
 
         IResourceManager manager = Minecraft.getMinecraft()
             .getResourceManager();
@@ -1385,7 +1415,7 @@ public final class WearTextures {
     /**
      * Line C: the room drew a coarser ramp than was asked for, and which settings would move it. With
      * client.perSurfaceTextures off no face is priced or kept, so the line says the fallbacks alone set the
-     * ramp rather than that faces still wear their own colours, which line A of the same stitch denies.
+     * ramp rather than that faces still wear their own colors, which line A of the same stitch denies.
      */
     private static void warnRampCoarsened(AtlasPlan plan, boolean perSurface) {
         StringBuilder text = new StringBuilder(
@@ -1398,7 +1428,7 @@ public final class WearTextures {
             " - take {} slots a gradation at {} rotations, and with the side walls would want {} of the {} slots left in the block atlas at the gradations asked for. ");
         text.append(
             perSurface
-                ? "Every face the ceilings admit still wears in its own colours; the ramp between its gradations is coarser."
+                ? "Every face the ceilings admit still wears in its own colors; the ramp between its gradations is coarser."
                 : "No face wears its own pixels, because client.perSurfaceTextures is off; it is the family fallbacks, the grass fringe and the side walls alone that the room could not hold at the gradations asked for, so only the ramp between their gradations is coarser.");
         List<Object> args = new ArrayList<Object>();
         args.add(Integer.valueOf(plan.gradations));
@@ -1739,6 +1769,13 @@ public final class WearTextures {
         //
         // Keyed on the family as well as the face, because the family decides which appearances a
         // set holds. Two blocks that look alike and erode differently must not share.
+        //
+        // And on the layer innerLayerTextures names behind the block, because that is painted into
+        // every picture of the set: the same face with lava behind it and with water behind it are two
+        // different sets of pictures. GTNH's Chisel gives its lavastone and waterstone faces of their
+        // own, so this never met it; Chisel for 1.12.2 cuts both from one set of carvings, and keyed on
+        // the face alone every waterstone there shared its lavastone's set - lava in its holes, and no
+        // window filed. Found on 1.12.2 on 2026-10-08 and carried here to keep the rule one rule.
         Map<String, Integer> byFace = new HashMap<String, Integer>();
 
         for (SurfaceRegistry.SurfaceState state : surfaces) {
@@ -1785,7 +1822,8 @@ public final class WearTextures {
                     String raw = FaceSource.iconName(state.block, meta, 1);
                     if (raw == null) continue;
 
-                    String face = family.ordinal() + " " + raw;
+                    String behind = InnerLayers.textureFor(state.block, meta);
+                    String face = family.ordinal() + " " + raw + (behind == null ? "" : " behind " + behind);
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);
@@ -2392,7 +2430,7 @@ public final class WearTextures {
      *
      * <p>
      * A sprite whose source could not be read, or that was never composed, carries placeholder
-     * pixels so the atlas has something to stitch. Drawing those would put a flat colour on the
+     * pixels so the atlas has something to stitch. Drawing those would put a flat color on the
      * ground; skipping them lets a block's own wear fall through to its family's, a grass wall to
      * the fallback wall and a mended side to the block's own plain side, while a family fallback
      * that cannot draw leaves nothing, which the end of the stitch names. That is the honest answer

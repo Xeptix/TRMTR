@@ -222,12 +222,12 @@ public class BlockGhostStairs extends BlockStairs implements GhostBlock {
     @SideOnly(Side.CLIENT)
     @Override
     public int getRenderColor(int meta) {
-        return GhostLogic.renderColour(appearance, meta, false);
+        return GhostLogic.renderColor(appearance, meta, false);
     }
 
     @Override
     public MapColor getMapColor(int meta) {
-        return GhostLogic.mapColour(appearance, false);
+        return GhostLogic.mapColor(appearance, false);
     }
 
     @Override

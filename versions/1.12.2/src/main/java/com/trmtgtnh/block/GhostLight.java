@@ -62,7 +62,7 @@ public final class GhostLight {
         return Trmt.proxy.clientLightLevel(x, y, z);
     }
 
-    /** The whole packed byte - level and colour - which only the renderer wants. */
+    /** The whole packed byte - level and color - which only the renderer wants. */
     public static int packedAt(IBlockAccess access, int x, int y, int z) {
         if (!anythingLit || !TrmtConfig.lightEnabled) return 0;
         if (access instanceof World && !((World) access).isRemote) {
@@ -81,38 +81,38 @@ public final class GhostLight {
     }
 
     /**
-     * The sixteen colours a glow can be, as {@code 0xRRGGBB}.
+     * The sixteen colors a glow can be, as {@code 0xRRGGBB}.
      *
      * <p>
      * Vanilla's dye order, so "the fourth one" means the same thing here as everywhere else in the
      * game, and lifted towards white rather than used at full saturation - these multiply a
-     * texture that is already earth-coloured, and a fully saturated multiplier turns lit ground
+     * texture that is already earth-colored, and a fully saturated multiplier turns lit ground
      * into a flat silhouette of itself.
      */
-    private static final int[] COLOURS = { 0xFFFFFF, 0xFFB89A, 0xFF9AE0, 0xB9D3FF, 0xFFF0A0, 0xC8FFA8, 0xFFC4DA,
+    private static final int[] COLORS = { 0xFFFFFF, 0xFFB89A, 0xFF9AE0, 0xB9D3FF, 0xFFF0A0, 0xC8FFA8, 0xFFC4DA,
         0xC0C0C0, 0xE0E0E0, 0xA8F0FF, 0xE2B0FF, 0xA8BCFF, 0xE0C0A0, 0xC8FFB0, 0xFFA8A8, 0xFFFFC8 };
 
     /** The tint for a packed light byte, or white when it is not lit. */
-    public static int colourOf(int packed) {
+    public static int colorOf(int packed) {
         if ((packed & 0xF) == 0) return 0xFFFFFF;
-        return COLOURS[(packed >> 4) & 0xF];
+        return COLORS[(packed >> 4) & 0xF];
     }
 
-    public static int colourCount() {
-        return COLOURS.length;
+    public static int colorCount() {
+        return COLORS.length;
     }
 
     /**
-     * A colour with a glow multiplied in, channel by channel.
+     * A color with a glow multiplied in, channel by channel.
      *
      * <p>
-     * Which is what a colour multiplier already is, so a lit block gets its biome colour and its glow
+     * Which is what a color multiplier already is, so a lit block gets its biome color and its glow
      * at once rather than one replacing the other - grass in a swamp still reads as swamp grass when
      * somebody lights it green. The other edition's {@code GhostRendering.blend}, moved here because in
      * this edition the glow is the only thing it is ever used for.
      */
     public static int tinted(int base, int packed) {
-        int glow = colourOf(packed);
+        int glow = colorOf(packed);
         if (glow == 0xFFFFFF) return base;
         if (base == 0xFFFFFF) return glow;
         int red = ((base >> 16) & 0xFF) * ((glow >> 16) & 0xFF) / 255;

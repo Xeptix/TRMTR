@@ -51,7 +51,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
 public class GhostBakedModel implements IBakedModel {
 
     /**
-     * Seven ints a vertex: position, colour, texture, lightmap. The block format, written by hand.
+     * Seven ints a vertex: position, color, texture, lightmap. The block format, written by hand.
      *
      * <p>
      * <strong>This is the number OptiFine's shaders broke the old quads on, and writing it here is
@@ -79,17 +79,17 @@ public class GhostBakedModel implements IBakedModel {
      */
     private static final int INTS_PER_VERTEX = 7;
 
-    /** The tint index grass takes its biome colour through; see the block colour registration. */
+    /** The tint index grass takes its biome color through; see the block color registration. */
     public static final int GRASS_TINT = 0;
 
     /**
-     * The tint index every other face takes a path light's colour through.
+     * The tint index every other face takes a path light's color through.
      *
      * <p>
-     * The other edition gives a ghost one colour for the whole block - biome, glow and all multiplied
+     * The other edition gives a ghost one color for the whole block - biome, glow and all multiplied
      * together - because that is how 1.7.10 asks. 1.12.2 asks per face, and only of a face that carries
      * a tint index, so a face with none could never be lit. Every face carries one or the other: grass
-     * takes its biome colour with the glow multiplied in, and everything else takes the glow alone,
+     * takes its biome color with the glow multiplied in, and everything else takes the glow alone,
      * which is plain white on a square nobody has lit and so no change at all.
      */
     public static final int LIGHT_TINT = 1;
@@ -137,11 +137,12 @@ public class GhostBakedModel implements IBakedModel {
         if (stair >= 0) return stairs(record, origin, rotation, fringeTurn, snowed, side, stair);
 
         SurfaceFamily appearance = ErosionState.familyOf(record);
-        float floor = BlockGhost.floorOf(outline);
-        // Sunk from the block's own top rather than from the top of its cell, and never below its floor: a
-        // slab worn through would otherwise be drawn as a sheet of nothing hanging in its own space.
-        float height = Math
-            .max(floor, BlockGhost.topOf(outline) - com.trmtgtnh.client.model.WearSteps.sunk(record, outline));
+        // The other edition's GhostLogic.bottomAt and heightAt, drawn: a slab from its own floor and never below
+        // it - worn through, it would otherwise be a sheet of nothing hanging in its own space - and anything else
+        // from the top of its cell, so a block already short loses its first pixel into its own shortfall. Until
+        // 0.9.220 this sank everything from the block's own top; Xep chose the other edition's rule on 2026-10-08.
+        float floor = (float) BlockGhost.bottomAt(origin);
+        float height = (float) BlockGhost.heightAt(record, origin, outline, false);
 
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
@@ -152,18 +153,25 @@ public class GhostBakedModel implements IBakedModel {
         // says so. The 1.7.10 edition's rule; see ShaderMaterial.
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
-        // Only grass takes the biome's colour. Worn through to dirt, a square has no grass left to
+        // Only grass takes the biome's color. Worn through to dirt, a square has no grass left to
         // tint, and a dirt rut washed green by a jungle would be a very strange road.
-        // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
+        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
         // that block's own pixels.
         int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
 
+        // The top is handed over with no side, so nothing culls it, because a sunk top is not a face of the
+        // cell at all and the neighbour above says nothing about it. A whole window's top is a face of the
+        // cell, and is handed over as one, so that a window above it of the same pane hides it as glass does -
+        // the other edition's shouldSideBeRendered asks this of every side, the top included (2026-10-08).
+        boolean paned = floor <= 0F && height >= 1F && GhostWindows.windowOf(origin);
         if (side == null) {
-            return Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F));
+            return paned ? Collections.<BakedQuad>emptyList()
+                : Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F));
         }
         if (side == EnumFacing.UP) {
-            return Collections.emptyList();
+            return paned ? Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F))
+                : Collections.<BakedQuad>emptyList();
         }
         // The underside goes through the same rule as the flanks rather than being dirt by decree.
         // Dirt was the answer for every block, and it is only the right one for a lawn - whose
@@ -211,7 +219,7 @@ public class GhostBakedModel implements IBakedModel {
         TextureAtlasSprite earth = earth();
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
         if (top == null) top = earth;
-        // Grey-and-tinted, or its own colours? See GhostSides.tintsAsGrass - the square has to be
+        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
         // that block's own pixels.
         int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;

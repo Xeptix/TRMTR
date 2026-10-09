@@ -186,9 +186,7 @@ public class BlockGhost extends Block {
         // a block you fall through into a block you stand on.
         VoxelShape own = GhostInherit.ownFootingAt(world, pos, origin);
         if (own != null) return own;
-        int outline = outlineAt(world, pos, origin);
-        int sink = collisionSink(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
-        return box(outline, sink);
+        return solidBox(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
     }
 
     /**
@@ -225,45 +223,116 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * The outline, which follows the picture rather than the footing.
+     * The outline, which follows the footing rather than the picture - the 1.7.10 edition's GhostLogic.outlineBox,
+     * "Selection follows collision, not the visuals".
      *
      * <p>
-     * In visual mode the two differ: the ground is drawn sunk and walked on at full height. The box a
-     * player aims at should be the one they can see.
+     * In visual mode the two differ: the ground is drawn sunk and walked on at full height, and the box a player
+     * aims at is the one they stand on. Until 0.9.220 this edition outlined the picture instead; Xep chose the
+     * other edition's rule on 2026-10-08. Never nothing, which collision may be - a block you walk through says so
+     * with no box at all, and an outline is drawn from whatever it is handed: then the covered block's own outline,
+     * which is what is really there and what was being pointed at, and failing that the whole cell.
      */
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         VoxelShape stair = stairShapeAt(world, pos, origin);
         if (stair != null) return stair;
-        int outline = outlineAt(world, pos, origin);
-        int sink = drawnSink(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), shapeOf(outline));
-        return box(outline, sink);
+        VoxelShape own = GhostInherit.ownFootingAt(world, pos, origin);
+        VoxelShape solid = own != null ? own
+            : solidBox(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
+        if (solid != null && !solid.isEmpty()) return solid;
+        BlockState covered = coveredState(origin);
+        if (covered != null) {
+            try {
+                VoxelShape mine = covered.getShape(world, pos);
+                if (mine != null && !mine.isEmpty()) return mine;
+            } catch (RuntimeException awkwardBlock) {
+                // An outline in the wrong place is a smaller fault than none; the whole cell below.
+            }
+        }
+        return Shapes.block();
     }
 
     /**
-     * The outline, less however far it has sunk from its own top.
+     * The box a worn square is stood on - the 1.7.10 edition's GhostLogic.solidBox, rule for rule.
      *
      * <p>
-     * Never a shape of no height, which both older editions can hand back and this version cannot
-     * afford to: a box with no height there is a thin block, and an empty VoxelShape here is an
-     * absence - a player would fall through the square rather than stand low in it.
+     * A slab wears from its own top, by the collision depth its shape allows, and stops at its own floor. Anything
+     * else is a full cell less the collision depth, measured from the top of the cell, not from the top of the
+     * block - which is the same thing for a whole cube, and for a block already short, a grass path, means its
+     * first pixel of wear goes into its own shortfall. Until 0.9.220 this edition took every depth off the block's
+     * own top, a pixel deeper for a path; Xep chose the other edition's rule on 2026-10-08.
      */
-    private static VoxelShape box(int outline, int sink) {
-        double floor = floorOf(outline);
-        double top = Math.max(floor + (1.0D / 16.0D), topOf(outline) - sink / 16.0D);
-        return Shapes.box(0.0D, floor, 0.0D, 1.0D, Math.min(1.0D, top), 1.0D);
+    static VoxelShape solidBox(short record, int origin) {
+        BlockState covered = coveredState(origin);
+        SurfaceShape shape = SurfaceShape.of(covered);
+        if (shape.isPartial()) {
+            double floor = SurfaceShape.bottomOf(shape, covered);
+            double top = SurfaceShape.topOf(shape, covered);
+            return box(floor, Math.max(floor, top - collisionSink(record, shape) / 16.0D));
+        }
+        return box(0.0D, SinkProfile.heightFor(collisionSink(record, SurfaceShape.FULL)));
     }
 
     /**
-     * Which of the mod's shapes an outline is, for the rule that halves how far a shape may sink.
+     * The height a square stands at, drawn (footing false) or stood on (footing true) - the 1.7.10 edition's
+     * GhostLogic.heightAt, rule for rule.
      *
      * <p>
-     * By its own thickness rather than by asking the block again: half a block of stone cannot lose eight
-     * pixels and still be there, and that is true of anything half a block thick whatever class it is.
+     * A slab: its own top less the depth its shape allows - the drawn one, or the collision one for footing - and
+     * never below its own floor. Anything else: the block's own top, or the cell's top less the drawn depth if that
+     * is lower. <strong>The drawn depth for footing too</strong>, on anything but a slab, which is that edition's
+     * code rather than its comment: the comment says snow resting on worn ground in visual mode stays at walking
+     * height, the code draws it down into the rut, and Xep chose the code on 2026-10-08.
      */
-    public static SurfaceShape shapeOf(int outline) {
-        return topOf(outline) - floorOf(outline) <= 0.5F ? SurfaceShape.SLAB : SurfaceShape.FULL;
+    public static double heightAt(short record, int origin, int outline, boolean footing) {
+        BlockState covered = coveredState(origin);
+        SurfaceShape shape = SurfaceShape.of(covered);
+        if (shape.isPartial()) {
+            double top = SurfaceShape.topOf(shape, covered);
+            double floor = SurfaceShape.bottomOf(shape, covered);
+            int sunk = footing ? collisionSink(record, shape) : drawnSink(record, shape);
+            return Math.max(floor, top - sunk / 16.0D);
+        }
+        return Math.min(topOf(outline), SinkProfile.heightFor(drawnSink(record, SurfaceShape.FULL)));
+    }
+
+    /** Where the space a square stands in begins - only ever above nought for an upper slab. 1.7.10's bottomAt. */
+    public static double bottomAt(int origin) {
+        BlockState covered = coveredState(origin);
+        SurfaceShape shape = SurfaceShape.of(covered);
+        return shape.isPartial() ? SurfaceShape.bottomOf(shape, covered) : 0.0D;
+    }
+
+    /**
+     * The block a square stands in for, or null.
+     *
+     * <p>
+     * Its shape is decided by what class it is, as the 1.7.10 edition decides it (SurfaceShape.of): a slab class is
+     * a slab and anything else whole, whatever its thickness. Until 0.9.220 this edition judged by thickness, which
+     * wore a half-height block that is not a slab as a slab; Xep chose the other edition's rule on 2026-10-08.
+     */
+    private static BlockState coveredState(int origin) {
+        if (origin < 0) return null;
+        try {
+            return Block.stateById(origin);
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        }
+    }
+
+    /**
+     * A box from a floor to a top, never of no height.
+     *
+     * <p>
+     * Which both older editions can hand back and this version cannot afford to: a box with no height there is a
+     * thin block, and an empty VoxelShape here is an absence - a player would fall through the square rather than
+     * stand low in it.
+     */
+    private static VoxelShape box(double floor, double top) {
+        double held = Math.max(floor + (1.0D / 16.0D), top);
+        return Shapes.box(0.0D, floor, 0.0D, 1.0D, Math.min(1.0D, held), 1.0D);
     }
 
     /**
@@ -456,7 +525,7 @@ public class BlockGhost extends Block {
      * {@code !(shortBase || sink > 0)}, which picks its hollowed variant. Nothing known about the block
      * covered is 1.7.10's {@code isShort(null)}: not short.
      */
-    static boolean wholeAt(BlockGetter world, BlockPos pos) {
+    public static boolean wholeAt(BlockGetter world, BlockPos pos) {
         if (sunkAt(world, pos)) return false;
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         BlockState covered = origin < 0 ? null : Block.stateById(origin);
@@ -573,19 +642,19 @@ public class BlockGhost extends Block {
      *
      * <p>
      * Everything that draws a map reads this - the vanilla map item, every minimap, and anything
-     * rendering the world at a distance - so answering with the origin's own colour makes a worn path
+     * rendering the world at a distance - so answering with the origin's own color makes a worn path
      * read as the ground it is rather than as an unknown block, once and for all of them.
      *
      * <p>
      * <strong>This is where the other edition needs per-mod code and this one does not.</strong>
-     * There the question is only {@code getMapColor(int metadata)}: a ghost is asked what colour it
+     * There the question is only {@code getMapColor(int metadata)}: a ghost is asked what color it
      * is with no way to know which square is being asked about, so it can answer only from the family
      * its own class stands for - and a minimap that ignored the answer, as JourneyMap did for
      * anything descending from the grass block, had to be reached into by reflection and corrected.
      * 1.12.2 hands the position in. A ghost can look up its own origin and answer truthfully, and
      * there is nothing left for either minimap integration to fix.
      */
-    public static MaterialColor mapColourAt(BlockState state, BlockGetter world, BlockPos pos) {
+    public static MaterialColor mapColorAt(BlockState state, BlockGetter world, BlockPos pos) {
         short record = Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
         int packed = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         if (packed >= 0) {
@@ -596,10 +665,10 @@ public class BlockGhost extends Block {
                 try {
                     MaterialColor own = origin.getMapColor(world, pos);
                     // Darkened, so there is a road on the map rather than only a change of material
-                    // where one has worn through. One colour rather than a shade per gradation,
-                    // which is all sixty-four fixed palette entries can carry - see GhostMapColour,
+                    // where one has worn through. One color rather than a shade per gradation,
+                    // which is all sixty-four fixed palette entries can carry - see GhostMapColor,
                     // which says what that costs and what it keeps.
-                    if (own != null) return shows(record) ? GhostMapColour.worn(own) : own;
+                    if (own != null) return shows(record) ? GhostMapColor.worn(own) : own;
                 } catch (RuntimeException hostileBlock) {
                     // A block of somebody else's asked about a position it does not own. Its family's
                     // stand-in below is a better answer than taking the map down.
@@ -610,7 +679,7 @@ public class BlockGhost extends Block {
         if (com.trmtgtnh.erosion.ErosionState.familyOf(record) == null) return null;
         MaterialColor earth = net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState()
             .getMapColor(world, pos);
-        return shows(record) ? GhostMapColour.worn(earth) : earth;
+        return shows(record) ? GhostMapColor.worn(earth) : earth;
     }
 
     /**

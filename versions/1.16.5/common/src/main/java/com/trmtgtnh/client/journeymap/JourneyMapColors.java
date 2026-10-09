@@ -20,21 +20,21 @@ import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 
 /**
- * Makes JourneyMap draw each worn position in a colour taken from the block underneath it.
+ * Makes JourneyMap draw each worn position in a color taken from the block underneath it.
  *
  * <p>
- * The problem this solves: JourneyMap decides a block's colour once per {@code BlockMD} - one per
+ * The problem this solves: JourneyMap decides a block's color once per {@code BlockMD} - one per
  * block state - and caches it, so one ghost covering a hundred different modded dirts drew all
- * hundred the same brown. An unworn modded block shows its own distinct colour on the map, that
- * colour being JourneyMap's own average of the block's texture, and the moment it wore that
- * distinctness was lost. This hands JourneyMap a colour proxy for the ghost that answers per
+ * hundred the same brown. An unworn modded block shows its own distinct color on the map, that
+ * color being JourneyMap's own average of the block's texture, and the moment it wore that
+ * distinctness was lost. This hands JourneyMap a color proxy for the ghost that answers per
  * <em>position</em> instead: it looks up which real block the client is painting over at that spot,
- * asks JourneyMap what colour it draws that block unworn, and shades it for the wear.
+ * asks JourneyMap what color it draws that block unworn, and shades it for the wear.
  *
  * <p>
  * <strong>This is also the one map that can show how worn a road is rather than merely that it is
  * worn.</strong> Vanilla's own map answer is a choice of sixty-four fixed palette entries, which is
- * why {@code GhostMapColour} settles for one darker entry per square and why four settings in this
+ * why {@code GhostMapColor} settles for one darker entry per square and why four settings in this
  * edition's file say they do nothing. JourneyMap takes an ordinary RGB integer, so against it
  * {@code mapTracksWear}, {@code mapWearDarkening}, {@code desirePathHighlight} and
  * {@code desirePathRgb} all mean what they say.
@@ -64,7 +64,7 @@ public final class JourneyMapColors {
     private static volatile boolean refused;
 
     /** {@code BlockMD.getBlockColor(ChunkMD, BlockPos)}, for asking what a real block is drawn as. */
-    private static volatile Method askColour;
+    private static volatile Method askColor;
 
     /**
      * Puts the proxy in place, once, from the client tick.
@@ -86,7 +86,7 @@ public final class JourneyMapColors {
     public static void reset() {
         installed = false;
         refused = false;
-        askColour = null;
+        askColor = null;
     }
 
     private static void install() {
@@ -99,7 +99,7 @@ public final class JourneyMapColors {
 
             Method get = blockMd.getMethod("get", BlockState.class);
             Method setProxy = blockMd.getMethod("setBlockColorProxy", proxyType);
-            askColour = blockMd.getMethod("getBlockColor", chunkMd, BlockPos.class);
+            askColor = blockMd.getMethod("getBlockColor", chunkMd, BlockPos.class);
 
             Object mine = get.invoke(null, ghost.defaultBlockState());
             if (mine == null) return;
@@ -111,13 +111,13 @@ public final class JourneyMapColors {
             setProxy.invoke(mine, proxy);
 
             installed = true;
-            Trmt.LOG.info("JourneyMap found; worn ground will be drawn on it in the colour of what it covers");
+            Trmt.LOG.info("JourneyMap found; worn ground will be drawn on it in the color of what it covers");
         } catch (ClassNotFoundException movedOrGone) {
             refused = true;
-            Trmt.LOG.debug("JourneyMap's colour classes are not where this build looks for them", movedOrGone);
+            Trmt.LOG.debug("JourneyMap's color classes are not where this build looks for them", movedOrGone);
         } catch (Throwable awkward) {
             refused = true;
-            Trmt.LOG.debug("JourneyMap's colour proxy could not be installed", awkward);
+            Trmt.LOG.debug("JourneyMap's color proxy could not be installed", awkward);
         }
     }
 
@@ -133,7 +133,7 @@ public final class JourneyMapColors {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             String name = method.getName();
-            if ("toString".equals(name)) return "TrmtGhostColour";
+            if ("toString".equals(name)) return "TrmtGhostColor";
             if ("hashCode".equals(name)) return Integer.valueOf(System.identityHashCode(proxy));
             if ("equals".equals(name)) return Boolean.valueOf(proxy == (args == null ? null : args[0]));
 
@@ -150,7 +150,7 @@ public final class JourneyMapColors {
                             .getName()
                             .endsWith("ChunkMD")) chunk = each;
                     }
-                    if (at != null) return Integer.valueOf(colourAt(chunk, at));
+                    if (at != null) return Integer.valueOf(colorAt(chunk, at));
                 }
             } catch (Throwable awkward) {
                 // Fall through to the generic answer rather than letting a map tile fail.
@@ -163,8 +163,8 @@ public final class JourneyMapColors {
             return null;
         }
 
-        /** The colour to draw one position: the covered block's own, shaded for the wear. */
-        private int colourAt(Object chunk, BlockPos at) {
+        /** The color to draw one position: the covered block's own, shaded for the wear. */
+        private int colorAt(Object chunk, BlockPos at) {
             net.minecraft.client.Minecraft game = net.minecraft.client.Minecraft.getInstance();
             short record = Client.ghostRecordAt(game == null ? null : game.level, at.getX(), at.getY(), at.getZ());
             int packed = Client.ghostOriginAt(at.getX(), at.getY(), at.getZ());
@@ -177,9 +177,9 @@ public final class JourneyMapColors {
                     // dirt partway down, and it is grass's eighty steps it is walking.
                     SurfaceFamily base = SurfaceRegistry.familyOf(origin.getBlock());
                     SurfaceFamily walking = base == null ? appearance : base;
-                    int own = originColour(chunk, origin, at);
+                    int own = originColor(chunk, origin, at);
                     if (own != 0) {
-                        return shade(wornFraction(walking, appearance, record), own, endColour(walking, own));
+                        return shade(wornFraction(walking, appearance, record), own, endColor(walking, own));
                     }
                 }
             }
@@ -191,12 +191,12 @@ public final class JourneyMapColors {
          *
          * <p>
          * At this square's own position, which is the whole point and was wrong first time: asking at
-         * the origin of the world gave every worn square the colour of whatever happens to stand
+         * the origin of the world gave every worn square the color of whatever happens to stand
          * there, so a whole map of roads came out one flat green. The position is also what makes a
          * biome-tinted block answer for the biome it is actually in.
          */
-        private int originColour(Object chunk, BlockState origin, BlockPos at) {
-            Method ask = askColour;
+        private int originColor(Object chunk, BlockState origin, BlockPos at) {
+            Method ask = askColor;
             if (ask == null || chunk == null) return 0;
             try {
                 Object theirs = get.invoke(null, origin);
@@ -209,15 +209,15 @@ public final class JourneyMapColors {
         }
 
         /**
-         * The colour the run ends on, or the colour it starts on where it never leaves home.
+         * The color the run ends on, or the color it starts on where it never leaves home.
          *
          * <p>
          * Asked of the chain rather than of a table, so a pack that has pointed turf at its own loam
          * gets that loam and nothing here has to know it exists. A family whose chain never leaves
-         * home answers with the square's own colour, which makes the fade toward it a no-op rather
+         * home answers with the square's own color, which makes the fade toward it a no-op rather
          * than a case anybody has to write.
          */
-        private int endColour(SurfaceFamily base, int fallback) {
+        private int endColor(SurfaceFamily base, int fallback) {
             if (base == null) return fallback;
             int length = ErosionChain.length(base);
             if (length <= 0) return fallback;
@@ -226,9 +226,9 @@ public final class JourneyMapColors {
             try {
                 Block stock = com.trmtgtnh.command.CommandTrmt.roadBlock(last);
                 if (stock == null) return fallback;
-                net.minecraft.world.level.material.MaterialColor colour = stock.defaultBlockState()
+                net.minecraft.world.level.material.MaterialColor color = stock.defaultBlockState()
                     .getMapColor(null, null);
-                return colour == null ? fallback : colour.col;
+                return color == null ? fallback : color.col;
             } catch (RuntimeException awkwardBlock) {
                 return fallback;
             }
@@ -253,7 +253,7 @@ public final class JourneyMapColors {
 
     /**
      * Material first, then how used it is, then - only if somebody has asked for it - pulled toward
-     * a colour that is not a material at all. Each reading is laid over the last rather than
+     * a color that is not a material at all. Each reading is laid over the last rather than
      * replacing it, so turning the third off leaves the first two exactly as they were.
      */
     private static int shade(float worn, int baseRgb, int towardRgb) {

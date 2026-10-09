@@ -88,21 +88,21 @@ public final class Notices {
     }
 
     /**
-     * A line of already formatted text, in a colour, with the mod's mark in front when asked for.
+     * A line of already formatted text, in a color, with the mod's mark in front when asked for.
      *
      * <p>
-     * The mark is a component of its own with its own colour, rather than a colour code typed into
+     * The mark is a component of its own with its own color, rather than a color code typed into
      * the front of the text. The client closes every component with a reset when it draws the line,
-     * so a colour typed into the mark would stop at the mark's end and never reach the text after it,
-     * and a colour typed into the text would be the only thing holding the two apart.
+     * so a color typed into the mark would stop at the mark's end and never reach the text after it,
+     * and a color typed into the text would be the only thing holding the two apart.
      *
-     * @param text     the words, already translated; colour codes inside it still work
-     * @param colour   the colour of the words, or null to leave them to whatever codes they carry
+     * @param text     the words, already translated; color codes inside it still work
+     * @param color    the color of the words, or null to leave them to whatever codes they carry
      * @param prefixed whether to put {@code [TRMT]} in front
      */
-    public static Component line(String text, ChatFormatting colour, boolean prefixed) {
+    public static Component line(String text, ChatFormatting color, boolean prefixed) {
         TextComponent body = new TextComponent(text == null ? "" : text);
-        if (colour != null) body.setStyle(Style.EMPTY.applyFormat(colour));
+        if (color != null) body.setStyle(Style.EMPTY.applyFormat(color));
         if (!prefixed) return body;
 
         // An empty root holding both, so the words inherit nothing from the mark's style.

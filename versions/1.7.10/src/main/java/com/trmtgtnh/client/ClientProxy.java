@@ -793,7 +793,7 @@ public class ClientProxy extends CommonProxy {
 
         OverlayPainter.get()
             .tick();
-        // Keeps JourneyMap drawing each worn block in the colour of the ground beneath it. A
+        // Keeps JourneyMap drawing each worn block in the color of the ground beneath it. A
         // no-op unless JourneyMap is present, and self-healing if it drops the handler.
         com.trmtgtnh.client.journeymap.JourneyMapColors.tick();
         verifyInteraction(mc);

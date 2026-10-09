@@ -11,20 +11,20 @@ import com.trmtgtnh.block.GhostLight;
 import com.trmtgtnh.client.model.GhostQuads;
 
 /**
- * What colour a ghost is at a place.
+ * What color a ghost is at a place.
  *
  * <p>
  * A ghost's pictures are drawn from the pixels of the block it stands in for, and several of those
- * are stored grey and coloured at render time - grass most of all, which is grey in the file and
- * green only because the game multiplies a biome's colour into it. A face asking for a tint that
+ * are stored grey and colored at render time - grass most of all, which is grey in the file and
+ * green only because the game multiplies a biome's color into it. A face asking for a tint that
  * nothing answers is handed white, and white times grey is grey. That is the whole of why worn grass
  * drew as flat grey slabs with a mottled band along the top: the band was the fringe, in its own
  * untinted pixels, and the rest was the dirt below it.
  *
  * <p>
  * The quads ask for one of two slots and this answers both. {@link GhostQuads#GRASS_TINT} is the
- * biome's grass colour, for faces that still have grass on them; {@link GhostQuads#LIGHT_TINT} is
- * white, for faces that carry their own colour already. Both then have the path light multiplied
+ * biome's grass color, for faces that still have grass on them; {@link GhostQuads#LIGHT_TINT} is
+ * white, for faces that carry their own color already. Both then have the path light multiplied
  * into them, which is what makes a lit square lit without replacing what it is made of - grass in a
  * swamp still reads as swamp grass when somebody lights it green.
  *
@@ -50,7 +50,7 @@ public final class GhostTint implements BlockColor {
         if (tintIndex != GhostQuads.GRASS_TINT && tintIndex != GhostQuads.LIGHT_TINT) return -1;
 
         // The path light, multiplied into both: a glow outranks every rule about when ground is
-        // tinted, because somebody chose this colour for this square.
+        // tinted, because somebody chose this color for this square.
         int glow = world == null || pos == null ? 0 : GhostLight.packedAt(world, pos.getX(), pos.getY(), pos.getZ());
         if (tintIndex == GhostQuads.LIGHT_TINT) {
             return GhostLight.tinted(0xFFFFFF, glow);

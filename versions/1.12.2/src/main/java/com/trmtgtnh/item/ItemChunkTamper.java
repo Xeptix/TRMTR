@@ -372,7 +372,7 @@ public class ItemChunkTamper extends Item implements TamperTool {
             // Ward mode reads a right-click as "bar passives here" (sneak lets them back).
             acted = WardGestures.right(world, x, y, z, player, stack);
         } else if (lighting) {
-            // Light mode reads a right-click as "light this, or step its colour on" (sneak puts it out).
+            // Light mode reads a right-click as "light this, or step its color on" (sneak puts it out).
             acted = LightGestures.right(world, x, y, z, player, stack);
         } else if (reinforcing) {
             acted = ReinforceGestures.reinforce(world, x, y, z, player, stack);
@@ -394,7 +394,7 @@ public class ItemChunkTamper extends Item implements TamperTool {
     public boolean leftClick(World world, int x, int y, int z, EntityPlayer player, ItemStack stack, boolean sneaking) {
         // Ward mode reads a left-click as "bar hostiles here" (sneak lets them back).
         if (wardActive(stack)) return WardGestures.left(world, x, y, z, player, stack, sneaking);
-        // Light mode reads a left-click as "step the colour back", which saves fifteen right-clicks.
+        // Light mode reads a left-click as "step the color back", which saves fifteen right-clicks.
         if (lightActive(stack)) return LightGestures.left(world, x, y, z, player, stack, sneaking);
         // Reinforce mode reads a left-click as "take a reinforcement off", which needs two of them.
         if (reinforceActive(stack)) return ReinforceGestures.unreinforce(world, x, y, z, player);
@@ -539,7 +539,7 @@ public class ItemChunkTamper extends Item implements TamperTool {
             return new String[] { "trmtgtnh.mode.ward.hostile", "trmtgtnh.mode.ward.passive",
                 "trmtgtnh.mode.ward.undo" };
         }
-        return new String[] { "trmtgtnh.mode.light.on", "trmtgtnh.mode.light.colour", "trmtgtnh.mode.light.off" };
+        return new String[] { "trmtgtnh.mode.light.on", "trmtgtnh.mode.light.color", "trmtgtnh.mode.light.off" };
     }
 
     /**

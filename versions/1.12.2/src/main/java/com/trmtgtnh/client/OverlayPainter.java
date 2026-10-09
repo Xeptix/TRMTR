@@ -253,7 +253,7 @@ public final class OverlayPainter {
 
         // Told outside any "did anything change" test, deliberately. A position can move along its
         // chain and want the very same ghost at the very same state, so nothing is touched and the
-        // colour a map works out from the record still moves - which is exactly the sub-step this
+        // color a map works out from the record still moves - which is exactly the sub-step this
         // exists to show. See XaeroMinimap for why a map needs telling at all.
         com.trmtgtnh.client.xaero.XaeroMinimap.chunkChangedAt(world, chunkX, chunkZ);
 

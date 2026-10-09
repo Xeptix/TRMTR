@@ -20,7 +20,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <em>and</em> which carries a biome tint, so it is the only one where getting this wrong shows.
  * The renderer draws grass by leaving its sides alone and painting a separately tinted overlay
  * over them. Every other block gets the tint multiplied straight onto the side texture, which on
- * a grass block's dirt-coloured sides comes out dark green.
+ * a grass block's dirt-colored sides comes out dark green.
  *
  * <p>
  * Which of those two a block gets is decided by comparing it against vanilla grass — not by type,

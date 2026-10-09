@@ -16,7 +16,7 @@ import com.trmtgtnh.Trmt;
  * only thing that marks one is a block packet arriving from the server - a chunk load, a block
  * change, a multi-block change. This mod never sends one. Wear advances by painting a cosmetic
  * block into the client's own copy of the world, which is the whole architecture, so as far as
- * Xaero is concerned nothing has happened and the square keeps the colour it had when the chunk
+ * Xaero is concerned nothing has happened and the square keeps the color it had when the chunk
  * was first mapped. Stand on a path and wear it forty steps down and the minimap does not move.
  *
  * <p>
@@ -31,7 +31,7 @@ import com.trmtgtnh.Trmt;
  * Deliberately not hung on whether a block actually changed. A position can move along its chain
  * and want the very same ghost at the very same metadata - the sub-steps between one drawn
  * gradation and the next - and those are precisely the steps this exists to show, because the
- * colour they produce comes from the wear record rather than from the block. Nudging only where a
+ * color they produce comes from the wear record rather than from the block. Nudging only where a
  * block changed would drop them and leave the feature working in the coarsest case alone.
  */
 public final class XaeroMinimap {

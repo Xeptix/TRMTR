@@ -66,7 +66,7 @@ final class WearGeneration {
      * fields, and it regenerates mipmaps - which goes through vanilla's {@code TextureUtil}, whose
      * blend for a frame containing a transparent pixel reads and writes one shared static array of
      * four. Two threads mipmapping a grass overlay or a fringe at once would interleave into it and
-     * produce wrong colours in the lower levels, silently and non-deterministically.
+     * produce wrong colors in the lower levels, silently and non-deterministically.
      */
     static void composeAndInstall(ExecutorService pool, List<WearSprite> pending, List<WearSprite.Source> ingredients,
         int mipmapLevels, WearTextures.Tally tally) {

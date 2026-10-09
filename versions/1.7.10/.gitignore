@@ -35,7 +35,7 @@ addon.local.gradle.kts
 addon.late.local.gradle
 addon.late.local.gradle.kts
 layout.json
-tools/__pycache__/
+__pycache__/
 
 # Where the other edition of this mod is checked out on this machine, for the test that compares
 # the two copies of the portable core. Machine-specific, so never committed.

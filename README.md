@@ -126,9 +126,9 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
   the dependency declared it would have to be installed alongside rather than instead.
 - **With JourneyMap 6 installed** - it brings a Mixin of its own, which starts before MixinBooter, and
   MixinBooter then reads no mod's manifest - a small loading plugin in the jar registers the mixin
-  config itself. It transforms nothing and does nothing at all when MixinBooter started Mixin. Before
-  0.9.219 the mod ran without any of its mixins there, and nothing said so; now the log says, at
-  warning, if they still did not apply.
+  config itself. It transforms nothing and does nothing at all when MixinBooter started Mixin. Without
+  it the mod ran with none of its mixins there, and nothing said so; now the log says, at warning, if
+  they still did not apply.
 
 **Requirements, 1.16.5**
 
@@ -221,7 +221,7 @@ A ghost mirrors the block it is covering wherever anything but rendering can tel
 - it goes on doing whatever the covered block does to something standing inside it, so **Chisel**'s
   cloud still breaks a fall when it is worn;
 - snow and carpet lying on it come down with it as it sinks;
-- on **1.12.2**, every map draws the colour of the real block, per position - see [Maps](#maps).
+- on **1.12.2**, every map draws the color of the real block, per position - see [Maps](#maps).
 
 Those are each their own `client` setting and all of them ship on.
 
@@ -234,13 +234,14 @@ for **Oculus on 1.16.5 Forge** and **Iris on 1.16.5 Fabric** alike.
 
 **OptiFine is not of that family, and has a holder of its own.** It works out a block's shader id
 from the pack's `block.properties` as the block's model starts, and pushes it onto a stack the chunk's
-buffer carries; from 0.9.219 a ghost's entry there is written over, in place, with the block it stands
-in for - on **1.12.2**, where no Oculus is published, and on **1.16.5 Forge**. **Canvas** on 1.16.5
-Fabric is asked another way again: a worn square takes the covered block's FREX material in its own
-pass. **Under OptiFabric the claim is out of reach.** OptiFabric defines OptiFine's classes after every
-mod's hooks have been prepared, so none can bind to them, and a worn square draws with the pack's
-default material; nothing else about it differs. Everywhere it does work, `client.inheritShaderMaterial`
-wants a shader pack loaded as well, and names itself in the log when it is going to do anything.
+buffer carries; a ghost's entry there is written over, in place, with the block it stands in for - on
+**1.12.2**, where no Oculus is published, and on **1.16.5 Forge**. **Canvas** on 1.16.5 Fabric is asked
+another way again: a worn square takes the covered block's FREX material in its own pass.
+**Under OptiFabric** the claim is made from the other side. OptiFabric defines OptiFine's classes after
+every mod's hooks have been prepared, so none can bind to them, and Fabric's own renderer draws a worn
+square there, so OptiFine never pushes an entry for it at all: the mod's model pushes the claim onto that
+stack itself, around the quads it hands Fabric's renderer, and takes it off again after. Everywhere, `client.inheritShaderMaterial` wants a shader pack loaded as
+well, and names itself in the log when it is going to do anything.
 
 **Worn ice is drawn through, as ice is, and how much shows behind it is the renderer's call.** A worn
 ice square sinks while the one beside it does not, which leaves standing the faces real ice never
@@ -293,7 +294,7 @@ all, so all of them are safe on a block nobody ever drew wear for. There are **e
 | `dirt_lite` | a narrower, shallower rub, leaving three fifths of the face untouched |
 | `crack` | dulls a surface and splits it along a generated fracture network |
 | `crack_lite` | the same run stopped a little over halfway, so a face grimes and hairlines without breaking up |
-| `smooth` | flattens the face toward its own average colour and darkens it |
+| `smooth` | flattens the face toward its own average color and darkens it |
 | `smooth_heavy` | the same, taking rather more of the relief with it |
 | `smooth_crack` | buffed flat, then cracked |
 | `smooth_dirt` | buffed flat, then trodden across |
@@ -317,7 +318,10 @@ be taken down to sixteen, where consecutive steps share a picture five ways.
 textures are planned into the room it actually has, so a very large pack, or one drawn at
 thirty-two pixels, gets a coarser ramp first, never below sixteen gradations, and past that the
 faces last in registry-name order wear their family's generic art rather than their own; the log
-says which, every stitch. `client.maxWearSprites` can only ask for less than that room, and at its
+says which, every stitch. The room is an 8192 square unless `client.largerAtlas` is on, which plans the
+wear up to 16384 where your card says it can address one - four times the video memory, and a card that
+cannot really hold one draws every block black with nothing in the log, so it is off unless you ask.
+`client.maxWearSprites` can only ask for less than that room, and at its
 default it never does; set below what the family fallbacks alone come to, several thousand sprites
 at the default gradations and rotations, it leaves every face on its family's generic art.
 
@@ -349,7 +353,7 @@ forty-eight. Both average out to exactly the figure in the family table.
 
 ## Physical sinking
 
-Later stages do not just discolour, they hollow out. `general.physicalDecay` picks how far that
+Later stages do not just discolor, they hollow out. `general.physicalDecay` picks how far that
 goes:
 
 - **`real`** (default) - ruts you can walk down into. The only mode where the ground you see and
@@ -418,9 +422,12 @@ shows every gradation of its wear in its face and none of it underfoot: a stair 
 shape and never has a height clamped onto it. Both are found by detection and both have their own
 per-family switch (`families.<name>.slabs`, `.stairs`).
 
-With **Chisel** installed, a layered block gets its carved shell lifted clear of the layer drawn
-inside it, so lavastone and waterstone do not flicker, and the liquid layer is painted into the
-worn texture rather than leaving a grey block full of holes.
+With **Chisel** installed, the liquid inside a layered block - the lava and water in lavastone and
+waterstone - is painted into the worn texture rather than leaving a grey block full of holes, on 1.7.10
+and 1.12.2, and the water is drawn through where the carving is open (`client.seeThroughInnerLayers`, on
+wherever Chisel is installed). On 1.7.10 the carved shell is also lifted a hair clear of the liquid, so
+the two do not flicker under a renderer that moves one and not the other. 1.12.2's Chisel draws the two
+as one model, which does not flicker, and Chisel for 1.16.5 has no lava or water stones.
 
 ## Healing
 
@@ -642,7 +649,7 @@ has a single level, and each costs a material to apply to a block and can be tak
 - **Spawn ward** - nothing spawns on a warded block. Hostiles and passives are barred separately,
   so a paddock can keep its animals and still refuse everything that comes out of the dark. The
   ward belongs to the block, so it holds exactly where it was put and nowhere else.
-- **Path light** - ground that glows, in graded levels and a chosen colour, without placing a
+- **Path light** - ground that glows, in graded levels and a chosen color, without placing a
   light source in the world.
 
 Waila, or Hwyla, reports all three - reinforcement and wards on any block, worn or not, and light on the worn
@@ -777,25 +784,25 @@ turning one on reaches people already playing, and turning it off and on again h
 
 ## Maps
 
-**Worn ground is coloured per position from the real block underneath**, rather than every modded
+**Worn ground is colored per position from the real block underneath**, rather than every modded
 dirt collapsing to one flat brown. Every edition does that, and they do it by completely different
 means - which decides what each one can and cannot offer.
 
-On **1.12.2 and 1.16.5** no map mod is named anywhere. A block is asked its colour with the position
+On **1.12.2 and 1.16.5** no map mod is named anywhere. A block is asked its color with the position
 in hand, so one override answers for every map at once: JourneyMap, Xaero's Minimap and anything
 else that reads the world all get the same answer, and a worn path travels from green to earth as it
 wears through because by then the square's appearance really is earth. There is nothing to switch off
 when a map mod changes its internals, and nothing to go stale.
 
-Those two editions also **darken a worn square**, to one colour. The palette a map draws with is
+Those two editions also **darken a worn square**, to one color. The palette a map draws with is
 sixty-four fixed entries, so there is no fraction to dim by - but an entry can be picked for being
 darker, and that is what `surfaces.mapWearDarkening` decides there: the nearest entry to the ground's
-own colour darkened by that much. Grass at `#7fb238` is drawn as `#392923`. A square that shows any
+own color darkened by that much. Grass at `#7fb238` is drawn as `#392923`. A square that shows any
 wear at all is drawn in it and does not darken further, so **a road is visible on the map and how
 worn it is is not**. Where a pack's ground has nothing darker in the palette worth picking it keeps
-its colour, and the log says so once, by name.
+its color, and the log says so once, by name.
 
-On **1.7.10** a block is asked its colour with nothing but a metadata value: a worn square cannot
+On **1.7.10** a block is asked its color with nothing but a metadata value: a worn square cannot
 tell which position is being asked about, and can answer only from the family its class stands for.
 So that edition carries three hundred and fifty-seven lines of reflection against JourneyMap's
 internals and a hundred and nineteen more against Xaero's to achieve the same paragraph - and in
@@ -804,7 +811,7 @@ of vanilla's sixty-four fixed palette entries.
 
 ### What 1.7.10 can do with that, and the later editions cannot
 
-With **JourneyMap** installed, two things happen to the colour:
+With **JourneyMap** installed, two things happen to the color:
 
 - it **travels toward what the ground is becoming**, in step with how far along its chain the
   square has walked, so a turf path leaves green and arrives at earth instead of the map calling a
@@ -816,29 +823,29 @@ the material it started as and the darkening a world-reading map gets through th
 it; the tint correction that stops a modded turf reading as a green stripe stays, because that is
 not wear. How far a fully worn square darkens is `surfaces.mapWearDarkening`, 0.62 by default,
 spread evenly over every gradation the ground has - about eight tenths of one per cent a step on a
-family with eighty of them. The later editions read the same figure and can only pick a colour with
+family with eighty of them. The later editions read the same figure and can only pick a color with
 it, as above.
 
 Optionally - `client.desirePathHighlight`, **off as shipped** - a worn square can also be pulled
-toward a colour that is not a material at all, so routes stand out on the minimap. At a half the
+toward a color that is not a material at all, so routes stand out on the minimap. At a half the
 material is still readable with the traffic laid over it; at one, worn ground is drawn entirely in
-the highlight colour. The default colour is a violet, chosen for being a colour no ground in any
-dimension is, and it stays separable for the common forms of colour blindness. It scales by the
+the highlight color. The default color is a violet, chosen for being a color no ground in any
+dimension is, and it stays separable for the common forms of color blindness. It scales by the
 square root of the wear rather than linearly, because the interesting case is a route somebody has
 just started using.
 
 All of it is reflective, so a JourneyMap that moves its internals falls back to the generic
-colouring rather than crashing, and it says once in the log when it is genuinely running.
+coloring rather than crashing, and it says once in the log when it is genuinely running.
 
-**Xaero's Minimap** has no colour hook of its own on 1.7.10: it reads the client's world and asks
+**Xaero's Minimap** has no color hook of its own on 1.7.10: it reads the client's world and asks
 each block for its tint. Worn ground answers that question with how far along its run it has
 come, so a road darkens on the map as it wears (`client.mapWearThroughTint`), and because this
 mod never sends a block packet - wear is painted into the client's own copy of the world - it
 tells Xaero's directly that a chunk has changed, or the map would keep the square it first drew
 for ever. Both are reflective and both switch themselves off if Xaero's has moved its internals.
-Xaero's asks in its *Accurate* block-colour mode, which is its default, and in *Vanilla* mode only
+Xaero's asks in its *Accurate* block-color mode, which is its default, and in *Vanilla* mode only
 when its own *Biomes in Vanilla Color Mode* is on as well. With both off it takes the block's map
-colour and hands it back without asking anything about the position, so a path then shows only
+color and hands it back without asking anything about the position, so a path then shows only
 where the ground has worn through into a different material.
 
 **The vanilla map item never shows wear, in any edition.** It is drawn from the server's own blocks,
@@ -846,12 +853,12 @@ and no worn square exists there: this mod paints them into each client's copy of
 nothing into the save. Minimaps read the client's world, which is why they show the path.
 
 **On 1.12.2 and 1.16.5, `client.desirePathHighlight` and `client.mapWearThroughTint` do nothing.**
-Both are fractions of a colour, and a palette entry cannot be dimmed by a fraction - there is no
+Both are fractions of a color, and a palette entry cannot be dimmed by a fraction - there is no
 violet to reach toward and no tint to withhold. They are left in the settings file so a pack can move
 between versions and find its edits where it left them, and the mod names any of them you have
 changed, once, as it loads.
 
-`/trmt mapcolour` lists what a map mod makes of every ghost on 1.7.10. On the later editions it tells
+`/trmt mapcolor` lists what a map mod makes of every ghost on 1.7.10. On the later editions it tells
 you what the square under your feet is drawn as, what the untouched ground beside it is drawn as, and
 what a worn square there reports once it is darkened - three answers, because a map item and a
 minimap are reading two different things.
@@ -864,7 +871,7 @@ capitalised. Everything below is true of either.
 
 If it is installed, looking at worn ground adds its gradation, how far it has come toward the next
 one, whether it is pinned, when it starts growing back, how deep it has sunk in sixteenths, and its
-path-light level and colour. Reinforcement and spawn wards show on any block they sit on, worn or not,
+path-light level and color. Reinforcement and spawn wards show on any block they sit on, worn or not,
 so a warded brick floor says so as plainly as a worn road: the level, whether it is blast-proof, and on
 ground that wears, how many times over it holds out against traffic. Those lines come from the server a
 moment after the crosshair lands, and go within a couple of seconds of being taken off. Nothing about
@@ -1003,7 +1010,7 @@ All require permission level 2.
                   [realdemo[=<w>x<l>]] [nogolems] [frozen] [warded[=h|p|h+p]] [reinforced[=0-3]]
                   [quick=<n>] [quicktp=<n>] [cleararea[=n]] [samearea[=x,z]]
                   [tight|nogap] [overwrite|force] [tp]
-/trmt mapcolour
+/trmt mapcolor
 ```
 
 - **`status`** - enabled, healing, the three speed dials, physical decay mode, how much is
@@ -1040,7 +1047,7 @@ All require permission level 2.
   working side by side, and the only difference between two pens is the part fitted. Re-running it
   kills the old golems and sweeps up what the old chests dropped rather than standing a second crew
   beside the first. `nogolems` leaves the pens out.
-- **`mapcolour`** (`mapcolor` also works) - lists the ghost blocks and what a map mod makes of
+- **`mapcolor`** (`mapcolor` also works) - lists the ghost blocks and what a map mod makes of
   each, which is how the "worn sand draws as flat grey on the minimap" class of bug gets caught.
 
 ## Pinning a position
@@ -1139,10 +1146,10 @@ wear table and the config screen.
 | Mod | What it adds |
 |---|---|
 | **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5) | the wear readout on the tooltip, and a golem provider |
-| **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map colouring and the desire-path highlight - *1.7.10; on 1.12.2 every map is served without naming it* |
+| **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map coloring and the desire-path highlight - *1.7.10; on 1.12.2 every map is served without naming it* |
 | **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | worn ground drawn darker as it wears, and the map told when a square changes - *1.7.10 only, same reason* |
-| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)** or **[Canvas](https://github.com/vram-guild/canvas)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material. Under OptiFabric it draws with the pack's default material instead - see [What you actually see](#what-you-actually-see) |
-| **[Chisel](https://github.com/Chisel-Team/Chisel)** | layered-block shell lift, and the liquid layer painted into worn textures |
+| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)**, **[Canvas](https://github.com/vram-guild/canvas)** or **[OptiFabric](https://github.com/Chocohead/OptiFabric)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material |
+| **[Chisel](https://github.com/Chisel-Team/Chisel)** | the liquid layer painted into worn textures and drawn through the carving's gaps (1.7.10, 1.12.2), and the layered-block shell lift (1.7.10) |
 | **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **[Amazing Trophies](https://github.com/GTNewHorizons/Amazing-Trophies)** | seven trophy definitions written into its own config folder |
 | **[BetterQuesting](https://github.com/Funwayguy/BetterQuesting)** | a chapter of up to seventeen quests, written additively into `DefaultQuests` |
@@ -1153,7 +1160,7 @@ wear table and the config screen.
 recipes; without it, plain recipes, a golem built from vanilla blocks, a Wayfarer that no longer
 prefers netherite and no quest chapter. It is not a switch for every companion mod: trophies answer
 to `integration.trophies` and the achievements, and the finds in generated chests, which need nothing
-a GregTech pack ships, answer to the `loot` settings, so both carry on with it off. The map colouring
+a GregTech pack ships, answer to the `loot` settings, so both carry on with it off. The map coloring
 and the tooltip readouts are not reached by it either, because they change no gameplay. Both
 `integration.gtnhEnhanced` and `integration.trophies` take their default from what is installed the
 first time the config file is written and keep it, so a mod added to a pack that has already run
@@ -1204,23 +1211,25 @@ Beyond being a port:
   before you choose.
 - **`/trmt demonstrate`** builds a complete exhibit of every detected surface, every look and
   every golem upgrade in the sky, for judging a change at a glance.
-- **Bytecode injection is limited to thirteen mixins on 1.7.10 and eight on 1.12.2.** On 1.7.10
+- **Bytecode injection is limited to fifteen mixins on 1.7.10 and eleven on 1.12.2.** On 1.7.10
   three of them run on a server: the collision hook and the one beside it, both live only under
   `physicalDecay = real` - the first gives worn ground its hollow, the second stops the game deciding
   that something lying in that hollow is buried in the floor and flinging it out - and a hook on a
   librarian's new trades, which keeps an unlock the pack has switched off from being offered for
-  sale. The other ten are client-side - grass tinting and its side overlay, sprite generation in the
+  sale. The other twelve are client-side - grass tinting and its side overlay, sprite generation in the
   one window where every block's pixels exist, sprite filtering, letting a generated sprite declare
   itself animated, stair metadata, settling on worn ground, shader-material inheritance, hearing the
-  blocks a server writes over painted ground, and a Chisel shell lift added only when Chisel is
-  present. On 1.12.2 there are eight, one of which runs on a server: the librarian hook; and
+  blocks a server writes over painted ground, a Chisel shell lift added only when Chisel is present, and
+  two on the atlas's stitcher, which time it and spare its search the parts of the atlas it already
+  knows are full. On 1.12.2 there are eleven, one of which runs on a server: the librarian hook; and
   client-side the arrival of blocks a server writes over painted ground, settling on worn ground and
   the snow faces it leaves open, two seats a ghost claims its shader material from - one for an
   Iris-family loader and one for OptiFine, each applied only where that loader is installed - and the
-  shade a whole worn square gives the corners beside it, in Forge's light pipeline and in vanilla's.
-  Ten of the other
-  edition's thirteen target `RenderBlocks`, which 1.8 deleted, and a baked model, a block override or
-  a Forge event does each of those jobs instead - the hollow under worn ground among them. Every
+  shade a whole worn square gives the corners beside it, in Forge's light pipeline and in vanilla's; the
+  count of what goes to the atlas's stitcher and the order the atlas loads its textures in; and the same
+  two on the stitcher. Ten of 1.7.10's fifteen target `RenderBlocks`, which 1.8 deleted, and a baked
+  model, a block override or a Forge event does each of those jobs instead - the hollow under worn
+  ground among them. Every
   server-side hook upstream mixes in for has a Forge event in the Forge editions, and a mixin of its
   own on Fabric.
 - **Brush-based sand recovery is removed** (there is no brush item in either version). The
@@ -1294,7 +1303,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **457 tests on 1.7.10, 448 on 1.12.2 and 476 on 1.16.5**, every one
+types in them and are unit tested - **474 tests on 1.7.10, 520 on 1.12.2 and 518 on 1.16.5**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 

@@ -317,7 +317,7 @@ final class PatternPreview {
      * has produced since 1.7.10. A {@code NativeImage} keeps its bytes in the order R, G, B, A, so
      * read back as an int on a little-endian machine it is ABGR: alpha and green sit where they sat
      * and red and blue have swapped. Handed an ARGB pixel it would draw a picture of exactly the
-     * right shape in the wrong colours, which reads as a tinting bug rather than as a channel order.
+     * right shape in the wrong colors, which reads as a tinting bug rather than as a channel order.
      *
      * <p>
      * A pixel at a time rather than through the image's own bulk copy, because there is not one that

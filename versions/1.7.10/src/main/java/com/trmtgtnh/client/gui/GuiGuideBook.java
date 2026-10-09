@@ -407,7 +407,7 @@ public class GuiGuideBook extends GuiScreen {
 
         super.drawScreen(mouseX, mouseY, partial);
 
-        // Gui.drawRect leaves the last colour it used on the GL state, and this screen ends on a
+        // Gui.drawRect leaves the last color it used on the GL state, and this screen ends on a
         // great many of them. Nothing here binds a texture so nothing here suffers, but whatever
         // draws next might, and putting it back costs one call.
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);

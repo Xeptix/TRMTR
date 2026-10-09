@@ -627,7 +627,7 @@ public final class QuestbookCompat {
         Quest pathLight = quest(17, "Lit From Below", 192, 96).icon(bookIcon(lessons.light()))
             .after(chunkTamper)
             .describe(
-                "Wayfinding makes ground glow, in any of sixteen colours. Click a lit square again to step the colour on, left-click to step it back, sneak and click to put it out.\n\n[note]Only worn ground can be lit - the glow comes from the ghost this mod paints over it, so wear the path before you light it. It is light to see by and nothing more: things still spawn on a lit road.[/note]")
+                "Wayfinding makes ground glow, in any of sixteen colors. Click a lit square again to step the color on, left-click to step it back, sneak and click to put it out.\n\n[note]Only worn ground can be lit - the glow comes from the ghost this mod paints over it, so wear the path before you light it. It is light to see by and nothing more: things still spawn on a lit road.[/note]")
             .retrieveEnchantedBook(lessons.light())
             .rewardBags(BAG_STEAM, 2);
         addIfReal(quests, pathLight);

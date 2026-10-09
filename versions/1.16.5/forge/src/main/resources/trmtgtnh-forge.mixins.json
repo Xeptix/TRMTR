@@ -6,9 +6,10 @@
   "refmap": "trmtgtnh-forge-refmap.json",
   "mixins": [
     "MixinChunkSerializer",
-    "MixinGhostMapColour",
+    "MixinGhostMapColor",
     "MixinLootArrivals",
     "MixinRecipeArrivals",
+    "MixinSnowRestsOnWornGround",
     "MixinWornCollision"
   ],
   "client": [
@@ -17,7 +18,12 @@
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",
     "MixinSettleOnWornGround",
-    "MixinSettledFaces"
+    "MixinSettledFaces",
+    "MixinStitcher",
+    "MixinStitcherRegion",
+    "MixinTextureAtlas",
+    "StitcherHolderSize",
+    "MixinWindowLight"
   ],
   "injectors": {
     "defaultRequire": 1

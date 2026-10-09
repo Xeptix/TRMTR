@@ -46,13 +46,33 @@ public final class GhostLayers {
      */
     public static RenderType of(int origin) {
         if (origin < 0) return RenderType.cutoutMipped();
+        // A window blends, whatever pass the block it covers draws in: the clause quoted above, {@code return clear
+        // || window ? 1 : 0}, whose window half was never carried until 0.9.220. Chisel's waterstone draws solid,
+        // and the solid pass writes the water in its holes opaque. See GhostWindows.
+        if (com.trmtgtnh.client.model.GhostWindows.windowOf(origin)) return RenderType.translucent();
         try {
             BlockState under = Block.stateById(origin);
-            RenderType layer = ItemBlockRenderTypes.getChunkRenderType(under);
+            RenderType layer = lookup.apply(under);
             return layer == null ? RenderType.cutoutMipped() : layer;
         } catch (RuntimeException awkwardBlock) {
             return RenderType.cutoutMipped();
         }
+    }
+
+    /**
+     * How the pass a block draws in is looked up: vanilla's chunk table unless a loader knows better.
+     *
+     * <p>
+     * Fabric's mods fill that table, through BlockRenderLayerMap, so it answers for them. Forge's do not - its
+     * setRenderLayer keeps a predicate per block that the table never reads - so on Forge it answered solid for every
+     * modded block, and a worn modded block with holes or see-through parts was drawn solid there and right on
+     * Fabric: two loaders disagreeing about one pack (found 2026-10-08). The Forge module hands its own lookup in.
+     */
+    private static volatile java.util.function.Function<BlockState, RenderType> lookup = ItemBlockRenderTypes::getChunkRenderType;
+
+    /** Replaces how a block's own pass is looked up; the Forge module's client setup calls it. */
+    public static void lookUpPassesWith(java.util.function.Function<BlockState, RenderType> how) {
+        if (how != null) lookup = how;
     }
 
     /** Whether the ghost offers itself to a pass at all, which on Forge is every pass it may need. */

@@ -140,6 +140,7 @@ public final class ConfigReload {
             textures = textures * 31 + (TrmtConfig.grassWearsThroughToDirt ? 1 : 0);
             textures = textures * 31 + (TrmtConfig.wearThroughToOtherSurfaces ? 1 : 0);
             textures = textures * 31 + TrmtConfig.maxWearSprites;
+            textures = textures * 31 + (TrmtConfig.largerAtlas ? 1 : 0);
             // The shape of a run decides what every gradation of every sprite looks like, so a
             // change to it is a whole new atlas even though not one sprite has been added or taken
             // away. Each look's own shape rides along with this and needs nothing of its own: it is

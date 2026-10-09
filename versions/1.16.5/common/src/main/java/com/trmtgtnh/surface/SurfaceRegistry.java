@@ -895,7 +895,7 @@ public final class SurfaceRegistry {
     // ------------------------------------------------------------------
 
     /**
-     * The distinct blocks worth generating colour-matched wear textures for.
+     * The distinct blocks worth generating color-matched wear textures for.
      *
      * <p>
      * The older editions claim all sixteen metadata values per block and narrow the list on the

@@ -50,9 +50,9 @@ public final class ChunkTamperActions {
             net.minecraft.Util.NIL_UUID);
     }
 
-    private static void tell(Player player, ChatFormatting colour, String message) {
+    private static void tell(Player player, ChatFormatting color, String message) {
         if (player != null) {
-            player.sendMessage(new TextComponent(colour + message), net.minecraft.Util.NIL_UUID);
+            player.sendMessage(new TextComponent(color + message), net.minecraft.Util.NIL_UUID);
         }
     }
 

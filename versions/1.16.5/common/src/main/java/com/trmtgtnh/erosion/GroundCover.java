@@ -104,7 +104,7 @@ public final class GroundCover {
         if (!TrmtConfig.enabled || !TrmtConfig.groundCoverBreaks) return;
         // Eighty gradations is the whole run and eight sunk pixels is the whole run, so waiting for
         // the ground to physically drop is a tenth as often - and it is the moment the plant
-        // visibly has nothing left to stand on. A gradation is a change of colour; a level is the
+        // visibly has nothing left to stand on. A gradation is a change of color; a level is the
         // ground going out from under it.
         if (TrmtConfig.groundCoverOnSink && !physical) return;
         if (!Dimensions.allowed(world)) return;

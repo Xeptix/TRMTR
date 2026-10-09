@@ -18,7 +18,7 @@ import com.trmtgtnh.Trmt;
  * The overlay is universal - grey and the same for every grass block, tinted per biome at render
  * time - so unlike a {@link WearSprite} there is nothing per-origin to bake and nothing to read
  * from another block's pixels. It is the vanilla texture with a fraction of its fringe cleared,
- * and it stays grey: the render pass that draws it multiplies in the biome colour, so tinting it
+ * and it stays grey: the render pass that draws it multiplies in the biome color, so tinting it
  * here would tint it twice.
  *
  * <p>

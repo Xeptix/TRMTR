@@ -197,7 +197,7 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
             RenderHelper.enableGUIStandardItemLighting();
 
             // Vanilla's shared renderer rather than one of our own: making a RenderItem
-            // here would mean handing it the model manager and the item colours, and
+            // here would mean handing it the model manager and the item colors, and
             // every screen in the game already draws through this one. Its zLevel is
             // shared mutable state, which is why it is put back below.
             RenderItem items = items();

@@ -229,7 +229,7 @@ public final class ModBlocks {
         // Untinted grass is excluded for the same reason it was included: by the time the tint
         // is off, what is showing is earth. It kept the inheritance and therefore kept the flag,
         // so a map painted it the flat grey it paints vanilla grass - except that grey is
-        // supposed to be multiplied by a biome colour, and an untinted ghost reports white. The
+        // supposed to be multiplied by a biome color, and an untinted ghost reports white. The
         // inheritance was buying it nothing anyway: MixinGrassTint returns early on exactly this
         // case, so no grass treatment was ever being claimed.
         boolean stillGreen = appearance == SurfaceFamily.GRASS && !untinted;

@@ -45,8 +45,20 @@ public final class AtlasPlan {
     /** The edge of one atlas slot, in pixels. The room is counted in these. */
     public static final int CELL = 16;
 
-    /** The largest square the atlas is planned to, whatever the card will address. */
+    /** The largest square the atlas is planned to, whatever the card will address, unless the player asks for more. */
     public static final int LARGEST_SIDE = 8192;
+
+    /**
+     * The largest it is planned to where the player has asked for more (client.largerAtlas) and the card reports it.
+     */
+    public static final int LARGER_SIDE = 16384;
+
+    /**
+     * The side planned to at most: {@link #LARGEST_SIDE}, or {@link #LARGER_SIDE} once the player's setting says so.
+     * Set
+     * from the settings as they are read, and read by the stitch.
+     */
+    private static volatile int ceiling = LARGEST_SIDE;
 
     /** The share of the square held back for the stitcher: one part in this many. */
     public static final int RESERVE_SHARE = 16;
@@ -516,13 +528,21 @@ public final class AtlasPlan {
      * not hold it: the allocation goes through {@code glTexImage2D} with no error check, so a
      * refusal is returned into nothing and every sample from the atlas comes back black - the whole
      * atlas, every block in the game, with not a word in the log. This mod does not ask for that
-     * texture.
+     * texture - unless the player has said, in client.largerAtlas, that their card can hold one: then
+     * a card reporting sixteen thousand is planned to that, and no further whatever it reports. Xep's
+     * choice on 2026-10-08, off by default, for a pack whose faces will not fit an 8192 square at the
+     * gradations asked for - Chisel for 1.12.2 drew every ramp at 62 of 80.
      *
      * <p>
-     * A card whose probe failed reports minus one, and is planned as 8192.
+     * A card whose probe failed reports minus one, and is planned as 8192 whatever the setting says.
      */
     public static int side(int glMaximum) {
-        return glMaximum <= 0 ? LARGEST_SIDE : Math.min(glMaximum, LARGEST_SIDE);
+        return glMaximum <= 0 ? LARGEST_SIDE : Math.min(glMaximum, ceiling);
+    }
+
+    /** Lets the atlas be planned past an 8192 square, to {@link #LARGER_SIDE}, or holds it there again. */
+    public static void allowLarger(boolean larger) {
+        ceiling = larger ? LARGER_SIDE : LARGEST_SIDE;
     }
 
     /** Slots in the square the atlas is planned to. */
@@ -891,6 +911,84 @@ public final class AtlasPlan {
      */
     public SetGate gate() {
         return new Gate(surfaceSetsKept, surfaceAppearancesKept, surfaceCellsKept);
+    }
+
+    /**
+     * What the stitcher's own search is spared, without moving a single sprite.
+     *
+     * <p>
+     * The stitcher - vanilla's, the same search from 1.7.10 to 1.16.5 - places each sprite by walking its tree of
+     * slots from the top, first fit, and never remembers that a part of the tree is already too full. It sorts the
+     * sprites largest first, so by the time the small ones arrive every search walks every part already filled,
+     * and the walk grows with the square of the number of sprites. Sprites of one size kept that tolerable; a pack
+     * of mixed sizes does not. Chisel for 1.12.2, whose faces are sixteen to sixty-four pixels and whose wear is
+     * drawn at each face's own size since 0.9.220, spent 165 seconds of a 211-second texture load inside that walk
+     * (sampled on the client thread, 2026-10-08), where 1.7.10's Chisel, all sixteen pixels, stitched more
+     * sprites in seconds.
+     *
+     * <p>
+     * A slot that has refused a sprite has no free room at least that wide and that tall for the rest of the
+     * stitch, because nothing in the search ever gives room back: a slot splits only for a sprite it takes, so a
+     * search that fails changes nothing, and a free slot is only ever split into smaller ones. So each slot keeps
+     * the last sprite it refused, and a search that reaches it with one at least as large both ways turns back at
+     * once, where vanilla's would have walked the whole of it to find the same nothing.
+     *
+     * <p>
+     * With one exception, which is vanilla's fault and which this does not copy. Vanilla's search lets a slot already
+     * split for smaller sprites take a sprite of exactly its own size, laid over them, and they are then lost from
+     * the atlas: a slot holding a sprite is never looked inside again. Sorted tallest first, no sprite can arrive at
+     * that size, but 1.7.10 and 1.12.2 also try a sprite that is not square on its side, and on its side it can.
+     * The shortcut, which has seen that slot refuse, searches on and puts it somewhere free. So every sprite lands
+     * where vanilla's search would put it, until vanilla would lay one over others; 1.16.5 turns nothing and never
+     * meets it, and a pack's sprites are nearly all square. AtlasPlanTest runs vanilla's search beside the shortcut
+     * and holds both halves of that, placement by placement.
+     */
+    public static final class Search {
+
+        /** What a slot holds before it has refused anything: no sprite is that large. */
+        public static final int NOTHING_REFUSED = Integer.MAX_VALUE;
+
+        /**
+         * Searches turned back since the last report. Counted without a lock, because it is counted at every slot
+         * a search is spared and the point of all this is speed; on 1.16.5, whose atlases stitch side by side, a
+         * count may be lost to a race, and the figure is for the log, not for anything that decides.
+         */
+        private static long spared;
+
+        private static int largestSprites;
+
+        private static long largestNanos;
+
+        private Search() {}
+
+        /** Whether a slot that refused a sprite of the first size must refuse one of the second. */
+        public static boolean stillRefuses(int refusedWidth, int refusedHeight, int width, int height) {
+            return width >= refusedWidth && height >= refusedHeight;
+        }
+
+        /** Counts one search turned back. */
+        public static void spare() {
+            spared++;
+        }
+
+        /**
+         * Notes a finished stitch, keeping the largest since the last report: the block atlas, which is the one
+         * the report is about, is by far the largest in every edition, and on 1.16.5 the others stitch beside it.
+         */
+        public static synchronized void stitched(int sprites, long nanos) {
+            if (sprites < largestSprites) return;
+            largestSprites = sprites;
+            largestNanos = nanos;
+        }
+
+        /** The largest stitch since the last call - its sprites and milliseconds - and the searches spared. */
+        public static synchronized long[] take() {
+            long[] report = { largestSprites, largestNanos / 1000000L, spared };
+            largestSprites = 0;
+            largestNanos = 0L;
+            spared = 0L;
+            return report;
+        }
     }
 
     private static final class Gate implements SetGate {

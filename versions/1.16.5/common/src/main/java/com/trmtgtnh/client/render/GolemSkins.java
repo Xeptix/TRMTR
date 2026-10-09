@@ -29,7 +29,7 @@ public final class GolemSkins {
      * <p>
      * The count is the generator's, and the two have to agree - it writes exactly this many numbered
      * frames and this asks for them by number. Three ticks a step puts a full turn at a second and a
-     * half, which reads as a colour moving; at one tick it reads as a colour flickering, which is a
+     * half, which reads as a color moving; at one tick it reads as a color flickering, which is a
      * different and much worse thing to have on a golem.
      */
     private static final int OMNI_FRAMES = 10;

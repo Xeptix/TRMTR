@@ -106,11 +106,11 @@ public final class FaceRules {
     /**
      * Whether grass worn through to its earth has no earth to show, so vanilla's is laid in its place. A turf block
      * whose every face is one greyscale texture is not a green thing on a brown thing; it is a grey mask that only
-     * becomes a colour once the biome tint runs through it, and revealing it once the tint has been dropped turns the
+     * becomes a color once the biome tint runs through it, and revealing it once the tint has been dropped turns the
      * ground grey the moment it starts to sink.
      */
-    public static boolean standsInForEarth(boolean cover, boolean revealsEarth, boolean undersideColourless) {
-        return !cover && revealsEarth && undersideColourless;
+    public static boolean standsInForEarth(boolean cover, boolean revealsEarth, boolean undersideColorless) {
+        return !cover && revealsEarth && undersideColorless;
     }
 
     /**
@@ -121,14 +121,14 @@ public final class FaceRules {
     }
 
     /**
-     * True when every pixel is a shade of grey, so the texture carries no colour of its own.
+     * True when every pixel is a shade of grey, so the texture carries no color of its own.
      *
      * <p>
      * The signal that a texture is meant to be tinted rather than looked at. Vanilla's grass is drawn this way and so
      * are the mods that copy it, which is exactly the set of blocks whose "earth" is not earth at all. Fully
-     * transparent pixels are ignored: an alpha of zero has no colour to disagree about.
+     * transparent pixels are ignored: an alpha of zero has no color to disagree about.
      */
-    public static boolean isColourless(int[] pixels) {
+    public static boolean isColorless(int[] pixels) {
         if (pixels == null || pixels.length == 0) return false;
         boolean sawAnything = false;
         for (int argb : pixels) {

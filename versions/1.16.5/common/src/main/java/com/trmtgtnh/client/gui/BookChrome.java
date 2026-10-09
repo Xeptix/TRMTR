@@ -16,7 +16,7 @@ import net.minecraft.client.gui.GuiComponent;
  * <p>
  * Nothing here ships a texture. It is all rectangles, which means there is no atlas to stitch, no
  * PNG for a resource pack to get wrong, and no texture bound at any point while the book draws -
- * so the leftover colour that {@link GuiComponent#drawRect} always leaves on the GL state cannot tint
+ * so the leftover color that {@link GuiComponent#drawRect} always leaves on the GL state cannot tint
  * anything.
  *
  * <p>
@@ -134,7 +134,7 @@ public final class BookChrome {
     public static final int PARCH_EDGE = 0xFFB39F79;
 
     /**
-     * The one colour every shadow on the paper is mixed from.
+     * The one color every shadow on the paper is mixed from.
      *
      * <p>
      * It has to be this much darker than the parchment to be worth drawing at all. An earlier
@@ -361,10 +361,10 @@ public final class BookChrome {
     }
 
     /** A five row lozenge, centred on cx and occupying rows top to top + 4. */
-    public static void diamond(com.mojang.blaze3d.vertex.PoseStack pose, int cx, int top, int colour) {
+    public static void diamond(com.mojang.blaze3d.vertex.PoseStack pose, int cx, int top, int color) {
         for (int i = 0; i < 5; i++) {
             int half = i < 3 ? i : 4 - i;
-            GuiComponent.fill(pose, cx - half, top + i, cx + half + 1, top + i + 1, colour);
+            GuiComponent.fill(pose, cx - half, top + i, cx + half + 1, top + i + 1, color);
         }
     }
 
@@ -372,11 +372,11 @@ public final class BookChrome {
      * A four by five arrow head occupying x to x + 3 and rows y to y + 4, whichever way it points.
      * Two pixels thick, or it vanishes against the parchment.
      */
-    public static void chevron(com.mojang.blaze3d.vertex.PoseStack pose, int x, int y, boolean pointLeft, int colour) {
+    public static void chevron(com.mojang.blaze3d.vertex.PoseStack pose, int x, int y, boolean pointLeft, int color) {
         for (int i = 0; i < 5; i++) {
             int dx = i < 3 ? 2 - i : i - 2;
             if (!pointLeft) dx = 2 - dx;
-            GuiComponent.fill(pose, x + dx, y + i, x + dx + 2, y + i + 1, colour);
+            GuiComponent.fill(pose, x + dx, y + i, x + dx + 2, y + i + 1, color);
         }
     }
 
@@ -389,18 +389,18 @@ public final class BookChrome {
      * look like the layout failed. The two share one slot, one height and one optical line, so
      * turning between them does not move anything.
      */
-    public static void mark(com.mojang.blaze3d.vertex.PoseStack pose, int cx, int top, boolean continues, int colour) {
-        GuiComponent.fill(pose, cx - 22, top + 2, cx - 6, top + 3, colour);
-        GuiComponent.fill(pose, cx + 7, top + 2, cx + 23, top + 3, colour);
-        if (continues) chevron(pose, cx - 2, top, false, colour);
-        else diamond(pose, cx, top, colour);
+    public static void mark(com.mojang.blaze3d.vertex.PoseStack pose, int cx, int top, boolean continues, int color) {
+        GuiComponent.fill(pose, cx - 22, top + 2, cx - 6, top + 3, color);
+        GuiComponent.fill(pose, cx + 7, top + 2, cx + 23, top + 3, color);
+        if (continues) chevron(pose, cx - 2, top, false, color);
+        else diamond(pose, cx, top, color);
     }
 
     /** A five by three triangle, for the two marks that say the contents list has more to it. */
-    public static void arrow(com.mojang.blaze3d.vertex.PoseStack pose, int cx, int y, boolean up, int colour) {
+    public static void arrow(com.mojang.blaze3d.vertex.PoseStack pose, int cx, int y, boolean up, int color) {
         for (int i = 0; i < 3; i++) {
             int row = up ? y + i : y + 2 - i;
-            GuiComponent.fill(pose, cx - i, row, cx + i + 1, row + 1, colour);
+            GuiComponent.fill(pose, cx - i, row, cx + i + 1, row + 1, color);
         }
     }
 
@@ -411,8 +411,8 @@ public final class BookChrome {
      * The font has no bold, so this is the same trick vanilla's own bold formatting uses - the
      * string struck twice, one pixel apart.
      */
-    public static void bold(com.mojang.blaze3d.vertex.PoseStack pose, Font font, String text, int x, int y, int colour) {
-        font.draw(pose, text, x, y, colour);
-        font.draw(pose, text, x + 1, y, colour);
+    public static void bold(com.mojang.blaze3d.vertex.PoseStack pose, Font font, String text, int x, int y, int color) {
+        font.draw(pose, text, x, y, color);
+        font.draw(pose, text, x + 1, y, color);
     }
 }

@@ -2,16 +2,23 @@ package com.trmtgtnh.fabric.mixin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.profiling.ProfilerFiller;
 
 import com.trmtgtnh.client.texture.WearTextures;
 
@@ -34,6 +41,14 @@ import com.trmtgtnh.client.texture.WearTextures;
  *
  * <p>
  * Only the block atlas: the game builds several, and none of the others is this mod's business.
+ *
+ * <p>
+ * Since 0.9.220 it also measures the atlas before anything is planned, and counts what goes to the
+ * stitcher - the 1.7.10 edition's two injections of those names, which this edition had carried
+ * the reporting half of and never called. The measure rides with the naming, which stays required
+ * because without it there is no wear at all. The count is {@code require = 0}, as there: a mod
+ * that has rewritten this method should cost that line, not the game, and the end of the stitch
+ * says when it did not run.
  */
 @Mixin(TextureAtlas.class)
 public abstract class MixinTextureAtlas {
@@ -56,6 +71,13 @@ public abstract class MixinTextureAtlas {
     private Stream<ResourceLocation> trmt$nameWearSprites(Stream<ResourceLocation> names) {
         if (!trmt$isBlockAtlas()) return names;
 
+        // Gathered first, so the atlas can be measured from every texture the models want before
+        // anything is planned - the 1.7.10 edition's MixinTextureMap.trmt$noteAtlasRoom, an injection
+        // of its own there; here the planner needs the same moment. The stream can be read only once,
+        // and the stitch reads it again.
+        List<ResourceLocation> wanted = names.collect(Collectors.toList());
+        WearTextures.measureAtlas(wanted);
+
         final List<ResourceLocation> ours = new ArrayList<ResourceLocation>();
         WearTextures.beginStitch(new WearTextures.Registrar() {
 
@@ -64,7 +86,48 @@ public abstract class MixinTextureAtlas {
                 ours.add(name);
             }
         });
-        return Stream.concat(names, ours.stream());
+        return Stream.concat(wanted.stream(), ours.stream());
+    }
+
+    /** Every description the block atlas hands its stitcher during the current stitch. */
+    @Unique
+    private List<TextureAtlasSprite.Info> trmt$stitched;
+
+    /**
+     * Notes every sprite description as the atlas hands it to the stitcher, missingno with them -
+     * both of the method's calls to {@code registerSprite}, because the second is missingno's.
+     */
+    @ModifyArg(
+        require = 0,
+        method = "prepareToStitch",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/texture/Stitcher;registerSprite(Lnet/minecraft/client/renderer/texture/TextureAtlasSprite$Info;)V"))
+    private TextureAtlasSprite.Info trmt$noteStitchedSprite(TextureAtlasSprite.Info info) {
+        if (trmt$isBlockAtlas()) {
+            if (trmt$stitched == null) trmt$stitched = new ArrayList<TextureAtlasSprite.Info>();
+            trmt$stitched.add(info);
+        }
+        return info;
+    }
+
+    /**
+     * Says what went to the stitcher against what the plan priced, as the stitch begins - the
+     * 1.7.10 edition's MixinTextureMap.trmt$countStitchedSprites. At the mipmap levels the stitcher
+     * was built with, which is this method's own argument: vanilla may then load the sprites at
+     * fewer, but the stitcher has already rounded every size at these.
+     */
+    @Inject(
+        require = 0,
+        method = "prepareToStitch",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/texture/Stitcher;stitch()V"))
+    private void trmt$countStitchedSprites(ResourceManager manager, Stream<ResourceLocation> names,
+        ProfilerFiller profiler, int mipLevel, CallbackInfoReturnable<TextureAtlas.Preparations> callback) {
+        if (!trmt$isBlockAtlas()) return;
+        List<TextureAtlasSprite.Info> stitched = trmt$stitched;
+        trmt$stitched = null;
+        WearTextures.noteStitched(
+            stitched == null ? new ArrayList<TextureAtlasSprite.Info>() : stitched, mipLevel);
     }
 
     /** Resolves those names into the atlas's own sprites, now that there are some. */

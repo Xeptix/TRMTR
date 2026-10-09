@@ -68,7 +68,7 @@ public final class ModPotions {
      * @param configKey the setting that pins it, which is spelled differently and has to be quoted
      *                  exactly - a log line naming a key that does not exist is worse than none
      */
-    private static Potion claim(String key, String configKey, int configured, boolean bad, int colour, int iconColumn,
+    private static Potion claim(String key, String configKey, int configured, boolean bad, int color, int iconColumn,
         int iconRow) {
         int width = Potion.potionTypes.length;
         int id = configured >= 0 ? configured : firstFreeId(width);
@@ -90,7 +90,7 @@ public final class ModPotions {
                 new Object[] { Integer.valueOf(id), Potion.potionTypes[id].getName(), key });
             return null;
         }
-        Potion potion = new Draught(id, bad, colour).setPotionName("potion." + Trmt.MODID + "." + key);
+        Potion potion = new Draught(id, bad, color).setPotionName("potion." + Trmt.MODID + "." + key);
         ((Draught) potion).icon(iconColumn, iconRow);
         Trmt.LOG.info(
             "Registered the {} effect at potion id {}, in an array {} wide",
@@ -272,11 +272,11 @@ public final class ModPotions {
         }
     }
 
-    /** Nothing but a name, a colour and a borrowed icon; all the behaviour is asked for elsewhere. */
+    /** Nothing but a name, a color and a borrowed icon; all the behaviour is asked for elsewhere. */
     private static final class Draught extends Potion {
 
-        private Draught(int id, boolean bad, int colour) {
-            super(id, bad, colour);
+        private Draught(int id, boolean bad, int color) {
+            super(id, bad, color);
         }
 
         private void icon(int column, int row) {

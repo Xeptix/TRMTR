@@ -55,6 +55,9 @@ public final class UpdateNotice {
     /** The sentence, with its four places, in case a language file has none or the wrong number of them. */
     private static final String FALLBACK = "%s is out - this world is running %s. Get it from %s or %s.";
 
+    /** The known-issues sentence, the same way. */
+    private static final String BAD_FALLBACK = "This world is running %s, which has known issues - %s is the build to use. Get it from %s or %s.";
+
     /** Who has been told since they last joined, so an answer arriving late tells each of them once. */
     private static final Set<UUID> TOLD = new HashSet<UUID>();
 
@@ -117,9 +120,13 @@ public final class UpdateNotice {
         if (answer == null || answer.newer == null) return;
         if (TOLD.contains(player.getUniqueID()) || !canUpdate(player)) return;
         TOLD.add(player.getUniqueID());
-        IChatComponent said = line(answer.newer, answer.running);
+        IChatComponent said = line(answer.newer, answer.running, answer.bad);
         player.addChatMessage(said);
-        Trmt.LOG.info("Update notice: told {} that {} is out", player.getCommandSenderName(), answer.newer);
+        Trmt.LOG.info(
+            answer.bad ? "Update notice: told {} that this build has known issues, and {} is the one to use"
+                : "Update notice: told {} that {} is out",
+            player.getCommandSenderName(),
+            answer.newer);
         // Under the test address, the line as it was sent, so a run can read where both links go
         // without anybody clicking them.
         if (System.getProperty(UpdateCheck.TEST_ADDRESS) != null) {
@@ -145,10 +152,20 @@ public final class UpdateNotice {
 
     /** The line: the mod's mark, the sentence, and the two links in their places. */
     static IChatComponent line(String newer, String running) {
-        String[] pieces = UpdateCheck.pieces(StatCollector.translateToLocal("trmtgtnh.update.available"));
-        if (pieces == null) pieces = UpdateCheck.pieces(FALLBACK);
+        return line(newer, running, false);
+    }
+
+    /**
+     * The line, or - for a build marked bad (Xep, 2026-10-08) - the known-issues line: the running build first, then
+     * the one to use, which may be older.
+     */
+    static IChatComponent line(String newer, String running, boolean bad) {
+        String[] pieces = UpdateCheck
+            .pieces(StatCollector.translateToLocal(bad ? "trmtgtnh.update.bad" : "trmtgtnh.update.available"));
+        if (pieces == null) pieces = UpdateCheck.pieces(bad ? BAD_FALLBACK : FALLBACK);
         IChatComponent root = Notices.line("", null, true);
-        root.appendSibling(words(pieces[0] + newer + pieces[1] + running + pieces[2]));
+        root.appendSibling(
+            words(pieces[0] + (bad ? running : newer) + pieces[1] + (bad ? newer : running) + pieces[2]));
         root.appendSibling(link("CurseForge", UpdateCheck.CURSEFORGE));
         root.appendSibling(words(pieces[3]));
         root.appendSibling(link("Modrinth", UpdateCheck.MODRINTH));

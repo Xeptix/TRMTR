@@ -16,7 +16,10 @@
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
     "MixinSettleOnWornGround",
-    "MixinSettledSnowFaces"
+    "MixinSettledSnowFaces",
+    "MixinStitcher",
+    "MixinStitcherSlot",
+    "MixinTextureMap"
   ],
   "server": []
 }

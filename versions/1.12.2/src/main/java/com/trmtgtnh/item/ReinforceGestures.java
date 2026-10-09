@@ -247,7 +247,7 @@ public final class ReinforceGestures {
             .markModified(world, chunkX, chunkZ);
     }
 
-    private static void say(EntityPlayer player, TextFormatting colour, String message) {
-        if (player != null) player.sendMessage(new TextComponentString(colour + message));
+    private static void say(EntityPlayer player, TextFormatting color, String message) {
+        if (player != null) player.sendMessage(new TextComponentString(color + message));
     }
 }

@@ -261,8 +261,8 @@ public class PacketPushConfig implements IMessage {
             }
         }
 
-        private static void say(EntityPlayerMP player, TextFormatting colour, String message) {
-            player.sendMessage(new TextComponentString(colour + message));
+        private static void say(EntityPlayerMP player, TextFormatting color, String message) {
+            player.sendMessage(new TextComponentString(color + message));
         }
     }
 }

@@ -324,7 +324,7 @@ public final class FamilySettings {
             // What was measured is that none of them collapses. Every look here draws eighty
             // distinct pictures of eighty on its own family's face at all four rotations, and
             // sixteen of sixteen at the config minimum, with the smallest step between neighbouring
-            // gradations between a quarter and eight tenths of a colour level.
+            // gradations between a quarter and eight tenths of a color level.
             case GRASS:
                 // Grass loses its cover rather than its substance, so it never sinks on its own;
                 // the hollowing out happens once the chain carries on into the earth underneath.
@@ -695,7 +695,7 @@ public final class FamilySettings {
             settings.maxSinkPixels,
             0,
             com.trmtgtnh.erosion.SinkProfile.MAX_SINK_PIXELS,
-            "How far this family's most worn stage physically sinks, in sixteenths of a block. 0 means it only ever discolours, unless it wears through into another surface: then it sinks as deep as the first of those, with that surface's layersPerDepth, which is how grass gets its rut. Whether that sinking is something you can walk down into or only something you can see is set by physicalDecay in the general category.");
+            "How far this family's most worn stage physically sinks, in sixteenths of a block. 0 means it only ever discolors, unless it wears through into another surface: then it sinks as deep as the first of those, with that surface's layersPerDepth, which is how grass gets its rut. Whether that sinking is something you can walk down into or only something you can see is set by physicalDecay in the general category.");
         // Retired. Where a family starts to sink is decided by its stages: a run lays that many
         // gradations on the face first and every step after them sinks. So this fraction had nothing
         // left to move - it was read, sent to visiting clients and counted as a change, and nothing

@@ -215,7 +215,7 @@ public final class OverlayPainter {
             .put(chunkX, chunkZ, overlay.copyWithOrigins(origins));
 
         // Told outside the test below, deliberately. A position can move along its chain and want
-        // the very same ghost at the very same metadata, so nothing is touched and the colour a map
+        // the very same ghost at the very same metadata, so nothing is touched and the color a map
         // works out from the record still moves - which is exactly the sub-step this exists to show.
         com.trmtgtnh.client.xaero.XaeroMinimap.chunkChangedAt(world, chunkX, chunkZ);
 

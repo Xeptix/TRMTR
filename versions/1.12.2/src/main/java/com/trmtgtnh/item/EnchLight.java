@@ -14,7 +14,7 @@ import com.trmtgtnh.config.TrmtConfig;
  * {@link TamperEnchantment} for why there is one of those rather than three copies of it.
  *
  * <p>
- * Wayfinding mode lets a tamper light a square of worn ground in one of sixteen colours. The enchantment
+ * Wayfinding mode lets a tamper light a square of worn ground in one of sixteen colors. The enchantment
  * only unlocks the mode; the gestures and their cost live in {@link LightGestures}, and the glow itself in
  * {@code GhostLight} and the ghost it is asked of.
  */

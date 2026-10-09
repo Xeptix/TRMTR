@@ -75,7 +75,7 @@ public class GuiWearEditor extends GuiScreen {
 
     /**
      * The shape of each family's run as this screen has it: a length of 0, and a depth or ceiling of
-     * -1, mean untouched. A depth of 0 is a real figure - ground that only discolours - which is why
+     * -1, mean untouched. A depth of 0 is a real figure - ground that only discolors - which is why
      * the depth's untouched mark sits below it.
      *
      * <p>
@@ -412,7 +412,7 @@ public class GuiWearEditor extends GuiScreen {
      * How deep this family's own run goes, staged or not, and never a depth it borrows.
      *
      * <p>
-     * A staged nought counts. It is ground that only discolours, and a real figure somebody typed;
+     * A staged nought counts. It is ground that only discolors, and a real figure somebody typed;
      * reading it as untouched was how a depth of nought used to publish the old depth instead.
      */
     private int ownDepth(SurfaceFamily family) {
@@ -672,17 +672,17 @@ public class GuiWearEditor extends GuiScreen {
         drawRect(box[0], box[1], box[2], box[3], over ? 0xFF6A6A7A : 0xFF3A3A46);
         drawRect(box[0] + 1, box[1] + 1, box[2] - 1, box[3] - 1, over ? 0xFF505062 : 0xFF26262E);
 
-        int colour = over ? 0xFFFFFFFF : 0xFFB8B8C4;
+        int color = over ? 0xFFFFFFFF : 0xFFB8B8C4;
         int x = box[0];
         int y = box[1];
         if (paused) {
             // A wedge, stepped rather than drawn, which is what eleven pixels allows.
-            drawRect(x + 4, y + 3, x + 5, y + 8, colour);
-            drawRect(x + 5, y + 4, x + 6, y + 7, colour);
-            drawRect(x + 6, y + 5, x + 7, y + 6, colour);
+            drawRect(x + 4, y + 3, x + 5, y + 8, color);
+            drawRect(x + 5, y + 4, x + 6, y + 7, color);
+            drawRect(x + 6, y + 5, x + 7, y + 6, color);
         } else {
-            drawRect(x + 3, y + 3, x + 5, y + 8, colour);
-            drawRect(x + 6, y + 3, x + 8, y + 8, colour);
+            drawRect(x + 3, y + 3, x + 5, y + 8, color);
+            drawRect(x + 6, y + 3, x + 8, y + 8, color);
         }
 
         java.util.List<String> tip = new ArrayList<String>();
@@ -707,13 +707,13 @@ public class GuiWearEditor extends GuiScreen {
         drawRect(box[0], box[1], box[2], box[3], on ? 0xFF6A6A7A : 0xFF3A3A46);
         drawRect(box[0] + 1, box[1] + 1, box[2] - 1, box[3] - 1, on ? 0xFF505062 : 0xFF26262E);
 
-        int colour = stock ? 0xFF6AD46A : on ? 0xFFFFFFFF : 0xFFB8B8C4;
+        int color = stock ? 0xFF6AD46A : on ? 0xFFFFFFFF : 0xFFB8B8C4;
         int x = box[0];
         int y = box[1];
-        drawRect(x + 3, y + 3, x + 4, y + 8, colour);
-        drawRect(x + 5, y + 5, x + 6, y + 6, colour);
-        drawRect(x + 6, y + 4, x + 7, y + 7, colour);
-        drawRect(x + 7, y + 3, x + 8, y + 8, colour);
+        drawRect(x + 3, y + 3, x + 4, y + 8, color);
+        drawRect(x + 5, y + 5, x + 6, y + 6, color);
+        drawRect(x + 6, y + 4, x + 7, y + 7, color);
+        drawRect(x + 7, y + 3, x + 8, y + 8, color);
 
         java.util.List<String> tip = new ArrayList<String>();
         tip.add(StatCollector.translateToLocal("trmtgtnh.weartable.cycle.stock"));
@@ -873,10 +873,10 @@ public class GuiWearEditor extends GuiScreen {
         for (int i = 0; i < 5; i++) {
             int y = t + 108 + i * 12;
             boolean readOnly = i > 0 && healBorrowedWholly(fam, i);
-            int colour = readOnly ? 0xFF808080 : 0xFFFFFF;
+            int color = readOnly ? 0xFF808080 : 0xFFFFFF;
             drawString(fontRendererObj, labels[i], cl, y, 0x8C8CA0);
             double days = i == 0 ? row.healDaysPerPhase : row.healDays[i - 1];
-            drawString(fontRendererObj, DurationFormat.format(days), cl + 56, y, colour);
+            drawString(fontRendererObj, DurationFormat.format(days), cl + 56, y, color);
             if (editKind == KIND_HEAL && editSlot == i) {
                 drawRect(cl + 52, y - 2, cr, y + 9, 0x206AD46A);
             }
@@ -897,18 +897,18 @@ public class GuiWearEditor extends GuiScreen {
         int vw = fontRendererObj.getStringWidth(value);
         if (!Double.isNaN(delta) && Math.abs(delta) >= 0.5d) {
             String tag = (delta > 0 ? "+" : "-") + GuiWearTable.compact(Math.abs(delta));
-            int colour = delta > 0 ? 0xFF6AD46A : 0xFFE0605A;
+            int color = delta > 0 ? 0xFF6AD46A : 0xFFE0605A;
             int tw = fontRendererObj.getStringWidth(tag);
-            drawString(fontRendererObj, tag, rightX - vw - 3 - tw, y, colour);
+            drawString(fontRendererObj, tag, rightX - vw - 3 - tw, y, color);
         }
         drawString(fontRendererObj, value, rightX - vw, y, bound ? 0xFF6AD46A : 0xFFFFFF);
     }
 
-    private void outline(int x1, int y1, int x2, int y2, int colour) {
-        drawRect(x1, y1, x2, y1 + 1, colour);
-        drawRect(x1, y2 - 1, x2, y2, colour);
-        drawRect(x1, y1, x1 + 1, y2, colour);
-        drawRect(x2 - 1, y1, x2, y2, colour);
+    private void outline(int x1, int y1, int x2, int y2, int color) {
+        drawRect(x1, y1, x2, y1 + 1, color);
+        drawRect(x1, y2 - 1, x2, y2, color);
+        drawRect(x1, y1, x1 + 1, y2, color);
+        drawRect(x2 - 1, y1, x2, y2, color);
     }
 
     /**
@@ -968,10 +968,10 @@ public class GuiWearEditor extends GuiScreen {
         addHover(box[0], box[1], box[2], box[3], text);
     }
 
-    /** A sentence broken to a tooltip's width, every line in one colour. */
-    private List<String> wrapped(String colour, String text) {
+    /** A sentence broken to a tooltip's width, every line in one color. */
+    private List<String> wrapped(String color, String text) {
         List<String> lines = new ArrayList<String>();
-        for (String line : fontRendererObj.listFormattedStringToWidth(text, 220)) lines.add(colour + line);
+        for (String line : fontRendererObj.listFormattedStringToWidth(text, 220)) lines.add(color + line);
         return lines;
     }
 
@@ -1768,8 +1768,8 @@ public class GuiWearEditor extends GuiScreen {
      * Draws one of the header's three figures and remembers where it went.
      *
      * <p>
-     * Coloured like every other staged value on this screen - the ordinary grey until somebody has
-     * typed over it, and then the colour that says the number on the screen is not yet the number
+     * Colored like every other staged value on this screen - the ordinary grey until somebody has
+     * typed over it, and then the color that says the number on the screen is not yet the number
      * on the server.
      *
      * @return where the next figure should start
@@ -2220,7 +2220,7 @@ public class GuiWearEditor extends GuiScreen {
             // brightest of all rather than one of the two washes hiding the other. Plain white for
             // the cursor and the violet for the choice, which is the difference worth keeping: one
             // says where the mouse is and the other says what this family is actually set to, and a
-            // picker that told you those in the same colour would be answering the wrong question.
+            // picker that told you those in the same color would be answering the wrong question.
             if (under) drawRect(cl + 2, y - 1, cl + LOOK_WIDTH - 2, y + row - 3, 0x22FFFFFF);
             if (chosen) drawRect(cl + 2, y - 1, cl + LOOK_WIDTH - 2, y + row - 3, 0x30E0D0FF);
             int label = chosen ? 0xE0D0FF : 0xB8B8C4;
@@ -2245,7 +2245,7 @@ public class GuiWearEditor extends GuiScreen {
         GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
-    /** The colour a block multiplies its own texture by, or plain white when it does not. */
+    /** The color a block multiplies its own texture by, or plain white when it does not. */
     private static int tintOf(ItemStack shown) {
         if (shown == null) return 0xFFFFFF;
         net.minecraft.block.Block block = net.minecraft.block.Block.getBlockFromItem(shown.getItem());

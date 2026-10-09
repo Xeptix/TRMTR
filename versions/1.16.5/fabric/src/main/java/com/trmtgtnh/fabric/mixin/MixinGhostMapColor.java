@@ -17,7 +17,7 @@ import com.trmtgtnh.block.BlockGhost;
  * Makes a worn square paint on a map as the ground it stands in for.
  *
  * <p>
- * See {@link BlockGhost#mapColourAt}, which holds the decision, and the Forge module's copy of this
+ * See {@link BlockGhost#mapColorAt}, which holds the decision, and the Forge module's copy of this
  * injection, which carries the argument for why a mixin is the only place both loaders have. The
  * guard is on the block, so every other block in the world pays one {@code instanceof}.
  *
@@ -26,7 +26,7 @@ import com.trmtgtnh.block.BlockGhost;
  * the pack is the kind of wrongness a player reports as a bug in the minimap.
  */
 @Mixin(BlockBehaviour.BlockStateBase.class)
-public abstract class MixinGhostMapColour {
+public abstract class MixinGhostMapColor {
 
     @Inject(
         method = "getMapColor(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)"
@@ -37,7 +37,7 @@ public abstract class MixinGhostMapColour {
         CallbackInfoReturnable<MaterialColor> callback) {
         BlockState state = (BlockState) (Object) this;
         if (!(state.getBlock() instanceof BlockGhost)) return;
-        MaterialColor own = BlockGhost.mapColourAt(state, level, pos);
+        MaterialColor own = BlockGhost.mapColorAt(state, level, pos);
         if (own != null) callback.setReturnValue(own);
     }
 }

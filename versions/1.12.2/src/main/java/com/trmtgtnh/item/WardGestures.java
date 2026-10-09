@@ -175,7 +175,7 @@ public final class WardGestures {
         return I18n.translateToLocal(key);
     }
 
-    private static void say(EntityPlayer player, TextFormatting colour, String message) {
-        if (player != null) player.sendMessage(new TextComponentString(colour + message));
+    private static void say(EntityPlayer player, TextFormatting color, String message) {
+        if (player != null) player.sendMessage(new TextComponentString(color + message));
     }
 }

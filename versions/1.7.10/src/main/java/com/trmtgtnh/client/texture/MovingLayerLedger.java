@@ -32,7 +32,7 @@ import java.util.Set;
  */
 public final class MovingLayerLedger {
 
-    /** Bytes in one pixel of a picture as the game holds it: one int of packed colour. */
+    /** Bytes in one pixel of a picture as the game holds it: one int of packed color. */
     public static final int BYTES_PER_PIXEL = 4;
 
     /** Bytes in the kibibyte the log counts in. */

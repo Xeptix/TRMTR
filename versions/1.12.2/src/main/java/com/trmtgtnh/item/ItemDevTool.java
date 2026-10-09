@@ -143,8 +143,8 @@ public class ItemDevTool extends Item implements AirSwingTool {
         return false;
     }
 
-    private static void say(EntityPlayer player, TextFormatting colour, String message) {
-        if (player != null) player.sendMessage(new TextComponentString(colour + message));
+    private static void say(EntityPlayer player, TextFormatting color, String message) {
+        if (player != null) player.sendMessage(new TextComponentString(color + message));
     }
 
     /** See {@link ItemTamper#addInformation} for why this one says which side it is on. */

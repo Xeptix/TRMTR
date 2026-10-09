@@ -57,7 +57,7 @@ public final class GhostLight {
         return Trmt.proxy.clientLightLevel(x, y, z);
     }
 
-    /** The whole packed byte - level and colour - which only the renderer wants. */
+    /** The whole packed byte - level and color - which only the renderer wants. */
     public static int packedAt(IBlockAccess access, int x, int y, int z) {
         if (!anythingLit || !TrmtConfig.lightEnabled) return 0;
         if (access instanceof World && !((World) access).isRemote) {
@@ -76,24 +76,24 @@ public final class GhostLight {
     }
 
     /**
-     * The sixteen colours a glow can be, as {@code 0xRRGGBB}.
+     * The sixteen colors a glow can be, as {@code 0xRRGGBB}.
      *
      * <p>
      * Vanilla's dye order, so "the fourth one" means the same thing here as everywhere else in the
      * game, and lifted towards white rather than used at full saturation - these multiply a
-     * texture that is already earth-coloured, and a fully saturated multiplier turns lit ground
+     * texture that is already earth-colored, and a fully saturated multiplier turns lit ground
      * into a flat silhouette of itself.
      */
-    private static final int[] COLOURS = { 0xFFFFFF, 0xFFB89A, 0xFF9AE0, 0xB9D3FF, 0xFFF0A0, 0xC8FFA8, 0xFFC4DA,
+    private static final int[] COLORS = { 0xFFFFFF, 0xFFB89A, 0xFF9AE0, 0xB9D3FF, 0xFFF0A0, 0xC8FFA8, 0xFFC4DA,
         0xC0C0C0, 0xE0E0E0, 0xA8F0FF, 0xE2B0FF, 0xA8BCFF, 0xE0C0A0, 0xC8FFB0, 0xFFA8A8, 0xFFFFC8 };
 
     /** The tint for a packed light byte, or white when it is not lit. */
-    public static int colourOf(int packed) {
+    public static int colorOf(int packed) {
         if ((packed & 0xF) == 0) return 0xFFFFFF;
-        return COLOURS[(packed >> 4) & 0xF];
+        return COLORS[(packed >> 4) & 0xF];
     }
 
-    public static int colourCount() {
-        return COLOURS.length;
+    public static int colorCount() {
+        return COLORS.length;
     }
 }

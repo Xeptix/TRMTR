@@ -66,7 +66,7 @@ public class CommandTrmt extends CommandBase {
         "golem",
         "showcase",
         "demonstrate",
-        "mapcolour");
+        "mapcolor");
 
     @Override
     public String getName() {
@@ -75,7 +75,7 @@ public class CommandTrmt extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolour|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
     }
 
     @Override
@@ -176,14 +176,14 @@ public class CommandTrmt extends CommandBase {
     private static final class LateSender implements ICommandSender {
 
         /**
-         * A colour or style code, stripped from what goes to the log.
+         * A color or style code, stripped from what goes to the log.
          *
          * <p>
          * Stripped here rather than by the game's own helper for it, which exists only on a client: a
          * dedicated server has it taken out when the class loads, and calling it there stopped the server
          * the first time a command handed over from another thread said anything.
          */
-        private static final java.util.regex.Pattern COLOUR_CODES = java.util.regex.Pattern
+        private static final java.util.regex.Pattern COLOR_CODES = java.util.regex.Pattern
             .compile("(?i)\u00a7[0-9a-fk-or]");
 
         private final ICommandSender asked;
@@ -209,7 +209,7 @@ public class CommandTrmt extends CommandBase {
             Trmt.LOG.info(
                 "[/trmt for {}] {}",
                 asked.getName(),
-                COLOUR_CODES.matcher(message.getUnformattedText())
+                COLOR_CODES.matcher(message.getUnformattedText())
                     .replaceAll(""));
         }
 
@@ -269,8 +269,8 @@ public class CommandTrmt extends CommandBase {
                 "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there: chunks heal as they reload, and the first sweep after /trmt enable pays out the rest. Purge is the one that throws wear away.");
         } else if ("purge".equals(sub)) {
             purge(sender);
-        } else if ("mapcolour".equals(sub) || "mapcolor".equals(sub)) {
-            reportMapColour(sender);
+        } else if ("mapcolor".equals(sub)) {
+            reportMapColor(sender);
         } else if ("reload".equals(sub)) {
             ConfigReload.Delta delta = ConfigReload.fromDisk();
             if (delta == null) {
@@ -2219,8 +2219,8 @@ public class CommandTrmt extends CommandBase {
         }
     }
 
-    private static void reply(ICommandSender sender, TextFormatting colour, String message) {
-        sender.sendMessage(new TextComponentString(colour + message));
+    private static void reply(ICommandSender sender, TextFormatting color, String message) {
+        sender.sendMessage(new TextComponentString(color + message));
     }
 
     /**
@@ -2237,11 +2237,11 @@ public class CommandTrmt extends CommandBase {
      * None of that can happen here. There is one ghost block, it inherits from nothing that carries a
      * tint, and {@code getMapColor} is handed a position - so it answers from whatever the square is
      * standing in for rather than from the family its class stands for. The question worth asking is
-     * therefore the other one: for the square under your feet, does the ghost report the same colour
+     * therefore the other one: for the square under your feet, does the ghost report the same color
      * as the ground it is pretending to be? That is what a map draws, and a disagreement is the whole
      * of what could go wrong.
      */
-    private static void reportMapColour(ICommandSender sender) {
+    private static void reportMapColor(ICommandSender sender) {
         if (!(sender instanceof EntityPlayerMP)) {
             reply(sender, TextFormatting.RED, "Only a player can ask what a map makes of where they are standing.");
             return;
@@ -2282,16 +2282,16 @@ public class CommandTrmt extends CommandBase {
             "  the ground one step east is " + SurfaceRegistry.registryName(control.getBlock())
                 + " at "
                 + hex(plain)
-                + (drawn == plain ? " - the same colour, which is what a worn square should read as"
-                    : " - a different colour, which is right only if the two are different ground"));
+                + (drawn == plain ? " - the same color, which is what a worn square should read as"
+                    : " - a different color, which is right only if the two are different ground"));
         reply(
             sender,
             TextFormatting.GRAY,
-            "A worn square and the untouched ground beside it should draw the same colour: this mod writes no block into the world, so a map is reading real ground either way, and a client's ghost answers from the square it stands in for. The other edition needs three hundred and fifty-seven lines of reflection against JourneyMap and a hundred and nineteen against Xaero to get here, because there a block is asked its colour with nothing but a metadata and cannot tell which square is being asked about.");
+            "A worn square and the untouched ground beside it should draw the same color: this mod writes no block into the world, so a map is reading real ground either way, and a client's ghost answers from the square it stands in for. The other edition needs three hundred and fifty-seven lines of reflection against JourneyMap and a hundred and nineteen against Xaero to get here, because there a block is asked its color with nothing but a metadata and cannot tell which square is being asked about.");
     }
 
-    /** A map colour as a reader can compare it, or a word when there is none. */
-    private static String hex(net.minecraft.block.material.MapColor colour) {
-        return colour == null ? "nothing" : String.format(Locale.ROOT, "#%06x", Integer.valueOf(colour.colorValue));
+    /** A map color as a reader can compare it, or a word when there is none. */
+    private static String hex(net.minecraft.block.material.MapColor color) {
+        return color == null ? "nothing" : String.format(Locale.ROOT, "#%06x", Integer.valueOf(color.colorValue));
     }
 }

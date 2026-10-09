@@ -25,19 +25,19 @@ import com.trmtgtnh.block.BlockGhost;
  * <p>
  * <strong>A mixin because the question is asked of the state, not of the block.</strong> 1.12.2
  * overrides {@code Block.getMapColor(state, world, pos)}; vanilla has no such method at this version
- * - a block's map colour is a value fixed when it is built, and the per-position question belongs to
+ * - a block's map color is a value fixed when it is built, and the per-position question belongs to
  * {@code BlockStateBase}. Forge adds a block-level hook back and Fabric does not, so the one place
  * both loaders have is this one, and the decision itself lives in
- * {@link BlockGhost#mapColourAt} where it can be read beside the rest of what a ghost owes the block
+ * {@link BlockGhost#mapColorAt} where it can be read beside the rest of what a ghost owes the block
  * it covers.
  *
  * <p>
  * Guarded on the block first, so every other block in the world pays one {@code instanceof} and
  * nothing else. A null answer means the square has no opinion - no record, or a covered block that
- * would not say - and the colour the state was built with stands.
+ * would not say - and the color the state was built with stands.
  */
 @Mixin(BlockBehaviour.BlockStateBase.class)
-public abstract class MixinGhostMapColour {
+public abstract class MixinGhostMapColor {
 
     @Inject(
         method = "getMapColor(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)"
@@ -48,7 +48,7 @@ public abstract class MixinGhostMapColour {
         CallbackInfoReturnable<MaterialColor> callback) {
         BlockState state = (BlockState) (Object) this;
         if (!(state.getBlock() instanceof BlockGhost)) return;
-        MaterialColor own = BlockGhost.mapColourAt(state, level, pos);
+        MaterialColor own = BlockGhost.mapColorAt(state, level, pos);
         if (own != null) callback.setReturnValue(own);
     }
 }

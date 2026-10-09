@@ -239,9 +239,16 @@ public final class TrmtConfig {
 
     /**
      * A ceiling of the player's own on wear sprites, counting every one this mod registers; at the default it is above
-     * any room the atlas can have, so it never binds.
+     * any room an 8192 atlas can have, so it never binds there.
      */
     public static int maxWearSprites = 262144;
+
+    /**
+     * Whether the wear may be planned into an atlas past an 8192 square, up to 16384 where the card reports it: the
+     * player's word that their card can hold one, off by default because a card that cannot draws every block black
+     * without a word. Handed to AtlasPlan as it is read.
+     */
+    public static boolean largerAtlas;
 
     /** Upper bound on how many distinct block faces get their own generated wear textures. */
     public static int maxTexturedSurfaces = 1024;
@@ -669,12 +676,12 @@ public final class TrmtConfig {
     /** What one of its blows takes off, in half-hearts. */
     public static float golemAttackDamage = 4.0f;
 
-    /** How far a fully worn square darkens on a map, as a fraction of its own colour. */
-    /** How far a fully worn square is pulled toward the desire-path colour on a map. 0 is off. */
+    /** How far a fully worn square darkens on a map, as a fraction of its own color. */
+    /** How far a fully worn square is pulled toward the desire-path color on a map. 0 is off. */
     public static float desirePathHighlight = 0f;
 
-    /** That colour as the file writes it, kept so the setting round-trips unchanged. */
-    public static String desirePathColour = "#AA44CC";
+    /** That color as the file writes it, kept so the setting round-trips unchanged. */
+    public static String desirePathColor = "#AA44CC";
 
     /** The parsed form, which is what the map path actually reads. */
     public static int desirePathRgb = 0xAA44CC;
@@ -683,7 +690,7 @@ public final class TrmtConfig {
     public static boolean mapWearThroughTint = true;
 
     /**
-     * Whether a map draws a worn square in a colour that says how worn it is. Read by the colour handler this mod hands
+     * Whether a map draws a worn square in a color that says how worn it is. Read by the color handler this mod hands
      * to JourneyMap, and by the wear shade a world-reading map is given through the block tint, so switching it off
      * takes the wear off both. A modded turf's tint correction for such a map is not wear and is not affected.
      */
@@ -1059,7 +1066,7 @@ public final class TrmtConfig {
 
     /**
      * Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt
-     * wears in its own colours instead of vanilla's.
+     * wears in its own colors instead of vanilla's.
      */
     public static boolean perSurfaceTextures = true;
 
@@ -1351,7 +1358,7 @@ public final class TrmtConfig {
             CATEGORY_INTEGRATION,
             "gtnhEnhanced",
             cpw.mods.fml.common.Loader.isModLoaded("gregtech"),
-            "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map colouring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
+            "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map coloring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
         gtnhEnhanced = enhanced.getBoolean();
         dimensionListIsWhitelist = config.getBoolean(
             "dimensionListIsWhitelist",
@@ -1480,7 +1487,13 @@ public final class TrmtConfig {
             262144,
             768,
             262144,
-            "A ceiling on the wear sprites this mod plans into the block atlas, counting every one it registers: worn faces, the family fallbacks, the grass-side fringes, the grass side walls and the mended sides. It is not what decides whether they fit. At every stitch the mod measures how much of the atlas the rest of the pack has already taken and how large a texture this card will address, and plans no further than the room left: an 8192 square at most, less a sixteenth held back for the stitcher, less the pack's own textures, each at the size its file says it is. That room is counted in sixteen-pixel slots, and a wear sprite is drawn at the resolution of the face it is worn from, so it takes one slot for a sixteen-pixel face, four for a thirty-two and sixteen for a sixty-four. While anisotropic filtering is on, every texture the game loads into the atlas for itself is sixteen pixels wider and taller, and the pack's own are priced that way; a wear sprite is not, because it is made from its face with that border taken off, so a sixteen-pixel face's wear takes one slot either way. Even with nothing else in the atlas that is 245,760 sprites at one slot apiece, under this default of 262,144, so at the default this setting never takes effect at all: it exists to be turned down. Turned down far enough, it binds before the room does, which keeps the wear textures' share of video memory small on a machine short of it - 65,536 sixteen-pixel sprites are a 4096 square's worth, about eighty-five megabytes once mipmaps are counted, against about three hundred and forty for an 8192 square's worth. When it stops the plan, the ramp keeps its gradations and the faces last in registry-name order wear their family's generic art instead, and the log says so. The family fallbacks, fringes and walls are always planned in full, whatever this says and even where the room will not hold them, because without them worn ground has nothing to draw, and they count against this ceiling before any face does. Out of the box they come to three thousand eight hundred and forty sprites at eighty gradations and four rotations, and one hundred and ninety-two at sixteen and one, plus one for every grass wall and mended side and one for the wall an unknown grass falls back on: twelve appearances at every gradation and rotation, a fallback for each of the ten families that wear, one more for the earth under grass, and the fringe. Turning general.wearThroughToOtherSurfaces on, or joining a server whose rules turn it on, adds a fallback for every surface a family wears through into, which at the shipped families.<name>.wearsThroughTo makes eighteen appearances and those figures five thousand seven hundred and sixty and two hundred and eighty-eight. Set below what they come to, this gives no block its own wear at all and saves nothing further, and the log says so, and gives the figure that lets the first face in wherever the room would take it. Every face that wears with its own pixels costs gradations times rotations sprites, twice that for grass, which carries its earth as well. Where this ceiling stops the plan, lowering client.wearGradations fits more faces under it, but only below the count the log says was drawn, and never below sixteen; lowering client.wearRotations fits more too, though where the log also says the room drew fewer gradations than were asked, a rotation given up is spent on finer gradations first, up to the count asked for, and only what is left over brings faces back. Either way the log works out how many faces each change would keep. Where the room stops the plan, the ramp is at sixteen already, and lowering client.wearRotations is the only one of the two that can bring faces back. The log says how much room was measured and how much of it was used, every stitch.");
+            "A ceiling on the wear sprites this mod plans into the block atlas, counting every one it registers: worn faces, the family fallbacks, the grass-side fringes, the grass side walls and the mended sides. It is not what decides whether they fit. At every stitch the mod measures how much of the atlas the rest of the pack has already taken and how large a texture this card will address, and plans no further than the room left: an 8192 square at most, or 16384 with client.largerAtlas, less a sixteenth held back for the stitcher, less the pack's own textures, each at the size its file says it is. That room is counted in sixteen-pixel slots, and a wear sprite is drawn at the resolution of the face it is worn from, so it takes one slot for a sixteen-pixel face, four for a thirty-two and sixteen for a sixty-four. While anisotropic filtering is on, every texture the game loads into the atlas for itself is sixteen pixels wider and taller, and the pack's own are priced that way; a wear sprite is not, because it is made from its face with that border taken off, so a sixteen-pixel face's wear takes one slot either way. Even with nothing else in an 8192 atlas that is 245,760 sprites at one slot apiece, under this default of 262,144, so at the default this setting never takes effect there at all: it exists to be turned down. With client.largerAtlas on the room can be four times that, and this default then holds the wear to an 8192 square's worth of sixteen-pixel sprites - which only a pack worn mostly at sixteen pixels reaches, since a larger face takes several slots for one sprite. Turned down far enough, it binds before the room does, which keeps the wear textures' share of video memory small on a machine short of it - 65,536 sixteen-pixel sprites are a 4096 square's worth, about eighty-five megabytes once mipmaps are counted, against about three hundred and forty for an 8192 square's worth. When it stops the plan, the ramp keeps its gradations and the faces last in registry-name order wear their family's generic art instead, and the log says so. The family fallbacks, fringes and walls are always planned in full, whatever this says and even where the room will not hold them, because without them worn ground has nothing to draw, and they count against this ceiling before any face does. Out of the box they come to three thousand eight hundred and forty sprites at eighty gradations and four rotations, and one hundred and ninety-two at sixteen and one, plus one for every grass wall and mended side and one for the wall an unknown grass falls back on: twelve appearances at every gradation and rotation, a fallback for each of the ten families that wear, one more for the earth under grass, and the fringe. Turning general.wearThroughToOtherSurfaces on, or joining a server whose rules turn it on, adds a fallback for every surface a family wears through into, which at the shipped families.<name>.wearsThroughTo makes eighteen appearances and those figures five thousand seven hundred and sixty and two hundred and eighty-eight. Set below what they come to, this gives no block its own wear at all and saves nothing further, and the log says so, and gives the figure that lets the first face in wherever the room would take it. Every face that wears with its own pixels costs gradations times rotations sprites, twice that for grass, which carries its earth as well. Where this ceiling stops the plan, lowering client.wearGradations fits more faces under it, but only below the count the log says was drawn, and never below sixteen; lowering client.wearRotations fits more too, though where the log also says the room drew fewer gradations than were asked, a rotation given up is spent on finer gradations first, up to the count asked for, and only what is left over brings faces back. Either way the log works out how many faces each change would keep. Where the room stops the plan, the ramp is at sixteen already, and lowering client.wearRotations is the only one of the two that can bring faces back. The log says how much room was measured and how much of it was used, every stitch.");
+        largerAtlas = config.getBoolean(
+            "largerAtlas",
+            CATEGORY_CLIENT,
+            false,
+            "Let this mod plan its wear into a block atlas larger than an 8192 square - up to 16384, where your graphics card says it can address one. Off, the wear is planned into what an 8192 square has left once the pack's own textures are in, and a pack whose faces will not all fit at client.wearGradations draws every surface's ramp more coarsely, never below sixteen gradations, before any face falls back to its family's generic art; Chisel for 1.12.2's carvings, for one, drew every ramp at 62 of 80. On, they fit, and the price is video memory: a 16384 atlas is four times an 8192 one, about one and a third gigabytes with its smaller copies against about three hundred and forty megabytes. Turn it on only if your card has that to spare. The game builds the atlas without checking that the card accepted it, so a card that cannot hold one draws every block in the game black, with nothing in the log to say why - if that happens, turn this off again. A pack that needs more than 8192 for its own textures gets it from the game either way; this only lets the wear ask for the room. client.maxWearSprites still applies. Takes effect on the next resource reload.");
+        com.trmtgtnh.client.texture.AtlasPlan.allowLarger(largerAtlas);
         maxTexturedSurfaces = config.getInt(
             "maxTexturedSurfaces",
             CATEGORY_SURFACES,
@@ -1548,7 +1561,7 @@ public final class TrmtConfig {
             CATEGORY_CLIENT,
             "wearCurve",
             1.0d,
-            "How far every wear pattern's run is pushed away from the shape measured for it. One leaves each pattern on its own number and is what should normally be here. Below one the early steps of every run do more and the later ones less, so a path appears quickly and then deepens slowly; above one the reverse, and ground stays nearly untouched for a while before going all at once. This used to be a single exponent applied to every pattern alike, and that was the mistake it is now a scale to avoid: a crack spreads its own change almost evenly and goes on paying for a straight line to the end of its run, while a rub has barely started by the halfway mark and needs the curve to pull its late work forward - so the one number that suited the cracked families left the rubbed ones changing by a fifth of a colour level a step, which is nothing. This is not the same question as how worn the ground gets, which is the family's own wearStrength and maxWear; it is only how the journey there is divided up. Two things to know before moving it far. Because it multiplies, the reachable range differs by pattern: 0.2 to 3.0 here is an effective 0.20 to 3.00 on the cracked and buffed patterns but only 0.12 to 1.80 on the rub, so setting three and finding the rub stopped at 1.8 is the setting working rather than failing. And the rub's own shape is sharp - taking this to about 1.3 costs it more than half of its smallest step, long before anything looks wrong on stone.",
+            "How far every wear pattern's run is pushed away from the shape measured for it. One leaves each pattern on its own number and is what should normally be here. Below one the early steps of every run do more and the later ones less, so a path appears quickly and then deepens slowly; above one the reverse, and ground stays nearly untouched for a while before going all at once. This used to be a single exponent applied to every pattern alike, and that was the mistake it is now a scale to avoid: a crack spreads its own change almost evenly and goes on paying for a straight line to the end of its run, while a rub has barely started by the halfway mark and needs the curve to pull its late work forward - so the one number that suited the cracked families left the rubbed ones changing by a fifth of a color level a step, which is nothing. This is not the same question as how worn the ground gets, which is the family's own wearStrength and maxWear; it is only how the journey there is divided up. Two things to know before moving it far. Because it multiplies, the reachable range differs by pattern: 0.2 to 3.0 here is an effective 0.20 to 3.00 on the cracked and buffed patterns but only 0.12 to 1.80 on the rub, so setting three and finding the rub stopped at 1.8 is the setting working rather than failing. And the rub's own shape is sharp - taking this to about 1.3 costs it more than half of its smallest step, long before anything looks wrong on stone.",
             0.2d,
             3.0d)
             .getDouble();
@@ -1581,6 +1594,9 @@ public final class TrmtConfig {
     /** Whether the warning about a file naming both chunk tamper settings has been given this run. */
     private static boolean retiredChunkTamperSaid;
 
+    /** Whether the warning about a file naming both names of the desire-path setting has been given this run. */
+    private static boolean retiredDesirePathSaid;
+
     /**
      * Whether the file just read names a setting outright, rather than the setting being merged in from
      * what was already held.
@@ -1592,7 +1608,12 @@ public final class TrmtConfig {
      * difference. A file that cannot be read names nothing.
      */
     private static boolean fileNames(String key) {
-        java.io.File file = config.getConfigFile();
+        return fileNames(config, key);
+    }
+
+    /** {@link #fileNames(String)}, asked of the file behind the settings given rather than the mod's own. */
+    private static boolean fileNames(Configuration from, String key) {
+        java.io.File file = from.getConfigFile();
         if (file == null || !file.isFile()) return false;
         try {
             String text = new String(
@@ -2026,12 +2047,12 @@ public final class TrmtConfig {
             "mapTracksWear",
             CATEGORY_SURFACES,
             true,
-            "Whether a map draws worn ground differently from ground nobody has crossed. On, a worn square is drawn in a colour that has travelled toward whatever that ground is turning into - a turf path leaves green and arrives at earth in step with how far along its run it has walked - and darkened by how heavily it has been used. Which is a map that answers 'where do people go' as well as 'what is this made of', and it is why a road shows up on a minimap at all. Off, every square is drawn as the material it started as, and the darkening a world-reading map is given through client.mapWearThroughTint goes with it. One correction still reaches such a map with this off, because it is not wear: a modded turf has its tint put right, so a path through it does not read as a green stripe. What a map with no per-position colour handler can do is coarser and cannot be helped: the vanilla map item works from a fixed palette of sixty-four colours with no darker sibling to pick, so it is given the right material and nothing about how worn it is. JourneyMap is asked per position and gets all of it; a map that reads the world, Xaero's Minimap among them, gets the darkening.");
+            "Whether a map draws worn ground differently from ground nobody has crossed. On, a worn square is drawn in a color that has travelled toward whatever that ground is turning into - a turf path leaves green and arrives at earth in step with how far along its run it has walked - and darkened by how heavily it has been used. Which is a map that answers 'where do people go' as well as 'what is this made of', and it is why a road shows up on a minimap at all. Off, every square is drawn as the material it started as, and the darkening a world-reading map is given through client.mapWearThroughTint goes with it. One correction still reaches such a map with this off, because it is not wear: a modded turf has its tint put right, so a path through it does not read as a green stripe. What a map with no per-position color handler can do is coarser and cannot be helped: the vanilla map item works from a fixed palette of sixty-four colors with no darker sibling to pick, so it is given the right material and nothing about how worn it is. JourneyMap is asked per position and gets all of it; a map that reads the world, Xaero's Minimap among them, gets the darkening.");
         mapWearDarkening = (float) config.get(
             CATEGORY_SURFACES,
             "mapWearDarkening",
             0.62d,
-            "How far a fully worn square is darkened on a map, as a fraction of the colour it would otherwise be. The darkening is spread evenly over every gradation the ground has - eighty for most families - so this also sets how much one step of wear is worth: at the default, about eight tenths of one per cent each. Raise it to tell the levels apart more easily, at the cost of a worn road reading as a darker material rather than as the same material worn. There is a floor on what can be shown either way: eight-bit colour has only so many values between a block's own shade and a fraction of it, and on already-dark ground several gradations will land on the same one however wide this is set. Nought means no darkening at all, and now genuinely does: it used to be read as a request for the default, so a pack that turned this off silently got it back.",
+            "How far a fully worn square is darkened on a map, as a fraction of the color it would otherwise be. The darkening is spread evenly over every gradation the ground has - eighty for most families - so this also sets how much one step of wear is worth: at the default, about eight tenths of one per cent each. Raise it to tell the levels apart more easily, at the cost of a worn road reading as a darker material rather than as the same material worn. There is a floor on what can be shown either way: eight-bit color has only so many values between a block's own shade and a fraction of it, and on already-dark ground several gradations will land on the same one however wide this is set. Nought means no darkening at all, and now genuinely does: it used to be read as a request for the default, so a pack that turned this off silently got it back.",
             0.0d,
             0.9d)
             .getDouble();
@@ -2244,7 +2265,7 @@ public final class TrmtConfig {
             1,
             0,
             64,
-            "How many of the material lighting one block costs. The Wayfarer's tamper pays half. Recolouring an already-lit block and putting one out are free but for a scratch of durability. 0 makes lighting free.");
+            "How many of the material lighting one block costs. The Wayfarer's tamper pays half. Recoloring an already-lit block and putting one out are free but for a scratch of durability. 0 makes lighting free.");
         lightMaterials = config.get(
             CATEGORY_LIGHT,
             "materials",
@@ -2583,10 +2604,10 @@ public final class TrmtConfig {
     }
 
     /**
-     * A {@code #RRGGBB} colour, or the fallback with one line in the log.
+     * A {@code #RRGGBB} color, or the fallback with one line in the log.
      *
      * <p>
-     * Said aloud rather than swallowed. A mistyped colour that quietly drew black would look
+     * Said aloud rather than swallowed. A mistyped color that quietly drew black would look
      * exactly like the feature working, because worn ground is meant to be dark anyway - so the
      * one mistake somebody is likely to make is the one that would be hardest to notice.
      */
@@ -2596,11 +2617,60 @@ public final class TrmtConfig {
         else if (hex.regionMatches(true, 0, "0x", 0, 2)) hex = hex.substring(2);
         try {
             if (hex.length() == 6) return Integer.parseInt(hex, 16) & 0xFFFFFF;
-        } catch (NumberFormatException notAColour) {
+        } catch (NumberFormatException notAColor) {
             // Falls through to the complaint below.
         }
-        Trmt.LOG.warn("client.desirePathColour is not a #RRGGBB colour ('{}'); using the default", text);
+        Trmt.LOG.warn("client.desirePathColor is not a #RRGGBB color ('{}'); using the default", text);
         return fallback;
+    }
+
+    /**
+     * The name {@code client.desirePathColor} was saved under until 0.9.220. Nothing reads it but
+     * {@link #carryDesirePathColor}, and nothing writes it at all.
+     */
+    static final String DESIRE_PATH_COLOR_WAS = "desirePathColour";
+
+    /**
+     * Moves a player's desire-path color from the name it was saved under until 0.9.220 to the name it has
+     * now.
+     *
+     * <p>
+     * The mod's spelling became "color" in 0.9.220, and this is the one place where renaming took more
+     * than an edit: Forge reads a name it does not find in the file as a setting nobody has set, so a bare
+     * rename would have put every color a player had chosen back to the default violet without a word.
+     *
+     * <p>
+     * The same three cases as the chunk tamper's rename in {@link #readGeneral}, for the same reasons. A
+     * file that names only the old setting has its value carried to the new name - created on a first
+     * load, written over the default on a reload, which merges the file into what is already held. A file
+     * that names both has been edited since the rename, and the new name is the one somebody chose; the
+     * old one is dropped and said once. Either way the old name leaves the settings, which marks the file
+     * changed, so the save that follows every read writes it out under the new name.
+     *
+     * <p>
+     * Called before {@link #readClient} reads the setting, and it has to be: read first, and the field
+     * would already hold the default this exists to keep out of it.
+     */
+    static void carryDesirePathColor(Configuration from) {
+        ConfigCategory client = from.getCategory(CATEGORY_CLIENT);
+        if (!client.containsKey(DESIRE_PATH_COLOR_WAS)) return;
+        String carried = client.get(DESIRE_PATH_COLOR_WAS)
+            .getString();
+        if (fileNames(from, "desirePathColor")) {
+            if (!retiredDesirePathSaid) {
+                retiredDesirePathSaid = true;
+                Trmt.LOG.warn(
+                    "Ignoring client.{}={}: the file also sets desirePathColor, which replaced it in 0.9.220",
+                    DESIRE_PATH_COLOR_WAS,
+                    carried);
+            }
+        } else if (client.containsKey("desirePathColor")) {
+            client.get("desirePathColor")
+                .set(carried);
+        } else {
+            client.put("desirePathColor", new Property("desirePathColor", carried, Property.Type.STRING));
+        }
+        client.remove(DESIRE_PATH_COLOR_WAS);
     }
 
     private static void readClient() {
@@ -2626,7 +2696,7 @@ public final class TrmtConfig {
             CATEGORY_CLIENT,
             "perSurfaceTextures",
             true,
-            "Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt wears in its own colours instead of vanilla's. Costs extra sprites in the block atlas at the resolution of the faces they are worn from, bounded by surfaces.maxTexturedSurfaces and client.maxWearSprites. Where the atlas has not the room for them all at client.wearGradations, every surface's ramp is drawn more coarsely first, the family fallbacks that everything else wears included, never below sixteen gradations, and only past that do the faces last in registry-name order fall back; the log says which. On a large pack, or one drawn at thirty-two pixels, that means this setting can cost every worn block in the world some of its gradations, and switching it off gives that room back to the ramp. Off, no worn block is drawn from its own pixels, so nothing named in client.innerLayerTextures is drawn into worn ground either: Chisel's lavastone and waterstone wear their family's generic art with no lava or water in it. The potato quality rung turns this off.");
+            "Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt wears in its own colors instead of vanilla's. Costs extra sprites in the block atlas at the resolution of the faces they are worn from, bounded by surfaces.maxTexturedSurfaces and client.maxWearSprites. Where the atlas has not the room for them all at client.wearGradations, every surface's ramp is drawn more coarsely first, the family fallbacks that everything else wears included, never below sixteen gradations, and only past that do the faces last in registry-name order fall back; the log says which. On a large pack, or one drawn at thirty-two pixels, that means this setting can cost every worn block in the world some of its gradations, and switching it off gives that room back to the ramp. Off, no worn block is drawn from its own pixels, so nothing named in client.innerLayerTextures is drawn into worn ground either: Chisel's lavastone and waterstone wear their family's generic art with no lava or water in it. The potato quality rung turns this off.");
         perSurface.setLanguageKey("trmtgtnh.config.perSurfaceTextures");
         perSurface.setRequiresMcRestart(true);
         perSurfaceTextures = perSurface.getBoolean();
@@ -2697,20 +2767,21 @@ public final class TrmtConfig {
             "mapWearThroughTint",
             CATEGORY_CLIENT,
             true,
-            "Whether worn ground reports how worn it is through its own tint, which is the one question about a particular square that a minimap reading the world can ask a block. JourneyMap does not need this and is not affected by it either way - it is handed a colour handler of its own and asks that. Every other map on 1.7.10 works its colours out from the block, and for them this is the difference between a road that darkens as it wears and a road that looks exactly like the ground beside it. It costs nothing where nothing asks. What it rests on is worth knowing before switching it off for no reason, and worth knowing before leaving it on if something looks wrong: the tint is given only to a caller that hands over the world itself, because the renderer hands over a view of one chunk instead, and worn ground is already darkened in the picture it is drawn with - so a renderer told the same thing twice would draw it twice as dark. That test holds for vanilla's own mesher and for this pack's, both checked by name, and it is an inference about who is asking rather than a promise anybody made. If a future renderer or shader starts handing the whole world over, every worn block in the world goes too dark and this is the setting that puts it right. One thing already falls the wrong side of it and is left alone: the cracks drawn on a block you are breaking take the shade too, for as long as the swing lasts. Two further things are worth knowing before judging whether this is working. Xaero's asks in its Accurate block-colour mode, which is the one it ships with, and in its Vanilla mode only when 'Biomes in Vanilla Color Mode' is also on - in plain Vanilla mode it takes the block's map colour and hands it back without asking anything about the position, so this changes nothing there and a path shows only where the ground has worn through into a different material. And a map that keeps the tiles it has drawn only redraws one when something tells it the chunk changed; this mod tells Xaero's directly, because nothing else would, but any other map that caches the same way will show the wear as of the last time it drew that square.");
+            "Whether worn ground reports how worn it is through its own tint, which is the one question about a particular square that a minimap reading the world can ask a block. JourneyMap does not need this and is not affected by it either way - it is handed a color handler of its own and asks that. Every other map on 1.7.10 works its colors out from the block, and for them this is the difference between a road that darkens as it wears and a road that looks exactly like the ground beside it. It costs nothing where nothing asks. What it rests on is worth knowing before switching it off for no reason, and worth knowing before leaving it on if something looks wrong: the tint is given only to a caller that hands over the world itself, because the renderer hands over a view of one chunk instead, and worn ground is already darkened in the picture it is drawn with - so a renderer told the same thing twice would draw it twice as dark. That test holds for vanilla's own mesher and for this pack's, both checked by name, and it is an inference about who is asking rather than a promise anybody made. If a future renderer or shader starts handing the whole world over, every worn block in the world goes too dark and this is the setting that puts it right. One thing already falls the wrong side of it and is left alone: the cracks drawn on a block you are breaking take the shade too, for as long as the swing lasts. Two further things are worth knowing before judging whether this is working. Xaero's asks in its Accurate block-color mode, which is the one it ships with, and in its Vanilla mode only when 'Biomes in Vanilla Color Mode' is also on - in plain Vanilla mode it takes the block's map color and hands it back without asking anything about the position, so this changes nothing there and a path shows only where the ground has worn through into a different material. And a map that keeps the tiles it has drawn only redraws one when something tells it the chunk changed; this mod tells Xaero's directly, because nothing else would, but any other map that caches the same way will show the wear as of the last time it drew that square.");
         desirePathHighlight = readFloat(
             CATEGORY_CLIENT,
             "desirePathHighlight",
             0f,
             0f,
             1f,
-            "How far a worn square's colour on the map is pulled toward the desire-path colour below, at the point it is fully worn. Nought is off and off is what ships, so this means nothing at all until somebody deliberately raises it. Left alone, a map goes on drawing worn ground as the ground it is - travelling toward what it is turning into and darkening as it goes, which is what surfaces.mapTracksWear does. Turn this up and the map stops answering 'what material is this square' for worn ground and starts answering 'where does everybody actually walk'. That is a different map and a deliberate trade: a road drawn in violet is no longer a road drawn in stone. One puts a fully worn square entirely in the highlight colour; a half leaves both readings at once, the material still recognisable with the traffic laid over it, and is the setting to try first. The pull is scaled by how worn each square is, so ground nobody has ever crossed is left exactly as it was - but be ready for how much ground is not that, because a square counts from its first crossing and around a base that is most of it. The scale is deliberately not a straight line but the square root of the wear, because a route is interesting the moment somebody starts using it and a straight line leaves a new one invisible until it is half worn out. Two things it cannot do: it needs JourneyMap and does nothing whatever without it, because the highlight is applied by the colour handler this mod hands to JourneyMap and no other map is given one; and it does not repaint a map already drawn, so ground near you recolours as it is mapped again while ground you explored last week keeps its old colours until you go back. The log says once, the first time a square is actually highlighted, that all of this is working.");
-        desirePathColour = config.getString(
-            "desirePathColour",
+            "How far a worn square's color on the map is pulled toward the desire-path color below, at the point it is fully worn. Nought is off and off is what ships, so this means nothing at all until somebody deliberately raises it. Left alone, a map goes on drawing worn ground as the ground it is - travelling toward what it is turning into and darkening as it goes, which is what surfaces.mapTracksWear does. Turn this up and the map stops answering 'what material is this square' for worn ground and starts answering 'where does everybody actually walk'. That is a different map and a deliberate trade: a road drawn in violet is no longer a road drawn in stone. One puts a fully worn square entirely in the highlight color; a half leaves both readings at once, the material still recognisable with the traffic laid over it, and is the setting to try first. The pull is scaled by how worn each square is, so ground nobody has ever crossed is left exactly as it was - but be ready for how much ground is not that, because a square counts from its first crossing and around a base that is most of it. The scale is deliberately not a straight line but the square root of the wear, because a route is interesting the moment somebody starts using it and a straight line leaves a new one invisible until it is half worn out. Two things it cannot do: it needs JourneyMap and does nothing whatever without it, because the highlight is applied by the color handler this mod hands to JourneyMap and no other map is given one; and it does not repaint a map already drawn, so ground near you recolors as it is mapped again while ground you explored last week keeps its old colors until you go back. The log says once, the first time a square is actually highlighted, that all of this is working.");
+        carryDesirePathColor(config);
+        desirePathColor = config.getString(
+            "desirePathColor",
             CATEGORY_CLIENT,
             "#AA44CC",
-            "The colour worn ground is pulled toward when desirePathHighlight is above nought, as #RRGGBB. The default is a violet chosen for being a colour no ground is: a map is greens, browns, greys and blues in every dimension this mod wears ground in, including the red of the Nether and the pale yellow of the End, so a violet path cannot be misread as a material the way an ochre or a red one could - and it stays separable for the common forms of colour blindness, where an orange road over green terrain does not. Change it if it collides with something else your map draws. Anything that is not six hex digits falls back to the default and says so once in the log rather than quietly drawing black, because black is what a mistyped colour would draw and worn ground is meant to be dark anyway, so the mistake would look exactly like the feature working. This is also the quickest way to find out whether any of it is running: set this to #00FF00, put desirePathHighlight to 1, and walk a path you know is worn.");
-        desirePathRgb = parseRgb(desirePathColour, 0xAA44CC);
+            "The color worn ground is pulled toward when desirePathHighlight is above nought, as #RRGGBB. The default is a violet chosen for being a color no ground is: a map is greens, browns, greys and blues in every dimension this mod wears ground in, including the red of the Nether and the pale yellow of the End, so a violet path cannot be misread as a material the way an ochre or a red one could - and it stays separable for the common forms of color blindness, where an orange road over green terrain does not. Change it if it collides with something else your map draws. Anything that is not six hex digits falls back to the default and says so once in the log rather than quietly drawing black, because black is what a mistyped color would draw and worn ground is meant to be dark anyway, so the mistake would look exactly like the feature working. This is also the quickest way to find out whether any of it is running: set this to #00FF00, put desirePathHighlight to 1, and walk a path you know is worn.");
+        desirePathRgb = parseRgb(desirePathColor, 0xAA44CC);
         describeCategories();
     }
 

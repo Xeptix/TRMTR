@@ -63,10 +63,9 @@ public final class WearDrops {
         if (!TrmtConfig.wearDropsEnabled || chance <= 0f) return null;
         if (y <= 1) return null;
 
-        Block above = com.trmtgtnh.util.Worlds.blockAt(world, x, y + 1, z);
-        // buried: not a top-level block
-        if (above != null && above.defaultBlockState()
-            .canOcclude()) return null;
+        // buried: not a top-level block. An opaque cube above, as the other editions ask it - until 0.9.220 this
+        // asked canOcclude, which a snow layer or a carpet says yes to (see Worlds.isOpaque).
+        if (com.trmtgtnh.util.Worlds.isOpaque(world, x, y + 1, z)) return null;
 
         if (world.random.nextFloat() >= chance) return null;
 

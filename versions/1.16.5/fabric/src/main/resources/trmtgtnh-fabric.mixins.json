@@ -11,7 +11,7 @@
     "MixinChunkSerializer",
     "MixinCraftingResult",
     "MixinExplosion",
-    "MixinGhostMapColour",
+    "MixinGhostMapColor",
     "MixinItemStack",
     "MixinLivingEntity",
     "MixinLootArrivals",
@@ -19,6 +19,7 @@
     "MixinRecipeArrivals",
     "MixinRepairItemRecipe",
     "MixinServerPlayer",
+    "MixinSnowRestsOnWornGround",
     "MixinWornCollision"
   ],
   "client": [
@@ -27,7 +28,11 @@
     "MixinServerLightArrives",
     "MixinSettleOnWornGround",
     "MixinSettledFaces",
-    "MixinTextureAtlas"
+    "MixinStitcher",
+    "MixinStitcherRegion",
+    "MixinTextureAtlas",
+    "StitcherHolderSize",
+    "MixinWindowLight"
   ],
   "injectors": {
     "defaultRequire": 1

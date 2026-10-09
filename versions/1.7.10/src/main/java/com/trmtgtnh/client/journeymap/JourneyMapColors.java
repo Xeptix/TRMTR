@@ -25,16 +25,16 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 /**
- * Makes JourneyMap draw each worn position in a colour taken from the block underneath it.
+ * Makes JourneyMap draw each worn position in a color taken from the block underneath it.
  *
  * <p>
- * The problem this solves: JourneyMap decides a block's colour once per block-and-metadata and
+ * The problem this solves: JourneyMap decides a block's color once per block-and-metadata and
  * caches it, so one ghost block covering a hundred different modded dirts drew all hundred the
- * same brown. An unworn modded block shows its own distinct colour on the map - that colour is
+ * same brown. An unworn modded block shows its own distinct color on the map - that color is
  * JourneyMap's own average of the block's texture - and the moment it wore, that distinctness
- * was lost. This hands JourneyMap a colour handler for the ghost blocks that answers per
+ * was lost. This hands JourneyMap a color handler for the ghost blocks that answers per
  * <em>position</em> instead: it looks up which real block the client is painting over at that
- * spot, asks JourneyMap what colour it draws that block unworn, and darkens it for the wear.
+ * spot, asks JourneyMap what color it draws that block unworn, and darkens it for the wear.
  *
  * <p>
  * All of it is reflection, because JourneyMap is a soft dependency and not on the compile path.
@@ -44,7 +44,7 @@ import cpw.mods.fml.relauncher.SideOnly;
  *
  * <p>
  * The handler has to be reinstalled from time to time: JourneyMap resets its block descriptors
- * when it reloads colours or changes dimension, which drops our handler back to its own. A cheap
+ * when it reloads colors or changes dimension, which drops our handler back to its own. A cheap
  * watchdog on the client tick puts it back. Reinstalling is idempotent, so a spare pass costs
  * nothing but a few reflective calls over a few dozen blocks.
  */
@@ -60,7 +60,7 @@ public final class JourneyMapColors {
     private static Method mGet;
     /** {@code void BlockMD.setBlockColorHandler(IModBlockColorHandler)}. */
     private static Method mSetHandler;
-    /** {@code int BlockMD.getColor(ChunkMD, int, int, int)} - the origin's own unworn colour. */
+    /** {@code int BlockMD.getColor(ChunkMD, int, int, int)} - the origin's own unworn color. */
     private static Method mGetColor;
     private static Class<?> handlerInterface;
 
@@ -89,7 +89,7 @@ public final class JourneyMapColors {
         quiet = 0;
     }
 
-    /** Set the first time JourneyMap actually asked us for a highlighted colour. */
+    /** Set the first time JourneyMap actually asked us for a highlighted color. */
     private static volatile boolean answered;
 
     /** Set once the watchdog has complained, so it complains once rather than every five seconds. */
@@ -105,14 +105,14 @@ public final class JourneyMapColors {
      * Six things have to be true before one pixel of this exists - JourneyMap installed, its
      * internals where the resolver expects them, our handler still on the block descriptor,
      * JourneyMap actually calling it, the setting above nought, and the position worn at all - and
-     * five of the six fail silently. This is the line that says all of them held. Both colours are
+     * five of the six fail silently. This is the line that says all of them held. Both colors are
      * printed, so it also proves the blend ran rather than passing its input through.
      */
     private static void announceOnce(int x, int y, int z, int base, int result) {
         if (answered || com.trmtgtnh.config.TrmtConfig.desirePathHighlight <= 0f) return;
         answered = true;
         Trmt.LOG.info(
-            "Desire-path highlight is live: JourneyMap asked for {},{},{} and was given #{} where the ground's own colour is #{}",
+            "Desire-path highlight is live: JourneyMap asked for {},{},{} and was given #{} where the ground's own color is #{}",
             new Object[] { Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(z),
                 String.format("%06X", Integer.valueOf(result & 0xFFFFFF)),
                 String.format("%06X", Integer.valueOf(base & 0xFFFFFF)) });
@@ -140,7 +140,7 @@ public final class JourneyMapColors {
         if (++quiet < 4) return;
         warned = true;
         Trmt.LOG.warn(
-            "Desire-path highlight is on and this client has worn ground, but JourneyMap has not asked this mod for a colour in twenty seconds. Either JourneyMap is not mapping right now - automap off, or nothing worn within range - or it kept a colour handler of its own instead of ours.");
+            "Desire-path highlight is on and this client has worn ground, but JourneyMap has not asked this mod for a color in twenty seconds. Either JourneyMap is not mapping right now - automap off, or nothing worn within range - or it kept a color handler of its own instead of ours.");
     }
 
     // ------------------------------------------------------------------
@@ -160,7 +160,7 @@ public final class JourneyMapColors {
             usable = true;
         } catch (Throwable notThere) {
             // A different JourneyMap, or none. Leave the fallbacks to carry the map.
-            Trmt.LOG.info("JourneyMap per-block colours unavailable ({}); using the family fallback", notThere);
+            Trmt.LOG.info("JourneyMap per-block colors unavailable ({}); using the family fallback", notThere);
             usable = false;
         }
         return usable;
@@ -217,7 +217,7 @@ public final class JourneyMapColors {
         public Object invoke(Object proxy, Method method, Object[] args) {
             String name = method.getName();
             if (method.getDeclaringClass() == Object.class) {
-                if ("toString".equals(name)) return "TrmtGhostColour(" + appearance + ")";
+                if ("toString".equals(name)) return "TrmtGhostColor(" + appearance + ")";
                 if ("hashCode".equals(name)) return Integer.valueOf(System.identityHashCode(proxy));
                 if ("equals".equals(name)) return Boolean.valueOf(proxy == (args == null ? null : args[0]));
                 return null;
@@ -228,25 +228,25 @@ public final class JourneyMapColors {
                     int x = ((Integer) args[2]).intValue();
                     int y = ((Integer) args[3]).intValue();
                     int z = ((Integer) args[4]).intValue();
-                    return Integer.valueOf(colourAt(args[0], x, y, z));
+                    return Integer.valueOf(colorAt(args[0], x, y, z));
                 }
-                // Anything else JourneyMap asks that wants a colour - a palette export, say - gets
-                // the family-generic answer. Non-colour methods (void, boolean) fall through to null.
+                // Anything else JourneyMap asks that wants a color - a palette export, say - gets
+                // the family-generic answer. Non-color methods (void, boolean) fall through to null.
                 Class<?> returns = method.getReturnType();
                 if (returns == Integer.class || returns == int.class) {
-                    return Integer.valueOf(GhostRendering.mapFallbackColour(appearance));
+                    return Integer.valueOf(GhostRendering.mapFallbackColor(appearance));
                 }
             } catch (Throwable awkward) {
                 Class<?> returns = method.getReturnType();
                 if (returns == Integer.class || returns == int.class) {
-                    return Integer.valueOf(GhostRendering.mapFallbackColour(appearance));
+                    return Integer.valueOf(GhostRendering.mapFallbackColor(appearance));
                 }
             }
             return null;
         }
 
-        /** The colour to draw one position: the origin block's own, darkened for the wear. */
-        private int colourAt(Object chunkMd, int x, int y, int z) {
+        /** The color to draw one position: the origin block's own, darkened for the wear. */
+        private int colorAt(Object chunkMd, int x, int y, int z) {
             int wearMeta = 0;
             try {
                 Minecraft mc = Minecraft.getMinecraft();
@@ -260,7 +260,7 @@ public final class JourneyMapColors {
                 packed = ClientErosionCache.get()
                     .originAt(x, y, z);
             } catch (Throwable ignore) {
-                // Same race. Fall through to the family colour.
+                // Same race. Fall through to the family color.
             }
 
             if (packed >= 0) {
@@ -271,16 +271,16 @@ public final class JourneyMapColors {
                     // dirt partway down, and it is grass's eighty steps it is walking.
                     SurfaceFamily base = SurfaceRegistry.familyOf(origin, originMeta);
                     SurfaceFamily walking = base == null ? appearance : base;
-                    return GhostRendering.mapColourFor(
+                    return GhostRendering.mapColorFor(
                         wornFraction(walking, wearMeta, x, y, z),
-                        originColour(chunkMd, origin, originMeta, x, y, z),
-                        GhostRendering.mapFallbackColour(endOf(walking)));
+                        originColor(chunkMd, origin, originMeta, x, y, z),
+                        GhostRendering.mapFallbackColor(endOf(walking)));
                 }
             }
-            return GhostRendering.mapColourFor(
+            return GhostRendering.mapColorFor(
                 wornFraction(appearance, wearMeta, x, y, z),
-                GhostRendering.mapFallbackColour(appearance),
-                GhostRendering.mapFallbackColour(endOf(appearance)));
+                GhostRendering.mapFallbackColor(appearance),
+                GhostRendering.mapFallbackColor(endOf(appearance)));
         }
 
         /**
@@ -330,20 +330,20 @@ public final class JourneyMapColors {
         }
 
         /**
-         * The colour JourneyMap draws the origin block unworn - its own texture average, which is
-         * the distinct dot each modded block shows. Falls back to the block's vanilla map colour,
-         * then to the family colour, if JourneyMap will not answer.
+         * The color JourneyMap draws the origin block unworn - its own texture average, which is
+         * the distinct dot each modded block shows. Falls back to the block's vanilla map color,
+         * then to the family color, if JourneyMap will not answer.
          */
-        private int originColour(Object chunkMd, Block origin, int originMeta, int x, int y, int z) {
+        private int originColor(Object chunkMd, Block origin, int originMeta, int x, int y, int z) {
             try {
                 Object originMd = mGet.invoke(null, origin, Integer.valueOf(originMeta));
                 if (originMd != null) {
-                    Object colour = mGetColor
+                    Object color = mGetColor
                         .invoke(originMd, chunkMd, Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(z));
-                    if (colour instanceof Integer) return ((Integer) colour).intValue() & 0xFFFFFF;
+                    if (color instanceof Integer) return ((Integer) color).intValue() & 0xFFFFFF;
                 }
             } catch (Throwable awkward) {
-                // JourneyMap could not colour the origin. Its own map colour is the next best.
+                // JourneyMap could not color the origin. Its own map color is the next best.
             }
             try {
                 MapColor own = origin.getMapColor(originMeta);
@@ -351,7 +351,7 @@ public final class JourneyMapColors {
             } catch (Throwable awkward) {
                 // Fall through.
             }
-            return GhostRendering.mapFallbackColour(appearance);
+            return GhostRendering.mapFallbackColor(appearance);
         }
     }
 }

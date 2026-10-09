@@ -248,11 +248,11 @@ public final class ReinforceGestures {
             .markModified(world, chunkX, chunkZ);
     }
 
-    private static void say(Player player, ChatFormatting colour, String message) {
+    private static void say(Player player, ChatFormatting color, String message) {
         // The second argument is who said it, which this version wants: nobody did, and
         // NIL_UUID is how the game spells that.
         if (player != null) {
-            player.sendMessage(new TextComponent(colour + message), net.minecraft.Util.NIL_UUID);
+            player.sendMessage(new TextComponent(color + message), net.minecraft.Util.NIL_UUID);
         }
     }
 }

@@ -200,12 +200,12 @@ public class BlockGhostGrass extends BlockGrass implements GhostBlock {
     @SideOnly(Side.CLIENT)
     @Override
     public int getRenderColor(int meta) {
-        return GhostLogic.renderColour(appearance, meta, untinted);
+        return GhostLogic.renderColor(appearance, meta, untinted);
     }
 
     @Override
     public MapColor getMapColor(int meta) {
-        return GhostLogic.mapColour(appearance, untinted);
+        return GhostLogic.mapColor(appearance, untinted);
     }
 
     // Bone meal has nothing to grow here. Inherited from BlockGrass, which implements IGrowable.

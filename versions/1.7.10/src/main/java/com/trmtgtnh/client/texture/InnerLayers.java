@@ -63,6 +63,16 @@ public final class InnerLayers {
         unpriced = 0;
         closeAsk();
         uploads.forget();
+        readTable();
+    }
+
+    /**
+     * Reads the config list into the lookup {@link #textureFor} answers from. Render thread. Called by {@link #prime},
+     * and before that by registration, which plans the sets of pictures and keys them on the layer behind each block,
+     * so the table has to be this stitch's by then: read only as the sprite pass began, the planner of a first stitch
+     * saw an empty table and the stitch after it the previous one (2026-10-08).
+     */
+    public static void readTable() {
         String[] lines = TrmtConfig.innerLayerTextures;
         if (lines == null || lines.length == 0) {
             table = Collections.emptyMap();
@@ -146,6 +156,47 @@ public final class InnerLayers {
     /** Notes that this covered state has something see-through behind it. Render thread. */
     static void noteWindow(Block origin, int meta) {
         if (origin != null) windowsBuilding.file(origin, meta, Boolean.TRUE);
+    }
+
+    /**
+     * Files as a window every covered state drawn from a set of pictures one of whose states was noted as one. Render
+     * thread, as the sprite pass ends and before {@link #publishWindows}.
+     *
+     * <p>
+     * A window is noted by the harvest, which reads the pixels of one state per set - the one the set was made from -
+     * and the planner gives every state that reports the same face, family and layer that same set: their pictures are
+     * the same pictures, see-through or not. Noted for the one state only, the rest draw a see-through picture in their
+     * block's own pass, which writes what is behind the holes opaque. GTNH's Chisel gives each of its seven waterstones
+     * a face of its own, so this edition never met it; Chisel for 1.12.2, where two carvings share a face, is where it
+     * was found (2026-10-08), and it is carried here so a pack that names one layer behind blocks sharing a face draws
+     * them all through.
+     *
+     * <p>
+     * Metadata is the block's own number here, with no state to read it back through, so a value detection claimed
+     * and nothing draws is filed too, and never asked: 1.12.2 leaves those out, which only changes the count the log
+     * gives.
+     *
+     * @param sets each covered state with pictures of its own, to the set holding them, as this stitch filed them
+     */
+    static void spreadWindows(final StateFiling<Block, Integer> sets) {
+        if (sets == null) return;
+        final Set<Integer> seeThrough = new java.util.HashSet<Integer>();
+        windowsBuilding.forEach(new StateFiling.Visitor<Block, Boolean>() {
+
+            @Override
+            public void visit(Block block, int meta, Boolean noted) {
+                Integer set = sets.get(block, meta);
+                if (set != null) seeThrough.add(set);
+            }
+        });
+        if (seeThrough.isEmpty()) return;
+        sets.forEach(new StateFiling.Visitor<Block, Integer>() {
+
+            @Override
+            public void visit(Block block, int meta, Integer set) {
+                if (seeThrough.contains(set)) windowsBuilding.file(block, meta, Boolean.TRUE);
+            }
+        });
     }
 
     /**
