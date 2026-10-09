@@ -166,6 +166,16 @@ public final class TrmtConfig {
      */
     public static String updateNotice = UPDATE_OPERATORS;
 
+    public static final String RELEASES_RELEVANT = "relevant";
+    public static final String RELEASES_ALL = "all";
+
+    /**
+     * Which newer releases {@link #updateNotice} tells of (0.9.221; Xep, 2026-10-09): <b>relevant</b>, the default,
+     * only one that changes this jar - every edition moves its number with every release - and <b>all</b>, every
+     * one. A release that changes nothing here is one line in the server's log either way.
+     */
+    public static String updateNoticeReleases = RELEASES_RELEVANT;
+
     /**
      * Scales every wear threshold at once. Above 1.0 erodes faster, below 1.0 slower. The
      * shipped defaults are about eight times slower than upstream TRMT, so 8.0 here restores
@@ -1200,7 +1210,19 @@ public final class TrmtConfig {
         return families;
     }
 
+    /** The file the settings were loaded from, so other files of this mod's can sit beside it. */
+    private static File loadedFrom;
+
+    /** The folder the settings live in - the config folder - where the update notice keeps who has quieted it. */
+    public static File folder() {
+        File file = loadedFrom;
+        return file == null ? new File("config")
+            : file.getAbsoluteFile()
+                .getParentFile();
+    }
+
     public static void load(File file) {
+        loadedFrom = file;
         config = new Configuration(file);
         config.load();
         read();
@@ -1233,14 +1255,14 @@ public final class TrmtConfig {
             config.load();
         } catch (RuntimeException malformed) {
             poisoned = true;
-            Trmt.LOG.error("Config file could not be parsed, keeping the settings already loaded", malformed);
+            Trmt.error("Config file could not be parsed, keeping the settings already loaded", malformed);
             return false;
         }
 
         Set<String> after = keysOnRecord();
         if (!before.isEmpty() && !after.containsAll(before)) {
             poisoned = true;
-            Trmt.LOG.error(
+            Trmt.error(
                 "Config file is missing {} settings it had a moment ago, so it looks truncated. Keeping the settings already loaded and writing nothing back.",
                 Integer.valueOf(before.size() - countPresent(before, after)));
             return false;
@@ -1441,8 +1463,14 @@ public final class TrmtConfig {
             "updateNotice",
             Configuration.CATEGORY_GENERAL,
             UPDATE_OPERATORS,
-            "Who is told, as they join, that a newer TRMT Reimagined is out. operators: whoever can update this copy - you in single player, the host of a LAN game, a server's operators. everyone: every player, privately. off: nobody, and the mod never asks. Once a launch, a server reads one small file from GitHub to learn the newest version; nothing about you or your world is sent.",
+            "Who is told, as they join, that a newer TRMT: Reimagined is out. operators: whoever can update this copy - you in single player, the host of a LAN game, a server's operators. everyone: every player, privately. off: nobody, and the mod never asks. Once a launch, a server reads one small file from GitHub to learn the newest version; nothing about you or your world is sent.",
             new String[] { UPDATE_OPERATORS, UPDATE_EVERYONE, UPDATE_OFF });
+        updateNoticeReleases = config.getString(
+            "updateNoticeReleases",
+            Configuration.CATEGORY_GENERAL,
+            RELEASES_RELEVANT,
+            "Which newer releases updateNotice tells of. relevant: only one that changes this edition - every edition takes the new number with every release, so most releases change only some of them. all: every newer release. A release that changes nothing here is still written in the server's log. A release with a critical fix for this edition says so either way.",
+            new String[] { RELEASES_RELEVANT, RELEASES_ALL });
 
         globalSpeed = config.get(
             Configuration.CATEGORY_GENERAL,
@@ -2747,7 +2775,7 @@ public final class TrmtConfig {
             "animateInnerLayers",
             CATEGORY_CLIENT,
             true,
-            "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, including while you are looking the other way, wherever client.innerLayerUploadsPerTick lets it be redrawn. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - a little over eleven megabytes for Chisel's fifteen faces at sixteen pixels and the settings shipped here, and about forty-five at thirty-two. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
+            "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, while it is on the ground near you - every such picture, as the unworn blocks beside it move with their liquid, and none elsewhere on the atlas, which is what keeps the cost to the worn liquid in sight. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - a little over eleven megabytes for Chisel's fifteen faces at sixteen pixels and the settings shipped here, and about forty-five at thirty-two. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
         innerLayerAnimationBudgetMb = config.getInt(
             "innerLayerAnimationBudgetMb",
             CATEGORY_CLIENT,
@@ -2761,7 +2789,7 @@ public final class TrmtConfig {
             256,
             16,
             8192,
-            "How many moving layers may be redrawn in one tick. Every worn picture of a lavastone wants its lava laid again on the same tick, because they all follow one clock, so without a ceiling, on a plain client, every worn picture of a moving liquid on the atlas would send its upload on the same tick, whether or not any is in view - several thousand for Chisel's fifteen faces - and drop a frame doing it. A picture over the ceiling is not redrawn late: it keeps the frame it shows until its layer next moves and asks again, and because the pictures of a liquid all ask on the same ticks in the same order, past the ceiling it is the same pictures that miss out each time and stand still. The first tick after a resource reload that turns any picture away is written to the log with how many asked. A modern chunk builder already redraws only what is on screen, so on a client that has one this is almost never reached; on a plain client every moving picture asks, and Chisel's fifteen faces at the settings shipped here are four thousand eight hundred pictures. On a plain client the ceiling covers every moving picture on the atlas wherever you are, the menu included, so a regular stutter everywhere that goes away with client.animateInnerLayers off is the sign to lower it; only with a chunk builder that redraws what is on screen does the count follow how much worn chiselled ground is in view. Raise it if the log says it turned pictures away and you would rather see more of the liquid move.");
+            "How many moving layers may be redrawn in one tick, as a guard. From 0.9.221 a worn picture whose layer moves is redrawn only while a chunk section near you has been drawn with it - every one of those, in step with the liquid in the unworn block beside it, as Chisel's own blocks move - and nothing elsewhere on the atlas, so this is reached only by a great deal of worn moving ground in sight at once. A picture over the ceiling is not redrawn late: it keeps the frame it shows until its layer next moves and asks again, and the first tick after a resource reload that turns any away is written to the log with how many asked. Until 0.9.221 every moving picture on the atlas asked every tick, in view or not - several thousand for Chisel's faces - and this ceiling let the same few hundred move while the rest stood still wherever they were.");
 
         mapWearThroughTint = config.getBoolean(
             "mapWearThroughTint",

@@ -153,7 +153,7 @@ public final class ModAchievements {
             // that nothing here is endorsed by milkucha; a page inside the game titled with
             // the original's full name says the opposite of that to the one audience that
             // cannot see LICENSE.md.
-            new AchievementPage("TRMT Reimagined", all.toArray(new Achievement[all.size()])));
+            new AchievementPage("TRMT: Reimagined", all.toArray(new Achievement[all.size()])));
         Trmt.LOG.info("Registered {} achievements", Integer.valueOf(all.size()));
     }
 

@@ -6,6 +6,7 @@
   "refmap": "trmtgtnh-forge-refmap.json",
   "mixins": [
     "MixinChunkSerializer",
+    "MixinCrashReportSupport",
     "MixinGhostMapColor",
     "MixinLootArrivals",
     "MixinRecipeArrivals",
@@ -14,6 +15,7 @@
   ],
   "client": [
     "MixinAirSwing",
+    "MixinOptiFineSettledFaces",
     "MixinBlockArrivals",
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",

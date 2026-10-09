@@ -6,6 +6,7 @@
   "refmap": "trmtgtnh-fabric-refmap.json",
   "mixins": [
     "BucketItemAccessor",
+    "MixinCrashReportSupport",
     "MixinBlockItem",
     "MixinChunkMap",
     "MixinChunkSerializer",
@@ -24,6 +25,7 @@
   ],
   "client": [
     "MixinAirSwing",
+    "MixinOptiFineSettledFaces",
     "MixinBlockArrivals",
     "MixinServerLightArrives",
     "MixinSettleOnWornGround",

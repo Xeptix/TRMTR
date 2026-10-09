@@ -274,6 +274,18 @@ public class GhostBakedModel implements IBakedModel {
      * then this surface's own set by the block it covers, then its family's. What the square is standing over
      * is turned back from the state id the painter remembered; nothing remembered means the family's set.
      */
+    /**
+     * Notes this square's wear picture where its layer moves, so it moves while it is on the ground near the player
+     * (0.9.221, SeenPictures). From the block's facts for the model, the last place with a position.
+     */
+    public static void noteDrawn(short record, int origin, int rotation, int x, int y, int z) {
+        TextureAtlasSprite top = topOf(record, ErosionState.familyOf(record), origin, rotation);
+        if (top instanceof com.trmtgtnh.client.texture.WearSprite
+            && ((com.trmtgtnh.client.texture.WearSprite) top).moves()) {
+            com.trmtgtnh.client.texture.InnerLayers.noteSeen(top, x, y, z);
+        }
+    }
+
     private static TextureAtlasSprite topOf(short record, SurfaceFamily appearance, int origin, int rotation) {
         if (appearance == null || !BlockGhost.shows(record)) return null;
         net.minecraft.block.Block block = null;

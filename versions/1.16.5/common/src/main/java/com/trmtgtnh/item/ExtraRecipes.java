@@ -91,8 +91,7 @@ public final class ExtraRecipes {
         Map<ResourceLocation, Recipe<?>> stale = ours;
         if (stale == null || stale.isEmpty()) return added(current);
 
-        Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> without =
-            new HashMap<RecipeType<?>, Map<ResourceLocation, Recipe<?>>>();
+        Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> without = new HashMap<RecipeType<?>, Map<ResourceLocation, Recipe<?>>>();
         for (Map.Entry<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> each : current.entrySet()) {
             Map<ResourceLocation, Recipe<?>> row = new LinkedHashMap<ResourceLocation, Recipe<?>>(each.getValue());
             row.keySet()
@@ -132,8 +131,7 @@ public final class ExtraRecipes {
         Map<ResourceLocation, Recipe<?>> mine = build();
         if (mine.isEmpty()) return parsed;
 
-        Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> out =
-            new HashMap<RecipeType<?>, Map<ResourceLocation, Recipe<?>>>();
+        Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> out = new HashMap<RecipeType<?>, Map<ResourceLocation, Recipe<?>>>();
         for (Map.Entry<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> each : parsed.entrySet()) {
             out.put(each.getKey(), new LinkedHashMap<ResourceLocation, Recipe<?>>(each.getValue()));
         }
@@ -162,15 +160,13 @@ public final class ExtraRecipes {
                 + "claimed. Nought added where a pack supplies no metal this mod can make a tamper from, "
                 + "which is a quiet answer rather than a fault - /trmt says what it found. (built on {}, "
                 + "with ingotIron reading {} item(s))",
-            new Object[] { Integer.valueOf(added), Integer.valueOf(kept),
-                Thread.currentThread()
-                    .getName(),
+            new Object[] { Integer.valueOf(added), Integer.valueOf(kept), Thread.currentThread()
+                .getName(),
                 Integer.valueOf(
                     com.trmtgtnh.util.OreNames.itemsFor("ingotIron")
                         .size()) });
 
-        Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> sealed =
-            new HashMap<RecipeType<?>, Map<ResourceLocation, Recipe<?>>>();
+        Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> sealed = new HashMap<RecipeType<?>, Map<ResourceLocation, Recipe<?>>>();
         for (Map.Entry<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> each : out.entrySet()) {
             sealed.put(each.getKey(), java.util.Collections.unmodifiableMap(each.getValue()));
         }
@@ -192,7 +188,7 @@ public final class ExtraRecipes {
         } catch (RuntimeException awkward) {
             // One bad recipe must not cost a world its whole recipe book. Whatever was collected
             // before the throw is kept, and the rest is named.
-            Trmt.LOG.error("Stopped building this mod's recipes part way through", awkward);
+            Trmt.error("Stopped building this mod's recipes part way through", awkward);
         }
         return ours;
     }

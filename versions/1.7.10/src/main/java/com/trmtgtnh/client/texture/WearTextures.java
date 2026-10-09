@@ -637,7 +637,7 @@ public final class WearTextures {
     public static void reportStitchHooks() {
         reportStitchSearch(stitchReported || !stitchCounted && lastPlan != null);
         if (!buildHookRan) {
-            Trmt.LOG.error(
+            Trmt.error(
                 "The injection that builds every worn picture never ran, so no ground will show any wear at all however far it is walked. Either something has replaced net.minecraft.client.renderer.texture.TextureMap, or this mod's mixins did not apply; look earlier in this log for a mixin config that failed to load.");
         } else if (!roomHookRan) {
             // The pointer at the stitcher's line is given only where that line was written. A stitch that

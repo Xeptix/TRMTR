@@ -404,7 +404,8 @@ public final class WearTextures {
      * game discarding every sprite's pixels, because its sprites loaded in the order a hash map iterates and were
      * cleared straight after upload. Here there is no such window to inject into: the atlas asks this mod's pack for
      * each sprite's file, and the first of those asks is the earliest moment anything is wanted. So the first load of
-     * the stitch to ask for its picture runs the whole pass - {@link #composeAll}, the 1.7.10 loop - and every later load
+     * the stitch to ask for its picture runs the whole pass - {@link #composeAll}, the 1.7.10 loop - and every later
+     * load
      * collects the picture the pass filed for it.
      *
      * <p>
@@ -488,7 +489,8 @@ public final class WearTextures {
      * stitch to ask runs for every sprite at once.
      *
      * <p>
-     * Every load takes the pass's lock, so a load that arrives while the pass is running waits for it and then finds its
+     * Every load takes the pass's lock, so a load that arrives while the pass is running waits for it and then finds
+     * its
      * picture filed. The first load holds that lock for the whole pass, which is the point rather than a cost: the
      * atlas's other loading threads have nothing of this mod's to do until the pictures exist, and the pool composing
      * them has a thread for every core but one, up to eight, and nothing else to do.
@@ -509,7 +511,8 @@ public final class WearTextures {
                 } catch (RuntimeException stoppedPartWay) {
                     // Whatever was filed stands; every sprite the pass did not reach keeps its placeholder and stays
                     // unusable, so the lookup falls past it. Said once, here, rather than left to end the atlas's load.
-                    Trmt.LOG.error("The wear texture pass stopped part way; the pictures it had not reached are left out",
+                    Trmt.error(
+                        "The wear texture pass stopped part way; the pictures it had not reached are left out",
                         stoppedPartWay);
                 }
             }
@@ -680,10 +683,16 @@ public final class WearTextures {
             }
             reportFaces(current.faces);
             if (tally.scaled > 0) {
-                Trmt.LOG.info(LINE_SCALED, Integer.valueOf(tally.scaled), com.trmtgtnh.util.LogSample.of(tally.scaledNames));
+                Trmt.LOG.info(
+                    LINE_SCALED,
+                    Integer.valueOf(tally.scaled),
+                    com.trmtgtnh.util.LogSample.of(tally.scaledNames));
             }
             if (tally.resized > 0) {
-                Trmt.LOG.warn(LINE_RESIZED, Integer.valueOf(tally.resized), com.trmtgtnh.util.LogSample.of(tally.resizedNames));
+                Trmt.LOG.warn(
+                    LINE_RESIZED,
+                    Integer.valueOf(tally.resized),
+                    com.trmtgtnh.util.LogSample.of(tally.resizedNames));
             }
             InnerLayers.report();
             InnerLayers.reportAnimation();
@@ -691,7 +700,7 @@ public final class WearTextures {
             reportFallbackGaps();
             Trmt.LOG.info("Wear texture faces: {}", ModelFaces.report());
             if (!REGISTERED.isEmpty() && current.loads == 0) {
-                Trmt.LOG.error(
+                Trmt.error(
                     "None of this mod's {} wear sprites was loaded by the atlas this stitch, so no ground will show any wear. Something has changed how the block atlas loads a sprite with a loader of its own.",
                     Integer.valueOf(REGISTERED.size()));
             }
@@ -1262,8 +1271,7 @@ public final class WearTextures {
         if (stitched.ownSprites() == 0) return;
         // missingno is among the descriptions - the atlas hands it to the stitcher like any other - so it is not
         // added again, and it is not one of the pack's own textures either.
-        int late = plan.measure.taken
-            ? Math.max(0, infos.size() - 1 - plan.measure.packSprites - registeredThisStitch)
+        int late = plan.measure.taken ? Math.max(0, infos.size() - 1 - plan.measure.packSprites - registeredThisStitch)
             : 0;
         reportStitched(plan, stitched, late, true);
     }

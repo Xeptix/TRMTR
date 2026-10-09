@@ -115,6 +115,8 @@ public final class ServerEvents {
             .onServerTick();
         ErosionEngine.get()
             .sweepOrphans();
+        // The update notice's round every eight hours (0.9.221), asked once a second.
+        if ((sampleCounter % 20) == 0) com.trmtgtnh.server.UpdateNotice.serverTick();
     }
 
     /**

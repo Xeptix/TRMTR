@@ -723,6 +723,11 @@ public class WearSprite extends TextureAtlasSprite {
      * unworn one beside it, including while it is off screen, where the modern chunk builder
      * advances the counter without uploading anything.
      */
+    /** Whether this picture's layer moves, so where it is drawn is noted (SeenPictures). */
+    public boolean moves() {
+        return layerFrames != null && shell != null && layerAnimation != null;
+    }
+
     @Override
     public void updateAnimation() {
         if (layerFrames == null || shell == null || layerAnimation == null) return;
@@ -738,12 +743,16 @@ public class WearSprite extends TextureAtlasSprite {
         if (index == uploaded) return;
         int[] frame = layerFrames[index];
         if (frame == null) return;
+        // Only a picture on the ground near the player is redrawn (0.9.221, SeenPictures): one that is not stays on the
+        // frame it shows, and moves again at its layer's next frame once a section near the player is drawn with it.
+        if (!InnerLayers.wanted(this)) return;
         // Counted before the work rather than after, so a refusal costs nothing. The counter has already moved on by
         // here, so a refused frame is not asked for again next tick: the picture keeps the frame it shows until its
         // layer next moves and asks again.
         if (!InnerLayers.mayUpload()) return;
 
         uploaded = index;
+        long began = System.nanoTime();
         int[][] chain = uploadScratch(layerSize);
         int[] composed = seeThrough ? WearCompositor.overThroughHolesInto(chain[0], frame, shell, layerSize)
             : WearCompositor.overInto(chain[0], frame, shell, layerSize);
@@ -767,6 +776,7 @@ public class WearSprite extends TextureAtlasSprite {
         if (still != null && still.length > 1) {
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST_MIPMAP_LINEAR);
         }
+        InnerLayers.redrew(System.nanoTime() - began);
     }
 
     /**

@@ -1,6 +1,6 @@
 # Licence
 
-**TRMT Reimagined** is licensed under the **Creative Commons
+**TRMT: Reimagined** is licensed under the **Creative Commons
 Attribution-NonCommercial 4.0 International Public License (CC BY-NC 4.0)**.
 
 - Full legal text: <https://creativecommons.org/licenses/by-nc/4.0/legalcode>
@@ -12,7 +12,7 @@ That covers the whole distributed work: the code, the generated wear patterns, t
 
 ## Why this licence, and not another
 
-TRMT Reimagined is Adapted Material of **The Roads More Travelled** by *milkucha*, which is
+TRMT: Reimagined is Adapted Material of **The Roads More Travelled** by *milkucha*, which is
 itself licensed CC BY-NC 4.0. Section 3(a)(4) of that licence says that if you share Adapted
 Material, the licence you apply to it must not prevent recipients from complying with the
 original licence. Section 2(a)(5)(b) says the same thing from the other direction: you may not
@@ -44,7 +44,7 @@ applies to this version.
 
 ## This is a modified work
 
-TRMT Reimagined is a **modified version** of The Roads More Travelled. It is not the original,
+TRMT: Reimagined is a **modified version** of The Roads More Travelled. It is not the original,
 and it does not behave like the original in several respects that are documented in the README.
 In outline, this version:
 
@@ -85,12 +85,12 @@ original licence and binds everyone downstream.
 This is an unofficial project. It is not produced, endorsed, supported or approved by milkucha.
 The CC BY-NC licence grants no trademark or patent rights (Section 2(b)(2)) and nothing in it
 may be read as implying a connection with the original author (Section 2(a)(6)). The name
-"TRMT Reimagined" reuses the original's initialism as a plain statement of what this work is
+"TRMT: Reimagined" reuses the original's initialism as a plain statement of what this work is
 derived from, not as a claim of affiliation.
 
 ## This version
 
-TRMT Reimagined is by **Xep**. New code and assets written for this version are the author's
+TRMT: Reimagined is by **Xep**. New code and assets written for this version are the author's
 own contributions to the Adapted Material, offered under the same CC BY-NC 4.0 terms so the
 whole work stays consistent and recipients can comply with the original licence.
 

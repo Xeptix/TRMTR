@@ -221,6 +221,9 @@ public class BlockGhost extends Block {
         // Salted by depth, as the other edition's top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
         int rotation = com.trmtgtnh.erosion.Rotations.forPosition(pos.getX(), pos.getZ(), ErosionState.sinkOf(record));
+        // The square's picture moves while it is on the ground near the player, and this is the last place that knows
+        // where the square is (0.9.221, SeenPictures).
+        Trmt.proxy.ghostDrawn(record, origin, rotation, pos.getX(), pos.getY(), pos.getZ());
         return ((IExtendedBlockState) state).withProperty(RECORD, Integer.valueOf(record))
             .withProperty(ORIGIN, Integer.valueOf(origin))
             .withProperty(ROTATION, Integer.valueOf(rotation))

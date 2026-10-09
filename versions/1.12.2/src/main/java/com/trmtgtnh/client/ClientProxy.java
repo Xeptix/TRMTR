@@ -193,6 +193,11 @@ public class ClientProxy extends CommonProxy {
             serviceRestitch();
             return;
         }
+        // The moving pictures near the player, let go of beyond the render distance once a second (SeenPictures).
+        if (mc.world.getTotalWorldTime() % 20L == 0L) {
+            com.trmtgtnh.client.texture.InnerLayers
+                .pruneSeen(mc.player.posX, mc.player.posZ, mc.gameSettings.renderDistanceChunks * 16);
+        }
         if (!announced) {
             announced = true;
             com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
@@ -356,8 +361,7 @@ public class ClientProxy extends CommonProxy {
             // Not cosmetic, unlike almost everything else this queue runs. A reload deletes the atlas's own
             // texture before it builds the replacement, so a stitch that throws half way leaves every block in
             // the game untextured with one line in the log.
-            com.trmtgtnh.Trmt.LOG
-                .error("Rebuilding the wear pictures failed; reloading every resource instead", failed);
+            com.trmtgtnh.Trmt.error("Rebuilding the wear pictures failed; reloading every resource instead", failed);
             tell(
                 net.minecraft.util.text.TextFormatting.RED
                     + "[TRMT] The wear pictures could not be rebuilt. Reloading resources - if the world still looks wrong, restart the game.");
@@ -778,6 +782,11 @@ public class ClientProxy extends CommonProxy {
         } catch (RuntimeException racingAnUnload) {
             return -1;
         }
+    }
+
+    @Override
+    public void ghostDrawn(short record, int origin, int rotation, int x, int y, int z) {
+        com.trmtgtnh.client.model.GhostBakedModel.noteDrawn(record, origin, rotation, x, y, z);
     }
 
     @Override

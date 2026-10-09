@@ -213,7 +213,7 @@ public final class Settling {
             masksProduced++;
             if (!cullHookRan && !cullHookWarned && masksProduced > 4096) {
                 cullHookWarned = true;
-                Trmt.LOG.error(
+                Trmt.error(
                     "Settling has wanted a face correction {} times and the six culling hooks that would apply it have never run, so worn snow and carpet will show a gap along a wear seam on a client with better face culling. Those six did not take; the injection that shifts the block did, or this line could not have been reached.",
                     Integer.valueOf(masksProduced));
             }

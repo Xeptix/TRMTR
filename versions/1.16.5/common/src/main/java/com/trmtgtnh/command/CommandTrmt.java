@@ -99,6 +99,7 @@ public final class CommandTrmt {
      * do.
      */
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
+        com.trmtgtnh.server.CommandTrmtNotice.register(dispatcher);
         dispatcher.register(
             net.minecraft.commands.Commands.literal("trmt")
                 .requires(source -> source.hasPermission(2))
@@ -777,7 +778,8 @@ public final class CommandTrmt {
     static BlockState placedState(Block block) {
         BlockState state = block.defaultBlockState();
         if (block instanceof net.minecraft.world.level.block.StairBlock) {
-            state = state.setValue(net.minecraft.world.level.block.StairBlock.FACING, net.minecraft.core.Direction.EAST);
+            state = state
+                .setValue(net.minecraft.world.level.block.StairBlock.FACING, net.minecraft.core.Direction.EAST);
         }
         return state;
     }

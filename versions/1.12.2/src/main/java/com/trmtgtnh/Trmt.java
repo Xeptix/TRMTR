@@ -2,6 +2,7 @@ package com.trmtgtnh;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.common.ICrashCallable;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -15,9 +16,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.surface.SurfaceRegistry;
+import com.trmtgtnh.util.Support;
 
 /**
- * TRMT Reimagined for Minecraft 1.12.2.
+ * TRMT: Reimagined for Minecraft 1.12.2.
  *
  * <p>
  * The second edition of a mod that has already been written once, for 1.7.10. At present it carries
@@ -79,6 +81,40 @@ public class Trmt {
 
     public static final Logger LOG = LogManager.getLogger(Tags.MOD_ID);
 
+    /**
+     * This mod's own errors (0.9.221): logged exactly as {@code LOG.error} would, and - the first time in a
+     * session - followed by the line saying where to report it and where to ask for help ({@link Support}).
+     * Every error the mod logs goes through here, outside the harness; {@code ErrorsSayWhereToReportTest}
+     * holds that.
+     */
+    public static void error(String message, Object... params) {
+        LOG.error(message, params);
+        askForReport();
+    }
+
+    public static void error(String message, Throwable thrown) {
+        LOG.error(message, thrown);
+        askForReport();
+    }
+
+    private static void askForReport() {
+        if (Support.firstError()) LOG.error(Support.afterError());
+    }
+
+    /** The line every crash report carries under this mod's name, saying where to take it (0.9.221). */
+    static final class CrashLine implements ICrashCallable {
+
+        @Override
+        public String getLabel() {
+            return Support.CRASH_LABEL;
+        }
+
+        @Override
+        public String call() {
+            return Support.crashDetail(Tags.VERSION);
+        }
+    }
+
     @SidedProxy(clientSide = "com.trmtgtnh.client.ClientProxy", serverSide = "com.trmtgtnh.CommonProxy")
     public static CommonProxy proxy;
 
@@ -103,6 +139,9 @@ public class Trmt {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
+        // First, so a crash while loading the config already carries it.
+        FMLCommonHandler.instance()
+            .registerCrashCallable(new CrashLine());
         LOG.info("{} {} for Minecraft 1.12.2", NAME, Tags.VERSION);
         mixinsLoaded();
         TrmtConfig.load(event.getSuggestedConfigurationFile());
@@ -172,6 +211,7 @@ public class Trmt {
         serverThread = Thread.currentThread();
         // Recorded first, because the command's own first act is to ask whether it is on this thread.
         event.registerServerCommand(new com.trmtgtnh.command.CommandTrmt());
+        event.registerServerCommand(new com.trmtgtnh.server.CommandTrmtNotice());
         com.trmtgtnh.server.UpdateNotice.serverStarting();
     }
 

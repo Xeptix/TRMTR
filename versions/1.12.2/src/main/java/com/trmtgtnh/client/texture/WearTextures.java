@@ -577,7 +577,7 @@ public final class WearTextures {
             reportFallbackGaps();
             Trmt.LOG.info("Wear texture faces: {}", ModelFaces.report());
             if (!REGISTERED.isEmpty() && current.loads == 0) {
-                Trmt.LOG.error(
+                Trmt.error(
                     "None of this mod's {} wear sprites was loaded by the atlas this stitch, so no ground will show any wear. Something has changed how the block atlas loads a sprite with a loader of its own.",
                     Integer.valueOf(REGISTERED.size()));
             }

@@ -7,11 +7,11 @@ Copyright © 2026 **milkucha**
 Source: <https://github.com/milkucha/trmt>
 CurseForge: <https://www.curseforge.com/minecraft/mc-mods/the-roads-more-travelled>
 Licensed under **Creative Commons Attribution-NonCommercial 4.0 International
-(CC BY-NC 4.0)** — full text in `LICENSE_trmt`.
+(CC BY-NC 4.0)** - full text in `LICENSE_trmt`.
 
 ## This work
 
-**TRMT Reimagined**, by *Xep*, is an unofficial, non-commercial **adaptation** of the above:
+**TRMT: Reimagined**, by *Xep*, is an unofficial, non-commercial **adaptation** of the above:
 rebuilt from Fabric 1.20.1 to Minecraft 1.7.10 / Forge, targeting the GT: New Horizons
 modpack. It is not produced, endorsed, or supported by milkucha.
 
@@ -147,7 +147,7 @@ indication of prior modifications, and a list that stops a year short of the cod
   but made at a bench rather than brewed in a stand, because 1.7.10 has no brewing API and vanilla
   decides a stand's output from four bits of a damage value with only three patterns unclaimed
   across a whole pack
-- Renamed from TRMT-GTNH to TRMT Reimagined (display name only)
+- Renamed from TRMT-GTNH to TRMT: Reimagined (display name only)
 - The four per-material tampers retired in favour of three items, each carrying its grade in its own
   stack data. A save that names a retired one lets it go and blocks its id, rather than the game
   refusing to open the world
@@ -165,7 +165,7 @@ for NonCommercial purposes. Exercising that right requires all of the following:
 
 1. **Attribute milkucha** as the creator of the original work.
 2. **Retain the copyright notice**, the license notice, and the warranty disclaimer.
-3. **Link the original** — <https://github.com/milkucha/trmt>.
+3. **Link the original** - <https://github.com/milkucha/trmt>.
 4. **State that this is modified**, and keep an indication of prior modifications.
 5. **Include the license text** (`LICENSE_trmt`) or a link to it.
 6. **Non-commercial only.** No sale, no paid distribution, no monetised hosting, no
@@ -186,7 +186,7 @@ generally like knowing, and it opens the door to upstreaming fixes.
 
 ## Other components
 
-- Build scaffolding derives from **GTNewHorizons/ExampleMod1.7.10** — see that project
+- Build scaffolding derives from **GTNewHorizons/ExampleMod1.7.10** - see that project
   for its own license.
 - Et Futurum Requiem's `etfuturum:grass_path` and `etfuturum:farmland` appear as registry
   names in default block lists, and are skipped when nothing provides them. No Et Futurum

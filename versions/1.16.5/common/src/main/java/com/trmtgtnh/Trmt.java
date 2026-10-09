@@ -5,6 +5,8 @@ import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.trmtgtnh.util.Support;
+
 /**
  * What the mod is called and where it writes, and nothing else.
  *
@@ -39,9 +41,29 @@ public final class Trmt {
     public static final String MODID = "trmtgtnh";
 
     /** The display name, under the same arrangement as {@link #MODID}. */
-    public static final String NAME = "TRMT Reimagined";
+    public static final String NAME = "TRMT: Reimagined";
 
     public static final Logger LOG = LogManager.getLogger(MODID);
+
+    /**
+     * This mod's own errors (0.9.221): logged exactly as {@code LOG.error} would, and - the first time in a
+     * session - followed by the line saying where to report it and where to ask for help ({@link Support}).
+     * Every error the mod logs goes through here, outside the harness; {@code ErrorsSayWhereToReportTest}
+     * holds that.
+     */
+    public static void error(String message, Object... params) {
+        LOG.error(message, params);
+        askForReport();
+    }
+
+    public static void error(String message, Throwable thrown) {
+        LOG.error(message, thrown);
+        askForReport();
+    }
+
+    private static void askForReport() {
+        if (Support.firstError()) LOG.error(Support.afterError());
+    }
 
     /**
      * What this build calls itself, as the loader that started it says.

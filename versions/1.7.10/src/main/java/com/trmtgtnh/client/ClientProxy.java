@@ -775,6 +775,11 @@ public class ClientProxy extends CommonProxy {
 
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.theWorld == null || mc.thePlayer == null) return;
+        // The moving pictures near the player, let go of beyond the render distance once a second (SeenPictures).
+        if (mc.theWorld.getTotalWorldTime() % 20L == 0L) {
+            com.trmtgtnh.client.texture.InnerLayers
+                .pruneSeen(mc.thePlayer.posX, mc.thePlayer.posZ, mc.gameSettings.renderDistanceChunks * 16);
+        }
 
         if (!announced) {
             announced = true;
@@ -1082,7 +1087,7 @@ public class ClientProxy extends CommonProxy {
             // atlas's GL name before it starts building the replacement, so a stitch that throws
             // half way leaves every block in the game untextured with one line in the log. At
             // startup the same throw becomes a crash report; this path bypasses that.
-            Trmt.LOG.error("Re-stitching the block atlas failed; reloading every resource instead", failed);
+            Trmt.error("Re-stitching the block atlas failed; reloading every resource instead", failed);
             tell(
                 EnumChatFormatting.RED
                     + "[TRMT] Wear textures could not be rebuilt. Reloading resources - if the world still looks wrong, restart the game.");

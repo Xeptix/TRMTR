@@ -7,11 +7,11 @@ Copyright © 2026 **milkucha**
 Source: <https://github.com/milkucha/trmt>
 CurseForge: <https://www.curseforge.com/minecraft/mc-mods/the-roads-more-travelled>
 Licensed under **Creative Commons Attribution-NonCommercial 4.0 International
-(CC BY-NC 4.0)** — full text in `LICENSE_trmt`.
+(CC BY-NC 4.0)** - full text in `LICENSE_trmt`.
 
 ## This work
 
-**TRMT Reimagined**, by *Xep*, is an unofficial, non-commercial **adaptation** of the above:
+**TRMT: Reimagined**, by *Xep*, is an unofficial, non-commercial **adaptation** of the above:
 rebuilt from Fabric 1.20.1 to Minecraft 1.7.10 / Forge, targeting the GT: New Horizons
 modpack, and then carried from that to Minecraft 1.12.2 / Forge. This repository is the
 1.12.2 edition. It is not produced, endorsed, or supported by milkucha.
@@ -154,7 +154,7 @@ indication of prior modifications, and a list that stops a year short of the cod
   unclaimed across a whole pack; in the 1.12.2 edition because the two editions are meant to be the
   same mod, and 1.12.2's own brewing registry would have made this the one recipe that differed
   between them
-- Renamed from TRMT-GTNH to TRMT Reimagined (display name only)
+- Renamed from TRMT-GTNH to TRMT: Reimagined (display name only)
 - The four per-material tampers retired in favour of three items, each carrying its grade in its own
   stack data. A save that names a retired one lets it go and blocks its id, rather than the game
   refusing to open the world
@@ -172,7 +172,7 @@ for NonCommercial purposes. Exercising that right requires all of the following:
 
 1. **Attribute milkucha** as the creator of the original work.
 2. **Retain the copyright notice**, the license notice, and the warranty disclaimer.
-3. **Link the original** — <https://github.com/milkucha/trmt>.
+3. **Link the original** - <https://github.com/milkucha/trmt>.
 4. **State that this is modified**, and keep an indication of prior modifications.
 5. **Include the license text** (`LICENSE_trmt`) or a link to it.
 6. **Non-commercial only.** No sale, no paid distribution, no monetised hosting, no
@@ -194,7 +194,7 @@ generally like knowing, and it opens the door to upstreaming fixes.
 ## Other components
 
 - Build scaffolding derives from **CleanroomMC/ForgeDevEnv**, the 1.12.2 workspace template,
-  used under the **MIT License** — full text in `LICENSE_forgedevenv`, retained as that
+  used under the **MIT License** - full text in `LICENSE_forgedevenv`, retained as that
   licence requires. The 1.7.10 edition's scaffolding instead derives from
   **GTNewHorizons/ExampleMod1.7.10**; see that project for its own licence.
 - Et Futurum Requiem's `etfuturum:grass_path` and `etfuturum:farmland` appear as registry

@@ -12,7 +12,10 @@ import com.trmtgtnh.erosion.ErosionStore;
 import com.trmtgtnh.erosion.PhysicalDecay;
 import com.trmtgtnh.network.TrmtNetwork;
 import com.trmtgtnh.surface.SurfaceRegistry;
+import com.trmtgtnh.util.Support;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.ICrashCallable;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.SidedProxy;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
@@ -24,7 +27,7 @@ import cpw.mods.fml.common.network.NetworkCheckHandler;
 import cpw.mods.fml.relauncher.Side;
 
 /**
- * TRMT Reimagined: The Roads More Travelled rebuilt for Forge 1.7.10 and GT: New Horizons.
+ * TRMT: Reimagined: The Roads More Travelled rebuilt for Forge 1.7.10 and GT: New Horizons.
  * Original mod by milkucha, CC BY-NC 4.0 — see LICENSE.md and ATTRIBUTION.md.
  *
  * <p>
@@ -44,9 +47,43 @@ public final class Trmt {
     // The id is what a save writes down, so it is fixed for the life of the mod; the name is
     // only ever read by a person, and is free to change.
     public static final String MODID = "trmtgtnh";
-    public static final String NAME = "TRMT Reimagined";
+    public static final String NAME = "TRMT: Reimagined";
 
     public static final Logger LOG = LogManager.getLogger(NAME);
+
+    /**
+     * This mod's own errors (0.9.221): logged exactly as {@code LOG.error} would, and - the first time in a
+     * session - followed by the line saying where to report it and where to ask for help ({@link Support}).
+     * Every error the mod logs goes through here, outside the harness; {@code ErrorsSayWhereToReportTest}
+     * holds that.
+     */
+    public static void error(String message, Object... params) {
+        LOG.error(message, params);
+        askForReport();
+    }
+
+    public static void error(String message, Throwable thrown) {
+        LOG.error(message, thrown);
+        askForReport();
+    }
+
+    private static void askForReport() {
+        if (Support.firstError()) LOG.error(Support.afterError());
+    }
+
+    /** The line every crash report carries under this mod's name, saying where to take it (0.9.221). */
+    static final class CrashLine implements ICrashCallable {
+
+        @Override
+        public String getLabel() {
+            return Support.CRASH_LABEL;
+        }
+
+        @Override
+        public String call() {
+            return Support.crashDetail(Tags.VERSION);
+        }
+    }
 
     @Mod.Instance(MODID)
     public static Trmt instance;
@@ -56,6 +93,9 @@ public final class Trmt {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
+        // First, so a crash while loading the config already carries it.
+        FMLCommonHandler.instance()
+            .registerCrashCallable(new CrashLine());
         TrmtConfig.load(event.getSuggestedConfigurationFile());
         TrmtNetwork.init();
         proxy.preInit();
@@ -176,6 +216,7 @@ public final class Trmt {
         // alike. See onServerThread.
         serverThread = Thread.currentThread();
         event.registerServerCommand(new CommandTrmt());
+        event.registerServerCommand(new com.trmtgtnh.server.CommandTrmtNotice());
         // Whether a newer release is out, asked once a launch - see UpdateNotice for who is told.
         com.trmtgtnh.server.UpdateNotice.serverStarting();
     }

@@ -6,7 +6,7 @@ issueTrackerURL = "https://github.com/Xeptix/TRMTR/issues"
 [[mods]]
 modId = "trmtgtnh"
 version = "${version}"
-displayName = "TRMT Reimagined"
+displayName = "TRMT: Reimagined"
 displayURL = "https://github.com/Xeptix/TRMTR"
 authors = "Xeptix"
 description = '''
@@ -43,6 +43,6 @@ outright without a square of terrain having changed.
 [[dependencies.trmtgtnh]]
     modId = "cloth-config"
     mandatory = true
-    versionRange = "[4.17,)"
+    versionRange = "[4.11,)"
     ordering = "NONE"
     side = "CLIENT"

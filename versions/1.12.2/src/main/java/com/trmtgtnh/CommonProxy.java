@@ -289,6 +289,9 @@ public class CommonProxy {
         return -1;
     }
 
+    /** Notes a ghost square about to be drawn, for the moving pictures near the player. Only a client draws. */
+    public void ghostDrawn(short record, int origin, int rotation, int x, int y, int z) {}
+
     /**
      * Whether the block a ghost stands over is drawn through the holes in its worn picture. Only a client has
      * ghosts, and pictures to see through; asked by the ghost block, which is shared code, so it can open its cell

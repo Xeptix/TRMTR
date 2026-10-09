@@ -110,20 +110,15 @@ public final class WearPackSource implements RepositorySource {
         // first reload. Both are ordinary, and both are asked again later.
         if (planned == null) return;
 
-        Pack pack = Pack.create(
-            ID,
-            true,
-            () -> new GeneratedPack(planned),
-            constructor,
-            Pack.Position.BOTTOM,
-            PackSource.BUILT_IN);
+        Pack pack = Pack
+            .create(ID, true, () -> new GeneratedPack(planned), constructor, Pack.Position.BOTTOM, PackSource.BUILT_IN);
 
         if (pack == null) {
             // Loud, because the shape of this failure is the worst kind: the game carries on, every
             // other texture loads, and ground simply never shows wear. Pack.create hands back null
             // when a pack will not answer for its own pack.mcmeta, which GeneratedPack is careful to
             // do - so if this ever fires, that is where to look.
-            Trmt.LOG.error(
+            Trmt.error(
                 "The wear texture pack would not build, so no worn ground will be drawn. This "
                     + "usually means GeneratedPack stopped answering for its own pack metadata.");
             return;

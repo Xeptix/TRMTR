@@ -51,6 +51,15 @@ public final class TrmtForge {
         // which only the loader can say. See UpdateNotice.
         com.trmtgtnh.server.UpdateNotice
             .edition("1.16.5-forge", !net.minecraftforge.fml.loading.FMLEnvironment.production);
+        // How the dependency check reads a required mod's version (0.9.221).
+        com.trmtgtnh.server.UpdateNotice.modVersions(
+            id -> net.minecraftforge.fml.ModList.get()
+                .getModContainerById(id)
+                .map(
+                    mod -> mod.getModInfo()
+                        .getVersion()
+                        .toString())
+                .orElse(null));
         Trmt.useHost(() -> {
             net.minecraft.server.MinecraftServer candidate = ServerLifecycleHooks.getCurrentServer();
             return candidate != null && candidate.isRunning() ? candidate : null;

@@ -82,6 +82,15 @@ public final class TrmtFabric implements ModInitializer {
             "1.16.5-fabric",
             FabricLoader.getInstance()
                 .isDevelopmentEnvironment());
+        // How the dependency check reads a required mod's version (0.9.221).
+        com.trmtgtnh.server.UpdateNotice.modVersions(
+            id -> FabricLoader.getInstance()
+                .getModContainer(id)
+                .map(
+                    mod -> mod.getMetadata()
+                        .getVersion()
+                        .getFriendlyString())
+                .orElse(null));
 
         // Before the world loads, which is the point: what erodes has to be known before the first
         // chunk is asked about, and on this edition nothing on a server ever worked it out.

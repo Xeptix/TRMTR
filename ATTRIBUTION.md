@@ -11,7 +11,7 @@ Licensed under **Creative Commons Attribution-NonCommercial 4.0 International
 
 ## This work
 
-**TRMT Reimagined**, by *Xep*, is an unofficial, non-commercial **adaptation** of the above:
+**TRMT: Reimagined**, by *Xep*, is an unofficial, non-commercial **adaptation** of the above:
 rebuilt from Fabric 1.20.1 to Minecraft 1.7.10 / Forge, targeting the GT: New Horizons
 modpack, and then carried from that to Minecraft 1.12.2 / Forge. This repository holds every
 edition of it. It is not produced, endorsed, or supported by milkucha.
@@ -154,7 +154,7 @@ indication of prior modifications, and a list that stops a year short of the cod
   unclaimed across a whole pack; in the 1.12.2 edition because the two editions are meant to be the
   same mod, and 1.12.2's own brewing registry would have made this the one recipe that differed
   between them
-- Renamed from TRMT-GTNH to TRMT Reimagined (display name only)
+- Renamed from TRMT-GTNH to TRMT: Reimagined (display name only)
 - The four per-material tampers retired in favour of three items, each carrying its grade in its own
   stack data. A save that names a retired one lets it go and blocks its id, rather than the game
   refusing to open the world

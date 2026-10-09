@@ -72,6 +72,8 @@ public final class InnerLayers {
         unpriced = 0;
         closeAsk();
         uploads.forget();
+        seen.clear();
+        seenSaid = -1;
         readTable();
     }
 
@@ -308,6 +310,61 @@ public final class InnerLayers {
     private static final MovingLayerLedger.UploadTally uploads = new MovingLayerLedger.UploadTally();
 
     /**
+     * The moving pictures on the ground near the player (0.9.221; Xep, 2026-10-08: worn Chisel moves "not more animated
+     * than normal Chisel, not less"): only these are redrawn as their layers move. See {@link
+     * com.trmtgtnh.util.SeenPictures}.
+     */
+    private static final com.trmtgtnh.util.SeenPictures seen = new com.trmtgtnh.util.SeenPictures();
+
+    /** How many pictures were in use when that was last said, so it is said again only when it changes much. */
+    private static int seenSaid = -1;
+
+    /** Layers redrawn, and the time spent on them, since the harness last said so. Render thread. */
+    private static int redrawn;
+
+    private static long redrawNanos;
+
+    /** Counts one layer redrawn and what it took. From WearSprite, render thread. */
+    static void redrew(long nanos) {
+        redrawn++;
+        redrawNanos += nanos;
+    }
+
+    /** Notes that the section holding this block was drawn with this moving picture. From the ghost's model facts. */
+    public static void noteSeen(Object picture, int x, int y, int z) {
+        seen.note(picture, x, y, z);
+    }
+
+    /** Whether a section near the player was drawn with this picture, so its layer is redrawn as it moves. */
+    static boolean wanted(Object picture) {
+        return seen.wanted(picture);
+    }
+
+    /**
+     * Lets go of every section beyond the render distance, and says how many moving pictures are on the ground near the
+     * player the first time there are any after a stitch, and again whenever the count doubles or halves. Client tick,
+     * once a second.
+     */
+    public static void pruneSeen(double playerX, double playerZ, int radius) {
+        seen.prune(playerX, playerZ, radius);
+        int now = seen.pictures();
+        if (now > 0 && (seenSaid <= 0 || now >= seenSaid * 2 || now * 2 <= seenSaid)) {
+            seenSaid = now;
+            Trmt.LOG.info(LINE_SEEN, Integer.valueOf(now), Integer.valueOf(seen.sections()));
+        }
+        // Under the test harness, what the last second cost: the numbers worn Chisel's parity is reported with.
+        if (Boolean.getBoolean("trmt.spike.walk") && now > 0) {
+            Trmt.LOG.info(
+                "Moving layers in the last second: {} redrawn, {} ms, for {} pictures on the ground near you",
+                Integer.valueOf(redrawn),
+                String.format(java.util.Locale.ROOT, "%.2f", redrawNanos / 1.0e6),
+                Integer.valueOf(now));
+        }
+        redrawn = 0;
+        redrawNanos = 0L;
+    }
+
+    /**
      * The animation the pack gives this texture, normalised, or null when it does not move.
      *
      * <p>
@@ -522,6 +579,7 @@ public final class InnerLayers {
     private static final String LINE_NOUGHT = "client.innerLayerAnimationBudgetMb is nought, so none of the {} {} whose layer moves was given movement, the same picture as turning client.animateInnerLayers off";
     private static final String LINE_NONE_FIT = "No layer moves: client.innerLayerAnimationBudgetMb is {} MiB and no surface asking for a moving layer fitted in it, so each keeps its layer's first frame: {}. The cheapest needed {} KiB, and moving every one would need a budget of {} MiB";
     private static final String LINE_REFUSED = "Kept a still layer on {} {} for want of room under client.innerLayerAnimationBudgetMb of {} MiB, each surface priced whole: {}. The cheapest needed {} KiB, and moving every surface asked for would need a budget of {} MiB";
+    private static final String LINE_SEEN = "{} worn pictures whose layer moves are on the ground near you, in {} drawn sections; only these are redrawn as their layers move, as an unworn block beside them moves with its liquid";
     private static final String LINE_CEILING = "On one tick {} worn pictures asked to have their moving layer redrawn and client.innerLayerUploadsPerTick allows {}, so {} were turned away. A picture turned away keeps the frame it shows until its layer next moves and asks again, and the atlas asks in the same order every tick, so while this lasts it is the same pictures that stand still";
 
     /** Notes that a named texture could not be read, so the stitch can say so once at the end. */

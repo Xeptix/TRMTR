@@ -236,6 +236,12 @@ public final class GhostRendering {
             int depth = ErosionState.sinkOf(Trmt.proxy.erosionStateAt(x, y, z));
             IIcon wear = WearTextures
                 .icon(origin, originMeta, originFamily, ghost.appearance(), layer, Rotations.forPosition(x, z, depth));
+            // A picture whose layer moves is noted where it is drawn, so it moves while it is on the ground near the
+            // player and nowhere else (0.9.221, SeenPictures).
+            if (wear instanceof com.trmtgtnh.client.texture.WearSprite
+                && ((com.trmtgtnh.client.texture.WearSprite) wear).moves()) {
+                com.trmtgtnh.client.texture.InnerLayers.noteSeen(wear, x, y, z);
+            }
             if (wear != null) return wear;
             if (side == 1) return ghost.fallbackIcon();
         }

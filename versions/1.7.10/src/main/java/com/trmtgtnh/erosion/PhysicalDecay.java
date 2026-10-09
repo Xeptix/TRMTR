@@ -263,7 +263,7 @@ public final class PhysicalDecay {
         if (!TrmtConfig.physicalDecayCollides()) return;
         if (net.minecraft.init.Blocks.stone instanceof ISinkableBlock) return;
 
-        com.trmtgtnh.Trmt.LOG.error(
+        com.trmtgtnh.Trmt.error(
             "The collision hook did not apply, so worn ground cannot actually be walked down into. "
                 + "Falling back to visual-only ruts; set physicalDecay=visual to silence this.");
         // Not this client's decision to take while it is a guest. A client predicts its footing from

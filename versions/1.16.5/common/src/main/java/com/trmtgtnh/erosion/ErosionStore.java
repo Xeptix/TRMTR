@@ -159,7 +159,7 @@ public final class ErosionStore {
             // Sixteen bits of index, which is sixty-five thousand levels in one session. A pack that
             // reached this would have other problems, but a silently wrapped index would mix two
             // levels' wear together, which is worse than saying so.
-            Trmt.LOG.error("More than 65535 levels seen in one session; erosion keys will collide");
+            Trmt.error("More than 65535 levels seen in one session; erosion keys will collide");
         }
         return levels.size() - 1;
     }

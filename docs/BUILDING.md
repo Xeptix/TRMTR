@@ -48,7 +48,7 @@ of this repository and build on its own.
 
 ## Why the portable core is duplicated
 
-Thirty classes appear in every edition, byte for byte. They are the ones that name nothing from
+Thirty-four classes appear in every edition, byte for byte. They are the ones that name nothing from
 Minecraft at all - the storage layer, the wear chain, the texture planners, the surface table codec,
 the quest and loot bookkeeping - and they are duplicated rather than shared for the same reason
 there is no root build: each edition compiles against a different Minecraft with a different
@@ -58,13 +58,13 @@ The duplication is deliberate and it is checked before every release: a test in 
 development tree reads its own copy and the one in the edition it was carried from - 1.12.2 against
 1.7.10, 1.16.5 against 1.12.2 - and fails the build on any difference, naming the files.
 
-Consequence worth knowing if you are editing: **a change to any of those thirty classes has to
+Consequence worth knowing if you are editing: **a change to any of those thirty-four classes has to
 be made in every edition identically**, and neither edition may reformat them.
 
 Real shared compilation - a `common/` module with loader-specific subprojects - becomes possible
 from Minecraft 1.16.5, where Architectury Loom can give you Minecraft without a loader on the
 classpath. That is where it happened: the 1.16.5 edition is `common`, `forge` and `fabric`, and one
-build produces both jars. The thirty classes are still duplicated *across* editions, for the
+build produces both jars. The thirty-four classes are still duplicated *across* editions, for the
 reason above; within 1.16.5 they exist once.
 
 ## How a release is verified
@@ -75,8 +75,8 @@ trees, where every one of them runs and passes before a release is built here - 
 Among what runs before a release:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
-  thirty classes starts naming a Minecraft type.
-- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds sixty-one files across
+  thirty-four classes starts naming a Minecraft type.
+- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds sixty-five files across
   seven packages that may name Minecraft and may not name Forge, and lists the eleven files outside
   it with what each needs Forge for. It fails both ways, so neither the fence nor the list of
   exceptions can rot. It is there for the ports after 1.12.2.

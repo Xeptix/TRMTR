@@ -1,6 +1,6 @@
-![TRMT Reimagined - terrain wears into paths along the routes you actually walk, and grows back over time when you stop using them. Eighty gradations, half a block deep, no block ever placed](docs/images/03-header.png)
+![TRMT: Reimagined - terrain wears into paths along the routes you actually walk, and grows back over time when you stop using them. Eighty gradations, half a block deep, no block ever placed](docs/images/03-header.png)
 
-# TRMT Reimagined
+# TRMT: Reimagined
 
 ![Worn roads running across grass, dirt, sand and stone, each one darker and more sunken along the line that has been walked](docs/images/roads-reel.gif)
 
@@ -19,7 +19,7 @@ with nothing else installed, except that 1.16.5 wants Cloth Config for its setti
 
 One mod, one version number, three editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
-left them. Thirty classes are shared between them byte for byte. Where an edition cannot match
+left them. Thirty-four classes are shared between them byte for byte. Where an edition cannot match
 the others it is because the Minecraft version took away what the behaviour was built on, and the
 section it belongs to says so rather than leaving you to find out. They are collected in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) if you would rather see them all at once.
@@ -883,7 +883,7 @@ when it wears again, and nothing is lit until it does. There is a second provide
 
 The block itself already reports honestly without either - a ghost hands back the block it is
 covering, so any tooltip names the real block and the right tool. Toggle the extra lines under
-**TRMT Reimagined** in Waila's or Hwyla's own settings.
+**TRMT: Reimagined** in Waila's or Hwyla's own settings.
 
 One thing worth knowing if the lines do not appear: Hwyla has a `keybind` setting of its own that
 hides every mod's extra lines until a key is held. That is Hwyla's, not this mod's.
@@ -1093,28 +1093,59 @@ reloads it.
 
 ## Update notice
 
-**Once a launch, a server asks whether a newer release is out, and tells whoever can update this
-copy as they join** - one line in their chat, with the new version, the one this world is running,
-and links to CurseForge and Modrinth.
+**A server asks whether a newer release that changes its own jar is out, and tells whoever can update
+this copy** - a short block in their chat: the new version and the one this world is running, then a
+line each for a critical fix, what the release does, where to get it, and the Discord, and last, links
+to quiet it.
 
 - **What is read.** One small file, `latest.properties`, from this repository, holding a line per
   edition - 1.7.10, 1.12.2, 1.16.5 Forge, 1.16.5 Fabric - of which each jar reads only its own. Its
   address is `https://raw.githubusercontent.com/Xeptix/TRMTR/master/latest.properties`.
+- **Only releases that change your jar.** Every edition takes the new number with every release, so the
+  file also says, for each jar, the newest release that changed it. You are told only when one of those
+  is newer than yours, and pointed at the newest release, which carries it; a release that changes
+  nothing in your jar is one line in the server's log. `general.updateNoticeReleases` set to `all` tells
+  you of every release instead. Jars from before 0.9.221 read only the newest number, and hear of every
+  release.
+- **Critical fixes.** A release can mark itself critical for a jar, with a reason - a crash, world data,
+  or a broken feature - and anyone still running a version before it is told so, in red, until they
+  move past it. A release can also give one short sentence of what it does. Every word shown is this
+  mod's own: the file supplies version numbers, one of the three reasons, and a sentence held to fifty
+  characters of plain text with no address in it.
+- **Required mods.** The file gives UniMixins on 1.7.10, MixinBooter on 1.12.2, and Cloth Config and
+  Fabric API on 1.16.5 a minimum and a recommended version. Whoever can update the game is told when
+  theirs is older, which version to get, and where to ask for help. The minimums are the oldest run in
+  game with this release, up to five years back - UniMixins 0.1.11, MixinBooter 8.0, Cloth Config
+  4.11.26 on Forge and 4.14.54 on Fabric, Fabric API 0.29.4 - and the recommended versions are those
+  the mod is built against. This is the softer line above the
+  loaders' own floors, and it can move without a new release of this mod.
 - **What is sent.** Nothing but the request itself, which GitHub sees as it would any page: no player
   names, no world, no settings, no identifier of any kind. The answer is kept in memory and noted in
   the game's log.
 - **When.** The first time a server starts in a game - a dedicated server as it starts, single player
-  as the first world of the session opens - and again when somebody it would tell joins and the last
-  answer is more than a day old. A client joining somebody else's server never asks. An answer that
-  takes more than five seconds, or does not read as a version, is let go quietly, and not asked for
-  again that day.
+  as the first world of the session opens - and then every eight hours while it keeps running, when
+  everyone online who can update is told again. Somebody it would tell who joins in between is told
+  then. A client joining somebody else's server never asks. An answer that takes more than five
+  seconds, or does not read as a version, is let go quietly, and not asked for again for eight hours.
 - **Who is told.** Whoever can act on it: you in single player, with cheats or without; the host of a
   LAN game, and not the guests, who cannot update the host's copy; a dedicated server's operators.
+- **Quieting it.** The notice's last line has two links: silence this one update, or turn update
+  notices off. Each asks you to confirm in the chat first, acts for you alone, and is remembered by the
+  server in `config/trmtgtnh-notices.properties`. `/trmtnotice on` turns them back on; any player may
+  run it, since it changes nobody else's notice.
 - **`general.updateNotice`** - `operators`, the default, as above; `everyone` to tell every player,
   privately; or `off` to tell nobody, and then the mod never asks at all - and says so, in one line of
   the log, as the server starts.
 
 A development build never asks.
+
+## Reporting a problem
+
+**Every crash report carries a line under this mod's name**, and the first error this mod logs in a
+session is followed by the same: if the crash or the error names TRMT or `com.trmtgtnh`, report it at
+[the issues page](https://github.com/Xeptix/TRMTR/issues), in the
+[Discord](https://discord.gg/RE85HRwYZZ)'s #mc-bug-reports or #mc-help, or as a reply on the mod's
+release post there. Attach the crash report or `latest.log`, and say which edition you run.
 
 ## Performance
 
@@ -1303,11 +1334,11 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **474 tests on 1.7.10, 520 on 1.12.2 and 518 on 1.16.5**, every one
+types in them and are unit tested - **501 tests on 1.7.10, 547 on 1.12.2 and 546 on 1.16.5**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 
-**Thirty of those classes are shared between the editions byte for byte**, and a test in each
+**Thirty-four of those classes are shared between the editions byte for byte**, and a test in each
 reads its own copy and the one in the edition it was carried from, failing the build on any
 difference and naming the files.
 

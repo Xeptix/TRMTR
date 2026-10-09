@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
  * 6.0.10 in the instance. It transforms nothing and loads no game class. {@code Trmt.mixinsLoaded} says in the log
  * if the mixins are still missing once the game is up.
  */
-@IFMLLoadingPlugin.Name("TRMT Reimagined")
+@IFMLLoadingPlugin.Name("TRMT: Reimagined")
 @IFMLLoadingPlugin.MCVersion("1.12.2")
 public final class TrmtLoadingPlugin implements IFMLLoadingPlugin {
 

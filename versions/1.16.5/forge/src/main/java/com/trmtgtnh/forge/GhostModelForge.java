@@ -68,8 +68,8 @@ public class GhostModelForge implements IDynamicBakedModel {
      */
     @Override
     @Nonnull
-    public IModelData getModelData(@Nonnull BlockAndTintGetter level, @Nonnull BlockPos pos,
-        @Nonnull BlockState state, @Nonnull IModelData tileData) {
+    public IModelData getModelData(@Nonnull BlockAndTintGetter level, @Nonnull BlockPos pos, @Nonnull BlockState state,
+        @Nonnull IModelData tileData) {
         return new Square(level, pos.immutable(), tileData);
     }
 
@@ -194,7 +194,7 @@ public class GhostModelForge implements IDynamicBakedModel {
         if (seated) WITH_SEAT.incrementAndGet();
         if (warned || total < 200L || WITH_SEAT.get() > 0L) return;
         warned = true;
-        com.trmtgtnh.Trmt.LOG.error(
+        com.trmtgtnh.Trmt.error(
             "The ghost model has been asked for quads {} times and not once was it told which square it is "
                 + "drawing, by either of the two ways it can be: the model data this model answers in "
                 + "getModelData, which any Forge-aware renderer asks for, or the seat a mixin on "

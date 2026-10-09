@@ -1,8 +1,83 @@
-# TRMT Reimagined - changelog
+# TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.220 is the same release on Minecraft 1.7.10, 1.12.2
+One version number across every edition. 0.9.221 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.221 - 2026-10-09
+
+**The update notice speaks only of releases that change your own jar.** Every edition takes the new number with
+every release, so until now a 1.7.10 player was told to update for a release that changed only 1.16.5. From this
+release the version file says, for each jar, the newest release that changed it, and you are told only when one of
+those is newer than yours - pointed at the newest release, which carries it. A release that changes nothing in your
+jar is one line in the server's log; `general.updateNoticeReleases` set to `all` tells you of every release instead.
+A release can mark itself critical for a jar, with a reason - a crash, world data, a broken feature - and anyone
+skipping past it is told so ("It includes a critical fix (a crash) from 0.9.218"). A release can also give the chat
+one short sentence of what it does. Every word shown is this mod's own: the version file supplies version numbers,
+one of three reasons, and a sentence held to fifty characters of plain text with no address in it. Jars from before
+this release read the file as they always did, and hear of every release.
+
+*Changes: every edition.*
+
+**The update notice reads easily, and can be quieted.** A headline with the new version in gold and yours in gray,
+and under it one thing to a line - the critical fix, what is new, where to get it, the Discord with its invite on a
+line of its own, and last, links to silence that one update or turn update notices off. Each asks you to confirm in
+the chat, acts for you alone, and is remembered by the server; `/trmtnotice on` turns them back on. A server that
+stays up tells everyone who can update again every eight hours, reading the version file afresh each time. Every
+line fits the chat's width, so none breaks in the middle of a link.
+
+*Changes: every edition.*
+
+**A required mod older than this one wants is warned about.** UniMixins on 1.7.10, MixinBooter on 1.12.2, Cloth
+Config and Fabric API on 1.16.5: the version file gives each a minimum and a recommended version, and whoever can
+update the game is told when theirs is older - which version to get, and where to ask for help. The minimums are the
+oldest that were run in game with this release, up to five years back: UniMixins 0.1.11, MixinBooter 8.0, Cloth
+Config 4.11.26 on Forge and 4.14.54 on Fabric, and Fabric API 0.29.4. MixinBooter 7.0 and older carry a Mixin too old
+for any of this mod's mixins to apply. What the mod is built against is what it recommends. This is the softer line
+above the loaders' own floors, and it can move without a new release of this mod.
+
+*Changes: every edition.*
+
+**Older Cloth Config is enough on 1.16.5.** The Fabric jar asked for 4.17.132, which Modrinth does not carry - its
+newest for 1.16.5 is 4.17.101 - so a player who took Cloth Config from there could not start the game, and the Forge
+jar asked for 4.17. They now take 4.14.54 on Fabric, the oldest for 1.16.5 there, and 4.11.26 on Forge, the most
+downloaded. Every class and method this mod uses from Cloth Config is in both, checked one by one, and the whole
+in-game test ran on each.
+
+*Changes: 1.16.5.*
+
+**Crash reports and errors say where to take them.** Every crash report carries a line under this mod's name: if
+the crash names TRMT or com.trmtgtnh, report it at the GitHub issues page, in the Discord's #mc-bug-reports or
+#mc-help, or as a reply on the mod's release post. The first error this mod logs in a session is followed by the
+same. Read in a crash made on purpose in every edition.
+
+*Changes: every edition.*
+
+**Worn Chisel liquid moves wherever you can see it.** A worn lavastone or waterstone picture carries its own copy of
+the lava or water, so every one that moves is an upload of its own, and until now the atlas asked all of them every
+tick and let the same 256 move - so worn liquid in view could stand still. A worn picture now moves while it is on
+the ground near you, every one, in step with the unworn block beside it, and nothing else on the atlas is redrawn:
+on GT New Horizons with Chisel, 212 pictures in view moved ten frames a second each for about six milliseconds a
+second, where 5,440 had been asking.
+
+*Changes: 1.7.10 and 1.12.2.*
+
+**Under OptiFine on 1.16.5, a snow layer's side at a rut's step is drawn.** OptiFine decides which faces to draw
+from what the two blocks are, not where they stand, so the step between two snow layers at different heights was
+left open and a line of the ground showed. Its face test now keeps that step, on the OptiFine it was written for;
+another OptiFine draws as OptiFine does and the log says so.
+
+*Changes: 1.16.5.*
+
+**The name is TRMT: Reimagined**, with its colon, in the mod list, the achievement page, the settings and every
+document.
+
+*Changes: every edition.*
+
+**Test rig.** The harness can crash a game on purpose to read its crash report, the update notice is photographed
+in five more variants, and each second of a run says what the moving layers cost.
+
+*Changes: no edition - the test rig.*
 
 ## 0.9.220 - 2026-10-08
 

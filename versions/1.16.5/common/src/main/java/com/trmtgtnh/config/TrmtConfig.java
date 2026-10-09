@@ -162,6 +162,16 @@ public final class TrmtConfig {
      */
     public static String updateNotice = UPDATE_OPERATORS;
 
+    public static final String RELEASES_RELEVANT = "relevant";
+    public static final String RELEASES_ALL = "all";
+
+    /**
+     * Which newer releases {@link #updateNotice} tells of (0.9.221; Xep, 2026-10-09): <b>relevant</b>, the default,
+     * only one that changes this jar - every edition moves its number with every release - and <b>all</b>, every
+     * one. A release that changes nothing here is one line in the server's log either way.
+     */
+    public static String updateNoticeReleases = RELEASES_RELEVANT;
+
     /**
      * Scales every wear threshold at once. Above 1.0 erodes faster, below 1.0 slower. The
      * shipped defaults are about eight times slower than upstream TRMT, so 8.0 here restores
@@ -1206,7 +1216,19 @@ public final class TrmtConfig {
         return families;
     }
 
+    /** The file the settings were loaded from, so other files of this mod's can sit beside it. */
+    private static File loadedFrom;
+
+    /** The folder the settings live in - the config folder - where the update notice keeps who has quieted it. */
+    public static File folder() {
+        File file = loadedFrom;
+        return file == null ? new File("config")
+            : file.getAbsoluteFile()
+                .getParentFile();
+    }
+
     public static void load(File file) {
+        loadedFrom = file;
         config = new ConfigFile(file);
         config.load();
         read();
@@ -1285,14 +1307,14 @@ public final class TrmtConfig {
             config.load();
         } catch (RuntimeException malformed) {
             poisoned = true;
-            Trmt.LOG.error("Config file could not be parsed, keeping the settings already loaded", malformed);
+            Trmt.error("Config file could not be parsed, keeping the settings already loaded", malformed);
             return false;
         }
 
         Set<String> after = keysOnRecord();
         if (!before.isEmpty() && !after.containsAll(before)) {
             poisoned = true;
-            Trmt.LOG.error(
+            Trmt.error(
                 "Config file is missing {} settings it had a moment ago, so it looks truncated. Keeping the settings already loaded and writing nothing back.",
                 Integer.valueOf(before.size() - countPresent(before, after)));
             return false;
@@ -1512,8 +1534,14 @@ public final class TrmtConfig {
             "updateNotice",
             ConfigFile.CATEGORY_GENERAL,
             UPDATE_OPERATORS,
-            "Who is told, as they join, that a newer TRMT Reimagined is out. operators: whoever can update this copy - you in single player, the host of a LAN game, a server's operators. everyone: every player, privately. off: nobody, and the mod never asks. Once a launch, a server reads one small file from GitHub to learn the newest version; nothing about you or your world is sent.",
+            "Who is told, as they join, that a newer TRMT: Reimagined is out. operators: whoever can update this copy - you in single player, the host of a LAN game, a server's operators. everyone: every player, privately. off: nobody, and the mod never asks. Once a launch, a server reads one small file from GitHub to learn the newest version; nothing about you or your world is sent.",
             new String[] { UPDATE_OPERATORS, UPDATE_EVERYONE, UPDATE_OFF });
+        updateNoticeReleases = config.getString(
+            "updateNoticeReleases",
+            ConfigFile.CATEGORY_GENERAL,
+            RELEASES_RELEVANT,
+            "Which newer releases updateNotice tells of. relevant: only one that changes this edition - every edition takes the new number with every release, so most releases change only some of them. all: every newer release. A release that changes nothing here is still written in the server's log. A release with a critical fix for this edition says so either way.",
+            new String[] { RELEASES_RELEVANT, RELEASES_ALL });
 
         globalSpeed = config.get(
             ConfigFile.CATEGORY_GENERAL,
@@ -2944,7 +2972,10 @@ public final class TrmtConfig {
             }
         }
         if (bare.isEmpty()) return;
-        Trmt.LOG.warn("{} settings have no hover explanation: {}", Integer.valueOf(bare.size()), com.trmtgtnh.util.LogSample.of(bare));
+        Trmt.LOG.warn(
+            "{} settings have no hover explanation: {}",
+            Integer.valueOf(bare.size()),
+            com.trmtgtnh.util.LogSample.of(bare));
     }
 
     private static boolean isBlank(String text) {

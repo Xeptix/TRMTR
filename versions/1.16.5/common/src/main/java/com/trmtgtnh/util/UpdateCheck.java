@@ -92,6 +92,12 @@ public final class UpdateCheck {
      */
     public static final String TEST_ADDRESS = "trmt.update.url";
 
+    /**
+     * Under the test address only, which releases to tell of, in place of {@code general.updateNoticeReleases}: how
+     * a harness run shows a jar that asked for every release (0.9.221). Ignored without the test address.
+     */
+    public static final String TEST_RELEASES = "trmt.update.releases";
+
     /** Every test harness switch begins with this, in every edition, and any of them set means no request. */
     static final String HARNESS = "trmt.spike";
 
@@ -101,8 +107,12 @@ public final class UpdateCheck {
     /** How much of an answer is read at most. The real file is a few hundred bytes. */
     static final int LONGEST_ANSWER = 4096;
 
-    /** How long an answer is trusted before an eligible join asks again: a day, for servers that run for weeks. */
-    public static final long STALE_AFTER_MS = 24L * 60L * 60L * 1000L;
+    /**
+     * How long an answer is trusted before an eligible join asks again, and how often a running server reads the file
+     * again and tells everyone online who can update: eight hours, three times a day (0.9.221; Xep, 2026-10-09: "make
+     * the text post on a 8h schedule, so 3 times a day if the server stays running that long"). A day until then.
+     */
+    public static final long STALE_AFTER_MS = 8L * 60L * 60L * 1000L;
 
     /** The words the notice is built from: newest, running, and the two link names, in that order. */
     public static final int PLACES = 4;
@@ -132,6 +142,56 @@ public final class UpdateCheck {
     static final String BAD = "bad.";
 
     /**
+     * What a jar's line is followed by for the newest build that changed that jar: {@code 1.7.10-forge.relevant}
+     * (0.9.221; Xep, 2026-10-09). Every edition moves its number with every release, so {@code <edition>} alone
+     * says a release is out, not that it changes anything in this jar. A file without the line yet - every one
+     * before 0.9.221 - counts every newer build as relevant, as before.
+     */
+    static final String RELEVANT = ".relevant";
+
+    /**
+     * What a jar's line is followed by for the newest build that was critical for that jar, and for its reason:
+     * {@code 1.7.10-forge.critical=0.9.218}, {@code 1.7.10-forge.critical.reason=crash}.
+     */
+    static final String CRITICAL = ".critical";
+
+    static final String REASON = ".reason";
+
+    /**
+     * The reasons a build may be critical for, as the file names them. The file supplies only one of these words;
+     * each edition's own language file says what it means, so the file still cannot put words into chat.
+     */
+    public static final String[] REASONS = { "crash", "world", "feature" };
+
+    /** Each reason in English, for an edition whose language file has no word for it. */
+    public static final String[] REASON_WORDS = { "a crash", "world data", "a broken feature" };
+
+    /**
+     * What a line giving a build's brief change sentence starts with: {@code says.0.9.222=Snow settles on worn paths
+     * again.}, or for one edition {@code says.0.9.222.1.12.2-forge=...} (0.9.221; Xep, 2026-10-09: "a very brief
+     * message explaining what the update does").
+     *
+     * <p>
+     * <strong>The one place the file supplies words</strong>, which until 0.9.221 it never could, so they are held
+     * to a shape that cannot do harm: plain text, at most {@link #LONGEST_SAYING} characters, no control or
+     * formatting character, nothing that reads as an address ({@link #plain}). Anything else is dropped and the
+     * notice goes without it. It is shown as text, never as a link.
+     */
+    static final String SAYS = "says.";
+
+    /**
+     * The longest change sentence shown: it is a line of its own under the headline, and at fifty characters it fits
+     * the chat's width, so it never wraps.
+     */
+    public static final int LONGEST_SAYING = 50;
+
+    /** Anything that reads as an address: a scheme, a www, or a name with a domain after a dot. */
+    private static final Pattern LINKLIKE = Pattern.compile("(?i)(://|\\bwww\\.|\\b[a-z0-9-]+\\.[a-z]{2,}(/|\\b))");
+
+    /** The {@code general.updateNoticeReleases} value that tells a player of every newer release, relevant or not. */
+    public static final String EVERY_RELEASE = "all";
+
+    /**
      * A build's name, and nothing else: the version, then a stage and its number, then an edition's own
      * stage, then an early word and its number - each part optional, in that order.
      */
@@ -151,6 +211,12 @@ public final class UpdateCheck {
 
     /** The last answer, or null before the first one arrives. */
     private static volatile Answer last;
+
+    /**
+     * The version file as the last check read it, or null - what the dependency check reads its minimums from
+     * (DependencyCheck; 0.9.221), so one request answers both.
+     */
+    private static volatile String lastBody;
 
     /** Whether a check is out now, so two joins in one second do not send two requests. */
     private static final AtomicBoolean ASKING = new AtomicBoolean();
@@ -178,16 +244,43 @@ public final class UpdateCheck {
          */
         public final boolean bad;
 
+        /**
+         * The newest build that was critical for this jar, when it is newer than the running one and no newer than
+         * {@link #newer} - the notice then says the update includes a critical fix - or null.
+         */
+        public final String critical;
+
+        /** Why {@link #critical} was critical: one of {@link #REASONS}, or null when the file gives none it knows. */
+        public final String reason;
+
+        /**
+         * The brief change sentence of the newest build that changed this jar, when that build is newer than the
+         * running one and the file gives one in the shape {@link #plain} allows - or null.
+         */
+        public final String says;
+
         Answer(String newer, String running, String said, long at) {
             this(newer, running, said, at, false);
         }
 
         Answer(String newer, String running, String said, long at, boolean bad) {
+            this(newer, running, said, at, bad, null, null);
+        }
+
+        Answer(String newer, String running, String said, long at, boolean bad, String critical, String reason) {
+            this(newer, running, said, at, bad, critical, reason, null);
+        }
+
+        Answer(String newer, String running, String said, long at, boolean bad, String critical, String reason,
+            String says) {
+            this.says = says;
             this.newer = newer;
             this.running = running;
             this.said = said;
             this.at = at;
             this.bad = bad;
+            this.critical = critical;
+            this.reason = reason;
         }
     }
 
@@ -232,10 +325,13 @@ public final class UpdateCheck {
      *
      * @param edition    this jar's line in the file, {@code <game>-<loader>}: {@code 1.16.5-fabric}
      * @param running    this jar's own version
+     * @param releases   the {@code general.updateNoticeReleases} setting: {@code relevant}, the default, tells
+     *                   of a newer build only when it changes this jar; {@link #EVERY_RELEASE} of every one
      * @param properties the system properties, or a stand-in for them in a test
      */
-    public static void start(final String edition, final String running, final Map<?, ?> properties,
-        final Runnable then) {
+    public static void start(final String edition, final String running, final String releases,
+        final Map<?, ?> properties, final Runnable then) {
+        final boolean every = everyRelease(releases, properties);
         if (!ASKING.compareAndSet(false, true)) return;
         final String test = testAddress(properties);
         Thread thread = new Thread(new Runnable() {
@@ -243,7 +339,7 @@ public final class UpdateCheck {
             @Override
             public void run() {
                 try {
-                    last = ask(test != null ? test : ADDRESS, edition, running, test != null);
+                    last = ask(test != null ? test : ADDRESS, edition, running, test != null, every);
                 } finally {
                     ASKING.set(false);
                 }
@@ -252,6 +348,11 @@ public final class UpdateCheck {
         }, "TRMT update check");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /** The version file as the last check read it, or null before any was read. */
+    public static String lastBody() {
+        return lastBody;
     }
 
     /** The last answer, or null if no check has finished yet. */
@@ -265,14 +366,20 @@ public final class UpdateCheck {
         return held == null || now - held.at > STALE_AFTER_MS;
     }
 
-    /** One whole check, on whatever thread calls it. Never throws. */
+    /** One whole check, telling of relevant builds only, as a jar does by default. */
     static Answer ask(String address, String edition, String running, boolean testing) {
+        return ask(address, edition, running, testing, false);
+    }
+
+    /** One whole check, on whatever thread calls it. Never throws. */
+    static Answer ask(String address, String edition, String running, boolean testing, boolean every) {
         long now = System.currentTimeMillis();
         String early = earlyOf(running);
         String mine = parse(running) == null && testing ? leading(running) : running;
         String body;
         try {
             body = fetch(address);
+            lastBody = body;
         } catch (IOException e) {
             return new Answer(null, mine, "could not read " + where(address) + " (" + e + ")", now);
         } catch (RuntimeException e) {
@@ -310,11 +417,93 @@ public final class UpdateCheck {
                 "up to date: " + mine + (early != null ? " is an early build of " + early : "") + ", newest " + newest,
                 now);
         }
+        // Newer - but does it change this jar? An early build is always told when the build it previews is out;
+        // otherwise the newest build that changed this jar must be newer than this one (Xep, 2026-10-09), or the
+        // player hears of it only with general.updateNoticeReleases at all, and the server's log says so.
+        String changed = newestFor(body, line + RELEVANT);
+        boolean relevant = early != null || changed == null || !trusted(changed) || compare(changed, mine) > 0;
+        if (!relevant && !every) {
+            return new Answer(
+                null,
+                mine,
+                newest + " is out, and nothing in it changes "
+                    + edition
+                    + " since "
+                    + mine
+                    + " - not told in chat (general.updateNoticeReleases is relevant)",
+                now);
+        }
+        // And whether a build between this one and the newest was critical for this jar: the notice names the
+        // newest, and says the critical fix is in it (0.9.217 -> 0.9.218 critical -> 0.9.219: get 0.9.219).
+        String critical = newestFor(body, line + CRITICAL);
+        if (critical != null && (!trusted(critical) || compare(critical, mine) <= 0 || compare(critical, newest) > 0)) {
+            critical = null;
+        }
+        String reason = critical == null ? null : reasonOf(newestFor(body, line + CRITICAL + REASON));
+        // What the newest build to change this jar says it does - only when that build is one this jar lacks.
+        String says = changed != null && trusted(changed) && compare(changed, mine) > 0 ? saying(body, changed, edition)
+            : null;
         return new Answer(
             newest,
             mine,
-            newest + " is out, and this is " + (early != null ? "the early build " : "") + mine,
-            now);
+            newest + " is out, and this is "
+                + (early != null ? "the early build " : "")
+                + mine
+                + (relevant ? "" : " (nothing in it changes " + edition + ")")
+                + (critical == null ? ""
+                    : "; " + critical + " was critical for this jar" + (reason == null ? "" : " (" + reason + ")")),
+            now,
+            false,
+            critical,
+            reason,
+            says);
+    }
+
+    /**
+     * A build's change sentence for this edition, or for every edition, if the file gives one {@link #plain} allows.
+     */
+    static String saying(String body, String build, String edition) {
+        String own = plain(newestFor(body, SAYS + build + "." + edition));
+        return own != null ? own : plain(newestFor(body, SAYS + build));
+    }
+
+    /**
+     * A change sentence as it may be shown, or null: trimmed, one to {@link #LONGEST_SAYING} characters, no control
+     * character, no section sign (the game's formatting code), nothing that reads as an address.
+     */
+    public static String plain(String said) {
+        if (said == null) return null;
+        String text = said.trim();
+        if (text.isEmpty() || text.length() > LONGEST_SAYING) return null;
+        for (int at = 0; at < text.length(); at++) {
+            char c = text.charAt(at);
+            if (Character.isISOControl(c) || c == '\u00a7') return null;
+        }
+        return LINKLIKE.matcher(text)
+            .find() ? null : text;
+    }
+
+    /**
+     * Whether a jar tells of every newer release: its setting says {@link #EVERY_RELEASE}, or - under the test address
+     * alone - {@link #TEST_RELEASES} does.
+     */
+    static boolean everyRelease(String releases, Map<?, ?> properties) {
+        if (EVERY_RELEASE.equalsIgnoreCase(releases == null ? "" : releases.trim())) return true;
+        Object test = testAddress(properties) == null ? null : properties.get(TEST_RELEASES);
+        return test != null && EVERY_RELEASE.equalsIgnoreCase(
+            test.toString()
+                .trim());
+    }
+
+    /** A reason from the file, if it is one of {@link #REASONS}, or null. */
+    static String reasonOf(String said) {
+        return said != null && indexOf(REASONS, said.trim()) >= 0 ? said.trim() : null;
+    }
+
+    /** A reason's English words, for an edition whose language file has none: {@code crash} is "a crash". */
+    public static String reasonWords(String reason) {
+        int at = indexOf(REASONS, reason);
+        return at < 0 ? "" : REASON_WORDS[at];
     }
 
     /**
