@@ -1105,8 +1105,8 @@ to quiet it.
   file also says, for each jar, the newest release that changed it. You are told only when one of those
   is newer than yours, and pointed at the newest release, which carries it; a release that changes
   nothing in your jar is one line in the server's log. `general.updateNoticeReleases` set to `all` tells
-  you of every release instead. Jars from before 0.9.221 read only the newest number, and hear of every
-  release.
+  you of every release instead. Jars from before the version file named, for each jar, the release that
+  changed it read only the newest number, and hear of every release.
 - **Critical fixes.** A release can mark itself critical for a jar, with a reason - a crash, world data,
   or a broken feature - and anyone still running a version before it is told so, in red, until they
   move past it. A release can also give one short sentence of what it does. Every word shown is this
