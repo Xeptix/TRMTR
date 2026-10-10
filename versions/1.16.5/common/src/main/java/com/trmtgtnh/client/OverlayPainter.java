@@ -48,6 +48,15 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  */
 public final class OverlayPainter {
 
+    /**
+     * The flags every write here uses: no neighbour told, no redraw per block, and - this version's own flag - no
+     * neighbour reshaped. Without it a write with no other flag still had every stair, fence, wall and pane beside the
+     * square recompute its shape against the ghost, which is no stair, fence or wall, so rails broke and stairs turned
+     * their corners away from a worn stair; the 1.7.10 edition's neighbours keep the shape the real block gives them
+     * (0.9.222, spec PT31 and ghost-faces GF5).
+     */
+    private static final int KEEP_NEIGHBOUR_SHAPES = 16;
+
     private static final OverlayPainter INSTANCE = new OverlayPainter();
 
     /** How often to look for cached chunks that have come back into overlay range. */
@@ -113,7 +122,8 @@ public final class OverlayPainter {
             .overlay(x >> 4, z >> 4);
         if (overlay == null) return;
         boolean here = overlay.indexOf(ErosionKey.packWorld(x, y, z)) >= 0;
-        boolean below = y > 0 && overlay.indexOf(ErosionKey.packWorld(x, y - 1, z)) >= 0;
+        boolean below = y > com.trmtgtnh.util.Heights.bottom(Minecraft.getInstance().level)
+            && overlay.indexOf(ErosionKey.packWorld(x, y - 1, z)) >= 0;
         if (!here && !below) return;
         sayArrivals();
         ClientLevel world = Minecraft.getInstance().level;
@@ -125,6 +135,20 @@ public final class OverlayPainter {
         if (arrivalsSaid) return;
         arrivalsSaid = true;
         Trmt.LOG.info("Repainting worn ground the server wrote over; the packet hooks are in place");
+    }
+
+    /** Whether an orphaned ghost has been said this session, so a world full of them says it once. */
+    private static boolean orphanReported;
+
+    private static void warnOrphan(int x, int y, int z) {
+        if (orphanReported) return;
+        orphanReported = true;
+        Trmt.LOG.warn(
+            "A ghost at {},{},{} has no recorded origin. It will draw untinted and cannot be lifted; "
+                + "this means an overlay lost a position while its block stayed painted.",
+            Integer.valueOf(x),
+            Integer.valueOf(y),
+            Integer.valueOf(z));
     }
 
     public int queueDepth() {
@@ -148,9 +172,10 @@ public final class OverlayPainter {
                 .longValue();
             int chunkX = (int) (key >> 32);
             int chunkZ = (int) key;
-            // At least one per chunk looked at, so a chunk with nothing left to paint still costs its
-            // place in the budget and a queue of those cannot hold the tick for ever.
-            budget -= Math.max(1, paintChunk(world, chunkX, chunkZ));
+            // What a chunk wrote is what it costs, as in the 1.7.10 edition: a chunk with nothing to write - out of
+            // range, not loaded, already painted - costs nothing, so a queue of those never holds back the ones
+            // behind it. Until 0.9.222 each cost at least one (spec PT15). The queue only shrinks, so this ends.
+            budget -= paintChunk(world, chunkX, chunkZ);
         }
         reportDeclined();
     }
@@ -274,7 +299,7 @@ public final class OverlayPainter {
      */
     public boolean verifyPosition(ClientLevel world, int x, int y, int z) {
         if (world == null || !TrmtConfig.overlayVisible()) return false;
-        if (y < 0 || y > 255) return false;
+        if (!com.trmtgtnh.util.Heights.holds(world, y)) return false;
         // A ghost already standing here needs no second look unless something has since covered it;
         // what it draws, it works out for itself.
         if (world.getBlockState(new BlockPos(x, y, z))
@@ -323,6 +348,10 @@ public final class OverlayPainter {
             // under blocks. Put the block back and forget only that it was drawn - the wear itself
             // belongs to the server and is untouched, so lifting the cover off brings the same path back.
             if (hidden && !flatten) return unpaint(world, pos, origins, index);
+            // A ghost with no recorded origin cannot be tinted, put back or picked - every one of those keys off this
+            // value. It should be unreachable, so rather than guess at what it covers, say so once and carry on
+            // drawing what is there, as the 1.7.10 edition does (0.9.222, spec PT10).
+            if (origins[index] < 0) warnOrphan(x, y, z);
             // Already painted. Everything about how it looks is the model's to decide.
             return false;
         }
@@ -361,7 +390,7 @@ public final class OverlayPainter {
         origins[index] = Block.getId(current);
         // Carrying whatever this square should glow, because the light engine at this version asks a
         // state rather than a position - see BlockGhost.LIGHT.
-        world.setBlock(pos, BlockGhost.litState(ghost, world, x, y, z, current), 0);
+        world.setBlock(pos, BlockGhost.litState(ghost, world, x, y, z, current), KEEP_NEIGHBOUR_SHAPES);
         return true;
     }
 
@@ -393,7 +422,7 @@ public final class OverlayPainter {
         BlockState covered = origin < 0 ? null : Block.stateById(origin);
         BlockState want = BlockGhost.litState(ghost, world, x, y, z, covered);
         if (want.equals(standing)) return false;
-        world.setBlock(pos, want, 0);
+        world.setBlock(pos, want, KEEP_NEIGHBOUR_SHAPES);
         return true;
     }
 
@@ -408,7 +437,7 @@ public final class OverlayPainter {
      * layer, a carpet, a slab and a fence all answer yes to, so worn ground under any of them was left undrawn.
      */
     static boolean covered(net.minecraft.world.level.BlockGetter world, int x, int y, int z) {
-        if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
+        if (!TrmtConfig.hideWearUnderBlocks || y >= com.trmtgtnh.util.Heights.top(world)) return false;
         return com.trmtgtnh.util.Worlds.isOpaque(world, x, y + 1, z);
     }
 
@@ -416,7 +445,7 @@ public final class OverlayPainter {
     private static boolean unpaint(ClientLevel world, BlockPos pos, int[] origins, int index) {
         int packedOrigin = origins[index];
         if (packedOrigin < 0) return false;
-        world.setBlock(pos, Block.stateById(packedOrigin), 0);
+        world.setBlock(pos, Block.stateById(packedOrigin), KEEP_NEIGHBOUR_SHAPES);
         origins[index] = -1;
         return true;
     }
@@ -482,7 +511,7 @@ public final class OverlayPainter {
             if (!(world.getBlockState(pos)
                 .getBlock() instanceof BlockGhost)) continue;
 
-            world.setBlock(pos, Block.stateById(packedOrigin), 0);
+            world.setBlock(pos, Block.stateById(packedOrigin), KEEP_NEIGHBOUR_SHAPES);
             changed = true;
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
@@ -532,7 +561,7 @@ public final class OverlayPainter {
             (chunkZ << 4) + ErosionKey.localZ(key));
         if (!(world.getBlockState(pos)
             .getBlock() instanceof BlockGhost)) return;
-        world.setBlock(pos, Block.stateById(packedOrigin), 0);
+        world.setBlock(pos, Block.stateById(packedOrigin), KEEP_NEIGHBOUR_SHAPES);
         redraw(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ());
     }
 

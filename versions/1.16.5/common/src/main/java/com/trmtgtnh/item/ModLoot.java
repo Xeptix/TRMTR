@@ -3,7 +3,6 @@ package com.trmtgtnh.item;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -213,12 +212,11 @@ public final class ModLoot {
         Item wayfarer = ModItems.magicTamper();
         List<ResourceLocation> where = wayfarerTables;
         if (wayfarer == null || where == null) return;
-        add(
-            pool,
-            name,
-            new ItemStack(wayfarer),
-            TrmtConfig.lootWeightWayfarer,
-            where.toArray(new ResourceLocation[where.size()]));
+        // One entry, weighted by how often this table is named: the 1.7.10 edition's second filing is the same find at
+        // twice the odds (spec WD15).
+        int named = java.util.Collections.frequency(where, name);
+        if (named <= 0) return;
+        add(pool, name, new ItemStack(wayfarer), TrmtConfig.lootWeightWayfarer * named, name);
     }
 
     /**
@@ -353,16 +351,24 @@ public final class ModLoot {
      * again nor says it twice.
      */
     private static void settleWayfarer(java.util.Set<ResourceLocation> known) {
+        // A Wayfarer filed nowhere asks nothing: a pack that leaves it out with a weight of nought is not warned about
+        // names nobody will use, as the 1.7.10 edition's check is skipped (0.9.222, spec WD19). Asked before the
+        // once-a-session settling, not inside it, so a weight raised later - by /trmt reload or the screen - settles
+        // at the next table load rather than leaving the Wayfarer filed nowhere until a restart.
+        if (TrmtConfig.lootWeightWayfarer <= 0) return;
         if (!wayfarerSettled.compareAndSet(false, true)) return;
 
         List<String> configured = WayfarerCategories.named(TrmtConfig.lootWayfarerCategories, "strongholdLibrary");
         List<ResourceLocation> real = new ArrayList<ResourceLocation>();
         List<String> unused = new ArrayList<String>();
-        for (String name : new LinkedHashSet<String>(configured)) {
+        // Every name as often as it is written: a name written twice is filed twice in the 1.7.10 edition, which doubles
+        // the odds there and is the one way a pack can weight one place above another (0.9.222, spec WD15). Warned
+        // about once each.
+        for (String name : configured) {
             ResourceLocation table = table(name);
             if (table != null && known.contains(table)) {
                 real.add(table);
-            } else {
+            } else if (!unused.contains(name)) {
                 unused.add(name);
             }
         }

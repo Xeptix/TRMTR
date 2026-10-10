@@ -14,7 +14,7 @@ import net.minecraft.world.level.material.MaterialColor;
 import com.trmtgtnh.block.BlockGhost;
 
 /**
- * Makes a worn square paint on a map as the ground it stands in for.
+ * Makes a worn square paint on a map as the material it has worn into, darkened (spec CO25).
  *
  * <p>
  * See {@link BlockGhost#mapColorAt}, which holds the decision, and the Forge module's copy of this

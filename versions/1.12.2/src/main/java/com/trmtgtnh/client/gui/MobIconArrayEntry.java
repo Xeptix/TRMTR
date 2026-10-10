@@ -19,7 +19,7 @@ import net.minecraftforge.fml.client.config.IConfigElement;
  * <p>
  * The same idea as {@link BlockIconArrayEntry} and for the same reason: a list of entity names is
  * a list of strings you cannot check by looking at. A spawn egg is the cheapest honest picture of
- * a mob there is — it is an ordinary item, so it goes through the drawing this already does for
+ * a mob there is - it is an ordinary item, so it goes through the drawing this already does for
  * blocks, with none of the cost or the risk of rendering a live entity inside a config screen
  * that may have no world behind it.
  *

@@ -40,6 +40,8 @@ public final class CommandTrmtNotice extends CommandBase {
                 player,
                 args.length > 0 ? args[0] : "",
                 args.length > 1 ? args[1] : null,
-                "confirm".equals(args[args.length - 1]) && args.length > 1));
+                // The count first: typed alone the command has no last word, and reading one threw before the answer it
+                // hands over for exactly that case (0.9.222, spec CM88).
+                args.length > 1 && "confirm".equals(args[args.length - 1])));
     }
 }

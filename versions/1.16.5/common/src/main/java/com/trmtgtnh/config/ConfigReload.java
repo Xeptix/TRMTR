@@ -23,7 +23,7 @@ import com.trmtgtnh.util.MainThread;
  *
  * <p>
  * So there is one ordered sequence, here, and both ways of changing the config run it. The order
- * is not arbitrary — the surface table has to exist before blocks can be marked sinkable, and the
+ * is not arbitrary - the surface table has to exist before blocks can be marked sinkable, and the
  * rules cannot be broadcast until the collision check has had its say on whether real ruts are
  * actually available. A {@link Delta} taken across the change then tells each side what genuinely
  * moved, so a change to healing rates does not repaint the world and a change to block lists does.

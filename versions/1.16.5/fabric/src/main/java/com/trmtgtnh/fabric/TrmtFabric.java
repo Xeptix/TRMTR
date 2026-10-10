@@ -60,6 +60,9 @@ public final class TrmtFabric implements ModInitializer {
         // OreNames.LazyTags for why a recipe cannot hold a tag fetched from the collection of the
         // moment.
         com.trmtgtnh.util.OreNames.use(name -> net.fabricmc.fabric.api.tag.TagRegistry.item(name));
+        // forge: on Fabric too, at this version: this jar ships its own forge: tags for the vanilla materials
+        // (data/forge/tags), so the settings' material names mean the same on both loaders.
+        com.trmtgtnh.util.OreNames.namespace("forge");
 
         // Vanilla's bush class, which is what every plant that needs ground underneath it extends.
         // Forge answers this with its own IPlantable instead, so the two agree about vanilla and
@@ -76,12 +79,13 @@ public final class TrmtFabric implements ModInitializer {
                         .getVersion()
                         .getFriendlyString())
                 .orElse("unknown"));
-        // This jar's line in the update check's version file, and whether this is a development game;
-        // see UpdateNotice and the Forge module's copy of this.
+        // This jar's line in the update check's version file, whether this is a development game, and the
+        // mods this jar requires; see UpdateNotice and the Forge module's copy of this.
         com.trmtgtnh.server.UpdateNotice.edition(
             "1.16.5-fabric",
             FabricLoader.getInstance()
-                .isDevelopmentEnvironment());
+                .isDevelopmentEnvironment(),
+            com.trmtgtnh.server.UpdateNotice.REQUIRED_FABRIC);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> FabricLoader.getInstance()
@@ -97,12 +101,16 @@ public final class TrmtFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING
             .register(server -> com.trmtgtnh.server.ServerEvents.serverStarting(server));
 
-        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            running = server;
-            // After the server is on record, because both of these ask this mod where it is.
-            com.trmtgtnh.server.ServerEvents.serverStarted(server);
-        });
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> running = server);
+        // Once the worlds are loaded, as Forge's FMLServerStartedEvent and 1.7.10's are: examining the world reads
+        // the save, which is not there before. Until 0.9.222 this ran at SERVER_STARTING, before the worlds loaded.
+        // After the server is on record, because both writers ask this mod where it is.
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> com.trmtgtnh.server.ServerEvents.serverStarted(server));
+        // Once the server has stopped, after its last save - Forge's FMLServerStoppedEvent and 1.7.10's moment. Until
+        // 0.9.222 this was SERVER_STOPPING, which Fabric fires at the head of the shutdown, before the server saves its
+        // worlds: the wear store was emptied first, every loaded chunk was then saved without its wear, and each world
+        // lost what had been worn since its last autosave every time it closed (spec PN28).
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
             running = null;
             com.trmtgtnh.server.ServerEvents.serverStopped();
         });

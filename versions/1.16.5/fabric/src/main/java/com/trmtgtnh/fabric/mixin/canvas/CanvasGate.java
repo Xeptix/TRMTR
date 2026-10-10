@@ -28,7 +28,7 @@ public final class CanvasGate implements IMixinConfigPlugin {
             .isModLoaded("canvas");
         // Said, because a gate that shut is otherwise silent, and snow and carpet would then simply stay up off
         // worn ground under Canvas again.
-        org.apache.logging.log4j.LogManager.getLogger("trmtgtnh")
+        org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
             .info("Canvas at mixin load: {}", present ? "found" : "not found");
     }
 

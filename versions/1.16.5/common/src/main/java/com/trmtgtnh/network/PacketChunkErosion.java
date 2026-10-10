@@ -13,7 +13,7 @@ import io.netty.buffer.ByteBuf;
  * Server to client: every worn position in one chunk.
  *
  * <p>
- * Three bytes per position — a sixteen-bit chunk-local key and a packed appearance byte. A
+ * Three bytes per position - a sixteen-bit chunk-local key and a packed appearance byte. A
  * heavily travelled chunk with three hundred worn blocks is under a kilobyte, which is why
  * this can be sent whole on chunk watch rather than reconstructed from a stream of deltas.
  * Positions with no visible stage are left out entirely; the client has no use for wear it

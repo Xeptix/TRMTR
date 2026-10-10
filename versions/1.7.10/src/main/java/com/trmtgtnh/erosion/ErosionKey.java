@@ -27,7 +27,7 @@ package com.trmtgtnh.erosion;
  *
  * <p>
  * <strong>Done in every edition at once, including the ones that do not need it.</strong> This class
- * is one of the twenty-six copied byte for byte into each edition and checked by a test that fails
+ * is one of the core classes copied byte for byte into each edition and checked by a test that fails
  * either build on any difference, and that property is worth more than the eight bits per record the
  * older editions now spend for nothing. They simply never pass a y outside 0-255.
  *

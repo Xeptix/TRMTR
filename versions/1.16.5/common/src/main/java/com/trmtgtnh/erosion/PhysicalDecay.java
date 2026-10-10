@@ -248,7 +248,7 @@ public final class PhysicalDecay {
         // this, cows, dropped items and minecarts on a disabled server's roads sat half a block down
         // inside what every player saw as solid turf.
         if (!active || !TrmtConfig.enabled || world == null || world.isClientSide()) return 0;
-        if (y < 0 || y > 255) return 0;
+        if (!com.trmtgtnh.util.Heights.holds(world, y)) return 0;
 
         ChunkErosionData data = ErosionStore.get()
             .getChunk(
@@ -278,11 +278,12 @@ public final class PhysicalDecay {
      * <p>
      * The one number both sides settle a block's footing from. The server has the record and reads
      * it; the client is asked through the Client seam, which hands back the very figure the renderer
-     * moved the picture by. Derived from the collision depth rather than the drawn one on purpose: in
-     * visual mode the ground has not really moved, so nothing resting on it should move either.
+     * moved the picture by - on a whole block in the visual mode that is the drawn depth, as the 1.7.10
+     * edition's code has it (Xep, 2026-10-08). Footing does not follow it there: no collision moves in
+     * the visual mode, so only the picture comes down.
      */
     public static double groundDropUnder(Level world, int x, int y, int z) {
-        if (world == null || y <= 0) return 0.0D;
+        if (world == null || y <= com.trmtgtnh.util.Heights.bottom(world)) return 0.0D;
         if (world.isClientSide()) return Client.settledDropUnder(x, y - 1, z);
         return sinkAt(world, x, y - 1, z) / 16.0D;
     }
@@ -325,18 +326,24 @@ public final class PhysicalDecay {
     }
 
     /**
-     * Whether a block's own outline spans the whole of its square across.
+     * Whether a block's own collision spans the whole of its square across - only the footprint, never the height, a
+     * shorter block being what wear produces.
      *
      * <p>
-     * What the 1.7.10 edition asks of {@code GhostInherit.ownFootingAt}, which this edition does not
-     * have yet. The question is the same one: a block that stops short of its square's edges has a
-     * shape of its own, and a worn box built edge to edge would widen it.
+     * What the 1.7.10 edition asks of {@code GhostInherit.ownFootingAt}. A block that stops short of its square's edges
+     * has a shape of its own, and a worn box built edge to edge would widen it; one with no collision at all keeps none,
+     * because a whole cell over a cloud turned a block you fall through into one you stand on. Its collision, not its
+     * outline, and asked of the block rather than the state, so this mod's own hook on the state does not answer for
+     * it: until 0.9.222 the outline was asked, so a sunk block whose outline filled its square and whose collision did
+     * not was stood on by the server and fallen through by the client, which asks the collision (spec CS20).
      */
-    private static boolean fillsItsFootprint(BlockState state, Level world, int x, int y, int z) {
+    static boolean fillsItsFootprint(BlockState state, BlockGetter world, int x, int y, int z) {
         try {
-            net.minecraft.world.phys.AABB own = state.getShape(world, new BlockPos(x, y, z))
-                .bounds();
-            return own != null && own.minX <= 0.0D && own.minZ <= 0.0D && own.maxX >= 1.0D && own.maxZ >= 1.0D;
+            VoxelShape own = state.getBlock()
+                .getCollisionShape(state, world, new BlockPos(x, y, z), CollisionContext.empty());
+            if (own == null || own.isEmpty()) return false;
+            net.minecraft.world.phys.AABB bounds = own.bounds();
+            return bounds.minX <= 0.0D && bounds.minZ <= 0.0D && bounds.maxX >= 1.0D && bounds.maxZ >= 1.0D;
         } catch (RuntimeException awkwardBlock) {
             return false;
         }

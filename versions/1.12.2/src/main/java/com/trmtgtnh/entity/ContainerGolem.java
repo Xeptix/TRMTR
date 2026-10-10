@@ -507,12 +507,15 @@ public class ContainerGolem extends Container {
             // shift-click put a sword or a stack of rotten flesh into a golem that refuses both
             // from an ordinary click - and the rule that only tampers and mending stock go in was
             // only ever true of the slower way of doing it.
-            if (!EntityGolemOfWays.acceptsIntoStorage(held)) return null;
+            // EMPTY, never null: the game's quick move asks what came back whether it is empty (0.9.222, spec GO45).
+            if (!EntityGolemOfWays.acceptsIntoStorage(held)) return ItemStack.EMPTY;
             if (!mergeItemStack(held, 0, Math.min(golem.slotCount(), storage.length), false)) return ItemStack.EMPTY;
         }
 
         if (held.isEmpty()) {
-            slot.putStack(null);
+            // EMPTY, never null: a whole stack moved in leaves the player's own slot empty, and the player's inventory
+            // refuses null at this version (0.9.222, spec GO45).
+            slot.putStack(ItemStack.EMPTY);
         } else {
             slot.onSlotChanged();
         }

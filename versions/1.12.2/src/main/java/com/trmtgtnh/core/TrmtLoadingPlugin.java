@@ -46,7 +46,7 @@ public final class TrmtLoadingPlugin implements IFMLLoadingPlugin {
     /** The name MixinBooter's own Mixin service gives itself. */
     static final String MIXINBOOTER = "MixinBooter";
 
-    private static final Logger LOG = LogManager.getLogger("trmtgtnh");
+    private static final Logger LOG = LogManager.getLogger("TRMT: Reimagined");
 
     @Override
     public void injectData(Map<String, Object> data) {

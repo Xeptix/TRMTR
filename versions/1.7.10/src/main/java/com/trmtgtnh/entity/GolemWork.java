@@ -461,6 +461,9 @@ public final class GolemWork {
         int did = NOTHING;
         for (int step = 0; step < steps && current != wanted; step++) {
             if (current < wanted) {
+                // Wearing asks the dimension list and mending does not, as for the tamper: a golem in a dimension
+                // the list rules out still keeps its road, and wears nothing in (0.9.222, spec SD47).
+                if (!TrmtConfig.dimensionAllowed(world.provider.dimensionId)) break;
                 if (!ErosionEngine.get()
                     .forceStage(world, x, y, z, family, current + 1, false, notify)) break;
                 current++;

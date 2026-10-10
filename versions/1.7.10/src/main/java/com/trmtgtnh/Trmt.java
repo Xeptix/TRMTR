@@ -28,7 +28,7 @@ import cpw.mods.fml.relauncher.Side;
 
 /**
  * TRMT: Reimagined: The Roads More Travelled rebuilt for Forge 1.7.10 and GT: New Horizons.
- * Original mod by milkucha, CC BY-NC 4.0 — see LICENSE.md and ATTRIBUTION.md.
+ * Original mod by milkucha, CC BY-NC 4.0 - see LICENSE.md and ATTRIBUTION.md.
  *
  * <p>
  * Terrain accumulates wear where people actually walk, and shows it. The wear lives
@@ -327,7 +327,7 @@ public final class Trmt {
      * <p>
      * Minecraft keeps its server in a static that is assigned once and never cleared, so on a
      * client that has opened a single-player world even once, {@link #server()} keeps answering
-     * for the rest of the session — long after that world is closed and while connected to
+     * for the rest of the session - long after that world is closed and while connected to
      * somebody else's server. Anything deciding "is there a world here that I own" has to ask
      * whether the thing is still running, or it ends up handing work to a dead thread.
      */

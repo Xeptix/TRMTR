@@ -77,7 +77,9 @@ public final class GolemBuilder {
         }
         world.addFreshEntity(golem);
         // A puff where the stone was, so it reads as the shape becoming the thing.
-        world.levelEvent(2001, new net.minecraft.core.BlockPos(x, y - 1, z), net.minecraft.core.Registry.BLOCK.getId(top));
+        // The block's state id, which the break effect reads its dust from - not its index in the registry, which
+        // named another block's dust until 0.9.222 (spec GO3).
+        world.levelEvent(2001, new net.minecraft.core.BlockPos(x, y - 1, z), Block.getId(top.defaultBlockState()));
         Trmt.LOG.debug(
             "A Golem of Ways was built at {}, {}, {}",
             Integer.valueOf(x),
@@ -87,11 +89,12 @@ public final class GolemBuilder {
 
     /** Any player's head. Whose it is does not matter; that it is a face does. */
     private static boolean isPlayerHead(Level world, int x, int y, int z) {
-        // 1.13 split the one skull block with its five metadata values into five blocks, so the
-        // block itself is the whole answer and there is no tile entity to ask. PLAYER_HEAD and not
-        // PLAYER_WALL_HEAD on purpose: a head on a wall is beside the body rather than on top of
-        // it, which is what the other edition's metadata was saying.
-        return com.trmtgtnh.util.Worlds.blockAt(world, x, y, z) == Blocks.PLAYER_HEAD;
+        // 1.13 split the one skull block with its five metadata values into blocks of their own, standing and
+        // hung, so the block itself is the whole answer and there is no tile entity to ask. Both: the 1.7.10
+        // edition asks only the skull's type, never how it hangs, and the shape below is what places it. Until
+        // 0.9.222 a head hung on a wall was refused, on a misreading of that edition (spec GO1).
+        Block head = com.trmtgtnh.util.Worlds.blockAt(world, x, y, z);
+        return head == Blocks.PLAYER_HEAD || head == Blocks.PLAYER_WALL_HEAD;
     }
 
     private static boolean matches(Level world, int x, int y, int z, Block wanted) {
@@ -113,7 +116,9 @@ public final class GolemBuilder {
                 .isEmpty()) {
                 continue;
             }
-            String name = BlockEntry.nameOf(entry);
+            // An old 1.7.10 name reads as the block it became (0.9.222, spec GO2): the shipped body named
+            // minecraft:stonebrick, which 1.13 retired, and no golem could be built.
+            String name = com.trmtgtnh.util.OldNames.one(BlockEntry.nameOf(entry), BlockEntry.metaOf(entry, 0));
             if (!TrmtConfig.gtnhEnhanced && !name.startsWith("minecraft:")) continue;
             net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation
                 .tryParse(name);

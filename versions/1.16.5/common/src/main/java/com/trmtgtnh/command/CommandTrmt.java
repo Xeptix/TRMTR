@@ -194,7 +194,7 @@ public final class CommandTrmt {
 
             @Override
             public void sendMessage(net.minecraft.network.chat.Component message, java.util.UUID from) {
-                asked.sendSuccess(message, false);
+                tell(asked, message);
                 if (message == null) return;
                 Trmt.LOG.info(
                     "[/trmt for {}] {}",
@@ -267,7 +267,7 @@ public final class CommandTrmt {
             reply(
                 sender,
                 ChatFormatting.YELLOW,
-                "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there: chunks heal as they reload, and the first sweep after /trmt enable pays out the rest. Purge is the one that throws wear away.");
+                "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there. Nothing heals while erosion is off; after /trmt enable each chunk is paid what it is owed as it next loads, and the sweep pays out the rest. Purge is the one that throws wear away.");
         } else if ("purge".equals(sub)) {
             purge(sender);
         } else if ("mapcolor".equals(sub)) {
@@ -608,7 +608,7 @@ public final class CommandTrmt {
 
     /** What the held item is, what the list asks for, and the line that would join them. */
     private static void reportHeld(CommandSourceStack sender, ItemStack held) {
-        if (held == null) {
+        if (held == null || held.isEmpty()) {
             reply(sender, ChatFormatting.GRAY, "Nothing in your hand to ask about.");
             return;
         }
@@ -842,7 +842,7 @@ public final class CommandTrmt {
                 // uneven ground still lands on the ground.
                 for (int dy = 2; dy >= -3; dy--) {
                     int y = centreY + dy;
-                    if (y < 0 || y > 255) continue;
+                    if (!com.trmtgtnh.util.Heights.holds(world, y)) continue;
                     SurfaceFamily family = SurfaceRegistry.familyOf(blockAt(world, x, y, z));
                     if (family == null || !family.staged) continue;
                     if (opaqueAt(world, x, y + 1, z)) continue;
@@ -1971,7 +1971,9 @@ public final class CommandTrmt {
         if (!(standing instanceof Container)) return;
         Container holder = (Container) standing;
         for (int slot = 0; slot < holder.getContainerSize(); slot++) {
-            holder.setItem(slot, null);
+            // EMPTY, which a container's slot list takes at this version; null threw, and a re-run over a chest that
+            // was still standing stopped part way (0.9.222, spec CM70).
+            holder.setItem(slot, net.minecraft.world.item.ItemStack.EMPTY);
         }
         holder.setChanged();
     }
@@ -2050,7 +2052,7 @@ public final class CommandTrmt {
                 .isEmpty()) {
                 continue;
             }
-            String name = BlockEntry.nameOf(entry);
+            String name = com.trmtgtnh.util.OldNames.one(BlockEntry.nameOf(entry), BlockEntry.metaOf(entry, 0));
             if (!TrmtConfig.gtnhEnhanced && !name.startsWith("minecraft:")) continue;
             Block block = net.minecraft.core.Registry.BLOCK.get(new net.minecraft.resources.ResourceLocation(name));
             if (block == null || block == Blocks.AIR) continue;
@@ -2228,7 +2230,26 @@ public final class CommandTrmt {
     }
 
     private static void reply(CommandSourceStack sender, ChatFormatting color, String message) {
-        sender.sendSuccess(new TextComponent(color + message), true);
+        tell(sender, new TextComponent(color + message));
+    }
+
+    /**
+     * A reply to whoever asked, and to nobody else, as the 1.7.10 edition's {@code addChatMessage} gives it.
+     *
+     * <p>
+     * Straight to a player rather than through the source's success line, which this version copies to every other
+     * operator online and into the log when it is told to, and hides from the player altogether when the
+     * {@code sendCommandFeedback} rule is off; until 0.9.222 every line was sent that way, so an operator's
+     * {@code /trmt status} reached every other operator's chat (spec CM10). Anyone else - the console, a command
+     * block - is answered through its own source without the copy.
+     */
+    static void tell(CommandSourceStack sender, net.minecraft.network.chat.Component text) {
+        if (sender == null || text == null) return;
+        if (sender.getEntity() instanceof net.minecraft.server.level.ServerPlayer) {
+            ((net.minecraft.server.level.ServerPlayer) sender.getEntity()).sendMessage(text, net.minecraft.Util.NIL_UUID);
+        } else {
+            sender.sendSuccess(text, false);
+        }
     }
 
     /**
@@ -2243,11 +2264,10 @@ public final class CommandTrmt {
      *
      * <p>
      * None of that can happen here. There is one ghost block, it inherits from nothing that carries a
-     * tint, and {@code getMapColor} is handed a position - so it answers from whatever the square is
-     * standing in for rather than from the family its class stands for. The question worth asking is
-     * therefore the other one: for the square under your feet, does the ghost report the same color
-     * as the ground it is pretending to be? That is what a map draws, and a disagreement is the whole
-     * of what could go wrong.
+     * tint, and {@code getMapColor} is handed a position, so it answers for the square it is asked
+     * about: the material that square has worn into, darkened (spec CO25). The question worth asking
+     * is therefore what the ground under your feet and beside it draw as, which is what a map is given
+     * before any wear, and what a minimap is told once it is worn.
      */
     private static void reportMapColor(CommandSourceStack sender) {
         if (!(sender.getEntity() instanceof ServerPlayer)) {
@@ -2294,7 +2314,7 @@ public final class CommandTrmt {
         reply(
             sender,
             ChatFormatting.AQUA,
-            "  worn, that ground is drawn as " + hex(worn)
+            "  worn and still that ground, it is drawn as " + hex(worn)
                 + (worn == drawn
                     ? " - the same, because the palette holds nothing darker than it worth picking, so a path"
                         + " here shows only where it has worn through into another material"
@@ -2302,7 +2322,7 @@ public final class CommandTrmt {
         reply(
             sender,
             ChatFormatting.GRAY,
-            "Two maps and two answers, both correct. The vanilla map item is drawn from the server's own blocks, where this mod has written nothing and no worn square exists, so it draws the ground as it really is - the first two lines above. A minimap that reads this client's copy of the world sees the worn square the mod paints there, and that square reports the third line: the ground's color darkened to the nearest palette entry, one color for any wear rather than a shade per gradation, because sixty-four fixed entries is what a map has to draw with at this version. Switch it off with surfaces.mapTracksWear.");
+            "Two maps and two answers, both correct. The vanilla map item is drawn from the server's own blocks, where this mod has written nothing and no worn square exists, so it draws the ground as it really is - the first two lines above. A minimap that reads this client's copy of the world sees the worn square the mod paints there, and that square reports the material it has worn into - its family's map color, earth once a lawn has worn through or sunk - darkened to the nearest palette entry, as the third line shows for this ground: one color for any wear rather than a shade per gradation, because sixty-four fixed entries is what a map has to draw with at this version. Switch it off with surfaces.mapTracksWear.");
     }
 
     /** A map color as a reader can compare it, or a word when there is none. */

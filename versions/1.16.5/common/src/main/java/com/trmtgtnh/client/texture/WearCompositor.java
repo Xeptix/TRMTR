@@ -76,7 +76,7 @@ public final class WearCompositor {
      * Each mask is the alpha channel of one authored stage: opaque where grass survives. A
      * pixel's order is the earliest stage that drops it, plus a stable fractional tiebreak.
      * That turns five fixed masks into a continuous sequence, so any number of gradations can
-     * be cut from it — and cutting exactly five reproduces the authored masks.
+     * be cut from it - and cutting exactly five reproduces the authored masks.
      *
      * @param masks      alpha values per authored stage, each {@code size * size}, ordered from
      *                   least to most worn
@@ -310,7 +310,7 @@ public final class WearCompositor {
      * <p>
      * The game tints a whole face at once, and a worn grass block's face is part grass and part
      * the earth showing through. The grass wants the tint; the earth does not, and applying it
-     * anyway is what turns a brown path olive — badly so in a dark biome like a swamp. Dividing
+     * anyway is what turns a brown path olive - badly so in a dark biome like a swamp. Dividing
      * the earth out in advance cancels the tint back off it, so it renders as earth again.
      *
      * <p>
@@ -354,7 +354,7 @@ public final class WearCompositor {
      *
      * <p>
      * Ratio transfer works when the art is a modulation of its reference, which upstream's
-     * sand is and upstream's dirt very nearly is not — the eroded dirt textures are a
+     * sand is and upstream's dirt very nearly is not - the eroded dirt textures are a
      * rearrangement of dirt pixels at almost identical brightness, so dividing one by the
      * other yields noise rather than a wear pattern. Transferring that noise onto stone
      * produces stone with different noise, which is not what a trodden path looks like.
@@ -457,7 +457,7 @@ public final class WearCompositor {
      * <p>
      * A crack with a hard edge reads as a line somebody drew. A crack with a broad, shallow
      * shadow around it reads as stone that has been breaking up for years, and it is what lets
-     * the fissure itself stay narrow — narrow enough not to swallow the face — while still being
+     * the fissure itself stay narrow - narrow enough not to swallow the face - while still being
      * something you can see from standing height.
      */
     private static final float HALO_SPAN = 2.8f;
@@ -872,7 +872,7 @@ public final class WearCompositor {
             // Every channel moves by the same factor, which is the whole point: the pixel gets
             // darker and flatter without its color changing at all. Working channel by channel
             // against a per-channel mean, as this used to, pulls each one a different distance
-            // and quietly drains the color out — which is why worn sand came out pale next to
+            // and quietly drains the color out - which is why worn sand came out pale next to
             // the real thing, and why worn stone had no stone left in it.
             float scale = brightness <= 0.5f ? 0f : wanted / brightness;
             int result = 0xFF000000;

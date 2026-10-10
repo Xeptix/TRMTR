@@ -266,7 +266,7 @@ public class CommandTrmt extends CommandBase {
             reply(
                 sender,
                 TextFormatting.YELLOW,
-                "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there: chunks heal as they reload, and the first sweep after /trmt enable pays out the rest. Purge is the one that throws wear away.");
+                "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there. Nothing heals while erosion is off; after /trmt enable each chunk is paid what it is owed as it next loads, and the sweep pays out the rest. Purge is the one that throws wear away.");
         } else if ("purge".equals(sub)) {
             purge(sender);
         } else if ("mapcolor".equals(sub)) {
@@ -603,7 +603,7 @@ public class CommandTrmt extends CommandBase {
 
     /** What the held item is, what the list asks for, and the line that would join them. */
     private void reportHeld(ICommandSender sender, ItemStack held) {
-        if (held == null) {
+        if (held == null || held.isEmpty()) {
             reply(sender, TextFormatting.GRAY, "Nothing in your hand to ask about.");
             return;
         }
@@ -1924,7 +1924,9 @@ public class CommandTrmt extends CommandBase {
         if (!(standing instanceof IInventory)) return;
         IInventory holder = (IInventory) standing;
         for (int slot = 0; slot < holder.getSizeInventory(); slot++) {
-            holder.setInventorySlotContents(slot, null);
+            // EMPTY, which a container's slot list takes at this version; null threw, and a re-run over a chest that
+            // was still standing stopped part way (0.9.222, spec CM70).
+            holder.setInventorySlotContents(slot, net.minecraft.item.ItemStack.EMPTY);
         }
         holder.markDirty();
     }
@@ -2235,11 +2237,10 @@ public class CommandTrmt extends CommandBase {
      *
      * <p>
      * None of that can happen here. There is one ghost block, it inherits from nothing that carries a
-     * tint, and {@code getMapColor} is handed a position - so it answers from whatever the square is
-     * standing in for rather than from the family its class stands for. The question worth asking is
-     * therefore the other one: for the square under your feet, does the ghost report the same color
-     * as the ground it is pretending to be? That is what a map draws, and a disagreement is the whole
-     * of what could go wrong.
+     * tint, and {@code getMapColor} is handed a position, so it answers for the square it is asked
+     * about: the material that square has worn into, darkened (spec CO25). The question worth asking
+     * is therefore what the ground under your feet and beside it draw as, which is what a map is given
+     * before any wear, and what a minimap is told once it is worn.
      */
     private static void reportMapColor(ICommandSender sender) {
         if (!(sender instanceof EntityPlayerMP)) {
@@ -2282,12 +2283,12 @@ public class CommandTrmt extends CommandBase {
             "  the ground one step east is " + SurfaceRegistry.registryName(control.getBlock())
                 + " at "
                 + hex(plain)
-                + (drawn == plain ? " - the same color, which is what a worn square should read as"
+                + (drawn == plain ? " - the same color, which is what unworn ground beside it should read as"
                     : " - a different color, which is right only if the two are different ground"));
         reply(
             sender,
             TextFormatting.GRAY,
-            "A worn square and the untouched ground beside it should draw the same color: this mod writes no block into the world, so a map is reading real ground either way, and a client's ghost answers from the square it stands in for. The other edition needs three hundred and fifty-seven lines of reflection against JourneyMap and a hundred and nineteen against Xaero to get here, because there a block is asked its color with nothing but a metadata and cannot tell which square is being asked about.");
+            "Two maps and two answers, both correct. The vanilla map item is drawn from the server's own blocks, where this mod has written nothing and no worn square exists, so it draws the ground as it really is - the two lines above. A minimap that reads this client's copy of the world sees the worn square the mod paints there, and that square reports the material it has worn into - its family's map color, earth once a lawn has worn through or sunk - darkened to the nearest palette entry, one color for any wear rather than a shade per gradation, because a map has a fixed palette to draw with at this version. Switch it off with surfaces.mapTracksWear.");
     }
 
     /** A map color as a reader can compare it, or a word when there is none. */

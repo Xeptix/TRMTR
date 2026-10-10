@@ -76,7 +76,7 @@ public final class SnowCover {
 
     /** Whether snow is lying on the square at this position. */
     public static boolean covers(Level world, int x, int y, int z) {
-        if (!TrmtConfig.snowCovers || world == null || y >= 255) return false;
+        if (!TrmtConfig.snowCovers || world == null || y >= com.trmtgtnh.util.Heights.top(world)) return false;
         return isSnowLayer(com.trmtgtnh.util.Worlds.stateAt(world, x, y + 1, z));
     }
 

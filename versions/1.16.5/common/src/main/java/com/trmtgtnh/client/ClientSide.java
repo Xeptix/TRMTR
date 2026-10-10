@@ -412,6 +412,9 @@ public final class ClientSide implements Client.Side {
      * moment when it fires and everything above it should have happened first.
      */
     public static void tick() {
+        // The hold a ghost takes while its dust is spawned, let go of here, as the 1.7.10 edition's is: a tick is the
+        // smallest window that covers the spawn (0.9.222, spec GF19).
+        com.trmtgtnh.block.BlockGhost.releaseTintForDust();
         sayHello();
         tellAboutTheModifier();
         // Put in place once, from here rather than from start-up: JourneyMap builds its own tables
@@ -450,6 +453,12 @@ public final class ClientSide implements Client.Side {
             return;
         }
 
+        // Digging and placing make the server send the block back, and placing the one it was set against
+        // too, each over the ghost standing there - which reads in game as a path healing the instant it is
+        // swung at. Those are the crosshair block and its neighbours, so all seven are looked at again every
+        // tick, as the 1.7.10 edition's verifyInteraction does (0.9.222, spec PT23).
+        OverlayPainter painter = OverlayPainter.get();
+        painter.verifyPosition(game.level, at.getX(), at.getY(), at.getZ());
         boolean ghost = game.level.getBlockState(at)
             .getBlock() instanceof com.trmtgtnh.block.BlockGhost;
         if (com.trmtgtnh.util.InspectionReach.asks(
@@ -461,6 +470,12 @@ public final class ClientSide implements Client.Side {
         } else {
             InspectionCache.clear();
         }
+        painter.verifyPosition(game.level, at.getX(), at.getY() - 1, at.getZ());
+        painter.verifyPosition(game.level, at.getX(), at.getY() + 1, at.getZ());
+        painter.verifyPosition(game.level, at.getX() - 1, at.getY(), at.getZ());
+        painter.verifyPosition(game.level, at.getX() + 1, at.getY(), at.getZ());
+        painter.verifyPosition(game.level, at.getX(), at.getY(), at.getZ() - 1);
+        painter.verifyPosition(game.level, at.getX(), at.getY(), at.getZ() + 1);
     }
 
     /** Whether the modifier was held last tick, so only the changes are sent. */
@@ -488,8 +503,12 @@ public final class ClientSide implements Client.Side {
         net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
         if (client == null || client.player == null) return;
 
-        net.minecraft.world.item.ItemStack held = client.player.getMainHandItem();
-        boolean relevant = held != null && held.getItem() instanceof com.trmtgtnh.item.ItemChunkTamper;
+        // Either hand: a chunk tamper in the off hand opens its screen on a modifier click too, and until 0.9.222 the
+        // server was never told the modifier was down, so the same click also mended or pinned (spec TA50).
+        boolean relevant = client.player.getMainHandItem()
+            .getItem() instanceof com.trmtgtnh.item.ItemChunkTamper
+            || client.player.getOffhandItem()
+                .getItem() instanceof com.trmtgtnh.item.ItemChunkTamper;
         boolean down = relevant && net.minecraft.client.gui.screens.Screen.hasControlDown();
         if (down == modifierWasDown) return;
 
@@ -585,5 +604,51 @@ public final class ClientSide implements Client.Side {
         // whatever the last one in this world happened to be.
         com.trmtgtnh.client.xaero.XaeroMinimap.reset();
         com.trmtgtnh.client.journeymap.JourneyMapColors.reset();
+    }
+
+    /**
+     * The server told the client to forget a chunk: its wear and its lights go with it, as the 1.7.10 edition's chunk
+     * unload takes them. Nothing needs restoring - the client is discarding that copy of the world wholesale - and the
+     * server sends the chunk's wear again, whole, when it is watched again, unless there is none left to send: which is
+     * exactly the case that kept an old record here until 0.9.222, so a chunk healed bare or put out while the player
+     * was away came back painted from it (spec PN33). The lights especially: a chunk with nothing lit in it sends no
+     * light packet to say so, and would come back still glowing. Run from this mod's own queue, where each loader's
+     * packet hook puts it behind the mod's packets that arrived first (ClearsInPacketOrder, 0.9.222).
+     */
+    public static void forgetChunk(int chunkX, int chunkZ) {
+        ClientErosionCache.get()
+            .remove(chunkX, chunkZ);
+        ClientLightCache.get()
+            .remove(chunkX, chunkZ);
+    }
+
+    /**
+     * A chunk arriving in the client's world with a record already held is queued for painting, whatever else is
+     * switched on, as the 1.7.10 edition's chunk load does: the record often arrives before the blocks it describes,
+     * and until 0.9.222 only the optional packet hook, or the rescan up to two seconds later, caught it (spec PT18).
+     * Called by each loader's chunk-load hook.
+     */
+    public static void chunkLoaded(int chunkX, int chunkZ) {
+        if (ClientErosionCache.get()
+            .overlay(chunkX, chunkZ) == null) return;
+        OverlayPainter.get()
+            .queueChunk(chunkX, chunkZ);
+    }
+
+    /**
+     * The client's world is being replaced - a change of dimension - so every record, light and queued chunk goes, as
+     * the 1.7.10 edition's world unload takes them. Both caches are filed by chunk position alone, so until 0.9.222 the
+     * last dimension's records sat on the next one's chunks at the same coordinates (spec PN34). Leaving a server is
+     * {@link #leaveWorld}, which also restores; a world being replaced is thrown away whole and needs nothing put back.
+     * Run from this mod's own queue, where each loader's hook on the client's level changing puts it, behind the old
+     * world's packets still waiting there and ahead of the new one's (ClearsInPacketOrder, 0.9.222).
+     */
+    public static void forgetLevel() {
+        ClientErosionCache.get()
+            .clear();
+        ClientLightCache.get()
+            .clear();
+        OverlayPainter.get()
+            .clearQueue();
     }
 }

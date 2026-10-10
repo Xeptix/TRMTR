@@ -53,10 +53,7 @@ public final class HealingXp {
         if (player == null || gradations <= 0) return;
         // A machine earns nothing. It has no use for the experience, and what it earned would
         // still repair the tool in its hand, which would make an automated tamper mend itself.
-        if (!(player instanceof net.minecraft.server.level.ServerPlayer)
-            || ((net.minecraft.server.level.ServerPlayer) player).connection == null) {
-            return;
-        }
+        if (com.trmtgtnh.util.Machines.is(player)) return;
         if (!TrmtConfig.xpFromHealing || TrmtConfig.xpPerGradation <= 0f) return;
         if (player.level == null || player.level.isClientSide()) return;
         // A backstop, not the rule. Callers already pass only the gradations they took material

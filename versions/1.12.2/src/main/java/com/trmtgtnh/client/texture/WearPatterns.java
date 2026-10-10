@@ -26,7 +26,7 @@ import com.trmtgtnh.Trmt;
  * texture it was drawn on.
  *
  * <p>
- * Only the first of those two is wired today. The four looks a family can be set to all work off
+ * Only the first of those two is wired today. The eleven looks a family can be set to all work off
  * the block's own pixels - see {@link WearSprite#wearPass} and {@link WearSprite#grassPass} - and
  * of the art only the coverage sequence is still read, by the look that takes a cover off. The
  * ratio-transfer half is kept because it is the thing to reach for if a look ever wants authored
@@ -251,7 +251,7 @@ public final class WearPatterns {
         // speckle for broader blotches, so stone came out noisier than clean stone for most of
         // its chain and only settled at the very end. Stone that is being walked smooth should
         // get flatter and darker at every step, without exception, and it should be visible from
-        // the first one — a couple of percent, which is what the measured curve gave, is not.
+        // the first one - a couple of percent, which is what the measured curve gave, is not.
         float[] flat = { 0.92f, 0.93f, 0.82f, 0.86f, 0.70f, 0.79f, 0.58f, 0.72f, 0.45f, 0.66f };
         ORDER_CACHE.put(POLISH_CACHE_KEY, flat);
         return unflatten(flat);

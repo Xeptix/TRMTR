@@ -30,7 +30,7 @@ import mcp.mobius.waila.api.IWailaRegistrar;
  * recover, and - on any block at all, worn or not - its reinforcement and spawn ward.
  *
  * <p>
- * Waila already reports the block itself correctly — a ghost hands back the block it covers, so
+ * Waila already reports the block itself correctly - a ghost hands back the block it covers, so
  * the tooltip says "Grass Block" and offers the right tool. What it cannot know is the part that
  * only exists as data: which stage the wear has reached and when it will start growing back.
  *
@@ -38,8 +38,8 @@ import mcp.mobius.waila.api.IWailaRegistrar;
  * An earlier version asked for that through Waila's server-NBT channel, which produced an empty
  * tooltip: Waila only fetches NBT for blocks that have a tile entity, and a ghost deliberately
  * has none. So nothing here goes through Waila at all. The surface and the stage are read
- * straight off the client's own overlay — the client is already drawing them, so it necessarily
- * knows them — and what exists only in the server's record, the progress, the idle time, the recovery,
+ * straight off the client's own overlay - the client is already drawing them, so it necessarily
+ * knows them - and what exists only in the server's record, the progress, the idle time, the recovery,
  * the reinforcement and the ward, arrives through {@link InspectionCache}, which asks about the one block
  * under the crosshair.
  *
@@ -210,8 +210,8 @@ public class WailaCompat implements IWailaDataProvider {
                 .add(EnumChatFormatting.AQUA + "Frozen" + EnumChatFormatting.DARK_GRAY + "  no wear, no recovery");
         }
 
-        // Everything below needs the server's copy of the record. Until the reply lands — one
-        // tick, in practice — the line above already stands on its own.
+        // Everything below needs the server's copy of the record. Until the reply lands - one
+        // tick, in practice - the line above already stands on its own.
         if (!InspectionCache.has(x, y, z)) return currentTip;
 
         // Where this sits on the whole run, pristine to fully sunk. The line above restarts its

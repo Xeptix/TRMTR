@@ -90,7 +90,7 @@ public class PacketGolemHome implements Message {
 
                     if (Math.abs(message.x - Math.floor(golem.getX())) > MAX_MOVE) return;
                     if (Math.abs(message.z - Math.floor(golem.getZ())) > MAX_MOVE) return;
-                    if (message.y < 0 || message.y > 255) return;
+                    if (!com.trmtgtnh.util.Heights.holds(player.level, message.y)) return;
 
                     golem.setAnchor(message.x, message.y, message.z);
                     golem.setConfiguredBy(

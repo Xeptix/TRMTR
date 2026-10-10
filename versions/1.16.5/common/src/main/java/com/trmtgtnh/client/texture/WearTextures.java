@@ -28,7 +28,7 @@ import com.trmtgtnh.surface.WearScale;
  *
  * <p>
  * Two tiers. A small fallback tier, one set per family, built from the vanilla textures the
- * art was drawn against — always present, always correct enough. Then a per-surface tier
+ * art was drawn against - always present, always correct enough. Then a per-surface tier
  * that gives individual blocks their own color-matched wear, bounded by the room the block
  * atlas actually has - measured at every stitch and priced by {@link AtlasPlan} - and by
  * {@code surfaces.maxTexturedSurfaces} on top of that, so a pack with a hundred kinds of dirt
@@ -54,50 +54,21 @@ public final class WearTextures {
 
     private static final int FAMILIES = SurfaceFamily.values().length;
     /**
-     * How many distinct pictures a surface's whole run is drawn with.
+     * How many pictures one surface's run is drawn with: client.wearGradations, held to the counted steps and read
+     * from config at each stitch, then settled by the plan, which draws fewer where the atlas has no room for them.
      *
      * <p>
-     * Fewer than the gradations the mod counts in, and deliberately. What is drawn comes from
-     * overall progress across eighty steps, so sixteen pictures already meant a change every five
-     * steps and eight means every ten - which is still more gradation than anyone tracks by eye.
-     * Halving it doubles how many blocks can have wear made from their own texture instead of a
-     * generic one, and a block wearing as the wrong material is far more visible than a coarser
-     * ramp on the right one.
-     */
-    /**
-     * How many pictures one surface's run is drawn with, read from config at each stitch.
-     *
-     * <p>
-     * Not a constant any more, and the reason is the whole point of this number. The engine
-     * tracks sixteen gradations in a run but only ever had eight pictures to draw them with, so
-     * {@link #icon} halved one onto the other and consecutive steps came out identical - which
-     * is exactly what "nothing changes for two steps" looks like from the ground. At sixteen the
-     * halving becomes an identity and every gradation gets its own picture.
-     *
-     * <p>
-     * Read once when planning begins rather than per sprite, because it sizes the icon table and
-     * every index in it; changing it half way through a stitch would scramble the lookup.
+     * Read once when planning begins rather than per sprite, because it sizes the icon table and every index in it;
+     * changing it half way through a stitch would scramble the lookup. The figure written here is only what it holds
+     * before the first stitch.
      */
     private static int spriteLayers = 8;
 
     /**
-     * How many turns of the wear pattern are generated per gradation.
-     *
-     * <p>
-     * Two rather than four. Rotations exist so a long path does not show the same worn patch
-     * stamped over and over, and two is enough to break that up - while four was costing half the
-     * budget for it. That budget is what decides how many blocks get wear made from their own
-     * texture rather than a generic one, and running out of it is what had modded stone wearing
-     * into vanilla stone. Twice the blocks covered is worth more than twice the variety.
-     */
-    /**
-     * How many wear patterns are built per look, read from config at each stitch.
-     *
-     * <p>
-     * Two, until it was noticed that {@link com.trmtgtnh.erosion.Rotations} picks one of FOUR
-     * and the lookup was folding the other two back onto the first pair with a modulo. A path
-     * laid in a line therefore alternated between two pictures, which is exactly the tiling the
-     * rotation exists to prevent.
+     * How many turns of each wear pattern are built per look: client.wearRotations, one to four, read from config at
+     * each stitch. A square's rotation picks one of four, and with fewer built the lookup folds the rest back onto
+     * them, so a path laid in a line repeats sooner; each turn costs a whole set of sprites, which is atlas room the
+     * plan would otherwise give to more faces worn from their own pixels.
      */
     private static int rotations = 2;
 
@@ -1671,7 +1642,7 @@ public final class WearTextures {
 
     private static final String LINE_P_REST = ". The other {} could not be read - a sprite with a loader of its own and no file at its name, a missing file, or a file no image reader recognises - and are priced at the average of those that could, which puts the pack at {} slots.";
 
-    private static final String LINE_P_NONE = "None of the block atlas's {} textures could be read from the headers of their files, so each is priced at dirt and stone's {} pixels{}, {} slots in all, which may be far from what the pack really takes; on a stitch that loads its textures, which is every one but Forge's skipped first stitch at start-up, the line written as the atlas goes to the stitcher says what it did take.";
+    private static final String LINE_P_NONE = "None of the block atlas's {} textures could be read from the headers of their files, so each is priced at dirt and stone's {} pixels{}, {} slots in all, which may be far from what the pack really takes; the line written as the atlas goes to the stitcher says what it did take.";
 
     /**
      * Says what the plan came to, every stitch, whether or not anything had to give. The second
@@ -2045,7 +2016,7 @@ public final class WearTextures {
     /** Line G: nothing measured the atlas, so the plan guessed at half, and where to look for why. */
     private static void warnUnmeasured(AtlasPlan plan) {
         Trmt.LOG.warn(
-            "Nothing measured the block atlas for this stitch, so the wear textures are planned as though the rest of the pack had already taken half of the {}-pixel square the atlas is planned to. That is a guess, and a cautious one: the ramp may come out coarser than this pack needs, and a pack that really fills more than half may still not fit; on a stitch that loads its textures, which is every one but Forge's skipped first stitch at start-up, the line written as the atlas goes to the stitcher says what it really took. If the end of this stitch also says the injection that builds every worn picture never ran, none of this mod's injections into net.minecraft.client.renderer.texture.TextureAtlas found anything to attach to, and that line says where to look. Otherwise they did, and something else in the pack has rewritten TextureAtlas.loadTextureAtlas so that its call to ForgeHooksClient.onTextureStitchedPre is not where vanilla puts it; the measuring injection is optional so that such a pack still starts, and an optional injection that cannot find its call writes nothing to this log, so no earlier line will name the cause.",
+            "Nothing measured the block atlas for this stitch, so the wear textures are planned as though the rest of the pack had already taken half of the {}-pixel square the atlas is planned to. That is a guess, and a cautious one: the ramp may come out coarser than this pack needs, and a pack that really fills more than half may still not fit; the line written as the atlas goes to the stitcher says what it really took. The measure is taken in net.minecraft.client.renderer.texture.TextureAtlas.prepareToStitch: on Fabric as it begins, and on Forge as it hands the stitch event the textures its models want. Forge's is optional so that a pack which has rewritten that method still starts, and an optional injection that cannot find its place writes nothing to this log, so no earlier line will name the cause: look for a mixin config that failed to load, or a mod that patches that method.",
             Integer.valueOf(plan.side));
     }
 
@@ -2377,7 +2348,7 @@ public final class WearTextures {
      * <p>
      * Per <em>look</em>, not per step of the chain, and the difference is the whole reason this
      * comment exists. A chain is eighty steps long, but a step is an appearance, a visual layer
-     * and a depth, and only the first two decide what gets drawn — the depth changes the shape of
+     * and a depth, and only the first two decide what gets drawn - the depth changes the shape of
      * the block, not its pixels. Layer three of bare earth is the same picture whether the ground
      * has dropped one pixel or eight, so it occurs eight times on the chain and needs exactly one
      * sprite.

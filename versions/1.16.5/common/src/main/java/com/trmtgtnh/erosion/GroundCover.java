@@ -72,7 +72,7 @@ public final class GroundCover {
      * there or is not.
      */
     public static boolean holdsAt(net.minecraft.world.level.BlockGetter world, int x, int y, int z) {
-        if (world == null || y < 0 || y >= 255) return false;
+        if (world == null || y < com.trmtgtnh.util.Heights.bottom(world) || y >= com.trmtgtnh.util.Heights.top(world)) return false;
         // Asked of the registry rather than of the config, so a client uses its server's answer for
         // the visit. See SurfaceRegistry.groundCoverHoldsOn.
         if (!TrmtConfig.enabled || !SurfaceRegistry.groundCoverHoldsOn()) return false;
@@ -109,7 +109,7 @@ public final class GroundCover {
         if (TrmtConfig.groundCoverOnSink && !physical) return;
         if (!Dimensions.allowed(world)) return;
         // The plant lives at y + 1, so the top layer of the world can hold ground but never cover.
-        if (y < TrmtConfig.minY || y >= TrmtConfig.maxY || y >= 255) return;
+        if (y < TrmtConfig.minY || y >= TrmtConfig.maxY || y >= com.trmtgtnh.util.Heights.top(world)) return;
 
         int above = y + 1;
         BlockState plant = com.trmtgtnh.util.Worlds.stateAt(world, x, above, z);

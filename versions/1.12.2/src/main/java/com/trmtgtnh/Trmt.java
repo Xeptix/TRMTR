@@ -79,7 +79,7 @@ public class Trmt {
 
     public static final String NAME = Tags.MOD_NAME;
 
-    public static final Logger LOG = LogManager.getLogger(Tags.MOD_ID);
+    public static final Logger LOG = LogManager.getLogger(NAME);
 
     /**
      * This mod's own errors (0.9.221): logged exactly as {@code LOG.error} would, and - the first time in a

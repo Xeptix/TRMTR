@@ -28,8 +28,8 @@ import com.trmtgtnh.erosion.PhysicalDecay;
  * every tick.
  *
  * <p>
- * It sits on the busiest method in the game — collision is tested for every moving entity,
- * every tick, over every block its box sweeps — so the cost of <em>not</em> being worn ground
+ * It sits on the busiest method in the game - collision is tested for every moving entity,
+ * every tick, over every block its box sweeps - so the cost of <em>not</em> being worn ground
  * is what matters. That is a static boolean and a field on the block instance, both stamped
  * ahead of time. Only a block from a family that can sink ever reaches a position lookup.
  */

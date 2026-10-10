@@ -79,13 +79,28 @@ public final class ModAchievements {
      */
     private static void award(EntityPlayer player, ResourceLocation which) {
         if (which == null || !(player instanceof EntityPlayerMP)) return;
+        // The switch the 1.7.10 edition asks before it registers anything: off, nothing is awarded (0.9.222, spec
+        // BP30). The tab itself still loads at this version, as a data file does.
+        if (!com.trmtgtnh.config.TrmtConfig.achievements) return;
         EntityPlayerMP real = (EntityPlayerMP) player;
         if (real.server == null) return;
         Advancement advancement = real.server.getAdvancementManager()
             .getAdvancement(which);
         if (advancement == null) return;
-        real.getAdvancements()
-            .grantCriterion(advancement, CRITERION);
+        // Everything it hangs from first, root down, as the 1.7.10 edition hands its achievements over - there the game
+        // dropped one whose parent was still locked, so the chain was walked, and crafting a Reinforcing book gave Set in
+        // Stone, By the Cubic Yard and Ground Underfoot with it. An advancement here is granted alone, so until 0.9.222
+        // the book gave one and no other (spec BP34). Only this mod's own.
+        java.util.List<Advancement> chain = new java.util.ArrayList<Advancement>();
+        for (Advancement at = advancement; at != null; at = at.getParent()) {
+            if (!Trmt.MODID.equals(at.getId()
+                .getNamespace())) break;
+            chain.add(0, at);
+        }
+        for (Advancement each : chain) {
+            real.getAdvancements()
+                .grantCriterion(each, CRITERION);
+        }
     }
 
     /** Whether this player already has it, which is how the shelf knows the set is complete. */

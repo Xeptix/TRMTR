@@ -28,7 +28,7 @@ import mcp.mobius.waila.api.IWailaRegistrar;
  * recover, and - on any block at all, worn or not - its reinforcement and spawn ward.
  *
  * <p>
- * Waila already reports the block itself correctly — a ghost hands back the block it covers, so
+ * Waila already reports the block itself correctly - a ghost hands back the block it covers, so
  * the tooltip says "Grass Block" and offers the right tool. What it cannot know is the part that
  * only exists as data: which stage the wear has reached and when it will start growing back.
  *
@@ -36,8 +36,8 @@ import mcp.mobius.waila.api.IWailaRegistrar;
  * An earlier version asked for that through Waila's server-NBT channel, which produced an empty
  * tooltip: Waila only fetches NBT for blocks that have a tile entity, and a ghost deliberately
  * has none. So nothing here goes through Waila at all. The surface and the stage are read
- * straight off the client's own overlay — the client is already drawing them, so it necessarily
- * knows them — and what exists only in the server's record, the progress, the idle time, the recovery,
+ * straight off the client's own overlay - the client is already drawing them, so it necessarily
+ * knows them - and what exists only in the server's record, the progress, the idle time, the recovery,
  * the reinforcement and the ward, arrives through {@link InspectionCache}, which asks about the one block
  * under the crosshair.
  *
@@ -68,17 +68,12 @@ public class WailaCompat implements IWailaDataProvider {
 
     @SuppressWarnings("unused") // called by Waila through the message above
     public static void callbackRegister(IWailaRegistrar registrar) {
-        // One wear provider is named against each ghost class, BlockGhost and BlockGhostGrass here and the
-        // stair ghost below, so worn stone, sand and grass each have a provider of their own whatever
-        // Waila does with a class it was not given. Waila is not on this build's classpath, so whether it
-        // also hands a provider the subclasses of the class it was registered against is not read from its
-        // code: the in-game Waila check (step 1) settles it, and the every-block provider further down is
-        // written to be right either way.
+        // One wear provider, named against the one ghost class. The 1.7.10 edition names three here - its plain,
+        // grass and stair stand-ins - and this edition has one ghost, drawn for every family, worn stairs included,
+        // through unlisted properties, which is what the texture pipeline needed. With one class there is no
+        // question of whether Waila hands a provider the subclasses of the class it was given, and the every-block
+        // provider further down is written to be right either way.
         registrar.registerBodyProvider(new WailaCompat(false), BlockGhost.class);
-        // The other edition names two more ghost classes here - a grass one and a stair one.
-        // There is one ghost in this edition and it is drawn for every family through unlisted
-        // properties, which is what the texture pipeline needed; and the stair shape is the one
-        // this edition still declines.
         // Reinforcement and a spawn ward can sit on any block, worn or not, and most of what gets warded is
         // ground nobody has worn, so a second provider is named against every block. InspectionReach.speaks
         // keeps the two from writing the same lines twice over a ghost, whichever way Waila matches.
@@ -206,8 +201,8 @@ public class WailaCompat implements IWailaDataProvider {
             currentTip.add(TextFormatting.AQUA + "Frozen" + TextFormatting.DARK_GRAY + "  no wear, no recovery");
         }
 
-        // Everything below needs the server's copy of the record. Until the reply lands — one
-        // tick, in practice — the line above already stands on its own.
+        // Everything below needs the server's copy of the record. Until the reply lands - one
+        // tick, in practice - the line above already stands on its own.
         if (!InspectionCache.has(x, y, z)) return currentTip;
 
         // Where this sits on the whole run, pristine to fully sunk. The line above restarts its

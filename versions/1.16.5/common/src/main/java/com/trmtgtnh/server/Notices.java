@@ -83,8 +83,7 @@ public final class Notices {
      */
     static boolean nobodyIsThere(Player player) {
         if (player.level != null && player.level.isClientSide()) return false;
-        return !(player instanceof net.minecraft.server.level.ServerPlayer)
-            || ((net.minecraft.server.level.ServerPlayer) player).connection == null;
+        return com.trmtgtnh.util.Machines.is(player);
     }
 
     /**

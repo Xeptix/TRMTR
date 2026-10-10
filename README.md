@@ -785,33 +785,18 @@ turning one on reaches people already playing, and turning it off and on again h
 ## Maps
 
 **Worn ground is colored per position from the real block underneath**, rather than every modded
-dirt collapsing to one flat brown. Every edition does that, and they do it by completely different
-means - which decides what each one can and cannot offer.
+dirt collapsing to one flat brown. Every edition does that, by two roads: JourneyMap is handed a
+color of its own, and every other map reads the block's own answer.
 
-On **1.12.2 and 1.16.5** no map mod is named anywhere. A block is asked its color with the position
-in hand, so one override answers for every map at once: JourneyMap, Xaero's Minimap and anything
-else that reads the world all get the same answer, and a worn path travels from green to earth as it
-wears through because by then the square's appearance really is earth. There is nothing to switch off
-when a map mod changes its internals, and nothing to go stale.
+### JourneyMap, in every edition
 
-Those two editions also **darken a worn square**, to one color. The palette a map draws with is
-sixty-four fixed entries, so there is no fraction to dim by - but an entry can be picked for being
-darker, and that is what `surfaces.mapWearDarkening` decides there: the nearest entry to the ground's
-own color darkened by that much. Grass at `#7fb238` is drawn as `#392923`. A square that shows any
-wear at all is drawn in it and does not darken further, so **a road is visible on the map and how
-worn it is is not**. Where a pack's ground has nothing darker in the palette worth picking it keeps
-its color, and the log says so once, by name.
-
-On **1.7.10** a block is asked its color with nothing but a metadata value: a worn square cannot
-tell which position is being asked about, and can answer only from the family its class stands for.
-So that edition carries three hundred and fifty-seven lines of reflection against JourneyMap's
-internals and a hundred and nineteen more against Xaero's to achieve the same paragraph - and in
-exchange it can do things 1.12.2 cannot, because it hands those mods a real RGB value rather than one
-of vanilla's sixty-four fixed palette entries.
-
-### What 1.7.10 can do with that, and the later editions cannot
-
-With **JourneyMap** installed, two things happen to the color:
+JourneyMap is handed an RGB value for each worn square. It starts from JourneyMap's own color for
+the block underneath - its average of that block's texture, the distinct dot each modded block
+shows - and, where JourneyMap will not answer, from that block's map color and then its family's.
+On 1.7.10 a block is asked its color with nothing but a metadata value, so that edition reaches
+JourneyMap through three hundred and fifty-seven lines of reflection against its internals; the
+later editions answer through the one handler JourneyMap calls for every worn square. Then two
+things happen to the color:
 
 - it **travels toward what the ground is becoming**, in step with how far along its chain the
   square has walked, so a turf path leaves green and arrives at earth instead of the map calling a
@@ -819,12 +804,9 @@ With **JourneyMap** installed, two things happen to the color:
 - it **darkens** with wear, so a road reads as a road.
 
 Both of those answer to `surfaces.mapTracksWear`, on as shipped. Off, a map draws every square as
-the material it started as and the darkening a world-reading map gets through the tint goes with
-it; the tint correction that stops a modded turf reading as a green stripe stays, because that is
-not wear. How far a fully worn square darkens is `surfaces.mapWearDarkening`, 0.62 by default,
-spread evenly over every gradation the ground has - about eight tenths of one per cent a step on a
-family with eighty of them. The later editions read the same figure and can only pick a color with
-it, as above.
+the material it started as. How far a fully worn square darkens is `surfaces.mapWearDarkening`, 0.62
+by default, spread evenly over every gradation the ground has - about eight tenths of one per cent a
+step on a family with eighty of them.
 
 Optionally - `client.desirePathHighlight`, **off as shipped** - a worn square can also be pulled
 toward a color that is not a material at all, so routes stand out on the minimap. At a half the
@@ -835,32 +817,50 @@ square root of the wear rather than linearly, because the interesting case is a 
 just started using.
 
 All of it is reflective, so a JourneyMap that moves its internals falls back to the generic
-coloring rather than crashing, and it says once in the log when it is genuinely running.
+coloring rather than crashing. With the highlight on, the log says once when JourneyMap has really
+asked for a highlighted square, giving both colors, and warns once if this client holds worn ground
+and JourneyMap has asked for nothing.
 
-**Xaero's Minimap** has no color hook of its own on 1.7.10: it reads the client's world and asks
-each block for its tint. Worn ground answers that question with how far along its run it has
-come, so a road darkens on the map as it wears (`client.mapWearThroughTint`), and because this
-mod never sends a block packet - wear is painted into the client's own copy of the world - it
-tells Xaero's directly that a chunk has changed, or the map would keep the square it first drew
-for ever. Both are reflective and both switch themselves off if Xaero's has moved its internals.
-Xaero's asks in its *Accurate* block-color mode, which is its default, and in *Vanilla* mode only
-when its own *Biomes in Vanilla Color Mode* is on as well. With both off it takes the block's map
-color and hands it back without asking anything about the position, so a path then shows only
-where the ground has worn through into a different material.
+### Every other map
+
+On **1.12.2 and 1.16.5** a block is asked its map color with the position in hand, so a worn square
+answers for itself: **the material it has worn into** - its family's map color, earth once a lawn
+has worn through or sunk, gravel as stone and end stone as sand, because the game's own answer for
+those two names the wrong material. That one answer serves Xaero's Minimap and anything else that
+reads the world.
+
+Those two editions also **darken a worn square**, to one color. The palette such a map draws with
+is sixty-four fixed entries, so there is no fraction to dim by - but an entry can be picked for being
+darker, and that is what `surfaces.mapWearDarkening` decides there: the nearest entry to the
+material's own color darkened by that much. Grass at `#7fb238` is drawn as `#392923`. A square that
+shows any wear at all is drawn in it and does not darken further, so **a road is visible on the map
+and how worn it is is not**. Where a pack's ground has nothing darker in the palette worth picking it
+keeps its color, and the log says so once, by name.
+
+On **1.7.10** **Xaero's Minimap** reads the client's world and asks each block for its tint. Worn
+ground answers that question with how far along its run it has come, so a road darkens on the map
+as it wears (`client.mapWearThroughTint`). Xaero's asks in its *Accurate* block-color mode, which is
+its default, and in *Vanilla* mode only when its own *Biomes in Vanilla Color Mode* is on as well.
+With both off it takes the block's map color and hands it back without asking anything about the
+position, so a path then shows only where the ground has worn through into a different material.
+
+**Every edition tells Xaero's Minimap when a worn square changes.** This mod never sends a block
+packet - wear is painted into the client's own copy of the world - so a map that keeps what it drew
+would keep the first square for ever. It is reflective and switches itself off if Xaero's has moved
+its internals.
 
 **The vanilla map item never shows wear, in any edition.** It is drawn from the server's own blocks,
 and no worn square exists there: this mod paints them into each client's copy of the world and writes
 nothing into the save. Minimaps read the client's world, which is why they show the path.
 
-**On 1.12.2 and 1.16.5, `client.desirePathHighlight` and `client.mapWearThroughTint` do nothing.**
-Both are fractions of a color, and a palette entry cannot be dimmed by a fraction - there is no
-violet to reach toward and no tint to withhold. They are left in the settings file so a pack can move
-between versions and find its edits where it left them, and the mod names any of them you have
-changed, once, as it loads.
+**On 1.12.2 and 1.16.5, `client.mapWearThroughTint` does nothing.** It withholds a fraction of a tint
+from a world-reading map, and those maps read a palette entry, which cannot be dimmed by a fraction.
+It is left in the settings file so a pack can move between versions and find its edits where it left
+them, and the mod names it, once, as it loads if you have changed it.
 
 `/trmt mapcolor` lists what a map mod makes of every ghost on 1.7.10. On the later editions it tells
-you what the square under your feet is drawn as, what the untouched ground beside it is drawn as, and
-what a worn square there reports once it is darkened - three answers, because a map item and a
+you what the square under your feet is drawn as and what the untouched ground beside it is drawn as,
+and on 1.16.5 what that ground reports once it is worn and darkened - because a map item and a
 minimap are reading two different things.
 
 ## Waila and Hwyla
@@ -1177,8 +1177,8 @@ wear table and the config screen.
 | Mod | What it adds |
 |---|---|
 | **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5) | the wear readout on the tooltip, and a golem provider |
-| **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map coloring and the desire-path highlight - *1.7.10; on 1.12.2 every map is served without naming it* |
-| **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | worn ground drawn darker as it wears, and the map told when a square changes - *1.7.10 only, same reason* |
+| **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map coloring and the desire-path highlight, in every edition |
+| **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | the map told when a square changes, in every edition; worn ground drawn darker as it wears through its tint on 1.7.10, through its map color on the later editions |
 | **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)**, **[Canvas](https://github.com/vram-guild/canvas)** or **[OptiFabric](https://github.com/Chocohead/OptiFabric)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material |
 | **[Chisel](https://github.com/Chisel-Team/Chisel)** | the liquid layer painted into worn textures and drawn through the carving's gaps (1.7.10, 1.12.2), and the layered-block shell lift (1.7.10) |
 | **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
@@ -1334,7 +1334,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **501 tests on 1.7.10, 547 on 1.12.2 and 546 on 1.16.5**, every one
+types in them and are unit tested - **504 tests on 1.7.10, 599 on 1.12.2 and 631 on 1.16.5**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 

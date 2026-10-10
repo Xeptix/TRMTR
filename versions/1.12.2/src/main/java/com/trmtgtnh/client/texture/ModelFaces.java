@@ -78,6 +78,13 @@ public final class ModelFaces {
     /** Per block, per meta, per side (the 1.7.10 numbering, which is EnumFacing's index), a sprite name. */
     private static volatile Map<Block, String[][]> faces = new IdentityHashMap<Block, String[][]>();
 
+    /**
+     * Per block, per meta, the side its snowy variant draws - the picture a turf shows on its flanks with snow on top
+     * (0.9.222, spec SC20). The 1.7.10 edition asks the covered block for it through a view of the world; a mesher
+     * thread may not ask another mod's model, so it is read here, with the rest of the survey.
+     */
+    private static volatile Map<Block, String[]> snowed = new IdentityHashMap<Block, String[]>();
+
     private static volatile int surveyed;
 
     private static volatile int unread;
@@ -95,6 +102,7 @@ public final class ModelFaces {
      */
     public static void survey(Collection<SurfaceRegistry.SurfaceState> states) {
         Map<Block, String[][]> built = new IdentityHashMap<Block, String[][]>();
+        Map<Block, String[]> snowedBuilt = new IdentityHashMap<Block, String[]>();
         firstReason = null;
         int read = 0;
         int missed = 0;
@@ -102,6 +110,7 @@ public final class ModelFaces {
             Block block = surface.block;
             if (built.containsKey(block)) continue;
             String[][] byMeta = new String[16][];
+            String[] snowedByMeta = new String[16];
             Map<IBlockState, ModelResourceLocation> variants;
             try {
                 net.minecraft.client.renderer.block.statemap.BlockStateMapper mapper = stateMapper();
@@ -125,6 +134,12 @@ public final class ModelFaces {
                     continue;
                 }
                 if (meta < 0 || meta > 15) continue;
+                // The snowy variant is read for its flank alone, and never stands for the meta (SC20).
+                if (isSnowy(state)) {
+                    String[] snowySides = sidesOf(entry.getValue(), layerBehind(block, meta));
+                    if (snowySides != null && snowySides[2] != null) snowedByMeta[meta] = snowySides[2];
+                    continue;
+                }
                 // Several states share a meta - grass snowy and not - and the one the meta itself stands for
                 // is the one to read, since that is the state a record's origin is filed under.
                 boolean canonical = sameState(block, meta, state);
@@ -137,6 +152,12 @@ public final class ModelFaces {
             for (String[] sides : byMeta) {
                 if (sides != null) any = true;
             }
+            for (String side : snowedByMeta) {
+                if (side != null) {
+                    snowedBuilt.put(block, snowedByMeta);
+                    break;
+                }
+            }
             if (any) {
                 built.put(block, byMeta);
                 read++;
@@ -146,8 +167,24 @@ public final class ModelFaces {
             }
         }
         faces = built;
+        snowed = snowedBuilt;
         surveyed = read;
         unread = missed;
+    }
+
+    /** The side a block's snowy variant draws, or null where it has none or its model did not say (SC20). */
+    public static String snowedSideName(Block block, int meta) {
+        if (block == null || meta < 0 || meta > 15) return null;
+        String[] byMeta = snowed.get(block);
+        return byMeta == null ? null : byMeta[meta];
+    }
+
+    /** Whether a state is a snowy variant: a property named snowy, set. Vanilla grass's, mycelium's and a mod's alike. */
+    private static boolean isSnowy(IBlockState state) {
+        for (net.minecraft.block.properties.IProperty<?> property : state.getPropertyKeys()) {
+            if ("snowy".equals(property.getName()) && Boolean.TRUE.equals(state.getValue(property))) return true;
+        }
+        return false;
     }
 
     /** The sprite name a block draws on one side, or null where its model did not say. */

@@ -122,7 +122,7 @@ public final class ChunkErosionData {
      * format it has seen.
      *
      * <p>
-     * Counted here and reported elsewhere. This class is one of the twenty-six that make up the
+     * Counted here and reported elsewhere. This class is one of those that make up the
      * portable core and may not reach the mod's logger, so what it does is arithmetic; see
      * {@code ErosionStore}, which says the sentence. Not synchronised, because chunk reads happen on
      * the thread that owns the world and a count that is occasionally one out would change nothing
@@ -236,7 +236,7 @@ public final class ChunkErosionData {
      * <p>
      * Deliberately lenient: a truncated, empty or unrecognised-version blob yields an empty
      * map rather than an exception. Erosion is cosmetic, so losing some of it is always
-     * preferable to preventing a chunk — and therefore a world — from loading. Nothing in
+     * preferable to preventing a chunk - and therefore a world - from loading. Nothing in
      * this mod should ever be able to stop a save from opening.
      */
     public static ChunkErosionData read(byte[] data) {

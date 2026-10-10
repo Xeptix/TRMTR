@@ -3,10 +3,14 @@ package com.trmtgtnh.block;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MaterialColor;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
  * The one darker color a worn square reports to a map, and how it is chosen.
@@ -63,6 +67,63 @@ public final class GhostMapColor {
      * map tile a few pixels across, and picking one would spend a color to no effect.
      */
     private static final int ENOUGH = 10;
+
+    /** What a square with no family is given where a color has to be given - the 1.7.10 edition's grey. */
+    public static final int NO_FAMILY = 0x7F7F7F;
+
+    /**
+     * The color a map draws a family in when it has nothing finer to go on, or null where there is no family.
+     *
+     * <p>
+     * The 1.7.10 edition's {@code GhostLogic.mapColor(SurfaceFamily)}: the map color of the vanilla block the family
+     * stands for ({@link GhostFamily#standIn}, that edition's {@code vanillaCounterpart}), except gravel, which reads as
+     * stone, and end stone, which reads as sand - there vanilla's own answer names the wrong material, and a map of worn
+     * ground must never say the material changed. This version's gravel and end stone already answer so, and the two
+     * lines stay so the rule does not hang on that. One rule for every map answer this edition gives: the block's own
+     * map color, and JourneyMap's covered, fade and palette answers (0.9.222, spec CO19, CO20, CO21, CO25).
+     */
+    public static MaterialColor ofFamily(SurfaceFamily family) {
+        if (family == null) return null;
+        if (family == SurfaceFamily.GRAVEL) return MaterialColor.STONE;
+        if (family == SurfaceFamily.END) return MaterialColor.SAND;
+        return GhostFamily.standIn(family)
+            .getMapColor(null, null);
+    }
+
+    /**
+     * As {@link #ofFamily(SurfaceFamily)}, told whether the square is drawn untinted: grass drawn untinted is bare
+     * earth, and reads as dirt - the 1.7.10 edition's {@code GhostLogic.mapColor(appearance, untinted)}, which says
+     * reporting turf for it was the map calling a dirt path a lawn (0.9.222, spec CO25).
+     */
+    public static MaterialColor ofFamily(SurfaceFamily family, boolean untinted) {
+        if (untinted && family == SurfaceFamily.GRASS) return ofFamily(SurfaceFamily.DIRT);
+        return ofFamily(family);
+    }
+
+    /**
+     * The family's map color as a plain 0xRRGGBB, grey only where there is no family - the 1.7.10 edition's
+     * {@code GhostLogic.fallbackMapColor}, the form JourneyMap is handed (0.9.222, spec CO19, CO20, CO21).
+     */
+    public static int rgbOf(SurfaceFamily family) {
+        MaterialColor color = ofFamily(family);
+        return color == null ? NO_FAMILY : color.col;
+    }
+
+    /**
+     * The covered block's own vanilla map color as 0xRRGGBB, or its family's where it will not say - the second and
+     * third answers of the 1.7.10 edition's {@code JourneyMapColors.originColor}, after JourneyMap's own (0.9.222, spec
+     * CO19). Asked through a view that shows the covered block at its square, as every other question this edition
+     * puts to a covered block is, so a block that looks at its own square sees itself rather than the ghost.
+     */
+    public static int coveredRgb(BlockState covered, BlockGetter world, BlockPos pos, SurfaceFamily family) {
+        try {
+            MaterialColor own = covered.getMapColor(world == null ? null : new OriginView(world, pos, covered), pos);
+            if (own != null) return own.col;
+        } catch (RuntimeException awkwardBlock) {
+            // A block of somebody else's that will not say. Its family's color is the next answer.
+        }
+        return rgbOf(family);
+    }
 
     /**
      * The color a worn square should report, given the color of what it stands in for.

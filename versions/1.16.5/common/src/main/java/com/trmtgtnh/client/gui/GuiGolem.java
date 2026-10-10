@@ -355,7 +355,7 @@ public class GuiGolem extends AbstractContainerScreen<ContainerGolem> {
             int z = Integer.parseInt(parts[2]);
             // The same bounds the server keeps, asked here as well so a place it would refuse is
             // one the screen never claims to have sent.
-            if (y < 0 || y > 255) return;
+            if (!com.trmtgtnh.util.Heights.holds(golem.level, y)) return;
             if (Math.abs(x - Math.floor(golem.getX())) > PacketGolemHome.MAX_MOVE) return;
             if (Math.abs(z - Math.floor(golem.getZ())) > PacketGolemHome.MAX_MOVE) return;
             TrmtNetwork.setGolemHome(golem.getId(), x, y, z);
@@ -573,7 +573,7 @@ public class GuiGolem extends AbstractContainerScreen<ContainerGolem> {
         if (!golem.isArmed()) {
             note = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.noTamper");
             color = 0xB03A2A;
-        } else if (tool == null) {
+        } else if (tool == null || tool.isEmpty()) {
             note = com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.toolMissing");
             color = 0xB03A2A;
         } else if (!golem.hasMendingStock()) {

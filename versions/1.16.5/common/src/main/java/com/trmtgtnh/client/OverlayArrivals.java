@@ -21,13 +21,10 @@ import net.minecraft.core.BlockPos;
  */
 public final class OverlayArrivals {
 
-    private static volatile boolean said;
-
     private OverlayArrivals() {}
 
     /** A chunk, or part of one, has just been written over. */
     public static void chunk(int chunkX, int chunkZ) {
-        say();
         OverlayPainter.get()
             .chunkArrived(chunkX, chunkZ);
     }
@@ -41,22 +38,7 @@ public final class OverlayArrivals {
     /** One block written over. */
     public static void block(BlockPos at) {
         if (at == null) return;
-        say();
         OverlayPainter.get()
             .blockArrived(at.getX(), at.getY(), at.getZ());
-    }
-
-    /**
-     * Said once, so the absence of these hooks is noticeable.
-     *
-     * <p>
-     * Each injection is optional - a pack whose renderer has moved these methods gets a game that
-     * still starts, and the painter's slow rescan closes the hole a couple of seconds later. The cost
-     * of that is that a hook which never attaches says nothing at all, so the one that does says so.
-     */
-    private static void say() {
-        if (said) return;
-        said = true;
-        com.trmtgtnh.Trmt.LOG.info("Repainting worn ground the server wrote over; the packet hooks are in place");
     }
 }

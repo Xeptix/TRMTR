@@ -131,6 +131,20 @@ public final class OverlayPainter {
         Trmt.LOG.info("Repainting worn ground the server wrote over; the packet hooks are in place");
     }
 
+    /** Whether an orphaned ghost has been said this session, so a world full of them says it once. */
+    private static boolean orphanReported;
+
+    private static void warnOrphan(int x, int y, int z) {
+        if (orphanReported) return;
+        orphanReported = true;
+        Trmt.LOG.warn(
+            "A ghost at {},{},{} has no recorded origin. It will draw untinted and cannot be lifted; "
+                + "this means an overlay lost a position while its block stayed painted.",
+            Integer.valueOf(x),
+            Integer.valueOf(y),
+            Integer.valueOf(z));
+    }
+
     public int queueDepth() {
         return pending.size();
     }
@@ -152,9 +166,10 @@ public final class OverlayPainter {
                 .longValue();
             int chunkX = (int) (key >> 32);
             int chunkZ = (int) key;
-            // At least one per chunk looked at, so a chunk with nothing left to paint still costs its
-            // place in the budget and a queue of those cannot hold the tick for ever.
-            budget -= Math.max(1, paintChunk(world, chunkX, chunkZ));
+            // What a chunk wrote is what it costs, as in the 1.7.10 edition: a chunk with nothing to write - out of
+            // range, not loaded, already painted - costs nothing, so a queue of those never holds back the ones
+            // behind it. Until 0.9.222 each cost at least one (spec PT15). The queue only shrinks, so this ends.
+            budget -= paintChunk(world, chunkX, chunkZ);
         }
         reportDeclined();
     }
@@ -314,6 +329,20 @@ public final class OverlayPainter {
         return true;
     }
 
+    /** The square being written this moment and the block it covers; the origin is -1 while none is. */
+    private static volatile int paintingX, paintingY, paintingZ;
+
+    private static volatile int paintingOrigin = -1;
+
+    /**
+     * The block covered by the square the painter is writing this moment, or -1 for any other square: the origin a
+     * ghost asks for while it is being written, before the chunk's copy is published (0.9.222, spec GF8).
+     */
+    public static int originBeingPainted(int x, int y, int z) {
+        int origin = paintingOrigin;
+        return origin >= 0 && x == paintingX && y == paintingY && z == paintingZ ? origin : -1;
+    }
+
     /** Paints one position. Returns true when the world actually changed. */
     private boolean paint(WorldClient world, int x, int y, int z, SurfaceFamily appearance, int[] origins, int index) {
         BlockPos pos = new BlockPos(x, y, z);
@@ -329,6 +358,10 @@ public final class OverlayPainter {
             // under blocks. Put the block back and forget only that it was drawn - the wear itself
             // belongs to the server and is untouched, so lifting the cover off brings the same path back.
             if (hidden && !flatten) return unpaint(world, pos, origins, index);
+            // A ghost with no recorded origin cannot be tinted, put back or picked - every one of those keys off this
+            // value. It should be unreachable, so rather than guess at what it covers, say so once and carry on
+            // drawing what is there, as the 1.7.10 edition does (0.9.222, spec PT10).
+            if (origins[index] < 0) warnOrphan(x, y, z);
             // Already painted. Everything about how it looks is the model's to decide.
             return false;
         }
@@ -368,7 +401,18 @@ public final class OverlayPainter {
         if (ghost == null) return false;
 
         origins[index] = Block.getStateId(current);
-        world.setBlockState(pos, ghost.getDefaultState(), 0);
+        // Told to the light question for the length of the write: the origin above goes into a copy published
+        // after the whole chunk, and the heightmap and the relight ask the ghost's opacity during this call - so a
+        // worn stair, which stops all light, answered as a sunk square and let it through (0.9.222, spec GF8).
+        paintingX = x;
+        paintingY = y;
+        paintingZ = z;
+        paintingOrigin = origins[index];
+        try {
+            world.setBlockState(pos, ghost.getDefaultState(), 0);
+        } finally {
+            paintingOrigin = -1;
+        }
         return true;
     }
 

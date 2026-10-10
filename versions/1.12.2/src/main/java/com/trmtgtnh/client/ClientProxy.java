@@ -68,13 +68,37 @@ public class ClientProxy extends CommonProxy {
                 @Override
                 public int colorMultiplier(IBlockState state, @Nullable IBlockAccess world, @Nullable BlockPos pos,
                     int tintIndex) {
-                    if (tintIndex != GhostBakedModel.GRASS_TINT && tintIndex != GhostBakedModel.LIGHT_TINT) return -1;
+                    if (tintIndex != GhostBakedModel.GRASS_TINT && tintIndex != GhostBakedModel.LIGHT_TINT
+                        && tintIndex != GhostBakedModel.COVERED_TINT) return -1;
                     // The path light, multiplied into both: a glow outranks every rule about when ground is
                     // tinted, because somebody chose this color for this square.
                     int glow = world == null || pos == null ? 0
                         : com.trmtgtnh.block.GhostLight.packedAt(world, pos.getX(), pos.getY(), pos.getZ());
                     if (tintIndex == GhostBakedModel.LIGHT_TINT) {
                         return com.trmtgtnh.block.GhostLight.tinted(0xFFFFFF, glow);
+                    }
+                    // A worn stair's sides: the covered block's own color with the glow in it, as the 1.7.10 edition
+                    // tints every face of its stair stand-in (0.9.222, spec GF7).
+                    if (tintIndex == GhostBakedModel.COVERED_TINT) {
+                        return com.trmtgtnh.block.GhostLight.tinted(
+                            com.trmtgtnh.block.BlockGhost.coveredTint(world, pos, Minecraft.getMinecraft()
+                                .getBlockColors()),
+                            glow);
+                    }
+                    // Breaking and hitting dust asks this slot too, with the real world in hand, and is
+                    // tinted as the square's top is drawn rather than as grass: white where the top carries
+                    // its own colors, so worn sand and stone no longer throw green dust - the 1.7.10
+                    // edition's dust, which takes the ghost's own tint at the square (0.9.222, spec GF19).
+                    // Only while a ghost holds the tint for its dust, and only for a caller holding the world:
+                    // the mesher hands over a view that is not one, so no quad drawn with this slot changes.
+                    if (com.trmtgtnh.block.BlockGhost.tintHeldForDust() && world instanceof net.minecraft.world.World
+                        && pos != null) {
+                        short record = ClientProxy.this.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
+                        if (!com.trmtgtnh.client.model.GhostSides.tintsAsGrass(
+                            ClientProxy.this.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()),
+                            com.trmtgtnh.erosion.ErosionState.familyOf(record))) {
+                            return com.trmtgtnh.block.GhostLight.tinted(0xFFFFFF, glow);
+                        }
                     }
                     int grass = world == null || pos == null ? ColorizerGrass.getGrassColor(0.5D, 1.0D)
                         : BiomeColorHelper.getGrassColorAtPos(world, pos);
@@ -168,6 +192,61 @@ public class ClientProxy extends CommonProxy {
     private boolean inspectionRead;
 
     /**
+     * A chunk arriving in the client's world with a record already held is queued for painting, whatever else is
+     * switched on, as the 1.7.10 edition's chunk load does: the record often arrives before the blocks it describes,
+     * and until 0.9.222 only the optional packet hook, or the rescan up to two seconds later, caught it (spec PT18).
+     */
+    @SubscribeEvent
+    public void onChunkLoad(net.minecraftforge.event.world.ChunkEvent.Load event) {
+        net.minecraft.world.chunk.Chunk chunk = event.getChunk();
+        if (chunk == null || chunk.getWorld() == null || !chunk.getWorld().isRemote) return;
+        if (ClientErosionCache.get()
+            .overlay(chunk.x, chunk.z) == null) return;
+        OverlayPainter.get()
+            .queueChunk(chunk.x, chunk.z);
+    }
+
+    /**
+     * A chunk leaving takes its overlay with it, as the 1.7.10 edition's does. Nothing needs restoring: the client is
+     * discarding that copy of the world wholesale, and the server sends the chunk's wear again, whole, when it is
+     * watched again - unless there is none left to send, which is exactly the case that kept an old record here until
+     * 0.9.222: a chunk healed bare or put out while the player was away came back painted from it (spec PN33).
+     *
+     * <p>
+     * Run from this mod's own queue, where the unload's packet put it as it arrived (ClearsInPacketOrder), not from
+     * Forge's chunk unload event: that runs from vanilla's queue, in no fixed order with this mod's packets, so a chunk
+     * sent again quickly could have its new wear applied first and then wiped.
+     */
+    public static void forgetChunk(int chunkX, int chunkZ) {
+        ClientErosionCache.get()
+            .remove(chunkX, chunkZ);
+        // Dropped alongside the wear, or a chunk that lost its lights while unloaded would come
+        // back still glowing: a chunk with nothing lit in it sends no light packet to say so.
+        ClientLightCache.get()
+            .remove(chunkX, chunkZ);
+    }
+
+    /**
+     * The client's world being replaced - a join, or a respawn into another dimension - takes every record, light and
+     * queued chunk with it. Both caches are filed by chunk position alone, so until 0.9.222 the last dimension's records
+     * sat on the next one's chunks at the same coordinates (spec PN34).
+     *
+     * <p>
+     * Run from this mod's own queue, where the join's or the respawn's packet put it as it arrived
+     * (ClearsInPacketOrder), not from Forge's world unload event, for the reason {@link #forgetChunk} gives: the wear
+     * of the chunks round the arrival point, sent straight after the respawn, could be applied first and then wiped,
+     * and the old world's backlog applied after it into the new one.
+     */
+    public static void forgetWorld() {
+        ClientErosionCache.get()
+            .clear();
+        ClientLightCache.get()
+            .clear();
+        OverlayPainter.get()
+            .clearQueue();
+    }
+
+    /**
      * Says hello once the client is actually in a world, and hands everything back on the way out.
      *
      * <p>
@@ -178,6 +257,9 @@ public class ClientProxy extends CommonProxy {
     @SubscribeEvent
     public void onClientTick(net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent event) {
         if (event.phase != net.minecraftforge.fml.common.gameevent.TickEvent.Phase.END) return;
+        // The hold a ghost takes while its dust is spawned, let go of here, above the world check as the 1.7.10
+        // edition's is: a tick is the smallest window that covers the spawn (0.9.222, spec GF19).
+        com.trmtgtnh.block.BlockGhost.releaseTintForDust();
         com.trmtgtnh.util.MainThread.drainClient();
         // A fresh allowance of moving-layer uploads, every tick, above the world check as the 1.7.10 edition
         // has it. Missing until 0.9.219: the allowance starts closed and nothing ever opened it, so the lava and
@@ -207,8 +289,12 @@ public class ClientProxy extends CommonProxy {
         // never sends a byte of this. Sent on the transition rather than with the click, which is the
         // whole reason it works: a message sent a tick before a click arrives before that click,
         // whereas a modifier sent alongside one would be racing the click it is meant to qualify.
-        net.minecraft.item.ItemStack held = mc.player.getHeldItemMainhand();
-        boolean relevant = held != null && held.getItem() instanceof com.trmtgtnh.item.ItemChunkTamper;
+        // Either hand: a chunk tamper in the off hand opens its screen on a modifier click too, and until 0.9.222 the
+        // server was never told the modifier was down, so the same click also mended or pinned (spec TA50).
+        boolean relevant = mc.player.getHeldItemMainhand()
+            .getItem() instanceof com.trmtgtnh.item.ItemChunkTamper
+            || mc.player.getHeldItemOffhand()
+                .getItem() instanceof com.trmtgtnh.item.ItemChunkTamper;
         boolean down = relevant && modifierHeld();
         if (down != modifierWasDown) {
             modifierWasDown = down;
@@ -250,6 +336,12 @@ public class ClientProxy extends CommonProxy {
             InspectionCache.clear();
             return;
         }
+        // Digging and placing make the server send the block back, and placing the one it was set against
+        // too, each over the ghost standing there - which reads in game as a path healing the instant it is
+        // swung at. Those are the crosshair block and its neighbours, so all seven are looked at again every
+        // tick, as the 1.7.10 edition's verifyInteraction does (0.9.222, spec PT23).
+        OverlayPainter painter = OverlayPainter.get();
+        painter.verifyPosition(mc.world, at.getX(), at.getY(), at.getZ());
         if (com.trmtgtnh.util.InspectionReach.asks(
             inspectionRead,
             mc.world.getBlockState(at)
@@ -260,6 +352,12 @@ public class ClientProxy extends CommonProxy {
         } else {
             InspectionCache.clear();
         }
+        painter.verifyPosition(mc.world, at.getX(), at.getY() - 1, at.getZ());
+        painter.verifyPosition(mc.world, at.getX(), at.getY() + 1, at.getZ());
+        painter.verifyPosition(mc.world, at.getX() - 1, at.getY(), at.getZ());
+        painter.verifyPosition(mc.world, at.getX() + 1, at.getY(), at.getZ());
+        painter.verifyPosition(mc.world, at.getX(), at.getY(), at.getZ() - 1);
+        painter.verifyPosition(mc.world, at.getX(), at.getY(), at.getZ() + 1);
     }
 
     // ------------------------------------------------------------------
@@ -581,6 +679,9 @@ public class ClientProxy extends CommonProxy {
         // is worked out from the record at every rebuild, so a record moving along its chain changes
         // the picture without the painter touching a block. Nothing else would ask for the rebuild.
         redrawAt(x, y, z);
+        // And a minimap that reads the world, which is told by nothing else: this mod never sends a
+        // block packet, so a map keeping what it drew keeps it for ever (0.9.222, spec PT22).
+        com.trmtgtnh.client.xaero.XaeroMinimap.chunkChanged(Minecraft.getMinecraft().world, x, z);
     }
 
     @Override
@@ -776,6 +877,8 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public int ghostOriginAt(int x, int y, int z) {
+        int painting = OverlayPainter.originBeingPainted(x, y, z);
+        if (painting >= 0) return painting;
         try {
             return ClientErosionCache.get()
                 .originAt(x, y, z);

@@ -13,7 +13,7 @@ import io.netty.buffer.ByteBuf;
  *
  * <p>
  * The server-side kill switch. Because nothing was ever written into the world, switching
- * the mod off is exactly this packet plus the server no longer accumulating wear — there is
+ * the mod off is exactly this packet plus the server no longer accumulating wear - there is
  * nothing to undo, and the stored data stays put so switching it back on restores every
  * path as it was.
  */

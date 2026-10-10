@@ -18,7 +18,7 @@ import io.netty.buffer.ByteBuf;
  * <p>
  * Only sent when the server has ruts you can walk down into. In that mode the ground you stand
  * on is the server's business, and a client that had switched the overlay off would be tripping
- * over dips it never drew — so the overlay stops being optional. The wear geometry travels with
+ * over dips it never drew - so the overlay stops being optional. The wear geometry travels with
  * it, because both sides work the rut depth out from the stage rather than sending it per
  * block, and they can only agree on that if they agree on the numbers behind it.
  *

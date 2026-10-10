@@ -631,17 +631,29 @@ public final class ModRecipes {
      * without them and the plain ones still do.
      *
      * <p>
-     * The name is the other edition's, and which name Extra Utilities registers on 1.12.2 is the compat
-     * milestone's to settle. Until then this resolves to nothing on a 1.12.2 pack and the settled
-     * upgrade is built the plain way - which is the same thing that happens on any 1.7.10 pack without
-     * the mod, and the recipe below is written to expect it.
+     * The other edition's name first, then Extra Utilities 2's, which is the mod at this version (0.9.222, spec BP20
+     * and RL6: until then only the old name was asked, nothing registers it here, and the harder recipes never
+     * appeared). The old mod kept cobblestone, dirt, gravel and sand compressed in one block, told apart by metadata -
+     * cobblestone 0 to 7, dirt 8 to 11, gravel 12 and 13, sand 14 and 15 - and the new one gives each its own block,
+     * counted from nought, so the metadata the recipes were written in is read into the new block and its own count.
+     * Read from Extra Utilities 2's naming as remembered, not from its jar: no instance here holds the mod, so the
+     * first pack that does should be looked at once. A pack with neither still builds the plain recipes.
      */
     private static ItemStack compressed(int meta) {
-        net.minecraft.block.Block block = net.minecraft.block.Block
-            .getBlockFromName("ExtraUtilities:cobblestone_compressed");
+        ItemStack old = blockStack("ExtraUtilities:cobblestone_compressed", meta);
+        if (old != null) return old;
+        if (meta < 8) return blockStack("extrautils2:compressedcobblestone", meta);
+        if (meta < 12) return blockStack("extrautils2:compresseddirt", meta - 8);
+        if (meta < 14) return blockStack("extrautils2:compressedgravel", meta - 12);
+        return blockStack("extrautils2:compressedsand", meta - 14);
+    }
+
+    /** A block's stack at a metadata, or null where nothing by that name is registered. */
+    private static ItemStack blockStack(String name, int meta) {
+        net.minecraft.block.Block block = net.minecraft.block.Block.getBlockFromName(name);
         if (block == null || block == net.minecraft.init.Blocks.AIR) return null;
         net.minecraft.item.Item item = net.minecraft.item.Item.getItemFromBlock(block);
-        return item == null ? null : new ItemStack(item, 1, meta);
+        return item == null || item == net.minecraft.init.Items.AIR ? null : new ItemStack(item, 1, meta);
     }
 
     /**

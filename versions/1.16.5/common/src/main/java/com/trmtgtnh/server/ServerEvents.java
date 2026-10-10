@@ -306,6 +306,10 @@ public final class ServerEvents {
         com.trmtgtnh.surface.SurfaceRegistry.resolve();
         com.trmtgtnh.erosion.PhysicalDecay.markSinkableBlocks();
         UpdateNotice.serverStarting();
+        // A chunk that arrives holding wear is caught up on the healing it was owed while it was away - the engine's,
+        // handed to the store before any world loads. Never handed over until 0.9.222 (spec WH46): every chunk waited
+        // for the sweep, and a step on one of its squares first restamped the clock and threw that healing away.
+        com.trmtgtnh.erosion.ErosionStore.useEngine(com.trmtgtnh.erosion.ErosionEngine.get()::catchUpChunk);
     }
 
     /**
@@ -444,7 +448,55 @@ public final class ServerEvents {
         if (level == null || level.isClientSide() || pos == null || state == null) return;
         // Set aside rather than dropped, in case the same block comes straight back.
         ErosionEngine.get()
-            .breakBlock(level, pos.getX(), pos.getY(), pos.getZ(), state.getBlock(), 0);
+            .breakBlock(level, pos.getX(), pos.getY(), pos.getZ(), state.getBlock(), metaOf(state));
+    }
+
+    /**
+     * The properties a block's neighbours decide, which the 1.7.10 edition's metadata never held: a stair's shape at a
+     * corner, a grass block's snow, water standing in it, the sides a fence, pane or wall joins.
+     */
+    private static final net.minecraft.world.level.block.state.properties.Property<?>[] DECIDED_BY_NEIGHBOURS = {
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.STAIRS_SHAPE,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.SNOWY,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.NORTH,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.EAST,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.SOUTH,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.WEST,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.UP,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.DOWN,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.NORTH_WALL,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.EAST_WALL,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.SOUTH_WALL,
+        net.minecraft.world.level.block.state.properties.BlockStateProperties.WEST_WALL };
+
+    /**
+     * A state's metadata as the 1.7.10 edition would have it: which of its block's states it is, once every property a
+     * neighbour decides is set back to its default. A block put back inside the window takes its record back only as
+     * the exact block with the exact metadata - a top slab is not the bottom slab that wore, a log on its side is not
+     * the upright one (spec WH74) - and until 0.9.222 both loaders handed over 0 here, so the block alone was compared.
+     * What a neighbour decides is left out because the old metadata never held it: a stair put back where it stood is
+     * the same stair whatever its corner makes of it.
+     */
+    static int metaOf(BlockState state) {
+        BlockState plain = state;
+        for (net.minecraft.world.level.block.state.properties.Property<?> decided : DECIDED_BY_NEIGHBOURS) {
+            plain = asDefault(plain, decided);
+        }
+        return state.getBlock()
+            .getStateDefinition()
+            .getPossibleStates()
+            .indexOf(plain);
+    }
+
+    private static <T extends Comparable<T>> BlockState asDefault(BlockState state,
+        net.minecraft.world.level.block.state.properties.Property<T> property) {
+        if (!state.hasProperty(property)) return state;
+        return state.setValue(
+            property,
+            state.getBlock()
+                .defaultBlockState()
+                .getValue(property));
     }
 
     /**
@@ -484,10 +536,154 @@ public final class ServerEvents {
     public static void blockPlaced(Level level, BlockPos pos, BlockState state, Player player) {
         if (level == null || level.isClientSide() || pos == null || state == null) return;
         ErosionEngine.get()
-            .placeBlock(level, pos.getX(), pos.getY(), pos.getZ(), state.getBlock(), 0);
+            .placeBlock(level, pos.getX(), pos.getY(), pos.getZ(), state.getBlock(), metaOf(state));
         if (state.getBlock() instanceof net.minecraft.world.level.block.AbstractSkullBlock) {
             com.trmtgtnh.entity.GolemBuilder.onHeadPlaced(level, pos.getX(), pos.getY(), pos.getZ(), player);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Bone meal
+    // ------------------------------------------------------------------
+
+    /**
+     * Whether the client answers bone meal on this square as used: on the client, over a worn square it holds a record
+     * for (0.9.222). Only stops the game going on to the off hand and sending a second use at the same block - the
+     * reason is {@link com.trmtgtnh.block.BlockGhost#answersBoneMeal}; the client spends nothing for it, and what is
+     * mended and spent is {@link #boneMealed}'s answer on the server, as before. Forge's bone meal event and Fabric's
+     * hook on the bone meal item both ask it.
+     */
+    public static boolean boneMealAnsweredOnTheClient(Level level, BlockPos pos) {
+        if (level == null || !level.isClientSide() || pos == null) return false;
+        return com.trmtgtnh.block.BlockGhost.answersBoneMeal(
+            true,
+            level.getBlockState(pos)
+                .getBlock() instanceof com.trmtgtnh.block.BlockGhost,
+            com.trmtgtnh.Client.ghostRecordAt(level, pos.getX(), pos.getY(), pos.getZ()));
+    }
+
+    /**
+     * Bone meal repairs a worn patch of ground; true when it mended something, and the handful is then spent and grows
+     * nothing.
+     *
+     * <p>
+     * The patch itself is {@code ErosionEngine.mendPatch}, which the tamper's right-click gesture also uses. Bone meal
+     * and a tamper differ over how far the patch reaches and over what a handful costs, and over nothing else worth
+     * writing twice. The bone meal is only consumed if something was actually repaired, so it still behaves normally on
+     * crops and saplings standing on worn ground.
+     *
+     * <p>
+     * When the ground costs material as well, the payment is found before anything is mended and taken only once
+     * something has been: a repair cannot be handed back if it turns out there is nothing to pay with. A player who
+     * cannot pay is left exactly where they were, with the bone meal still in hand and free to grow whatever it always
+     * grew.
+     *
+     * <p>
+     * Experience for a handful that cost no block is paid only when that handful was vanilla bone meal really spent
+     * from a player's hand: the player right-clicked this very block holding bone meal, on this tick, which the game
+     * announces before it uses the item. Holding bone meal was not proof enough, because other mods apply bone meal for
+     * a player holding it while spending their own - a growth charm, a sigil - and some spend nothing when it is
+     * allowed. Paying them while the block cost is off would make mending both free and worth experience, which is the
+     * round trip that must never be a farm. Creative earns nothing at all, since the game hands the bone meal back.
+     *
+     * <p>
+     * A machine needs no special case to pay. It pays from its own inventory like anyone, and a dispenser's usually
+     * carries nothing (a dispenser on Fabric names no player at all), so with the cost on it mends nothing and the bone
+     * meal grows whatever it always grew. It never earns experience, and it is never told anything.
+     *
+     * <p>
+     * The 1.7.10 edition's handler, which this edition did not have until 0.9.222: bone meal mended nothing here,
+     * though the patch, the purse and the settings were all carried (spec WD40 to WD43). Forge's bone meal event and
+     * Fabric's hook on the bone meal item both come here.
+     *
+     * @param player who applied it, or null when nobody did
+     */
+    public static boolean boneMealed(Level level, BlockPos pos, Player player) {
+        if (level == null || level.isClientSide() || pos == null || !TrmtConfig.enabled) return false;
+        com.trmtgtnh.surface.SurfaceFamily aimed = com.trmtgtnh.surface.SurfaceRegistry.familyOf(level.getBlockState(pos));
+        if (aimed == null || !aimed.staged) return false;
+
+        // Creative pays nothing, and has to: the game puts back only the stack in the hand after a
+        // right click, so a block taken from any other slot would be gone for good.
+        boolean creative = player != null && player.abilities.instabuild;
+        boolean fromHand = player != null && !isMachine(player)
+            && (isBoneMeal(player.getMainHandItem()) || isBoneMeal(player.getOffhandItem()))
+            && clickedWithBoneMeal(player, level, pos);
+        com.trmtgtnh.erosion.MendLedger ledger = creative || !TrmtConfig.bonemealCostsABlock
+            ? com.trmtgtnh.erosion.MendLedger.free()
+            : com.trmtgtnh.erosion.MendLedger.perGesture(1);
+        MendPurse purse = new MendPurse(player, ledger, MendPurse.byOwnBlock(player));
+        // Asked before the patch is mended, because afterwards the answer is about what is left.
+        boolean aimedWorn = ErosionEngine.get()
+            .restorable(level, pos.getX(), pos.getY(), pos.getZ());
+
+        int mended = ErosionEngine.get()
+            .mendPatch(level, pos.getX(), pos.getY(), pos.getZ(), TrmtConfig.bonemealRadius, purse.patchWork());
+        if (mended <= 0) {
+            // Quieter than the tools. A handful on unworn ground is somebody growing grass, and only
+            // a worn square under the crosshair is a mend the player was actually trying to make.
+            if (aimedWorn) purse.reportNothing(player, 0, true);
+            return false;
+        }
+
+        // Bone meal has nothing to repair, so every point of this reaches the player.
+        if (!creative) {
+            HealingXp.award(player, null, ledger.isFree() ? (fromHand ? ledger.gradations() : 0) : ledger.paidGradations());
+        }
+        purse.reportShort(player, true);
+        // The green sparkle everything else gets for the same gesture. Without it the ground
+        // simply changes and nobody is sure the bone meal did anything.
+        // One block up. Played at the ground itself the particles spawn inside it and most of
+        // them are never seen.
+        level.levelEvent(2005, pos.above(), 0);
+        return true;
+    }
+
+    /**
+     * Where each player last right-clicked a block holding bone meal, and on which tick.
+     *
+     * <p>
+     * What applying bone meal cannot prove for itself: whether the handful is the one in the player's hand. A mod that
+     * applies it for a player spends whatever it likes. The game announces the right click first, on the same tick and
+     * at the same block, and only then uses the item, so a click remembered here and matched there is a handful really
+     * thrown. Weakly held, so a player who leaves is not kept; asked on the server thread alone.
+     */
+    private static final java.util.Map<Player, long[]> BONE_MEAL_CLICKS = new java.util.WeakHashMap<Player, long[]>();
+
+    /** A player right-clicked a block holding this: remembered when it is bone meal. Each loader calls it. */
+    public static void rightClickedHolding(Player player, Level level, BlockPos pos, ItemStack held) {
+        if (player == null || level == null || level.isClientSide() || pos == null) return;
+        if (isMachine(player) || !isBoneMeal(held)) return;
+        BONE_MEAL_CLICKS.put(player, new long[] { pos.getX(), pos.getY(), pos.getZ(), level.getGameTime() });
+    }
+
+    /** Whether this player's last bone meal click was at this block on this tick. Forgotten once asked. */
+    private static boolean clickedWithBoneMeal(Player player, Level level, BlockPos pos) {
+        long[] click = BONE_MEAL_CLICKS.remove(player);
+        return click != null && click[0] == pos.getX()
+            && click[1] == pos.getY()
+            && click[2] == pos.getZ()
+            && click[3] == level.getGameTime();
+    }
+
+    /**
+     * Whether a stack is vanilla bone meal.
+     *
+     * <p>
+     * The game takes exactly the stack in hand when bone meal is allowed, so a handful of this in a real player's hand
+     * is a handful spent. Anything else applying it may have spent nothing.
+     */
+    private static boolean isBoneMeal(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.getItem() == net.minecraft.world.item.Items.BONE_MEAL;
+    }
+
+    /**
+     * A machine standing in for a player. Both older editions ask whether the player is Forge's {@code FakePlayer},
+     * which the shared module cannot name; a machine's player has no connection, which is how the rest of this edition
+     * tells them apart.
+     */
+    private static boolean isMachine(Player player) {
+        return com.trmtgtnh.util.Machines.is(player);
     }
 
     // ------------------------------------------------------------------

@@ -8,7 +8,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  *
  * <p>
  * This is the sole source of truth for how worn a position is. Unlike upstream TRMT, the
- * world itself never records erosion — no eroded block is ever written to the chunk's block
+ * world itself never records erosion - no eroded block is ever written to the chunk's block
  * array on the server. That is what lets the mod be removed without leaving unknown blocks
  * in the terrain, and what lets one client switch the visuals off without the server or
  * anyone else's view changing.
@@ -16,7 +16,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <p>
  * Mutable and allocated in large numbers, so it stays deliberately small: two floats, an
  * int and a packed byte, fifteen bytes on disk. Rotation is deliberately <em>not</em>
- * stored — it is a pure function of the block position, so both sides derive the same value
+ * stored - it is a pure function of the block position, so both sides derive the same value
  * for free and neither the save nor the wire pays for it.
  */
 public final class ErosionEntry {
@@ -307,7 +307,7 @@ public final class ErosionEntry {
 
     /**
      * Re-points this entry at a different surface, discarding progress. Happens when the
-     * block underneath changes — dirt that vanilla spread grass over, say — so the stored
+     * block underneath changes - dirt that vanilla spread grass over, say - so the stored
      * appearance no longer belongs to any chain that block can follow.
      */
     public void retarget(SurfaceFamily newFamily, float newThreshold, int nowSeconds) {

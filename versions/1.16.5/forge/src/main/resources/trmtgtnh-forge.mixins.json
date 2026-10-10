@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "trmtgtnh-forge-refmap.json",
   "mixins": [
+    "MixinChestBooksDrawAgain",
     "MixinChunkSerializer",
     "MixinCrashReportSupport",
     "MixinGhostMapColor",
@@ -17,6 +18,9 @@
     "MixinAirSwing",
     "MixinOptiFineSettledFaces",
     "MixinBlockArrivals",
+    "MixinChunkForgotten",
+    "MixinGhostSustainsPlant",
+    "MixinLevelReplaced",
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",
     "MixinSettleOnWornGround",
@@ -25,7 +29,8 @@
     "MixinStitcherRegion",
     "MixinTextureAtlas",
     "StitcherHolderSize",
-    "MixinWindowLight"
+    "MixinWindowLight",
+    "MixinEntityLightLent"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -54,9 +54,10 @@ import com.trmtgtnh.Trmt;
  * <p>
  * <em>The four persistence hooks are plain methods.</em> In the 1.12.2 edition they are Forge event
  * handlers and the class names Forge because of it. Here they are named for what happened rather than
- * for which event said so, and each loader calls them from its own: Forge from {@code ChunkDataEvent}
- * and {@code ChunkEvent}, Fabric from {@code ServerChunkEvents} and a mixin into
- * {@code ChunkSerializer}, because Fabric has no save hook at all.
+ * for which event said so. The reading and the writing come from a mixin into {@code ChunkSerializer}
+ * on both loaders - Fabric has no save hook at all, and Forge's {@code ChunkDataEvent.Load} carries no
+ * level for a chunk read off disk - and the arriving and leaving from each loader's own events:
+ * {@code ChunkEvent} on Forge, {@code ServerChunkEvents} on Fabric.
  */
 public final class ErosionStore {
 
@@ -69,9 +70,11 @@ public final class ErosionStore {
      * What the engine does with a chunk that has just arrived holding wear.
      *
      * <p>
-     * A seam rather than a call, because the engine is a larger thing than this and has not been
-     * ported. Carrying half of it to satisfy one call would be carrying it out of dependency order,
-     * which is how a feature ends up looking present and doing nothing.
+     * A seam rather than a call, because the engine is a larger thing than this and was not yet
+     * ported when this was. Carrying half of it to satisfy one call would have been carrying it out of
+     * dependency order, which is how a feature ends up looking present and doing nothing - and that is
+     * what it then did: the engine arrived and nothing handed it over, so no chunk was caught up until
+     * 0.9.222. {@code ServerEvents.serverStarting} hands it over now.
      */
     public interface CatchUp {
 
@@ -246,7 +249,7 @@ public final class ErosionStore {
 
     /** Looks up a single position by world coordinates. Null when untracked. */
     public ErosionEntry getEntry(Level level, int x, int y, int z) {
-        if (y < 0 || y >= level.getMaxBuildHeight()) return null;
+        if (!com.trmtgtnh.util.Heights.holds(level, y)) return null;
         ChunkErosionData data = getChunk(indexOf(level), x >> 4, z >> 4);
         if (data == null) return null;
         return data.get(ErosionKey.packWorld(x, y, z));
@@ -254,7 +257,7 @@ public final class ErosionStore {
 
     /** Removes a single position, e.g. after the block there is broken or replaced. */
     public void removeEntry(Level level, int x, int y, int z) {
-        if (y < 0 || y >= level.getMaxBuildHeight()) return;
+        if (!com.trmtgtnh.util.Heights.holds(level, y)) return;
         ChunkErosionData data = getChunk(indexOf(level), x >> 4, z >> 4);
         if (data != null) {
             data.remove(ErosionKey.packWorld(x, y, z));

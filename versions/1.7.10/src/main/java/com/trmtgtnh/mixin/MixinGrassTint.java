@@ -23,7 +23,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * a grass block's dirt-colored sides comes out dark green.
  *
  * <p>
- * Which of those two a block gets is decided by comparing it against vanilla grass — not by type,
+ * Which of those two a block gets is decided by comparing it against vanilla grass - not by type,
  * not by texture name, but by object identity. Nothing a block can do about itself will satisfy
  * that, which is why two earlier attempts at this failed: both taught the ghost to describe
  * itself as grass, and the test never asked. It has to be changed where it is made.
@@ -31,7 +31,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <p>
  * So this substitutes the value the comparison reads. When the block being drawn is one of ours
  * standing in for grass, the comparison is handed that same block and therefore matches, and the
- * renderer takes grass's path — untinted sides, tinted overlay, exactly as vanilla grass. For
+ * renderer takes grass's path - untinted sides, tinted overlay, exactly as vanilla grass. For
  * anything else the original value goes through untouched.
  *
  * <p>
@@ -45,7 +45,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
 public class MixinGrassTint {
 
     // Not required to apply. If a future renderer update moves this comparison, the cost is that
-    // worn grass goes back to having green sides — a blemish on a cosmetic mod. Making it
+    // worn grass goes back to having green sides - a blemish on a cosmetic mod. Making it
     // mandatory would instead refuse to start a pack of two hundred and thirty-five mods.
     @ModifyExpressionValue(
         require = 0,

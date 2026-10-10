@@ -1,8 +1,173 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.221 is the same release on Minecraft 1.7.10, 1.12.2
+One version number across every edition. 0.9.222 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.222 - 2026-10-10
+
+**The 1.12.2 golem no longer crashes the server when it has no tool.** An unarmed golem - one just built, or set down
+from an egg, or whose last tamper broke - handed the game an empty hand the wrong way every tick, and the server threw.
+Shift-clicking a golem's storage could throw on both later editions too. A golem keeps its free slots and hands the
+game what it expects.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Wear survives saving on 1.16.5 Fabric.** The mod let go of the world's wear as the server began to stop, before its
+last save, so every chunk that final save wrote went out without its wear. It now lets go once the world is saved,
+as Forge and the older editions always did.
+
+*Changes: 1.16.5 Fabric.*
+
+**A golem can be built on 1.16.5.** Its body is named in the settings the way 1.7.10 names it, and 1.16.5 had renamed
+stone bricks, so no golem could be built without a mod that supplied the old name. A 1.7.10 block name in the
+settings now reads as the block it became. A head hung on a wall builds one too, as it does on 1.7.10, and the golem
+defends a villager from a monster round a corner rather than only one in sight.
+
+*Changes: 1.16.5.*
+
+**Villagers wear paths on 1.16.5 out of the box.** The mob list ships as `Villager` in every edition, and 1.16.5 asked
+for mobs by their registry name, so nothing in the list ever matched. A mob written the 1.7.10 way is now read as the
+mob it became - every kind of it where later versions split one, so `Skeleton` counts wither skeletons and
+`EntityHorse` every horse - on 1.12.2 as well.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Bone meal mends worn ground on 1.12.2 and 1.16.5**, as it always has on 1.7.10: a scattered patch, a block of the
+ground a handful while the cost is on, spent only when something was mended.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Ground under a carpet wears, snowed lawns look right, and worn sides draw their own picture** on the later editions:
+a carpet stands a sixteenth high from 1.8 on, so steps on it were never counted; a worn lawn's underside under snow,
+grass that has sunk, and a modded turf with its own snowy side now draw as on 1.7.10, and a side slides only where it
+is the block's own side picture.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**A chunk's wear is forgotten when it leaves.** The client kept a chunk's worn squares and lights after the chunk
+unloaded, and kept every dimension's after a change of dimension, so a road healed while you were away came back
+painted, and one dimension's roads appeared on another's ground at the same coordinates.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**1.16.5 catches a chunk up when it loads**, healing what it was owed while it was away, as the older editions do;
+until now it healed only when the sweep reached it, and a step on it first threw that healing away. A machine block
+from a Forge mod is never treated as ground, and vanilla's plants are vegetation again.
+
+*Changes: 1.16.5.*
+
+**Tampers on a dedicated server's clients show their real grade on 1.16.5**, rather than all reading as iron; on Fabric
+the hand tamper lasts as its grade says; an enchanting table offers the three unlocks on a chunk tamper, and on Fabric
+no longer on a pickaxe.
+
+*Changes: 1.16.5.*
+
+**Blasts, landings and the golem wear nothing in a dimension the list rules out**, as walking and the tamper never
+did. With the mod switched off a chunk that loads is no longer healed. A placement is heard after every other mod, so
+a protection mod that refuses it leaves a worn square's record - and a golem's blocks - where they were. The chunk
+tamper's pin answers to `tamperCanPin`, its steps to `chunkTamperMaxSteps`, and one broken mid-use leaves the hand.
+The magic tamper's "wear as" now holds when it moves a block to an earlier family. `/trmtnotice` typed alone answers
+instead of failing.
+
+*Changes: every edition.*
+
+**Settings read as Forge reads them.** On the later editions a number typed outside its range is held to the range,
+as 1.7.10's Forge holds it; the file keeps what you typed.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Finds and costs.** On 1.12.2 all three unlock books turn up in chests again, not only the reinforcing one, and
+vanilla's dungeon, mineshaft, desert and mansion chests no longer hand them out. A loot category written twice doubles
+the Wayfarer's odds there, as the setting says. A worn block with no item form is never priced as Air. On 1.16.5
+vanilla's chests no longer hand out an unlock book either, trodden turf sheds a seed as often as it should, and a
+machine's tamper earns no experience to mend itself with; on Fabric a ward keeps every mob off, the ocelot included.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**`/trmt` answers only you on 1.16.5**, rather than copying every reply to every operator online, and it answers you
+whatever the command-feedback rule says. The demonstrate pens hand out turf rather than tufts of grass, their signs
+face the row, their fences join and their chests are one double chest.
+
+*Changes: 1.16.5.*
+
+**A placed block takes its record back only as the same block on 1.16.5**: a top slab where a worn bottom slab stood,
+or a log laid on its side, no longer takes the old wear.
+
+*Changes: 1.16.5.*
+
+**An advancement comes with what it hangs from**, as 1.7.10's achievements do - crafting a Reinforcing book also
+gives the three before it - and none is awarded with `general.achievements` off.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**The mod list says whose work this is built on**, with the licence and the notice, on 1.12.2 and both 1.16.5 loaders
+as on 1.7.10; and the mod logs under its name on every edition.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Words.** Two setting descriptions said what the mod does not do: path light keeps no mob from spawning, and a wear
+drop is rolled once per wearing. Every long dash in the source is a plain hyphen.
+
+*Changes: every edition.*
+
+**A worn square sounds, slides and breaks like its ground** on 1.12.2 and 1.16.5, as on 1.7.10: worn sand crunches
+and worn ice still slides; it breaks as fast as the block it covers, with that block's hardness; a sapling, cactus or
+reed stays planted on worn ground; and its dust is the ground's color, not a lawn's.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Worn ground keeps up with what the server sends.** A chunk arriving is painted as soon as its blocks are in, and the
+block you dig or build against keeps its wear rather than flashing back to plain ground until the next look; a square
+the server clears tells a minimap too. A square with no wear picture of its own draws its own ground, not dirt. On
+1.16.5 a worn window's top hides under a window above it, worn lava keeps its pace, and the stairs, fences, walls and
+panes beside worn ground keep their shape. A chunk tamper held in the off hand opens its settings without also mending
+or pinning.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Worn stairs and worn ice look as they do on 1.7.10.** On 1.12.2 and 1.16.5 a worn stair keeps the faces a stair
+keeps, its sides no longer show earth or a lawn's fringe, it takes its block's own color, and it is lit like 1.7.10's,
+from the brightest light around it; on 1.12.2 the water under worn clear ice is no brighter than under the ice beside
+it.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Maps show what worn ground has become.** On 1.12.2 and 1.16.5 a minimap or a map item now draws a worn square as the
+material it has worn into - a lawn worn through reads as earth - still darkened so a road shows. JourneyMap draws a
+square it cannot color from the block beneath it rather than plain grey, fades worn ground toward the ground it is
+becoming, and says in the log whether the desire-path highlight is working. On 1.7.10 that last line now prints, and
+the warning it answers no longer fires while JourneyMap is asking.
+
+*Changes: every edition.*
+
+**Worn ground survives a change of dimension, and bone meal stays in one hand.** On 1.12.2 and 1.16.5 the paths around
+where you arrive in another dimension no longer vanish now and then until you walk away and back, and no old
+dimension's square turns up in the new one. Bone meal on a worn path no longer also uses whatever is in your off hand -
+a torch or a block was placed against the path on every click. Raising the Wayfarer's loot weight from nought takes
+effect without a restart, and a golem's storage slot holding an item from a removed mod is free again.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**A path light goes out on every screen when its ground goes.** A light lost with its worn square - healed over by the
+sweep, broken, or trampled away - stayed glowing on every client that had seen it until the chunk unloaded; now it goes
+out at once, and comes back with the block if the same block is put back in time.
+
+*Changes: every edition.*
+
+**Settings and tools say what they did.** The snapshot tool no longer announces a side as loaded when putting it back
+failed. `/trmt enable` and `/trmt disable` keep the master switch's help text in the file. A config pushed by an
+operator into a LAN game leaves the host's own wear looks and its hiding of wear under blocks alone, as it already left
+the client settings. The Wayfarer's Tamper says which mode it is set to, as the chunk tamper does. The Commands guide's
+pages say what the commands do. On 1.16.5 `/trmtnotice` answers any words with its usage line rather than the game's
+error, and offers no words as you type, as on the other editions.
+
+*Changes: every edition.*
+
+**Development.** The spec checklist - every rule 1.7.10 keeps, cited to its line and marked for each edition - is
+written, twenty files of it, and is how the next ports will be held to this one.
+
+*Changes: no edition - the development tree.*
 
 ## 0.9.221 - 2026-10-09
 

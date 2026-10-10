@@ -14,7 +14,7 @@ import cpw.mods.fml.relauncher.SideOnly;
  * A sunken ghost is drawn shorter than a full block, and the standard renderer nails a side
  * face's texture to the bottom of the cell: the window it samples is {@code [16 - 16*top, 16]}
  * in sprite rows, so shortening a block from the top throws away the rows at the top of the
- * sprite. For a surface whose sides are one uniform texture that is right — a rut cut into
+ * sprite. For a surface whose sides are one uniform texture that is right - a rut cut into
  * sand should show sand all the way down the wall. For a made surface it is wrong. A dirt
  * path's side is soil with a pale cap along its top edge, and cropping from the top eats the
  * cap, so a worn path ends up looking like plain dirt from the side.
@@ -22,11 +22,11 @@ import cpw.mods.fml.relauncher.SideOnly;
  * <p>
  * The fix is to shift the sampled window down by however far erosion has taken the block, so
  * the cap rides the new surface. The shift is
- * {@code 16 * (originTop - ghostTop)} — the distance the ground has actually dropped, not the
+ * {@code 16 * (originTop - ghostTop)} - the distance the ground has actually dropped, not the
  * whole crop. That distinction matters: the window's top edge then works out to
  * {@code 16 - 16*originTop}, which does not depend on the sink depth at all. A path stands
  * 15/16 high, so its window starts at row 1 and stays there however deep the rut gets, and row
- * 0 — which in {@code dirt_path_side} is fully transparent — is never sampled. Shifting by the
+ * 0 - which in {@code dirt_path_side} is fully transparent - is never sampled. Shifting by the
  * full crop instead would pull that row into view and cut a one-pixel slot along the top of
  * every path wall.
  *
@@ -47,7 +47,7 @@ public final class SideShift {
      * How far down to slide the side texture, in sprite rows, or zero for no shift.
      *
      * @param originTop how tall the covered block stands, 0 to 1
-     * @param ghostTop  how tall this ghost is being drawn, 0 to 1 — read from the same bounds
+     * @param ghostTop  how tall this ghost is being drawn, 0 to 1 - read from the same bounds
      *                  the renderer just copied, so the shift and the geometry cannot disagree
      */
     public static int rows(double originTop, double ghostTop) {

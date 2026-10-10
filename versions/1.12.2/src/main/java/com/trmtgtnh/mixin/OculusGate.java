@@ -65,7 +65,7 @@ public final class OculusGate implements IMixinConfigPlugin {
         optiFinePresent = there(OPTIFINE_SEAT);
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material. The 1.16.5 edition's line.
-        org.apache.logging.log4j.LogManager.getLogger("trmtgtnh")
+        org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
             .info(
                 "Shader material seats at mixin load: Oculus or Iris {}, OptiFine {}",
                 present ? "found" : "not found",

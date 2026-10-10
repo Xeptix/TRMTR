@@ -55,9 +55,8 @@ import com.trmtgtnh.util.MainThread;
  * hundred differences this file would otherwise have.
  *
  * <p>
- * Still to come, each with the milestone that brings it: crafting achievements and first-join grants
- * (books and items); the quest-book admin notice (compat); a golem's head being placed (the golem);
- * and bone-meal mending and its experience (tools, with the recipes).
+ * Every one has arrived. The last was bone-meal mending and its experience, in 0.9.222: this paragraph listed it as
+ * still to come for months after the milestone that was to bring it, and nothing else said it was missing.
  */
 public final class ServerEvents {
 
@@ -266,8 +265,13 @@ public final class ServerEvents {
      * one state, which is both - so the pair is unpacked here rather than read back out of the
      * world, which would be a second lookup and, by the time some other handler has had the event,
      * possibly a different answer.
+     *
+     * <p>
+     * Last of every handler, and only if none cancelled the break (0.9.222): the event comes before the block goes,
+     * and a protection mod refusing the break after this had run left the block standing with its wear wiped. Fabric's
+     * hook comes after a break that happened, which this now matches.
      */
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         World world = event.getWorld();
         if (world == null || world.isRemote) return;
@@ -294,7 +298,9 @@ public final class ServerEvents {
      * demonstrate yard and never from the blocks and a head, which is how the guide says to make one.
      * Any skull here; whether it is a player's is the builder's question, as it is there.
      */
-    @SubscribeEvent
+    // Last of every handler, and only if none cancelled the placement (0.9.222), as for a break: a protection mod
+    // refusing the placement after this had run left the record taken back, or a golem built, where nothing was placed.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onHeadPlaced(BlockEvent.PlaceEvent event) {
         if (event.getPlacedBlock()
             .getBlock() == net.minecraft.init.Blocks.SKULL) {
@@ -304,7 +310,9 @@ public final class ServerEvents {
         }
     }
 
-    @SubscribeEvent
+    // Last of every handler, and only if none cancelled the placement (0.9.222), as for a break: a protection mod
+    // refusing the placement after this had run left the record taken back, or a golem built, where nothing was placed.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockPlace(BlockEvent.PlaceEvent event) {
         World world = event.getWorld();
         if (world == null || world.isRemote) return;
@@ -320,6 +328,144 @@ public final class ServerEvents {
                 state.getBlock(),
                 state.getBlock()
                     .getMetaFromState(state));
+    }
+
+    /**
+     * Bone meal repairs a worn patch of ground.
+     *
+     * <p>
+     * The patch itself is {@code ErosionEngine.mendPatch}, which the tamper's right-click gesture also uses. Bone meal
+     * and a tamper differ over how far the patch reaches and over what a handful costs, and over nothing else worth
+     * writing twice. The bone meal is only consumed if something was actually repaired, so it still behaves normally on
+     * crops and saplings standing on worn ground.
+     *
+     * <p>
+     * When the ground costs material as well, the payment is found before anything is mended and taken only once
+     * something has been: a repair cannot be handed back if it turns out there is nothing to pay with. A player who
+     * cannot pay is left exactly where they were, with the bone meal still in hand and free to grow whatever it always
+     * grew.
+     *
+     * <p>
+     * Experience for a handful that cost no block is paid only when that handful was vanilla bone meal really spent
+     * from a player's hand: the player right-clicked this very block holding bone meal, on this tick, which vanilla
+     * announces before it uses the item. Holding bone meal was not proof enough, because other mods post this event for
+     * a player holding it while spending their own - a growth charm, a sigil - and some spend nothing when it is
+     * allowed. Paying them while the block cost is off would make mending both free and worth experience, which is the
+     * round trip that must never be a farm. Creative earns nothing at all, since the game hands the bone meal back.
+     *
+     * <p>
+     * A fake player needs no special case to pay. It pays from its own inventory like anyone, and a dispenser's usually
+     * carries nothing, so with the cost on it mends nothing and the bone meal grows whatever it always grew. It never
+     * earns experience, and it is never told anything.
+     *
+     * <p>
+     * The 1.7.10 edition's handler, which this edition did not have until 0.9.222: bone meal mended nothing here,
+     * though the patch, the purse and the settings were all carried (spec WD40 to WD43).
+     */
+    @SubscribeEvent
+    public void onBonemeal(net.minecraftforge.event.entity.player.BonemealEvent event) {
+        World world = event.getWorld();
+        if (world == null) return;
+        if (world.isRemote) {
+            // The client's answer, which only stops the game going on to the off hand: allowed here spends nothing,
+            // since Forge shrinks the stack on the server alone, and the server's own answer still decides (0.9.222).
+            BlockPos at = event.getPos();
+            if (at != null && com.trmtgtnh.block.BlockGhost.answersBoneMeal(
+                true,
+                world.getBlockState(at)
+                    .getBlock() instanceof com.trmtgtnh.block.BlockGhost,
+                Trmt.proxy.ghostRecordAt(world, at.getX(), at.getY(), at.getZ()))) {
+                event.setResult(Event.Result.ALLOW);
+            }
+            return;
+        }
+        if (!TrmtConfig.enabled) return;
+        EntityPlayer player = event.getEntityPlayer();
+        BlockPos pos = event.getPos();
+
+        IBlockState aimedState = world.getBlockState(pos);
+        com.trmtgtnh.surface.SurfaceFamily aimed = com.trmtgtnh.surface.SurfaceRegistry
+            .familyOf(aimedState.getBlock(), aimedState.getBlock()
+                .getMetaFromState(aimedState));
+        if (aimed == null || !aimed.staged) return;
+
+        // Creative pays nothing, and has to: the game puts back only the stack in the hand after a
+        // right click, so a block taken from any other slot would be gone for good.
+        boolean creative = player != null && player.capabilities.isCreativeMode;
+        boolean fromHand = player != null && !(player instanceof net.minecraftforge.common.util.FakePlayer)
+            && isBoneMeal(event.getStack())
+            && clickedWithBoneMeal(player, world, pos);
+        com.trmtgtnh.erosion.MendLedger ledger = creative || !TrmtConfig.bonemealCostsABlock
+            ? com.trmtgtnh.erosion.MendLedger.free()
+            : com.trmtgtnh.erosion.MendLedger.perGesture(1);
+        MendPurse purse = new MendPurse(player, ledger, MendPurse.byOwnBlock(player));
+        // Asked before the patch is mended, because afterwards the answer is about what is left.
+        boolean aimedWorn = ErosionEngine.get()
+            .restorable(world, pos.getX(), pos.getY(), pos.getZ());
+
+        int mended = ErosionEngine.get()
+            .mendPatch(world, pos.getX(), pos.getY(), pos.getZ(), TrmtConfig.bonemealRadius, purse.patchWork());
+        if (mended <= 0) {
+            // Quieter than the tools. A handful on unworn ground is somebody growing grass, and only
+            // a worn square under the crosshair is a mend the player was actually trying to make.
+            if (aimedWorn) purse.reportNothing(player, 0, true);
+            return;
+        }
+
+        // Bone meal has nothing to repair, so every point of this reaches the player.
+        if (!creative) {
+            HealingXp.award(player, null, ledger.isFree() ? (fromHand ? ledger.gradations() : 0) : ledger.paidGradations());
+        }
+        purse.reportShort(player, true);
+
+        event.setResult(Event.Result.ALLOW);
+        // The green sparkle everything else gets for the same gesture. Without it the ground
+        // simply changes and nobody is sure the bone meal did anything.
+        // One block up. Played at the ground itself the particles spawn inside it and most of
+        // them are never seen.
+        world.playEvent(2005, pos.up(), 0);
+    }
+
+    /**
+     * Where each player last right-clicked a block holding bone meal, and on which tick.
+     *
+     * <p>
+     * What the bone meal event cannot prove for itself: whether the handful is the one in the player's hand. A mod that
+     * fires it for a player spends whatever it likes. Vanilla announces the right click first, on the same tick and at
+     * the same block, and only then uses the item, so a click remembered here and matched there is a handful really
+     * thrown. Weakly held, so a player who leaves is not kept.
+     */
+    private final java.util.Map<EntityPlayer, long[]> boneMealClicks = new java.util.WeakHashMap<EntityPlayer, long[]>();
+
+    @SubscribeEvent
+    public void onRightClickHoldingBoneMeal(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
+        EntityPlayer player = event.getEntityPlayer();
+        if (player == null || player.world == null || player.world.isRemote) return;
+        if (player instanceof net.minecraftforge.common.util.FakePlayer || !isBoneMeal(event.getItemStack())) return;
+        BlockPos pos = event.getPos();
+        boneMealClicks.put(player, new long[] { pos.getX(), pos.getY(), pos.getZ(), player.world.getTotalWorldTime() });
+    }
+
+    /** Whether this player's last bone meal click was at this block on this tick. Forgotten once asked. */
+    private boolean clickedWithBoneMeal(EntityPlayer player, World world, BlockPos pos) {
+        long[] click = boneMealClicks.remove(player);
+        return click != null && click[0] == pos.getX()
+            && click[1] == pos.getY()
+            && click[2] == pos.getZ()
+            && click[3] == world.getTotalWorldTime();
+    }
+
+    /**
+     * Whether a stack is vanilla bone meal, which is white dye at this version as at 1.7.10.
+     *
+     * <p>
+     * Vanilla takes exactly the stack in hand when bone meal is allowed, so a handful of this in a real player's hand is
+     * a handful spent. Anything else posting the event may have spent nothing.
+     */
+    private static boolean isBoneMeal(net.minecraft.item.ItemStack stack) {
+        return stack != null && !stack.isEmpty()
+            && stack.getItem() == net.minecraft.init.Items.DYE
+            && stack.getMetadata() == net.minecraft.item.EnumDyeColor.WHITE.getDyeDamage();
     }
 
     /**

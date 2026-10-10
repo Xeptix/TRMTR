@@ -45,8 +45,8 @@ import com.trmtgtnh.item.GuideBook;
  * a long translation shortens a word instead of putting two controls on the same pixel.
  *
  * <p>
- * A vertical bar in a body value is a paragraph break. Nothing ships one today; it is here so that
- * prose can gain structure later by editing the language file, which is where the prose lives.
+ * A vertical bar in a body value is a paragraph break. Seven pages use one, and more can by editing
+ * the language file, which is where the prose lives.
  */
 @SideOnly(Side.CLIENT)
 public class GuiGuideBook extends GuiScreen {

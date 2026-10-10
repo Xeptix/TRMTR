@@ -118,13 +118,18 @@ public final class ForgeEvents {
     // Blocks coming and going
     // ------------------------------------------------------------------
 
-    @SubscribeEvent
+    // Last of every handler, and only if none cancelled the break (0.9.222): the event comes before the block goes,
+    // and a protection mod refusing the break after this had run left the block standing with its wear wiped.
+    // Fabric's PlayerBlockBreakEvents.AFTER comes after a break that happened, which this now matches.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!(event.getWorld() instanceof Level)) return;
         ServerEvents.blockBroken((Level) event.getWorld(), event.getPos(), event.getState());
     }
 
-    @SubscribeEvent
+    // Last of every handler, and only if none cancelled the placement (0.9.222), as for a break: a protection mod
+    // refusing the placement after this had run left the record taken back, or a golem built, where nothing was placed.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getWorld() instanceof Level)) return;
         // The placer as well, for the golem the builder may stand up: whoever set the head is who it
@@ -136,6 +141,34 @@ public final class ForgeEvents {
             event.getEntity() instanceof net.minecraft.world.entity.player.Player
                 ? (net.minecraft.world.entity.player.Player) event.getEntity()
                 : null);
+    }
+
+    // ------------------------------------------------------------------
+    // Bone meal
+    // ------------------------------------------------------------------
+
+    /**
+     * Bone meal mends a worn patch (spec WD40 to WD43); see {@link ServerEvents#boneMealed}. Allowed only when it
+     * mended something, which is Forge's way of saying the handful was spent and grows nothing; otherwise the game
+     * grows whatever it always grew. A dispenser comes here too, with Forge's fake player.
+     *
+     * <p>
+     * Allowed on the client too, over a worn square it holds a record for, so the game stops at the main hand instead
+     * of going on to the off hand with a second use (0.9.222; {@link ServerEvents#boneMealAnsweredOnTheClient}). Forge
+     * shrinks the stack for an allowed event on the server alone, so the client spends nothing for it.
+     */
+    @SubscribeEvent
+    public static void onBonemeal(net.minecraftforge.event.entity.player.BonemealEvent event) {
+        if (ServerEvents.boneMealed(event.getWorld(), event.getPos(), event.getPlayer())
+            || ServerEvents.boneMealAnsweredOnTheClient(event.getWorld(), event.getPos())) {
+            event.setResult(Event.Result.ALLOW);
+        }
+    }
+
+    /** The right click that proves a handful came from a hand, heard before the item is used. */
+    @SubscribeEvent
+    public static void onRightClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
+        ServerEvents.rightClickedHolding(event.getPlayer(), event.getWorld(), event.getPos(), event.getItemStack());
     }
 
     // ------------------------------------------------------------------

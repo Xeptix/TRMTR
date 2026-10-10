@@ -53,7 +53,7 @@ public final class ErosionStore {
      * <p>
      * Concurrent because 1.7.10 reads chunk NBT off the main thread in some Forge builds and
      * with several of the performance coremods in this pack. Nothing else touches the data
-     * until it is promoted on the main thread, so a concurrent map is sufficient — no other
+     * until it is promoted on the main thread, so a concurrent map is sufficient - no other
      * synchronisation is needed or wanted on a path this hot.
      */
     private final Map<Long, ChunkErosionData> pending = new ConcurrentHashMap<Long, ChunkErosionData>();
@@ -241,7 +241,7 @@ public final class ErosionStore {
      *
      * <p>
      * {@link ChunkErosionData} counts the upgrades but may not say anything about them: it is one of
-     * the twenty-six classes the portable core is made of and does not get to name the mod's logger.
+     * the classes the portable core is made of and does not get to name the mod's logger.
      * So the count is read from here, which is the class that owns every other sentence this layer
      * writes.
      */

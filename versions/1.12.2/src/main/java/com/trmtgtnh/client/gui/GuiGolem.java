@@ -545,7 +545,7 @@ public class GuiGolem extends GuiContainer {
         if (!golem.isArmed()) {
             note = I18n.translateToLocal("trmtgtnh.golem.gui.noTamper");
             color = 0xB03A2A;
-        } else if (tool == null) {
+        } else if (tool == null || tool.isEmpty()) {
             note = I18n.translateToLocal("trmtgtnh.golem.gui.toolMissing");
             color = 0xB03A2A;
         } else if (!golem.hasMendingStock()) {

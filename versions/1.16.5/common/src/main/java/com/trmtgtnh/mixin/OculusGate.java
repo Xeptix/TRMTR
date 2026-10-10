@@ -83,7 +83,7 @@ public final class OculusGate implements IMixinConfigPlugin {
         sodiumPresent = there(SODIUM_FACES);
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material.
-        org.apache.logging.log4j.LogManager.getLogger("trmtgtnh")
+        org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
             .info(
                 "Shader material seats at mixin load: Oculus or Iris {}, OptiFine {}; the Sodium family's face test {}",
                 present ? "found" : "not found",

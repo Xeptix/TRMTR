@@ -697,7 +697,9 @@ final class GolemStores {
 
                 int before = held.getCount();
                 ItemStack left = InventoryAccess.put(inventory, held, store.side);
-                carried[slot] = left;
+                // Null when all of it went: put answers EMPTY then, and an EMPTY kept here read as a slot still full,
+                // so a golem that had unloaded everything went on being full (0.9.222, spec GO46).
+                carried[slot] = left == null || left.isEmpty() ? null : left;
                 if (left == null) {
                     put++;
                     break;

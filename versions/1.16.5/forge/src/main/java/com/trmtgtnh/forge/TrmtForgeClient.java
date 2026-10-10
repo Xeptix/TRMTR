@@ -58,4 +58,16 @@ public final class TrmtForgeClient {
             ClientSide.tick();
         }
     }
+
+    /** A chunk arriving in the client's world, which Forge announces once its blocks are in (spec PT18). */
+    @SubscribeEvent
+    public static void chunkLoaded(net.minecraftforge.event.world.ChunkEvent.Load event) {
+        if (event.getWorld() == null || !event.getWorld()
+            .isClientSide()) return;
+        ClientSide.chunkLoaded(
+            event.getChunk()
+                .getPos().x,
+            event.getChunk()
+                .getPos().z);
+    }
 }

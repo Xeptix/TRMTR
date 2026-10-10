@@ -6,15 +6,15 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * How worn one position is, packed into a short.
  *
  * <p>
- * Wear has two independent parts. A surface picks up <em>visual layers</em> — scuffing that
- * shows but does not move anything — and when it runs out of those, it drops a pixel and starts
+ * Wear has two independent parts. A surface picks up <em>visual layers</em> - scuffing that
+ * shows but does not move anything - and when it runs out of those, it drops a pixel and starts
  * a fresh run of layers on the newly exposed material. So a position is a layer <em>and</em> a
  * depth, and neither implies the other: layer 3 happens once at every depth the ground reaches.
  *
  * <p>
  * That is why this is a short rather than the byte it used to be. The old record could only say
  * which stage a block was at, so depth had to be inferred from the stage's position in the wear
- * chain — which stops working the moment the same layer occurs at nine different depths, because
+ * chain - which stops working the moment the same layer occurs at nine different depths, because
  * the lookup finds the first one and a block eight pixels down would jump back to one pixel down
  * on its next step.
  *
@@ -27,7 +27,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  *
  * <p>
  * Two properties are deliberate. Zero still means "nothing here", because a visible record
- * always has a non-zero biased layer — the removal sentinel the delta packet relies on is
+ * always has a non-zero biased layer - the removal sentinel the delta packet relies on is
  * unchanged. And the low byte is bit-identical to the byte the previous version wrote for any
  * position that had not yet sunk, which is what lets the old format be read without guessing.
  */
@@ -140,7 +140,7 @@ public final class ErosionState {
      *
      * <p>
      * Applied on every read as well as on write, because a corrupt or newer record must never be
-     * able to hand the collision code a box below half a block — that is the depth a player can
+     * able to hand the collision code a box below half a block - that is the depth a player can
      * still step out of, and past it the ground becomes a trap.
      */
     public static int clampSink(int sink) {
@@ -154,8 +154,8 @@ public final class ErosionState {
      * <p>
      * Worked out arithmetically rather than by looking the position up in its chain, because
      * this is asked once per rendered face on the threads that build chunk meshes and a scan
-     * there would be felt. The shape of every chain is known — one long run of layers, then a
-     * shorter run for each pixel of depth — so the position is just counting.
+     * there would be felt. The shape of every chain is known - one long run of layers, then a
+     * shorter run for each pixel of depth - so the position is just counting.
      */
     public static float progressOf(short state, int firstRunLayers, int layersPerDepth, int deepest) {
         int layer = layerOf(state);

@@ -21,7 +21,7 @@ import com.trmtgtnh.client.texture.WearTextures;
  * A worn block is drawn from the pixels of the block it is covering, so generating one means
  * reading another sprite. There is exactly one window in which that works. Sprites are loaded in
  * the order a hash map happens to iterate, so during loading roughly half of them have their
- * pixels and the rest do not — which is why some blocks wore correctly and others silently fell
+ * pixels and the rest do not - which is why some blocks wore correctly and others silently fell
  * back to a stock texture, with no pattern to it. And immediately after each sprite is uploaded
  * to the atlas its pixels are thrown away, so by the time stitching has finished there is
  * nothing left to read.

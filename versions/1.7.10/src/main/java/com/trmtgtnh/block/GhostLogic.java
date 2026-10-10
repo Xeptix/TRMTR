@@ -27,8 +27,8 @@ import cpw.mods.fml.relauncher.SideOnly;
  * Everything the two ghost classes do, held once.
  *
  * <p>
- * {@link BlockGhost} and {@link BlockGhostGrass} have to be separate classes — see
- * {@link GhostBlock} for why — but they must behave identically, so neither holds logic. Each
+ * {@link BlockGhost} and {@link BlockGhostGrass} have to be separate classes - see
+ * {@link GhostBlock} for why - but they must behave identically, so neither holds logic. Each
  * override in those classes is a single line into this one. The bodies here were moved out of
  * the old single class unchanged; the only edits were to take the block as an argument rather
  * than being {@code this}, and to hand back a sentinel where the original called {@code super}.
@@ -346,7 +346,7 @@ final class GhostLogic {
      *
      * <p>
      * This is a multiplier over the block's texture. The texture a worn block reports is
-     * already the worn one — it carries how far along the wear is in its own pixels — so a
+     * already the worn one - it carries how far along the wear is in its own pixels - so a
      * darkening factor here as well would count that twice for everything whose color is in
      * those pixels.
      *
@@ -688,7 +688,7 @@ final class GhostLogic {
      *
      * <p>
      * Read rather than recomputed: these bounds are shared mutable state, and the blocks this
-     * matters for — paths, and earth cut short — set theirs once and never move them again.
+     * matters for - paths, and earth cut short - set theirs once and never move them again.
      */
     static double originTop(GhostBlock ghost, int x, int y, int z) {
         Block origin = Trmt.proxy.originBlockAt(x, y, z);
@@ -814,7 +814,7 @@ final class GhostLogic {
      * {@code RenderBlocks} decides whether to tint a block's side faces by comparing the name
      * of its top texture against {@code grass_top}: vanilla grass gets untinted sides plus a
      * separately tinted overlay, everything else gets tinted sides. Only the variant standing
-     * in for vanilla grass should claim that name — this one reported it for every grass ghost,
+     * in for vanilla grass should claim that name - this one reported it for every grass ghost,
      * which left a modded grass with pale, untinted sides where vanilla would have tinted them.
      */
     static String fallbackTextureName(SurfaceFamily appearance) {
@@ -885,7 +885,7 @@ final class GhostLogic {
             // and for a long time it answered "dirt" for all of them. That was very nearly
             // harmless: the position-aware form below is what vanilla asks. But MCPatcherForge's
             // connected-textures renderer, which this pack enables, asks the metadata form for
-            // side faces instead — so every worn grass block was showing bare dirt on its sides
+            // side faces instead - so every worn grass block was showing bare dirt on its sides
             // while sand and dirt, whose answer here is right either way, looked fine.
             return side == 0 ? Blocks.dirt.getIcon(0, 0) : Blocks.grass.getIcon(2, 0);
         }

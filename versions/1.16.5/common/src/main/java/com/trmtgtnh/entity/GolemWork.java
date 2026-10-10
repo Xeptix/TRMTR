@@ -222,7 +222,7 @@ public final class GolemWork {
             int x = known.xOf(square);
             int z = known.zOf(square);
             int y = surfaceNear(world, x, anchorY, z);
-            if (y >= 0 && directionAtY(golem, world, x, y, z) != NOTHING) {
+            if (y != NO_SURFACE && directionAtY(golem, world, x, y, z) != NOTHING) {
                 golem.setWorkTarget(x, y, z);
                 return;
             }
@@ -264,7 +264,7 @@ public final class GolemWork {
                     continue;
                 }
                 int y = surfaceNear(world, x, anchor[1], z);
-                if (y < 0) continue;
+                if (y == NO_SURFACE) continue;
                 if (directionAtY(golem, world, x, y, z) == NOTHING) continue;
                 found[count++] = GolemTargets
                     .pack((int) Math.round(Math.sqrt((double) dx * dx + (double) dz * dz)), dx, dz, y);
@@ -285,7 +285,7 @@ public final class GolemWork {
      */
     private static int directionAt(EntityGolemOfWays golem, Level world, int x, int anchorY, int z) {
         int y = surfaceNear(world, x, anchorY, z);
-        return y < 0 ? NOTHING : directionAtY(golem, world, x, y, z);
+        return y == NO_SURFACE ? NOTHING : directionAtY(golem, world, x, y, z);
     }
 
     /** As above, told the height, so a caller that already found one does not look twice. */
@@ -447,7 +447,7 @@ public final class GolemWork {
     private static int stepColumn(EntityGolemOfWays golem, Level world, int x, int anchorY, int z, int steps,
         boolean notify, StrokePurse purse) {
         int y = surfaceNear(world, x, anchorY, z);
-        if (y < 0) return NOTHING;
+        if (y == NO_SURFACE) return NOTHING;
 
         Block block = com.trmtgtnh.util.Worlds.blockAt(world, x, y, z);
         int meta = 0;
@@ -463,6 +463,9 @@ public final class GolemWork {
         int did = NOTHING;
         for (int step = 0; step < steps && current != wanted; step++) {
             if (current < wanted) {
+                // Wearing asks the dimension list and mending does not, as for the tamper: a golem in a dimension
+                // the list rules out still keeps its road, and wears nothing in (0.9.222, spec SD47).
+                if (!com.trmtgtnh.erosion.Dimensions.allowed(world)) break;
                 if (!ErosionEngine.get()
                     .forceStage(world, x, y, z, family, current + 1, false, notify)) break;
                 current++;
@@ -733,11 +736,18 @@ public final class GolemWork {
      * that nothing stands on the face - so a golem would happily mend a square it then refused
      * to reinforce, and under a roof it refused every square it had.
      */
+    /**
+     * What {@link #surfaceNear} answers when no square near is workable. Not -1, which is a height a level holds from
+     * 1.18 on (0.9.222).
+     */
+    static final int NO_SURFACE = Integer.MIN_VALUE;
+
     static int surfaceNear(Level world, int x, int centreY, int z) {
         for (int offset = 0; offset <= 4; offset++) {
             for (int sign = 0; sign < (offset == 0 ? 1 : 2); sign++) {
                 int y = centreY + (sign == 0 ? offset : -offset);
-                if (y < 1 || y > 254) continue;
+                // Above the lowest row and below the highest, asked of the level (util/Heights).
+                if (y <= com.trmtgtnh.util.Heights.bottom(world) || y >= com.trmtgtnh.util.Heights.top(world)) continue;
                 if (!com.trmtgtnh.util.Worlds.loaded(world, x, y, z)) continue;
                 Block block = com.trmtgtnh.util.Worlds.blockAt(world, x, y, z);
                 if (block == null || com.trmtgtnh.util.Worlds.isAir(world, x, y, z)) continue;
@@ -745,7 +755,7 @@ public final class GolemWork {
                 return y;
             }
         }
-        return -1;
+        return NO_SURFACE;
     }
 
     /**

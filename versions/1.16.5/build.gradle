@@ -80,7 +80,6 @@ allprojects {
     group = rootProject.mod_group
 
     repositories {
-        maven { url = "https://maven.parchmentmc.org" }
         // Where the block-tooltip mods come from. Narrowed to its own group: a repository that is
         // asked for every dependency is a repository that can slow or break a build it has nothing
         // to do with, and this one has exactly two artifacts to offer.

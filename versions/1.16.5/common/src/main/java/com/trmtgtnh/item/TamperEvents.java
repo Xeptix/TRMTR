@@ -89,7 +89,7 @@ public final class TamperEvents {
     public void leftClicked(Level world, Player player, int x, int y, int z, ItemStack held) {
         if (world == null || world.isClientSide()) return;
         if (player == null || !holdsTamper(held)) return;
-        if (!(player instanceof ServerPlayer) || ((ServerPlayer) player).connection == null) return;
+        if (com.trmtgtnh.util.Machines.is(player)) return;
 
         // The reinforce tool wants both taps of a deliberate double-click, so it is not put through
         // the repeat throttle - which exists to tell a held button from a press and would otherwise

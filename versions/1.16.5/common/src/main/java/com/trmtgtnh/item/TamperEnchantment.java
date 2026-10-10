@@ -77,6 +77,22 @@ abstract class TamperEnchantment extends Enchantment {
     }
 
     /**
+     * Whether an enchanting table may offer this on a tool: the same answer as an anvil's, as the other editions'
+     * {@code canApplyAtEnchantingTable} gives it.
+     *
+     * <p>
+     * <strong>Forge's question, declared here without {@code @Override}</strong>, because the shared module is built
+     * against the game without Forge's additions and Forge's own method names are never remapped: on Forge this is
+     * {@code Enchantment.canApplyAtEnchantingTable}, which a table asks instead of the category. Left to Forge's
+     * default it asked the category, DIGGER, which takes only a digging tool - and a chunk tamper is no digging tool,
+     * so until 0.9.222 no table offered any of the three on one (spec RL2). Fabric's table asks the category alone;
+     * {@code MixinTableOffersUnlocks} adds the three there.
+     */
+    public boolean canApplyAtEnchantingTable(ItemStack stack) {
+        return canEnchant(stack);
+    }
+
+    /**
      * Whether an enchanting table may offer this at all. Only while its feature is on.
      *
      * <p>

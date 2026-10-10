@@ -51,7 +51,7 @@ public class BlockGhost extends Block implements GhostBlock {
      * The material this ghost should report.
      *
      * <p>
-     * The inherited field stays {@link Material#grass} — what {@code BlockGrass} used to pass —
+     * The inherited field stays {@link Material#grass} - what {@code BlockGrass} used to pass -
      * so anything reading it directly sees exactly what it saw before. This is what every
      * virtual caller gets instead.
      */

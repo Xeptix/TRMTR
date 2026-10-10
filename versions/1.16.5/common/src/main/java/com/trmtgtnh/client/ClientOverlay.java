@@ -149,7 +149,7 @@ public final class ClientOverlay {
             BlockState standing = level.getBlockState(pos);
             if (!(standing.getBlock() instanceof com.trmtgtnh.block.BlockGhost)) continue;
             if (!answersLightOwnWay(overlay.stateAtIndex(i), standing.getValue(com.trmtgtnh.block.BlockGhost.LIGHT)
-                .intValue())) continue;
+                .intValue(), overlay.originAtIndex(i))) continue;
             if (told == null) told = new java.util.ArrayList<>();
             told.add(pos);
         }
@@ -169,6 +169,16 @@ public final class ClientOverlay {
      */
     static boolean answersLightOwnWay(short record, int glow) {
         return com.trmtgtnh.erosion.ErosionState.sinkOf(record) > 0 || glow > 0;
+    }
+
+    /**
+     * The same, knowing what the square covers: a worn stair answers its own way too, whatever its record, because it
+     * stops all light as the 1.7.10 edition's stair stand-in does, while the stair the server lit lets light into its
+     * cell and on through its open half - this version's rule for a stair (0.9.222, spec GF8). Left with the server's
+     * light, the cells around a worn stair would be lit through it until the next paint.
+     */
+    static boolean answersLightOwnWay(short record, int glow, int origin) {
+        return answersLightOwnWay(record, glow) || com.trmtgtnh.block.BlockGhost.coveredStair(origin) != null;
     }
 
     public void handleDelta(int x, int y, int z, short state) {
@@ -192,6 +202,9 @@ public final class ClientOverlay {
         // is worked out from the record at every rebuild, so a record moving along its chain changes
         // the picture without the painter touching a block. Nothing else would ask for the rebuild.
         redrawAt(x, y, z);
+        // And a minimap that reads the world, which is told by nothing else: this mod never sends a
+        // block packet, so a map keeping what it drew keeps it for ever (0.9.222, spec PT22).
+        com.trmtgtnh.client.xaero.XaeroMinimap.chunkChanged(Minecraft.getInstance().level, x, z);
     }
 
     public void handleClearAll() {

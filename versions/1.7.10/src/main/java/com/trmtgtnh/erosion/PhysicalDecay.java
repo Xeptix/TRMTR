@@ -18,13 +18,13 @@ import com.trmtgtnh.surface.SurfaceShape;
  * Everywhere else, a worn position is a lie the client tells itself: the server's block array
  * is untouched and nothing outside rendering ever knows. Ruts you can walk down into cannot
  * work that way. The ground you stand on is decided by the server, from a block that is still
- * ordinary full-height grass, so something has to intervene in its collision — see
+ * ordinary full-height grass, so something has to intervene in its collision - see
  * {@code MixinBlockCollision}.
  *
  * <p>
  * That intervention sits on the hottest path in the game: collision runs for every moving
  * entity, every tick, across every block its bounding box sweeps. So the question this class
- * answers has to be almost free to ask, and it is — a static boolean, then a flag stamped onto
+ * answers has to be almost free to ask, and it is - a static boolean, then a flag stamped onto
  * the block instance itself when surfaces were resolved. Only a block that could ever sink
  * pays for a position lookup, and only when something is standing on it.
  */

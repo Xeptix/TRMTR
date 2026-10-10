@@ -271,16 +271,37 @@ public final class JourneyMapColors {
                     // dirt partway down, and it is grass's eighty steps it is walking.
                     SurfaceFamily base = SurfaceRegistry.familyOf(origin, originMeta);
                     SurfaceFamily walking = base == null ? appearance : base;
-                    return GhostRendering.mapColorFor(
+                    return proved(
+                        x,
+                        y,
+                        z,
                         wornFraction(walking, wearMeta, x, y, z),
                         originColor(chunkMd, origin, originMeta, x, y, z),
                         GhostRendering.mapFallbackColor(endOf(walking)));
                 }
             }
-            return GhostRendering.mapColorFor(
+            return proved(
+                x,
+                y,
+                z,
                 wornFraction(appearance, wearMeta, x, y, z),
                 GhostRendering.mapFallbackColor(appearance),
                 GhostRendering.mapFallbackColor(endOf(appearance)));
+        }
+
+        /**
+         * The color handed back for a square, and the one place that proves the highlight ran.
+         *
+         * <p>
+         * {@link #announceOnce} had no caller until 0.9.222, so the line saying the highlight is live never
+         * printed, and the watchdog - which waits for that line - warned on every world with worn ground and
+         * the highlight on, JourneyMap asking or not (spec CO22). Said for a worn square only: an unworn one
+         * is given its own color, which proves nothing about the blend.
+         */
+        private int proved(int x, int y, int z, float worn, int base, int end) {
+            int result = GhostRendering.mapColorFor(worn, base, end);
+            if (worn > 0f) announceOnce(x, y, z, base, result);
+            return result;
         }
 
         /**
@@ -289,8 +310,9 @@ public final class JourneyMapColors {
          * <p>
          * Asked of the chain rather than of a table, so a pack that has pointed turf at its own
          * loam gets that loam and nothing here has to know it exists. A family whose chain never
-         * leaves home answers with itself, which makes the fade toward it a no-op rather than a
-         * case anybody has to write.
+         * leaves home answers with itself, so its squares fade from the covered block's own color
+         * toward their family's map color - not a no-op, since the start is the block's own and the
+         * end the family's (spec CO20).
          */
         private SurfaceFamily endOf(SurfaceFamily base) {
             if (base == null) return null;

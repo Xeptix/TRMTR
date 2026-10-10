@@ -56,6 +56,13 @@ public final class GhostQuads {
     /** The tint slot for everything that carries its own color. */
     public static final int LIGHT_TINT = 1;
 
+    /**
+     * The tint slot a worn stair's faces take the covered block's own color through, the path light multiplied in - see
+     * GhostTint. The 1.7.10 edition multiplies that color into every face of its stair stand-in, which is never untinted
+     * and never grass's; until 0.9.222 these took the path light alone (spec GF7).
+     */
+    public static final int COVERED_TINT = 2;
+
     /** Position, color, texture, light, normal: vanilla's block format, eight ints a vertex. */
     public static final int INTS_PER_VERTEX = 8;
 
@@ -107,19 +114,31 @@ public final class GhostQuads {
         // is the bare earth - which is why the claim is made before that substitution, while a null
         // top still says so. The 1.7.10 edition's rule; see ShaderMaterial, which holds all of this.
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
-        if (top == null) top = earth;
+        // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
+        // tinted as grass is - rather than earth for every family, which drew a sand or stone square with no
+        // picture as dirt (0.9.222, spec GT11). Earth only where the family has no stock top of its own.
+        boolean stock = top == null;
+        if (top == null) top = stockTop(appearance, earth);
         // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
         // that block's own pixels.
-        int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
+        int tint = GhostSides.tintsAsGrass(origin, appearance) || (stock && appearance == SurfaceFamily.GRASS) ? GRASS_TINT
+            : LIGHT_TINT;
 
+        // The top is handed over with no side, so nothing culls it, because a sunk top is not a face of the cell at
+        // all and the neighbour above says nothing about it. A whole window's top is a face of the cell, and is
+        // handed over as one, so that a window above it of the same pane hides it as glass does - the 1.7.10
+        // edition's shouldSideBeRendered asks this of every side, the top included, and 1.12.2 hands it over the
+        // same way. Until 0.9.222 this edition handed every top over with no side, so a stack of worn windows drew
+        // the face each pair shares (spec GT31).
+        boolean paned = floor <= 0F && height >= 1F && GhostWindows.windowOf(origin);
         if (side == null) {
-            return Collections.singletonList(quad(Direction.UP, floor, height, top, tint, 0F));
+            return paned ? Collections.<BakedQuad>emptyList()
+                : Collections.singletonList(quad(Direction.UP, floor, height, top, tint, 0F));
         }
         if (side == Direction.UP) {
-            // The top is the one face asked for without a side, above. Asked for again with one, it
-            // would be drawn twice.
-            return Collections.emptyList();
+            return paned ? Collections.singletonList(quad(Direction.UP, floor, height, top, tint, 0F))
+                : Collections.<BakedQuad>emptyList();
         }
         // The underside goes through the same rule as the flanks rather than being dirt by decree.
         // Dirt was the answer for every block, and it is only the right one for a lawn - whose
@@ -183,6 +202,44 @@ public final class GhostQuads {
     }
 
     /** Vanilla's dirt, which is what a square shows where it has nothing of its own left. */
+    /** A family's own stock top, from the block atlas, or earth for a family with none. See {@link #stockTopName}. */
+    private static TextureAtlasSprite stockTop(SurfaceFamily family, TextureAtlasSprite earth) {
+        String name = stockTopName(family);
+        if (name == null) return earth;
+        Minecraft game = Minecraft.getInstance();
+        if (game == null || game.getModelManager() == null) return earth;
+        TextureAtlas atlas = game.getModelManager()
+            .getAtlas(TextureAtlas.LOCATION_BLOCKS);
+        return atlas == null ? earth : atlas.getSprite(new ResourceLocation("minecraft", name));
+    }
+
+    /** The 1.7.10 edition's GhostLogic.fallbackTextureName, at this version's names; null where it says dirt. */
+    static String stockTopName(SurfaceFamily family) {
+        if (family == null) return null;
+        switch (family) {
+            case GRASS:
+                return "block/grass_block_top";
+            case SAND:
+                return "block/sand";
+            case GRAVEL:
+                return "block/gravel";
+            case STONE:
+                return "block/stone";
+            case COBBLE:
+                return "block/cobblestone";
+            case NETHER:
+                return "block/netherrack";
+            case END:
+                return "block/end_stone";
+            case SNOW:
+                return "block/snow";
+            case ICE:
+                return "block/ice";
+            default:
+                return null;
+        }
+    }
+
     private static TextureAtlasSprite earth() {
         Minecraft game = Minecraft.getInstance();
         if (game == null || game.getModelManager() == null) return null;
@@ -215,11 +272,15 @@ public final class GhostQuads {
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
-        if (top == null) top = earth;
-        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
-        // wearing as grass and the block under it has to be a lawn, because the picture is made from
-        // that block's own pixels.
-        int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
+        // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
+        // tinted as grass is - rather than earth for every family, which drew a sand or stone square with no
+        // picture as dirt (0.9.222, spec GT11). Earth only where the family has no stock top of its own.
+        if (top == null) top = stockTop(appearance, earth);
+        // The covered block's own tint on every face, the top included: the 1.7.10 edition's stair stand-in is never
+        // grass's and never untinted, and multiplies that one color into every face it has, the stock top it falls back
+        // to included. Until 0.9.222 a stair drawn with vanilla's grass top took the biome's grass color here as a lawn
+        // does, and every other face the path light alone (spec GF7).
+        int tint = COVERED_TINT;
 
         List<BakedQuad> out = new ArrayList<BakedQuad>(boxes.size() * 6);
         for (AABB box : boxes) {
@@ -247,14 +308,16 @@ public final class GhostQuads {
                     y1,
                     z1,
                     below.sprite == null ? earth : below.sprite,
-                    LIGHT_TINT,
+                    COVERED_TINT,
                     0F));
 
+            // The covered block's own tint on every side, as on every face of the other edition's stair stand-in
+            // (0.9.222, spec GF7) - never the path light alone.
             for (Direction compass : Direction.Plane.HORIZONTAL) {
                 GhostSides.Face face = GhostSides
                     .of(record, origin, compass.get3DDataValue(), rotation, fringeTurn, snowed);
                 TextureAtlasSprite flank = face.sprite == null ? earth : face.sprite;
-                out.add(quad(compass, x0, y0, z0, x1, y1, z1, flank, LIGHT_TINT, 0F));
+                out.add(quad(compass, x0, y0, z0, x1, y1, z1, flank, COVERED_TINT, 0F));
                 if (face.overlay != null) {
                     out.add(quad(compass, x0, y0, z0, x1, y1, z1, face.overlay, GRASS_TINT, 0F));
                 }

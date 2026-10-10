@@ -199,6 +199,126 @@ public final class GhostInherit {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Breaking it, and growing on it: the covered block's answers (0.9.222)
+    // ------------------------------------------------------------------
+
+    /**
+     * The block a square's hardness and break speed are asked of: the one it covers, and where nothing is recorded
+     * under it, its family's own block - see {@link GhostFamily#standIn}. Null with no record at all, where the ghost
+     * answers for itself.
+     *
+     * <p>
+     * The 1.7.10 edition gets the second half from its stand-in per family, whose hardness, material and harvest tool
+     * are that family's block's; one ghost here has one of each, so the family's block is asked instead.
+     */
+    @javax.annotation.Nullable
+    static IBlockState answeringFor(Block ghost, IBlockAccess world, BlockPos pos) {
+        IBlockState covered = coveredAt(ghost, pos);
+        if (covered != null) return covered;
+        com.trmtgtnh.surface.SurfaceFamily family = GhostFamily.familyAt(world, pos);
+        return family == null ? null : GhostFamily.standIn(family);
+    }
+
+    /**
+     * The real block under a ghost at a square, or null when nothing trustworthy is recorded - the 1.7.10 edition's
+     * {@code GhostLogic.coveredAt}: never the ghost itself, never another ghost.
+     */
+    @javax.annotation.Nullable
+    static IBlockState coveredAt(Block ghost, BlockPos pos) {
+        if (pos == null) return null;
+        int packed = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        if (packed < 0) return null;
+        IBlockState origin = Block.getStateById(packed);
+        if (origin == null || origin.getBlock() == ghost || origin.getBlock() instanceof BlockGhost) return null;
+        return origin;
+    }
+
+    /**
+     * The covered block's hardness at this square, or NaN to let the ghost answer - the 1.7.10 edition's
+     * {@code GhostLogic.blockHardness} (spec GF11). An unbreakable block stays unbreakable, because its figure is
+     * handed straight back.
+     *
+     * <p>
+     * That edition turns away a world that is not a client's first; here the proxy does, answering nothing recorded on
+     * a server, so the square is never asked about there. And guarded, which that edition is not: a block that asked
+     * the world for its own square's hardness would find this ghost and come straight back in.
+     */
+    public static float blockHardness(Block ghost, World world, BlockPos pos) {
+        IBlockState covered = answeringFor(ghost, world, pos);
+        if (covered == null) return Float.NaN;
+        if (!enter()) return Float.NaN;
+        try {
+            return covered.getBlockHardness(world, pos);
+        } catch (RuntimeException awkwardBlock) {
+            return Float.NaN;
+        } finally {
+            leave();
+        }
+    }
+
+    /**
+     * How fast this player breaks the covered block, tool and all, or NaN to let the ghost answer - the 1.7.10
+     * edition's {@code GhostLogic.breakSpeed} (spec GF12).
+     *
+     * <p>
+     * Forge works a break out as the player's speed against the block, over its hardness, over thirty where the tool
+     * can harvest it and a hundred where it cannot - and asked of the ghost, that last question was answered by a block
+     * of ground that needs no tool, so worn ground a pack gates behind a better pick broke three times too fast on the
+     * client and was put back by the server. Worked out here, as that edition does, rather than by handing the whole
+     * question to the covered block: Forge's {@code blockStrength} asks the harvest check of the world, which at this
+     * square holds the ghost. So the check is asked through {@link OriginView}, which holds the covered block there,
+     * and the speed with the covered state.
+     */
+    public static float breakSpeed(Block ghost, net.minecraft.entity.player.EntityPlayer player, World world,
+        BlockPos pos) {
+        if (player == null) return Float.NaN;
+        IBlockState covered = answeringFor(ghost, world, pos);
+        if (covered == null) return Float.NaN;
+        if (!enter()) return Float.NaN;
+        try {
+            float hardness = covered.getBlockHardness(world, pos);
+            // Unbreakable underneath means unbreakable here. Nought rather than a negative, because this is a rate.
+            if (hardness < 0F) return 0F;
+            boolean canHarvest = net.minecraftforge.common.ForgeHooks
+                .canHarvestBlock(covered.getBlock(), player, new OriginView(world, pos, covered), pos);
+            return player.getDigSpeed(covered, pos) / hardness / (canHarvest ? 30F : 100F);
+        } catch (RuntimeException awkwardBlock) {
+            return Float.NaN;
+        } finally {
+            leave();
+        }
+    }
+
+    /**
+     * Whether the covered block would hold this plant, or null to let the ghost answer - the 1.7.10 edition's
+     * {@code GhostLogic.sustainsPlant} (spec GF15).
+     *
+     * <p>
+     * Forge decides what a plant may stand on by asking the block beneath whether it is grass, or dirt, or sand - by
+     * identity - and a ghost is none of those whatever it is drawn as. The client asks before it sends a placement and
+     * sends nothing on a no, so nothing could be planted on worn ground although the server, which holds the real
+     * ground, would have taken it; and a plant already there asks again when a neighbour changes, and on a no the
+     * client takes it away. Asked of the covered block's own state, through a view that holds it at its square, and
+     * guarded against the question coming back here, as that edition's is.
+     */
+    @javax.annotation.Nullable
+    public static Boolean sustainsPlant(Block ghost, IBlockAccess world, BlockPos pos,
+        net.minecraft.util.EnumFacing direction, net.minecraftforge.common.IPlantable plantable) {
+        IBlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return Boolean.valueOf(
+                covered.getBlock()
+                    .canSustainPlant(covered, new OriginView(world, pos, covered), pos, direction, plantable));
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
+    }
+
     /**
      * Whether this machine is the one predicting where this entity goes.
      *

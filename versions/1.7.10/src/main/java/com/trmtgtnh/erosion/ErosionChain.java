@@ -17,7 +17,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <p>
  * Upstream models this as a sequence of real block replacements: grass_block becomes
  * eroded_grass_block s0..s4, then eroded_dirt, then eroded_coarse_dirt. Here nothing is
- * replaced — the block in the world stays exactly the grass it always was — so the chain
+ * replaced - the block in the world stays exactly the grass it always was - so the chain
  * lives entirely in data and only decides which ghost block the client paints on top.
  *
  * <p>
@@ -44,8 +44,8 @@ public final class ErosionChain {
      * step on it is a family, a visual layer and a depth. The shape is the same for everything:
      * a long run of layers on the surface as it stands, and then, each time that run is used up,
      * the ground drops a pixel and a shorter run starts on the freshly exposed material. The
-     * first run is longer because that is the wear people actually look at — a track appearing
-     * in turf — and the later ones are shorter because by then the interesting part is the rut.
+     * first run is longer because that is the wear people actually look at - a track appearing
+     * in turf - and the later ones are shorter because by then the interesting part is the rut.
      */
     public static void rebuild() {
         Map<SurfaceFamily, short[]> built = new EnumMap<SurfaceFamily, short[]>(SurfaceFamily.class);
@@ -179,8 +179,8 @@ public final class ErosionChain {
      *
      * <p>
      * A -1 means the entry was written for a different surface than the one now in the
-     * world — grass that has since been replaced with sand, or a stage that no longer exists
-     * because the config lowered the family's stage count — and the caller should reset it
+     * world - grass that has since been replaced with sand, or a stage that no longer exists
+     * because the config lowered the family's stage count - and the caller should reset it
      * rather than trying to continue from a position that is no longer on the map.
      */
     public static int indexOf(SurfaceFamily base, SurfaceFamily appearance, int stage, int sink) {

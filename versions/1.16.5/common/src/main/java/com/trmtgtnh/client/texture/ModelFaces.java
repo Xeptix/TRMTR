@@ -89,6 +89,13 @@ public final class ModelFaces {
 
     private static volatile Map<Block, String[]> faces = new IdentityHashMap<Block, String[]>();
 
+    /**
+     * Per block, the side its snowy variant draws - the picture a turf shows on its flanks with snow on top
+     * (0.9.222, spec SC20). The 1.7.10 edition asks the covered block for it through a view of the world; a mesher
+     * thread may not ask another mod's model, so it is read here, with the rest of the survey.
+     */
+    private static volatile Map<Block, String> snowed = new IdentityHashMap<Block, String>();
+
     private static volatile int read;
 
     private static volatile int refused;
@@ -106,6 +113,7 @@ public final class ModelFaces {
      */
     public static void survey(Collection<SurfaceRegistry.SurfaceState> states) {
         Map<Block, String[]> found = new IdentityHashMap<Block, String[]>();
+        Map<Block, String> snowedFound = new IdentityHashMap<Block, String>();
         int reads = 0;
         int refusals = 0;
         firstReason = null;
@@ -114,6 +122,7 @@ public final class ModelFaces {
             .getResourceManager();
         if (resources == null || states == null) {
             faces = found;
+            snowed = snowedFound;
             return;
         }
 
@@ -126,6 +135,8 @@ public final class ModelFaces {
                     continue;
                 }
                 found.put(state.block, sides);
+                String snowySide = snowySide(resources, state.block);
+                if (snowySide != null) snowedFound.put(state.block, snowySide);
                 reads++;
             } catch (RuntimeException awkwardModel) {
                 refusals++;
@@ -134,6 +145,7 @@ public final class ModelFaces {
         }
 
         faces = found;
+        snowed = snowedFound;
         read = reads;
         refused = refusals;
     }
@@ -150,6 +162,32 @@ public final class ModelFaces {
         if (block == null || side < 0 || side >= WANTED.length) return null;
         String[] sides = faces.get(block);
         return sides == null ? null : sides[side];
+    }
+
+    /** The side a block's snowy variant draws, or null where it has none or its model did not say (SC20). */
+    public static String snowedSideName(Block block) {
+        return block == null ? null : snowed.get(block);
+    }
+
+    /**
+     * The north side of the first variant its blockstate file names with {@code snowy=true}, or null - vanilla grass's,
+     * mycelium's and a mod's turf alike, read the way {@link #read} reads the first variant.
+     */
+    private static String snowySide(ResourceManager resources, Block block) {
+        ResourceLocation key = Registry.BLOCK.getKey(block);
+        if (key == null) return null;
+        JsonObject root = json(resources, new ResourceLocation(key.getNamespace(), "blockstates/" + key.getPath() + ".json"));
+        if (root == null || !root.has("variants")) return null;
+        for (Map.Entry<String, JsonElement> each : root.getAsJsonObject("variants")
+            .entrySet()) {
+            if (!java.util.Arrays.asList(each.getKey()
+                .split(","))
+                .contains("snowy=true")) continue;
+            ResourceLocation model = modelIn(each.getValue());
+            Map<String, String> textures = model == null ? null : texturesOf(resources, model);
+            return textures == null || textures.isEmpty() ? null : resolve(textures, 2);
+        }
+        return null;
     }
 
     /** What the texture report prints about this. */

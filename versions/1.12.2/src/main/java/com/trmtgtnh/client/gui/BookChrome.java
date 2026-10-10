@@ -97,7 +97,7 @@ public final class BookChrome {
 
     /**
      * How much fits, worked out rather than guessed. Twelve body lines takes all but two of the
-     * thirty-four pages in one leaf, and ten rows takes the longest book there is.
+     * thirty-six pages in one leaf, and ten rows takes the longest book there is.
      */
     public static final int BODY_LINES = (CONTENT_B - CONTENT_Y) / LINE;
 

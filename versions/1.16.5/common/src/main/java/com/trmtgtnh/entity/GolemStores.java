@@ -374,38 +374,17 @@ final class GolemStores {
             tile.getBlockPos()
                 .getZ()))
             return;
-        Block mine = com.trmtgtnh.util.Worlds.blockAt(
-            world,
-            tile.getBlockPos()
-                .getX(),
-            tile.getBlockPos()
-                .getY(),
-            tile.getBlockPos()
-                .getZ());
-        for (int[] step : BESIDE) {
-            int x = tile.getBlockPos()
-                .getX() + step[0];
-            int z = tile.getBlockPos()
-                .getZ() + step[1];
-            if (!com.trmtgtnh.util.Worlds.loaded(
-                world,
-                x,
-                tile.getBlockPos()
-                    .getY(),
-                z)) continue;
-            if (com.trmtgtnh.util.Worlds.blockAt(
-                world,
-                x,
-                tile.getBlockPos()
-                    .getY(),
-                z) != mine) continue;
-            taken.add(
-                at(
-                    x,
-                    tile.getBlockPos()
-                        .getY(),
-                    z));
-        }
+        // The chest says which side its other half is on. At this version two single chests can stand side by side,
+        // so a chest of the same block beside this one is not always its partner, and claiming every one skipped a
+        // separate chest (0.9.222, spec GO36).
+        net.minecraft.world.level.block.state.BlockState state = world.getBlockState(tile.getBlockPos());
+        // A modded chest may be a ChestBlock with a state of its own, no TYPE in it (0.9.222).
+        if (!(state.getBlock() instanceof ChestBlock) || !state.hasProperty(ChestBlock.TYPE)) return;
+        if (state.getValue(ChestBlock.TYPE) == net.minecraft.world.level.block.state.properties.ChestType.SINGLE) return;
+        net.minecraft.core.BlockPos partner = tile.getBlockPos()
+            .relative(ChestBlock.getConnectedDirection(state));
+        if (!com.trmtgtnh.util.Worlds.loaded(world, partner.getX(), partner.getY(), partner.getZ())) return;
+        taken.add(at(partner.getX(), partner.getY(), partner.getZ()));
     }
 
     /**
@@ -698,7 +677,9 @@ final class GolemStores {
 
                 int before = held.getCount();
                 ItemStack left = InventoryAccess.put(inventory, held, store.side);
-                carried[slot] = left;
+                // Null when all of it went: put answers EMPTY then, and an EMPTY kept here read as a slot still full,
+                // so a golem that had unloaded everything went on being full (0.9.222, spec GO46).
+                carried[slot] = left == null || left.isEmpty() ? null : left;
                 if (left == null) {
                     put++;
                     break;

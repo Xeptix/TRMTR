@@ -116,28 +116,34 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
                 which == SnapshotStore.LEFT ? "trmtgtnh.snapshot.empty.left" : "trmtgtnh.snapshot.empty.right");
             return;
         }
-        apply(player, snapshot);
+        // Announced only once it has taken: a put-back that failed has said so already, and until 0.9.222 it went
+        // on to say the side was loaded regardless (spec CF84).
+        if (!apply(player, snapshot)) return;
         say(
             player,
             EnumChatFormatting.AQUA,
             which == SnapshotStore.LEFT ? "trmtgtnh.snapshot.loaded.left" : "trmtgtnh.snapshot.loaded.right");
     }
 
-    /** Applies a snapshot, remembering where the player was first so undo has somewhere to go. */
-    public static void apply(EntityPlayer player, String snapshot) {
+    /**
+     * Applies a snapshot, remembering where the player was first so undo has somewhere to go. Answers whether it took,
+     * having told the player if it did not.
+     */
+    public static boolean apply(EntityPlayer player, String snapshot) {
         // Taken first, because afterwards the file is the snapshot - but remembered only once the
         // snapshot has actually taken. Remembering it up front meant a commit that failed replaced
         // the way back from the last one that worked with a copy of settings nothing had changed.
         String before = ConfigSnapshot.capture();
         if (!ConfigSnapshot.apply(snapshot)) {
             failed(player);
-            return;
+            return false;
         }
         if (before != null) {
             SnapshotStore.get()
                 .rememberBaseline(player.getUniqueID(), before);
         }
         pushState(player);
+        return true;
     }
 
     /** Tells a player a snapshot could not be put in place. */

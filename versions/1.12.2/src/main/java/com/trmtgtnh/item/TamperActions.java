@@ -29,8 +29,8 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * What a tamper does, and what each gesture costs. Server side only.
  *
  * <p>
- * Both halves of the item come through here — the right-click gestures from
- * {@link ItemTamper#onItemUse} and the left-click ones from {@link TamperEvents} — so the rules
+ * Both halves of the item come through here - the right-click gestures from
+ * {@link ItemTamper#onItemUse} and the left-click ones from {@link TamperEvents} - so the rules
  * are written once rather than twice with a chance of drifting apart.
  *
  * <p>
@@ -43,7 +43,7 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  *
  * <p>
  * Positions are identified from the erosion record and never from the block. The server's copy
- * of the world holds no ghost — that is the whole design — so what is under the crosshair here
+ * of the world holds no ghost - that is the whole design - so what is under the crosshair here
  * is the ordinary ground the overlay is painted over, and whether it is worn is a question only
  * the record can answer.
  */
@@ -161,7 +161,7 @@ public final class TamperActions {
      *
      * <p>
      * Free because it is the one gesture that takes something away rather than putting it back.
-     * There is nothing to buy — the ground it wears in is the ground that was already there —
+     * There is nothing to buy - the ground it wears in is the ground that was already there -
      * and charging for it would make laying out a path cost more than the path.
      */
     public static boolean wearOne(World world, int x, int y, int z, EntityPlayer player, ItemStack tool) {
@@ -194,14 +194,14 @@ public final class TamperActions {
             .getEntry(world, x, y, z);
         // A pin holds against everyone, this tool included. forceStage writes the flag rather
         // than inheriting it, so pushing through would leave the square quietly unpinned with a
-        // tooltip line as the only clue — which is worse than a gesture that refuses out loud.
+        // tooltip line as the only clue - which is worse than a gesture that refuses out loud.
         if (entry != null && entry.isFrozen()) {
             if (noisy) say(player, TextFormatting.AQUA + "Pinned. Release it before working it.");
             return false;
         }
 
         // -1 both for a position with nothing showing yet and for one whose appearance no longer
-        // belongs to this block's chain, and +1 is right for both — the same arithmetic the
+        // belongs to this block's chain, and +1 is right for both - the same arithmetic the
         // engine's own advance does with the same value.
         int index = entry == null || !entry.isVisible() ? -1
             : ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink());
@@ -250,7 +250,7 @@ public final class TamperActions {
     // ------------------------------------------------------------------
 
     /**
-     * Whether there is worn ground here this tool may mend — having said why, when there is not.
+     * Whether there is worn ground here this tool may mend - having said why, when there is not.
      *
      * <p>
      * Saying why matters for exactly one case. Both mending gestures fail silently on a pinned
@@ -276,7 +276,7 @@ public final class TamperActions {
      * The same questions {@code step} asks before it banks anything, because {@code forceStage}
      * asks none of them. A tool that could write records outside them would leave paths inside
      * walls and under floors, in dimensions that were switched off and at heights nothing
-     * sweeps — and nothing else in the mod would ever come along and clear them.
+     * sweeps - and nothing else in the mod would ever come along and clear them.
      */
     private static boolean trackable(World world, int x, int y, int z) {
         if (!TrmtConfig.dimensionAllowed(world.provider.getDimension())) return false;
@@ -309,7 +309,9 @@ public final class TamperActions {
         if (dropped instanceof ItemBlock) return new ItemStack(dropped, 1, block.damageDropped(state));
 
         Item self = Item.getItemFromBlock(block);
-        return self == null ? ItemStack.EMPTY
+        // Air is this version's answer for a block with no item form, where 1.7.10's is null - and null is what the
+        // purse asks for, so such a square was priced in nothing and named as short of Air (0.9.222, spec WD47).
+        return self == null || self == net.minecraft.init.Items.AIR ? null
             : new ItemStack(self, 1, block.damageDropped(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z)));
     }
 
@@ -341,8 +343,8 @@ public final class TamperActions {
      * Exact item and damage, and deliberately not the ore dictionary.
      *
      * <p>
-     * Two blocks that share an ore name are routinely different ground to look at — GregTech's
-     * stone types all answer to stone — and a repair that quietly ate the wrong one out of the
+     * Two blocks that share an ore name are routinely different ground to look at - GregTech's
+     * stone types all answer to stone - and a repair that quietly ate the wrong one out of the
      * bag is worse than a repair that refuses and says what it wanted.
      */
     private static boolean matches(ItemStack held, ItemStack fill) {
@@ -431,8 +433,8 @@ public final class TamperActions {
      *
      * <p>
      * {@code damageItem} empties the stack rather than the slot, so the slot has to be cleared
-     * here. The right-click path would get away without it — the block placement packet tidies a
-     * zero-sized held stack on its way out — but the left-click path has no such packet, and a
+     * here. The right-click path would get away without it - the block placement packet tidies a
+     * zero-sized held stack on its way out - but the left-click path has no such packet, and a
      * zero-sized stack left in a hotbar slot draws as an item nobody can use or drop.
      */
     private static void spend(EntityPlayer player, ItemStack tool) {

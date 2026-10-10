@@ -127,6 +127,17 @@ public class PacketEditFamily implements IMessage {
                         say(player, EnumChatFormatting.AQUA, name + " will no longer wear.");
                     } else {
                         removeFrom(config, TrmtConfig.CATEGORY_SURFACES, "exclude", name);
+                        // Out of every other family's list too. The lists are read in the families' order and the later
+                        // wins, so a block detection had written into a later family went on wearing as that one
+                        // whatever this said, until 0.9.222 (spec CF66, SD25). A bare name only, as below.
+                        for (SurfaceFamily other : SurfaceFamily.values()) {
+                            if (other == family) continue;
+                            removeFrom(
+                                config,
+                                TrmtConfig.CATEGORY_FAMILIES + Configuration.CATEGORY_SPLITTER + other.key(),
+                                "blocks",
+                                name);
+                        }
                         addTo(
                             config,
                             TrmtConfig.CATEGORY_FAMILIES + Configuration.CATEGORY_SPLITTER + family.key(),

@@ -43,7 +43,7 @@ public final class Trmt {
     /** The display name, under the same arrangement as {@link #MODID}. */
     public static final String NAME = "TRMT: Reimagined";
 
-    public static final Logger LOG = LogManager.getLogger(MODID);
+    public static final Logger LOG = LogManager.getLogger(NAME);
 
     /**
      * This mod's own errors (0.9.221): logged exactly as {@code LOG.error} would, and - the first time in a

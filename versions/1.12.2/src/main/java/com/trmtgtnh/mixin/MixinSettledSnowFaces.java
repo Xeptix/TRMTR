@@ -27,6 +27,8 @@ public abstract class MixinSettledSnowFaces {
         cancellable = true)
     private void trmt$keepSettledFace(IBlockState state, IBlockAccess world, BlockPos pos, EnumFacing side,
         CallbackInfoReturnable<Boolean> callback) {
+        // First, so Settling can tell a hook that never bound from one with nothing to correct (0.9.222, SC32).
+        Settling.noteFaceHookRan();
         if (Boolean.TRUE.equals(callback.getReturnValue())) return;
         if (Settling.keepsFace(state, world, pos, side)) callback.setReturnValue(Boolean.TRUE);
     }

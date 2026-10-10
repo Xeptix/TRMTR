@@ -47,10 +47,12 @@ public final class TrmtForge {
                         .getVersion()
                         .toString())
                 .orElse("unknown"));
-        // This jar's line in the update check's version file, and whether this is a development game -
-        // which only the loader can say. See UpdateNotice.
-        com.trmtgtnh.server.UpdateNotice
-            .edition("1.16.5-forge", !net.minecraftforge.fml.loading.FMLEnvironment.production);
+        // This jar's line in the update check's version file, whether this is a development game - which
+        // only the loader can say - and the mods this jar requires. See UpdateNotice.
+        com.trmtgtnh.server.UpdateNotice.edition(
+            "1.16.5-forge",
+            !net.minecraftforge.fml.loading.FMLEnvironment.production,
+            com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> net.minecraftforge.fml.ModList.get()
@@ -69,6 +71,19 @@ public final class TrmtForge {
         // recipe's ingredient needs: Forge's own optional tag. See OreNames.LazyTags for what asking
         // the collection of the moment cost this edition.
         com.trmtgtnh.util.OreNames.use(name -> net.minecraft.tags.ItemTags.createOptional(name));
+        // Forge's own convention namespace for shared material tags.
+        com.trmtgtnh.util.OreNames.namespace("forge");
+        // Forge's own word for a machine's player, which the shared module cannot name; the connection alone missed
+        // one given a connection anyway (0.9.222, spec WD59).
+        com.trmtgtnh.util.Machines.use(player -> player instanceof net.minecraftforge.common.util.FakePlayer);
+        // A block keeps a tile entity on Forge when any of its states says so through IForgeBlockState - how a mod
+        // at this version declares one without being an EntityBlock - and detection must never stand a ghost in
+        // for it (spec SD6). Fabric's mods declare theirs as EntityBlock, which the shared module already asks.
+        com.trmtgtnh.surface.SurfaceRegistry.useEntityTest(
+            block -> block.getStateDefinition()
+                .getPossibleStates()
+                .stream()
+                .anyMatch(state -> state.hasTileEntity()));
 
         // Forge's own word for "this grows out of whatever is underneath it", which is exactly the
         // question Plants asks and the reason that seam exists: Fabric has no equivalent and

@@ -182,7 +182,9 @@ public final class ChunkTamperActions {
 
     /** Pins the whole cube, or releases it when it is already pinned where you clicked. */
     public static boolean pinArea(World world, int x, int y, int z, EntityPlayer player, ItemStack stack) {
-        if (!TrmtConfig.enabled) return false;
+        // The pin switch as well, as the hand tamper asks it: the setting says it governs pinning with a tamper, and the
+        // chunk tamper pinned whole cubes with it off until 0.9.222 (spec TA57).
+        if (!TrmtConfig.enabled || !TrmtConfig.tamperCanPin) return false;
         short state = ErosionState.NONE;
         com.trmtgtnh.erosion.ErosionEntry here = com.trmtgtnh.erosion.ErosionStore.get()
             .getEntry(world, x, y, z);

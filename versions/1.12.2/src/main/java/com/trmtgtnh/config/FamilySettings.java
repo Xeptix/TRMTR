@@ -17,8 +17,8 @@ import com.trmtgtnh.surface.SurfaceFamily;
  *
  * <p>
  * The shipped ordering, fastest to slowest: sand, gravel, grass, dirt, cobblestone, stone.
- * That follows upstream's relative pacing — a grass layer scuffs away long before packed
- * earth does — scaled to something appropriate for a pack played over months. Every number
+ * That follows upstream's relative pacing - a grass layer scuffs away long before packed
+ * earth does - scaled to something appropriate for a pack played over months. Every number
  * is a config key, so reordering them is one edit.
  */
 public final class FamilySettings {
@@ -173,8 +173,8 @@ public final class FamilySettings {
      * Blocks in this family that resist wear, and by how much.
      *
      * <p>
-     * A grass path is the case this exists for. It is already a worn surface — somebody made it
-     * that way on purpose — so it should take far more traffic than turf before it degrades
+     * A grass path is the case this exists for. It is already a worn surface - somebody made it
+     * that way on purpose - so it should take far more traffic than turf before it degrades
      * further, while recovering at the same rate as everything else. Multiplying its thresholds
      * does exactly that, and because the threshold is drawn once and stored on the entry, it
      * costs nothing afterwards.
@@ -610,7 +610,7 @@ public final class FamilySettings {
             "blocks",
             defaultExtra(family),
             "Blocks treated as " + family.key()
-                + ". Detection fills this in with what it found, so it doubles as a record of what is actually being affected; anything you add by hand is kept. Format: modid:block, modid:block:meta, or modid:block:* for every metadata. Removing an entry only sticks once surfaces.autoDetect is off, because with it on detection puts the block straight back — use surfaces.exclude for that instead.")
+                + ". Detection fills this in with what it found, so it doubles as a record of what is actually being affected; anything you add by hand is kept. Format: modid:block, modid:block:meta, or modid:block:* for every metadata. Removing an entry only sticks once surfaces.autoDetect is off, because with it on detection puts the block straight back - use surfaces.exclude for that instead.")
             .getStringList();
 
         if (!family.staged) return settings;

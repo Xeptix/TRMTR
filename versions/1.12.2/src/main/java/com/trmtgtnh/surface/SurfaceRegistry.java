@@ -39,7 +39,7 @@ import com.trmtgtnh.config.TrmtConfig;
  * between Biomes O' Plenty, Natura, Twilight Forest, Et Futurum, Thaumcraft, GregTech and
  * the rest. Naming them all in a config would go stale the moment the pack updates, so the
  * registry walks the block registry once at post-init and classifies by what a block
- * <em>is</em> — superclass, material, and a name check to keep the material rule from
+ * <em>is</em> - superclass, material, and a name check to keep the material rule from
  * swallowing near-misses like farmland, sandstone and soul sand. Per-family config lists
  * then add or remove individual entries.
  *
@@ -183,7 +183,7 @@ public final class SurfaceRegistry {
 
     /**
      * The family a block at this metadata belongs to, or null when it does not erode. Hot
-     * path — called per movement sample and per painted position.
+     * path - called per movement sample and per painted position.
      */
     public static SurfaceFamily familyOf(Block block, int meta) {
         if (block == null) return null;
@@ -335,7 +335,7 @@ public final class SurfaceRegistry {
 
     /**
      * Rebuilds the table from the current block registry and config. Safe to call again at
-     * runtime — {@code /trmt reload} does exactly that.
+     * runtime - {@code /trmt reload} does exactly that.
      */
     public static void resolve() {
         Map<Integer, SurfaceFamily> built = new HashMap<Integer, SurfaceFamily>();
@@ -698,7 +698,7 @@ public final class SurfaceRegistry {
      * Ground somebody has already made something of, which should stay as they left it.
      *
      * <p>
-     * The bale entries are not tilled ground at all — a hay bale is built on the grass material,
+     * The bale entries are not tilled ground at all - a hay bale is built on the grass material,
      * so leading with material sweeps it in as turf. It is a stored crop sitting in a barn, not
      * a field anyone walks a path across.
      */
@@ -806,7 +806,7 @@ public final class SurfaceRegistry {
             int meta = ANY_META;
             String name = entry;
             int lastColon = entry.lastIndexOf(':');
-            // "modid:block:meta" — the metadata suffix is optional and may be "*".
+            // "modid:block:meta" - the metadata suffix is optional and may be "*".
             if (lastColon > 0 && entry.indexOf(':') != lastColon) {
                 String tail = entry.substring(lastColon + 1);
                 name = entry.substring(0, lastColon);
@@ -928,7 +928,7 @@ public final class SurfaceRegistry {
      *
      * <p>
      * Applied when a threshold is drawn, so it is paid once per position rather than per step,
-     * and healing is untouched — a path recovers at the same rate as anything else, it just
+     * and healing is untouched - a path recovers at the same rate as anything else, it just
      * takes much longer to wear in the first place.
      */
     public static float resistanceOf(Block block, int meta) {

@@ -104,6 +104,11 @@ public final class TrmtFabricClient implements ClientModInitializer {
                 com.trmtgtnh.client.model.TamperModels.grader());
         }
 
+        // A chunk arriving in the client's world with a record already held is queued, as the 1.7.10 edition's
+        // chunk load does (spec PT18).
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents.CHUNK_LOAD
+            .register((level, chunk) -> ClientSide.chunkLoaded(chunk.getPos().x, chunk.getPos().z));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.level == null || client.player == null) {
                 if (left) {

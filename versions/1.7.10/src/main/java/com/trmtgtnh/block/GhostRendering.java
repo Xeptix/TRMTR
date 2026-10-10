@@ -42,7 +42,7 @@ import cpw.mods.fml.relauncher.SideOnly;
  *
  * <p>
  * The one exception is snow lying on grass, which is the case that genuinely cannot be answered
- * from metadata alone — the answer is about the block above, not this one. There the position-aware
+ * from metadata alone - the answer is about the block above, not this one. There the position-aware
  * form is used, wrapped in {@link OriginView} so the block finds itself rather than a ghost, and in
  * a catch so an awkward mod costs a fallback texture rather than a chunk build.
  */
@@ -78,9 +78,9 @@ public final class GhostRendering {
      * mean: fade decides which material this square reads as, and darkening then says how heavily
      * that material has been used. A square is one thing at a time and then a shade of it.
      *
-     * @param towardRgb what this ground is becoming, or the same color again where it becomes
-     *                  nothing - sand under sand is sand, and passing itself makes the fade a
-     *                  no-op rather than a special case
+     * @param towardRgb the map color of what this ground is becoming, or of its own family where it
+     *                  becomes nothing - which still moves a square drawn in its covered block's own
+     *                  color toward its family's (spec CO20)
      */
     public static int mapColorFor(float worn, int baseRgb, int towardRgb) {
         if (!TrmtConfig.mapTracksWear) return baseRgb;
@@ -246,8 +246,8 @@ public final class GhostRendering {
             if (side == 1) return ghost.fallbackIcon();
         }
 
-        // Grass that has worn through — either past the tint split, or all the way into the
-        // earth chain — shows that earth on its sides too. That is what upstream draws, and what
+        // Grass that has worn through - either past the tint split, or all the way into the
+        // earth chain - shows that earth on its sides too. That is what upstream draws, and what
         // stops a bald patch keeping a green fringe around it.
         boolean revealsEarth = originFamily == SurfaceFamily.GRASS
             && (ghost.appearance() != SurfaceFamily.GRASS || ghost.isUntinted());
@@ -768,7 +768,7 @@ public final class GhostRendering {
      * <p>
      * A mix of the gradation this block is actually on and how far it has come overall. On its
      * own the gradation restarts every time the ground drops a pixel, so a block eight pixels
-     * down looked <em>newer</em> than one that had never sunk — which is backwards, and very
+     * down looked <em>newer</em> than one that had never sunk - which is backwards, and very
      * visible when two of them sit side by side.
      *
      * <p>
@@ -999,8 +999,8 @@ public final class GhostRendering {
      *
      * <p>
      * Driven by how far the ground has come overall, not by the layer it happens to be showing.
-     * Those differ, because the layers restart every time the ground drops a pixel — a rut eight
-     * pixels deep is on layer zero of its ninth run — so a side that followed the layer would
+     * Those differ, because the layers restart every time the ground drops a pixel - a rut eight
+     * pixels deep is on layer zero of its ninth run - so a side that followed the layer would
      * visibly un-wear eight times on the way down. Overall progress only ever goes forwards,
      * which is what a wall that has been brushing past traffic the whole time should do.
      *

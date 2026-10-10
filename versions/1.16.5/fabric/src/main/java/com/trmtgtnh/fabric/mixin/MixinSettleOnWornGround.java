@@ -32,7 +32,9 @@ import net.minecraft.world.phys.Vec3;
 @Mixin(BlockBehaviour.BlockStateBase.class)
 public abstract class MixinSettleOnWornGround {
 
-    @Inject(method = "getOffset", at = @At("RETURN"), cancellable = true)
+    // Optional, as the 1.7.10 edition's cosmetic hooks are: its loss costs a picture, where a required one that a
+    // pack's renderer had moved would stop the game from starting (0.9.222, spec SU21).
+    @Inject(method = "getOffset", at = @At("RETURN"), cancellable = true, require = 0)
     private void trmt$settleOnWornGround(BlockGetter level, BlockPos pos, CallbackInfoReturnable<Vec3> callback) {
         Vec3 settled = com.trmtgtnh.client.render.Settling
             .offset((BlockState) (Object) this, level, pos, callback.getReturnValue());

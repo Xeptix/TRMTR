@@ -22,7 +22,7 @@ import cpw.mods.fml.common.registry.GameRegistry;
  * twin of every one of them. The count is deliberately fixed and
  * independent of config: metadata carries the wear stage and rotation comes from the
  * position, so raising a family's gradations from five to twelve needs no new blocks. That
- * matters beyond tidiness — registered block names are written into a save's Forge id map, so
+ * matters beyond tidiness - registered block names are written into a save's Forge id map, so
  * a set that changed with config would make Forge report missing ids every time the config
  * changed.
  *

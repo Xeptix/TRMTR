@@ -70,8 +70,8 @@ public final class OreNames {
     private static final Map<String, String> IRREGULAR = new HashMap<String, String>();
 
     static {
-        IRREGULAR.put("stickWood", "forge:rods/wooden");
-        IRREGULAR.put("stickTreatedWood", "forge:rods/treated_wood");
+        IRREGULAR.put("stickWood", "rods/wooden");
+        IRREGULAR.put("stickTreatedWood", "rods/treated_wood");
 
         FOLDERS.put("ingot", "ingots");
         FOLDERS.put("nugget", "nuggets");
@@ -104,7 +104,20 @@ public final class OreNames {
 
     private static volatile boolean oddNameSaid;
 
+    /**
+     * The namespace the loader's shared tags live in, handed over by each loader module: {@code forge} on both loaders
+     * here - the Fabric jar ships {@code forge:} tags of its own for the vanilla materials. Until 0.9.222 it was
+     * written into this class, and NeoForge and Fabric from 1.20.1 read {@code c:}.
+     */
+    private static volatile String namespace = "forge";
+
     private OreNames() {}
+
+    /** Which namespace this loader's shared material tags live in. Called once by each loader module. */
+    public static synchronized void namespace(String space) {
+        namespace = space;
+        TAGS.clear();
+    }
 
     /**
      * The tag an ore-dictionary name means at this version, or null for a name that cannot be one.
@@ -120,7 +133,7 @@ public final class OreNames {
 
         String irregular = IRREGULAR.get(oreName);
         if (irregular != null) {
-            ResourceLocation known = ResourceLocation.tryParse(irregular);
+            ResourceLocation known = ResourceLocation.tryParse(namespace + ":" + irregular);
             if (known != null) TAGS.put(oreName, known);
             return known;
         }
@@ -140,8 +153,8 @@ public final class OreNames {
         while (split < oreName.length() && !Character.isUpperCase(oreName.charAt(split))) split++;
         if (split == 0 || split >= oreName.length()) {
             // No capital to split at: a whole-word name like "treeWood" written without one, or
-            // something that is not an ore name at all. Passed through as its own tag under forge.
-            return ResourceLocation.tryParse("forge:" + snake(oreName));
+            // something that is not an ore name at all. Passed through as its own tag under the namespace.
+            return ResourceLocation.tryParse(namespace + ":" + snake(oreName));
         }
         String head = oreName.substring(0, split);
         String tail = oreName.substring(split);
@@ -152,13 +165,13 @@ public final class OreNames {
                 oddNameSaid = true;
                 Trmt.LOG.info(
                     "A material is named {} and this version has no published tag folder for \"{}\", so "
-                        + "it is being read as forge:{}/{}. If the pack has that material under another "
+                        + "it is being read as {}:{}/{}. If the pack has that material under another "
                         + "tag, write the tag itself in the setting instead - anything with a colon or a "
                         + "slash in it is taken as written. This is said once.",
-                    new Object[] { oreName, head, folder, snake(tail) });
+                    new Object[] { oreName, head, namespace, folder, snake(tail) });
             }
         }
-        return ResourceLocation.tryParse("forge:" + folder + "/" + snake(tail));
+        return ResourceLocation.tryParse(namespace + ":" + folder + "/" + snake(tail));
     }
 
     /** {@code TungstenSteel} as {@code tungsten_steel}, which is how a tag path is spelled. */

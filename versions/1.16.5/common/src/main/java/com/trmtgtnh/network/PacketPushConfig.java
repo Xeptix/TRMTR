@@ -128,6 +128,13 @@ public class PacketPushConfig implements Message {
         // LAN the server is the host's own game, so a guest's push would set the host's quality.
         if (com.trmtgtnh.config.Presets.CATEGORY.equals(category) && "quality".equals(key)) return false;
         if (TrmtConfig.CATEGORY_SURFACES.equals(category) && "maxTexturedSurfaces".equals(key)) return false;
+        // A family's look is a picture this machine draws for itself, and whether wear shows under a block is how this
+        // player has their own world drawn: no server's rules carry either, and until 0.9.222 a guest's push into a
+        // world opened to LAN rewrote the host's own (spec CF34).
+        if ("wearPattern".equals(key)) return false;
+        if (ConfigFile.CATEGORY_GENERAL.equals(category) && ("hideWearUnderBlocks".equals(key) || "flattenWearUnderBlocks".equals(key))) {
+            return false;
+        }
         return !"enchantId".equals(key) && !"lightnessPotionId".equals(key) && !"heavyFootPotionId".equals(key);
     }
 

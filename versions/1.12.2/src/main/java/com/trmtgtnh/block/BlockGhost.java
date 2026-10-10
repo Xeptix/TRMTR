@@ -157,7 +157,9 @@ public class BlockGhost extends Block {
         // below the top of that cell would take the cell's own light and come out black. Vanilla
         // does exactly this for its two blocks of the same shape, farmland and the grass path - but in
         // a loop that runs over its own blocks before any mod has registered one, so a block added
-        // later has to say so itself.
+        // later has to say so itself. Set for the block, because the game asks it of the state; worn clear ice, which
+        // the 1.7.10 edition lights from its own cell, is answered per square where the game reads it - see
+        // litFromNeighboursAt (0.9.222, spec GT27).
         this.useNeighborBrightness = true;
         // No creative tab and no item form. A ghost is not a thing anybody may hold: it exists for
         // the length of one client's opinion about one square, and an item that placed one would be
@@ -776,6 +778,11 @@ public class BlockGhost extends Block {
      */
     @Override
     public int getLightOpacity(IBlockState state, IBlockAccess world, BlockPos pos) {
+        // A worn stair stops all of it, whatever its family and however deep its record says it is worn: a stair
+        // never sinks, a real stair stops all light at this version as at 1.7.10, and the server still holds one -
+        // the 1.7.10 edition's stair stand-in sets 255 for every family, ice included. Until 0.9.222 a deep-worn
+        // stair answered as sunk here and let all of it through (spec GF8).
+        if (coveredStair(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) != null) return 255;
         if (sunkAt(world, pos)) return 0;
         // Worn ice stops the light ice stops - the 1.7.10 edition's {@code clear ? lightOpacityFor :
         // 255}, missing here until 0.9.219, when a path across a frozen lake darkened the water under it.
@@ -808,13 +815,17 @@ public class BlockGhost extends Block {
     @Override
     public boolean doesSideBlockRendering(IBlockState state, IBlockAccess world, BlockPos pos,
         net.minecraft.util.EnumFacing side) {
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        // A worn stair hides what the stair it covers hides, by that stair's own facing, half and shape, and
+        // never as a whole cube or as sunk ground (0.9.222, spec GF6). See stairHides.
+        IBlockState stair = coveredStair(origin);
+        if (stair != null) return stairHides(stair, world, pos, side);
         if (sunkAt(world, pos)) return false;
         // Nor where it is clear: worn ice is still seen through, so the face beside it is still seen - the
         // 1.7.10 edition's {@code !clear}. Dropped until 0.9.219, which the close-ups of the first yard
         // found: the real ice under a worn top and the worn squares beside it left off every face they
         // shared with it, and the yard's ice read as a pane with the next platform showing through.
         if (clearCovers(world, pos) != null) return false;
-        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         // Nor where it is a window: its holes show the cell behind them, so the faces in that cell are
         // drawn - the third clause of the 1.7.10 edition's {@code !sunken && !clear && !window}, which
         // this lacked until 2026-10-08. With the pass alone put right, the block below and the squares
@@ -825,6 +836,115 @@ public class BlockGhost extends Block {
         // A whole cube only. A slab or a path stands short, and a neighbour that left off its face
         // against one would show a hole where the square stops.
         return floorOf(outline) <= 0F && topOf(outline) >= 1F;
+    }
+
+    /**
+     * Whether a worn stair hides the face a neighbour has against it - the 1.7.10 edition's
+     * {@code BlockGhostStairs.isFaceNonObstructing}, answered by the stair it covers (0.9.222, spec GF6).
+     *
+     * <p>
+     * That edition's stand-in is a stair and says which of its faces are open by its own facing and half: a clear
+     * one obstructs nothing, and otherwise its top is open on a bottom stair, its bottom on a top one, and a side
+     * where it leaves half its cell empty. Here the ghost is no stair, and its outline is the whole cell, so until
+     * 0.9.222 an unsunk worn stair told its neighbours it hid every side: the face above a bottom stair and the faces
+     * beside its open half were left off. A worn stair is drawn as exactly the covered stair's own boxes, so the face
+     * test this version gives that stair is the honest answer, and it is asked of the stair itself, through a view
+     * that holds it at its own square - its corner is worked out from its neighbours, which pass through untouched.
+     * A clear stair - worn ice over one - obstructs nothing, as that edition's does; a window stair is mostly solid
+     * stone and hides what its stair hides, as that edition's does too. A stair that will not answer hides nothing,
+     * which draws a face too many rather than leaving a hole.
+     */
+    static boolean stairHides(IBlockState stair, IBlockAccess world, BlockPos pos, net.minecraft.util.EnumFacing side) {
+        IBlockState clear = clearCovers(world, pos);
+        if (clear != null) return false;
+        try {
+            return stair.doesSideBlockRendering(new OriginView(world, pos, stair), pos, side);
+        } catch (RuntimeException awkwardBlock) {
+            return false;
+        }
+    }
+
+    /**
+     * The stair a square stands in for, or null where it stands in for anything else.
+     *
+     * <p>
+     * The 1.7.10 edition paints a stair stand-in over any covered stair before it asks anything else
+     * ({@code ModBlocks.forAppearance}, the shape first), and that stand-in is never sunk, never untinted and never
+     * grass's: its record may carry a depth, as every family's does, and nothing about a stair reads it. So every rule
+     * that reads the depth, the light or the grass treatment asks this first (0.9.222, spec GF6, GF7, GF8).
+     */
+    @Nullable
+    public static IBlockState coveredStair(int origin) {
+        IBlockState covered = coveredState(origin);
+        return covered != null && SurfaceShape.of(covered.getBlock()) == SurfaceShape.STAIR ? covered : null;
+    }
+
+    /**
+     * Whether the light read at this square is the brightest of its neighbours' rather than its own cell's - the
+     * 1.7.10 edition's {@code useNeighborBrightness}, answered per square (0.9.222, spec GT27, GF8).
+     *
+     * <p>
+     * This version asks that flag of the state alone, and one ghost stands in for every square, so the flag stays set on
+     * the block - every ghost here but clear ice needs it, because a top drawn below the top of an opaque cell would
+     * take that cell's light and come out black - and the three places the game reads it (the mesher's view, and the
+     * world twice) ask this instead, through {@code MixinGhostNeighbourLight}. Worn clear ice is lit from its own cell,
+     * as ice is: it lets light through, so its square holds the real answer already, and taking the brightest
+     * neighbour's lit the water under a worn frozen lake brighter, by up to ice's three levels, than the water under the
+     * unworn ice beside it. A worn stair takes its neighbours' light whatever its family, clear or not, because it
+     * stops all of it - that edition's stair stand-in sets the flag for every family.
+     */
+    public static boolean litFromNeighboursAt(IBlockAccess world, BlockPos pos) {
+        if (coveredStair(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) != null) return true;
+        return clearCovers(world, pos) == null;
+    }
+
+    /**
+     * The tint a worn stair's sides and undersides take: the covered block's own color, asked of it through a view that
+     * holds it at its own square - the 1.7.10 edition's {@code GhostRendering.colorFor}, {@code
+     * origin.colorMultiplier(new OriginView(...))}, which multiplies into every face of its stair stand-in - or white
+     * where the square no longer wears as the covered block's own family, as that edition's has worn past its tint
+     * (0.9.222, spec GF7).
+     *
+     * <p>
+     * That edition gives a block one color for all its faces; this version asks a color per tint slot, and slot nought
+     * is the one a block that tints at all answers on - grass, leaves, vines. White where the block answers nothing,
+     * as a block with no color of its own answers white there. The path light is multiplied in by the color handler.
+     */
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    public static int coveredTint(IBlockAccess world, BlockPos pos, net.minecraft.client.renderer.color.BlockColors colors) {
+        if (world == null || pos == null || colors == null) return 0xFFFFFF;
+        IBlockState covered = coveredState(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        if (covered == null) return 0xFFFFFF;
+        short record = Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
+        SurfaceFamily own;
+        try {
+            own = com.trmtgtnh.surface.SurfaceRegistry.familyOf(
+                covered.getBlock(),
+                covered.getBlock()
+                    .getMetaFromState(covered));
+        } catch (RuntimeException awkwardBlock) {
+            own = null;
+        }
+        if (!takesCoveredTint(own, ErosionState.familyOf(record))) return 0xFFFFFF;
+        try {
+            return opaqueTint(colors.colorMultiplier(covered, new OriginView(world, pos, covered), pos, 0));
+        } catch (RuntimeException awkwardBlock) {
+            return 0xFFFFFF;
+        }
+    }
+
+    /**
+     * Whether a square takes its covered block's own tint: only while it still wears as that block's own family - the
+     * 1.7.10 edition's {@code originFamily != ghost.appearance()} exit, past which the ground is mostly bare earth and
+     * tinting it would turn a path olive (0.9.222, spec GF7).
+     */
+    static boolean takesCoveredTint(@Nullable SurfaceFamily own, @Nullable SurfaceFamily wears) {
+        return own != null && own == wears;
+    }
+
+    /** A color handler's answer as a tint: white for none (-1), the alpha left off. */
+    static int opaqueTint(int answered) {
+        return answered == -1 ? 0xFFFFFF : answered & 0xFFFFFF;
     }
 
     /**
@@ -934,49 +1054,56 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * What a map paints this square, which is what the ground underneath would be painted.
+     * What a map with nothing finer to go on paints this square: the material it now is.
      *
      * <p>
-     * Everything that draws a map reads this - the vanilla map item, every minimap, and anything
-     * rendering the world at a distance - so answering with the origin's own color makes a worn path
-     * read as the ground it is rather than as an unknown block, once and for all of them.
+     * Everything that draws a map from a block's own answer reads this - the vanilla map item, Xaero's
+     * minimap in both its color modes, and anything that cannot read this mod's generated pictures. The
+     * 1.7.10 edition answers {@code GhostLogic.mapColor(appearance, untinted)} from the stand-in the
+     * square is drawn with: its family's vanilla block's map color, gravel as stone and end stone as
+     * sand, and a lawn worn past its turf or drawn untinted as earth. So does this, from the family the
+     * record says the square is drawn as - not the covered block's own color, which kept a lawn worn to
+     * bare earth painting as darkened grass, and not dirt for every family with nothing recorded under it
+     * (0.9.222, spec CO25).
      *
      * <p>
-     * <strong>This is where the other edition needs per-mod code and this one does not.</strong>
-     * There the question is only {@code getMapColor(int metadata)}: a ghost is asked what color it
-     * is with no way to know which square is being asked about, so it can answer only from the family
-     * its own class stands for - and a minimap that ignored the answer, as JourneyMap did for
-     * anything descending from the grass block, had to be reached into by reflection and corrected.
-     * 1.12.2 hands the position in. A ghost can look up its own origin and answer truthfully, and
-     * there is nothing left for either minimap integration to fix.
+     * Darkened, which that edition does not do (spec CO26, decided): one darker palette entry, so there
+     * is a road on the map rather than only a change of material where one has worn through - see
+     * GhostMapColor. With no record there is no family, and the ghost's own ground color stands.
      */
     @Override
     public MapColor getMapColor(IBlockState state, IBlockAccess world, BlockPos pos) {
-        short record = Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
-        int packed = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
-        if (packed >= 0) {
-            IBlockState origin = Block.getStateById(packed);
-            if (origin != null && origin.getBlock() != this) {
-                try {
-                    MapColor own = origin.getBlock()
-                        .getMapColor(origin, world, pos);
-                    // Darkened, so there is a road on the map rather than only a change of material
-                    // where one has worn through. One color rather than a shade per gradation,
-                    // which is all sixty-four fixed palette entries can carry - see GhostMapColor.
-                    if (own != null) return shows(record) ? GhostMapColor.worn(own) : own;
-                } catch (RuntimeException hostileBlock) {
-                    // A block of somebody else's asked about a position it does not own. Its family's
-                    // stand-in below is a better answer than taking the map down.
-                }
-            }
-        }
-        // No record, or a block that would not say: the family this square is drawn as.
-        if (com.trmtgtnh.erosion.ErosionState.familyOf(record) == null) {
-            return super.getMapColor(state, world, pos);
-        }
-        MapColor earth = net.minecraft.init.Blocks.DIRT.getDefaultState()
-            .getMapColor(world, pos);
-        return shows(record) ? GhostMapColor.worn(earth) : earth;
+        MapColor material = materialAt(world, pos);
+        if (material == null) return super.getMapColor(state, world, pos);
+        return GhostMapColor.worn(material);
+    }
+
+    /**
+     * The material a square now is, undarkened, or null where nothing is recorded - the whole of the 1.7.10 edition's
+     * answer, which {@link #getMapColor} darkens (0.9.222, spec CO25). Public for the harness, which checks a worn
+     * square paints this darkened.
+     */
+    @Nullable
+    public static MapColor materialAt(IBlockAccess world, BlockPos pos) {
+        SurfaceFamily family = GhostFamily.familyAt(world, pos);
+        return family == null ? null : GhostMapColor.ofFamily(family, drawnUntinted(world, pos, family));
+    }
+
+    /**
+     * Whether this square is drawn as the 1.7.10 edition's untinted grass, whose map color is earth.
+     *
+     * <p>
+     * That edition's untinted stand-in is its hollowed grass, chosen once the ground has sunk or from the start
+     * when the covered block is short ({@code OverlayPainter.wantedGhost}, {@code shortBase || sink > 0}, the same
+     * question {@link #wholeAt} answers); a covered stair takes the stair stand-in first, which answers
+     * {@code mapColor(appearance, false)}, so a worn stair of turf stays turf (0.9.222, spec CO25).
+     */
+    static boolean drawnUntinted(IBlockAccess world, BlockPos pos, SurfaceFamily family) {
+        if (family != SurfaceFamily.GRASS) return false;
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        IBlockState covered = origin < 0 ? null : Block.getStateById(origin);
+        if (covered != null && SurfaceShape.of(covered.getBlock()) == SurfaceShape.STAIR) return false;
+        return !wholeAt(world, pos);
     }
 
     /**
@@ -1036,6 +1163,21 @@ public class BlockGhost extends Block {
         return record != ErosionState.NONE && ErosionState.layerOf(record) >= 0;
     }
 
+    /**
+     * Whether bone meal used on this square is answered as used, the way a crop answers it (0.9.222, spec WD40).
+     *
+     * <p>
+     * On the client a worn square is this ghost, which is nothing bone meal grows, and the mend itself is the server's -
+     * so until 0.9.222 the client answered the click with "nothing happened", the arm did not swing, and the game went
+     * on to the off hand and sent a second use at the same block: with bone meal in the main hand and torches or blocks
+     * in the other, every click on a worn path mended it and placed a torch or a block against it too. So the client
+     * answers for a ghost it holds a record for, as {@link GhostFamily#familyAt} asks, and the game stops there; what is
+     * mended and what is spent is still the server's answer, sent back as it always was.
+     */
+    public static boolean answersBoneMeal(boolean clientSide, boolean ghostHere, short record) {
+        return clientSide && ghostHere && shows(record);
+    }
+
     // ------------------------------------------------------------------
     // What the covered block goes on doing
     // ------------------------------------------------------------------
@@ -1057,5 +1199,109 @@ public class BlockGhost extends Block {
     @Override
     public void onEntityCollision(World world, BlockPos pos, IBlockState state, net.minecraft.entity.Entity entity) {
         GhostInherit.entityCollided(this, world, pos, state, entity);
+    }
+
+    // ------------------------------------------------------------------
+    // What the 1.7.10 edition's stand-in per family answers, asked per square (0.9.222)
+    // ------------------------------------------------------------------
+
+    /**
+     * The sound of the family this square is worn as - stepping, hitting, breaking and landing all ask this - where
+     * every square sounded like stone, Block's own default, until 0.9.222. The 1.7.10 edition sets it on each stand-in
+     * from {@code GhostLogic.stepSoundFor}; see {@link GhostFamily#soundFor} (spec GF10).
+     */
+    @Override
+    public net.minecraft.block.SoundType getSoundType(IBlockState state, World world, BlockPos pos,
+        @Nullable net.minecraft.entity.Entity entity) {
+        return GhostFamily.soundFor(GhostFamily.familyAt(world, pos));
+    }
+
+    /**
+     * How slippery this square is: worn ice is ice to the client that moves its own player, as it is to the server
+     * that holds the real ice. Until 0.9.222 it was 0.6 and the two disagreed about where a sliding player ended up.
+     * See {@link GhostFamily#slipperinessFor} (spec GF17).
+     */
+    @Override
+    public float getSlipperiness(IBlockState state, IBlockAccess world, BlockPos pos,
+        @Nullable net.minecraft.entity.Entity entity) {
+        return GhostFamily.slipperinessFor(GhostFamily.familyAt(world, pos));
+    }
+
+    /** The covered block's hardness, unbreakable staying unbreakable. See {@link GhostInherit#blockHardness} (GF11). */
+    @Override
+    public float getBlockHardness(IBlockState state, World world, BlockPos pos) {
+        float covered = GhostInherit.blockHardness(this, world, pos);
+        return Float.isNaN(covered) ? super.getBlockHardness(state, world, pos) : covered;
+    }
+
+    /**
+     * The covered block's break speed, tool and all, so ground a pack gates behind a better pick does not break early on
+     * the client and snap back. See {@link GhostInherit#breakSpeed} (spec GF12).
+     */
+    @Override
+    public float getPlayerRelativeBlockHardness(IBlockState state, net.minecraft.entity.player.EntityPlayer player,
+        World world, BlockPos pos) {
+        float covered = GhostInherit.breakSpeed(this, player, world, pos);
+        return Float.isNaN(covered) ? super.getPlayerRelativeBlockHardness(state, player, world, pos) : covered;
+    }
+
+    /**
+     * Whether a plant may stand here: the covered block's answer, so a sapling can be planted on worn ground and one
+     * already there stays. See {@link GhostInherit#sustainsPlant} (spec GF15).
+     */
+    @Override
+    public boolean canSustainPlant(IBlockState state, IBlockAccess world, BlockPos pos,
+        net.minecraft.util.EnumFacing direction, net.minecraftforge.common.IPlantable plantable) {
+        Boolean covered = GhostInherit.sustainsPlant(this, world, pos, direction, plantable);
+        return covered != null ? covered.booleanValue()
+            : super.canSustainPlant(state, world, pos, direction, plantable);
+    }
+
+    /**
+     * Set while this square's breaking or hitting dust is spawned, so the dust is tinted as the square is.
+     *
+     * <p>
+     * The dust asks the ghost's color handler for tint slot nought with the real world in hand, and that slot is the
+     * grass slot: every quad that carries it is grass, so it answers the biome's green - and a worn sand or stone square
+     * threw green dust. The 1.7.10 edition's dust takes {@code colorMultiplier}, the ghost's own tint at the square,
+     * with its wear shade held off for a tick by {@code GhostRendering.holdShadeForDust}; this is that hold, and while it
+     * is set the handler answers a caller holding the world - never the mesher, whose view is not one - with the tint
+     * this square's top is drawn in (spec GF19). Let go of on the next client tick, as that edition does.
+     */
+    private static volatile boolean tintHeldForDust;
+
+    /** Called as a ghost lets vanilla spawn its dust. */
+    public static void holdTintForDust() {
+        tintHeldForDust = true;
+    }
+
+    /** Called once a client tick, so the hold cannot outlive the particles it was for. */
+    public static void releaseTintForDust() {
+        tintHeldForDust = false;
+    }
+
+    /** Whether dust is being spawned off a ghost this tick. */
+    public static boolean tintHeldForDust() {
+        return tintHeldForDust;
+    }
+
+    /**
+     * Lets vanilla spawn the hitting dust, with the tint held for it - false, so nothing here replaces vanilla's own
+     * placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19).
+     */
+    @Override
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    public boolean addHitEffects(IBlockState state, World world, net.minecraft.util.math.RayTraceResult target,
+        net.minecraft.client.particle.ParticleManager manager) {
+        holdTintForDust();
+        return false;
+    }
+
+    /** The breaking dust, the same way. */
+    @Override
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    public boolean addDestroyEffects(World world, BlockPos pos, net.minecraft.client.particle.ParticleManager manager) {
+        holdTintForDust();
+        return false;
     }
 }

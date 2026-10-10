@@ -12,7 +12,7 @@ import com.trmtgtnh.surface.SurfaceShape;
  * Upstream lets a path wear down as well as discolor: eroded sand drops from a full block to
  * ten pixels. It can afford that because it replaces the block, so its server agrees the block
  * is short. Here the block in the world is still full-height grass, so the depth has to be
- * derived identically on both sides from the one thing both sides know — the wear stage.
+ * derived identically on both sides from the one thing both sides know - the wear stage.
  *
  * <p>
  * Two depths come out of this, and they are deliberately different:

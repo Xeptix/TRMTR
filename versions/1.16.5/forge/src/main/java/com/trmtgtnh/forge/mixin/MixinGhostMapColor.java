@@ -14,7 +14,7 @@ import net.minecraft.world.level.material.MaterialColor;
 import com.trmtgtnh.block.BlockGhost;
 
 /**
- * Makes a worn square paint on a map as the ground it stands in for.
+ * Makes a worn square paint on a map as the material it has worn into, darkened (spec CO25).
  *
  * <p>
  * Everything that draws a map reads this - the vanilla map item, every minimap, and anything
@@ -33,8 +33,8 @@ import com.trmtgtnh.block.BlockGhost;
  *
  * <p>
  * Guarded on the block first, so every other block in the world pays one {@code instanceof} and
- * nothing else. A null answer means the square has no opinion - no record, or a covered block that
- * would not say - and the color the state was built with stands.
+ * nothing else. A null answer means the square has no opinion - nothing recorded there, so no family
+ * to answer as (0.9.222, spec CO25) - and the color the state was built with stands.
  */
 @Mixin(BlockBehaviour.BlockStateBase.class)
 public abstract class MixinGhostMapColor {

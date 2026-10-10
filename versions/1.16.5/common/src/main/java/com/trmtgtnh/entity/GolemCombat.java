@@ -291,10 +291,14 @@ public final class GolemCombat {
         if (!(thing instanceof Enemy)) return false;
         if (thing instanceof Player) return false;
         if (thing instanceof EntityGolemOfWays) return false;
-        if (thing instanceof TamableAnimal || thing instanceof net.minecraft.world.entity.animal.horse.AbstractHorse) {
+        if (thing instanceof TamableAnimal) {
             String owner = ownerNameOf((TamableAnimal) thing);
             if (owner != null && !owner.isEmpty()) return false;
         }
+        // A horse keeps its owner its own way at this version and is no tamed animal: cast to one, a hostile modded
+        // horse threw ClassCastException in the golem's tick (0.9.222, spec GO53).
+        if (thing instanceof net.minecraft.world.entity.animal.horse.AbstractHorse
+            && ((net.minecraft.world.entity.animal.horse.AbstractHorse) thing).getOwnerUUID() != null) return false;
         return ((LivingEntity) thing).isAlive();
     }
 
@@ -580,6 +584,14 @@ public final class GolemCombat {
      */
     public static final class Defend extends TargetGoal {
 
+        /**
+         * The candidate test without its look: at this version the conditions themselves ask for
+         * sight unless told not to, whatever the goal was built with, so the default ones left a
+         * monster round a corner alone (0.9.222, spec GO52). Reach is still asked, by canAttack.
+         */
+        private static final net.minecraft.world.entity.ai.targeting.TargetingConditions UNSEEN = new net.minecraft.world.entity.ai.targeting.TargetingConditions()
+            .allowUnseeable();
+
         private final EntityGolemOfWays golem;
 
         private LivingEntity quarry;
@@ -627,7 +639,7 @@ public final class GolemCombat {
                 if (!threatens(suspect, around)) continue;
                 // Last, because this is the one that pathfinds. Nothing reaches it that was not
                 // already the closest monster in the box with somebody in its sights.
-                if (!canAttack(suspect, net.minecraft.world.entity.ai.targeting.TargetingConditions.DEFAULT)) continue;
+                if (!canAttack(suspect, UNSEEN)) continue;
                 nearest = away;
                 quarry = suspect;
             }

@@ -23,7 +23,7 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
  *
  * <p>
  * Its own class rather than another handful of methods on {@code ServerEvents}, because that
- * class is about wiring the erosion engine to the bus and this is about one item — and because
+ * class is about wiring the erosion engine to the bus and this is about one item - and because
  * a client-side handler living in something called {@code ServerEvents} would be a lie a reader
  * has to discover.
  */
@@ -46,7 +46,7 @@ public final class TamperEvents {
      *
      * <p>
      * Weak so a disconnected player drops out without any bookkeeping. Keyed on position as well
-     * as time on purpose — a held button repeating on one square is the thing being throttled,
+     * as time on purpose - a held button repeating on one square is the thing being throttled,
      * while a held button dragged across new squares is somebody painting a path, and that is
      * the gesture the tool exists for.
      */
@@ -66,7 +66,7 @@ public final class TamperEvents {
      * {@code Minecraft.func_147116_af} straight into {@code PlayerControllerMP.clickBlock}
      * without posting anything, so in this Forge build {@code LEFT_CLICK_BLOCK} has exactly one
      * fire site and it is {@code ItemInWorldManager.onBlockClicked}. The remote guard stays
-     * anyway, because coremods in a pack this size do add fire sites — Backhand adds two on the
+     * anyway, because coremods in a pack this size do add fire sites - Backhand adds two on the
      * client for the right-click actions alone.
      *
      * <p>
@@ -83,11 +83,11 @@ public final class TamperEvents {
     public void onLeftClick(PlayerInteractEvent event) {
         if (event.action != PlayerInteractEvent.Action.LEFT_CLICK_BLOCK) return;
         if (event.world == null || event.world.isRemote) return;
-        // Robots and drones hold items and click blocks too — OpenComputers' agent posts this
+        // Robots and drones hold items and click blocks too - OpenComputers' agent posts this
         // very event. Only somebody with a connection has a hotbar this means anything in.
         if (!(event.entityPlayer instanceof EntityPlayerMP) || event.entityPlayer instanceof FakePlayer) return;
 
-        // The held stack, not a parameter, because this event carries none — and that is correct
+        // The held stack, not a parameter, because this event carries none - and that is correct
         // under Backhand precisely because Backhand swaps the held slot around offhand use.
         ItemStack held = event.entityPlayer.getHeldItem();
         if (held == null || !(held.getItem() instanceof TamperTool)) return;
@@ -120,7 +120,7 @@ public final class TamperEvents {
      * <p>
      * The client is the side that matters here. With the break speed at zero it never completes
      * a dig, so it never removes the block from its own copy of the world and never re-sends the
-     * packet that would repeat the gesture — one press gives one gesture, and moving the
+     * packet that would repeat the gesture - one press gives one gesture, and moving the
      * crosshair to the next square gives exactly one more, which is what laying out a path
      * wants. On the server the same answer stops a click being read as an instant harvest.
      *
@@ -141,7 +141,7 @@ public final class TamperEvents {
      * <p>
      * Creative is what this is for. There the client re-sends the dig packet every five ticks
      * for as long as the button is held, whatever the block's hardness, and there is no packet
-     * at all for letting go — so a clock is the only thing that can tell a press from a hold.
+     * at all for letting go - so a clock is the only thing that can tell a press from a hold.
      */
     private boolean offCooldown(EntityPlayer player, int x, int y, int z) {
         int[] last = lastGesture.get(player);

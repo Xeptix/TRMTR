@@ -704,15 +704,42 @@ public class WearSprite {
     }
 
     /**
-     * The {@code .mcmeta} that tells the atlas this is animated, and how fast.
+     * The {@code .mcmeta} that tells the atlas this is animated, and how fast: the layer's own timing, read from the
+     * same file the unworn block's comes from, so the worn picture keeps step with the block beside it.
      *
      * <p>
-     * Only the default frame time is written, not a frame list. The strip is built in the layer's own frame order,
-     * so the frames are already where a plain animation expects them - a list would be the identity, written out.
+     * The strip is built in the order the image stores its frames, so a layer that declares only a frame time - as
+     * vanilla's water does - needs nothing more. A layer that declares a frame list, or a time per frame, has it
+     * written out here as it declared it, indices into the same order: until 0.9.222 only the default time was
+     * written, so a list such as lava's, which plays its frames forward and back, was played straight through and the
+     * worn liquid fell out of step with the unworn (spec GT39).
      */
     private String animationMeta(int count) {
+        return animationMeta(layerAnimation, count);
+    }
+
+    /** The same, for any animation and frame count - what the instance writes, and what a test can ask. */
+    static String animationMeta(net.minecraft.client.resources.metadata.animation.AnimationMetadataSection layerAnimation,
+        int count) {
         int time = Math.max(1, layerAnimation.getDefaultFrameTime());
-        return "{\"animation\":{\"frametime\":" + time + "}}";
+        StringBuilder meta = new StringBuilder("{\"animation\":{\"frametime\":").append(time);
+        if (layerAnimation.isInterpolatedFrames()) meta.append(",\"interpolate\":true");
+        int declared = layerAnimation.getFrameCount();
+        if (declared > 0) {
+            meta.append(",\"frames\":[");
+            for (int at = 0; at < declared; at++) {
+                int index = Math.max(0, Math.min(count - 1, layerAnimation.getFrameIndex(at)));
+                if (at > 0) meta.append(',');
+                meta.append("{\"index\":")
+                    .append(index)
+                    .append(",\"time\":")
+                    .append(Math.max(1, layerAnimation.getFrameTime(at)))
+                    .append('}');
+            }
+            meta.append(']');
+        }
+        return meta.append("}}")
+            .toString();
     }
 
     /**

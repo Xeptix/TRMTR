@@ -12,7 +12,7 @@ import com.trmtgtnh.surface.SurfaceShape;
  * <p>
  * There are two ghost classes rather than one, and the split is forced. Only a block that
  * genuinely {@code extends BlockGrass} can be handed back from MixinGrassTint, whose target
- * expression is typed to that class — so the grass variants have to be one. But being one is
+ * expression is typed to that class - so the grass variants have to be one. But being one is
  * a claim other mods read: JourneyMap keys its biome-tint flag off
  * {@code BlockGrass.class.isAssignableFrom(...)}, which is why worn sand, stone and cobble
  * drew as flat grey on the map for as long as every ghost inherited from grass. Java allows

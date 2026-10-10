@@ -26,8 +26,8 @@ import cpw.mods.fml.relauncher.SideOnly;
  * The ghost variant for worn grass, which really is a {@link BlockGrass}.
  *
  * <p>
- * Identical in behaviour to {@link BlockGhost} — every method here forwards to the same
- * {@link GhostLogic} call — and separate only because it must inherit from grass while the
+ * Identical in behaviour to {@link BlockGhost} - every method here forwards to the same
+ * {@link GhostLogic} call - and separate only because it must inherit from grass while the
  * other families must not. MixinGrassTint's target expression is typed to {@code BlockGrass},
  * so what it hands back has to be one; and the renderer's side-overlay treatment, which is
  * what makes worn turf look like turf rather than like green-tinted dirt, keys off the same
@@ -83,7 +83,7 @@ public class BlockGhostGrass extends BlockGrass implements GhostBlock {
         setHarvestLevel(GhostLogic.harvestToolFor(appearance), 0);
         // Everything BlockGrass switches on in its own constructor, switched back off. Its
         // update tick spreads turf onto neighbours and reverts in low light, both by writing
-        // blocks — which for something that exists only as a client-side cover would be a way to
+        // blocks - which for something that exists only as a client-side cover would be a way to
         // edit a world nobody asked it to touch. It is disabled here and overridden below.
         slipperiness = GhostLogic.slipperinessFor(appearance);
         setTickRandomly(false);
@@ -188,7 +188,7 @@ public class BlockGhostGrass extends BlockGrass implements GhostBlock {
 
     /**
      * Flat white. Inherited, this returns grass's fixed green, which is what breaking particles
-     * and held-item rendering would use — so a worn patch would throw up green dust. The living,
+     * and held-item rendering would use - so a worn patch would throw up green dust. The living,
      * per-position tint is {@link #colorMultiplier}, which is separate.
      */
     @SideOnly(Side.CLIENT)

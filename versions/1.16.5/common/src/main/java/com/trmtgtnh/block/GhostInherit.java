@@ -199,6 +199,126 @@ public final class GhostInherit {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Breaking it, and growing on it: the covered block's answers (0.9.222)
+    // ------------------------------------------------------------------
+
+    /**
+     * The block a square's break speed is asked of: the one it covers, and where nothing is recorded under it, its
+     * family's own block - see {@link GhostFamily#standIn}. Null with no record at all, where the ghost answers for
+     * itself.
+     *
+     * <p>
+     * The 1.7.10 edition gets the second half from its stand-in per family, whose hardness, material and harvest tool
+     * are that family's block's; one ghost here has one of each, so the family's block is asked instead.
+     */
+    static BlockState answeringFor(Block ghost, BlockGetter world, BlockPos pos) {
+        BlockState covered = coveredAt(ghost, pos);
+        if (covered != null) return covered;
+        com.trmtgtnh.surface.SurfaceFamily family = GhostFamily.familyAt(world, pos);
+        return family == null ? null : GhostFamily.standIn(family);
+    }
+
+    /**
+     * The real block under a ghost at a square, or null when nothing trustworthy is recorded - the 1.7.10 edition's
+     * {@code GhostLogic.coveredAt}: never the ghost itself, never another ghost.
+     */
+    public static BlockState coveredAt(Block ghost, BlockPos pos) {
+        if (pos == null) return null;
+        int packed = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        if (packed < 0) return null;
+        BlockState origin = Block.stateById(packed);
+        if (origin == null || origin.getBlock() == ghost || origin.getBlock() instanceof BlockGhost) return null;
+        return origin;
+    }
+
+    /**
+     * How fast this player breaks the covered block, tool and all, or NaN to let the ghost answer - the 1.7.10
+     * edition's {@code GhostLogic.blockHardness} and {@code breakSpeed} in one, because this version asks them as one
+     * (spec GF11, GF12).
+     *
+     * <p>
+     * A break is the player's speed against the block, over its hardness, over thirty where the tool can harvest it and
+     * a hundred where it cannot; asked of the ghost, every square was 0.6 of ground that needs no tool, so worn ground a
+     * pack gates behind a better pick broke three times too fast on the client and was put back by the server. That
+     * edition works the sum out itself rather than hand it to the covered block, because the covered block would read
+     * the world's metadata at its square and find the wear stage there. This version's answer is worked out from the
+     * state it is handed - its hardness, and whether the tool suits it, are the state's own, on both loaders - and the
+     * world it is handed is {@link OriginView}, which holds the covered block at its square. So the whole question can
+     * go to the covered block, its own override, Forge's harvest levels and all, without coming back here; and an
+     * unbreakable block answers nought, as it does for itself. Guarded besides, as everything here is.
+     *
+     * <p>
+     * That edition turns away a world that is not a client's first; here {@code Client} does, answering nothing
+     * recorded where there is no client, so the square is never asked about on a server.
+     */
+    public static float destroyProgress(Block ghost, net.minecraft.world.entity.player.Player player,
+        BlockGetter world, BlockPos pos) {
+        if (player == null) return Float.NaN;
+        BlockState covered = answeringFor(ghost, world, pos);
+        if (covered == null) return Float.NaN;
+        if (!enter()) return Float.NaN;
+        try {
+            return covered.getDestroyProgress(player, new OriginView(world, pos, covered), pos);
+        } catch (RuntimeException awkwardBlock) {
+            return Float.NaN;
+        } finally {
+            leave();
+        }
+    }
+
+    /**
+     * Whether the covered block would hold a plant, or null to let the ghost answer - the 1.7.10 edition's
+     * {@code GhostLogic.sustainsPlant} (spec GF15), for Forge, which asks a block this by identity.
+     *
+     * <p>
+     * The question itself is Forge's ({@code canSustainPlant}, with a plant type this module cannot name), so the Forge
+     * module asks it and this does everything around it: finds the covered block, hands it a view that holds it at its
+     * own square, and guards against the question coming back here, as that edition's does.
+     */
+    public static Boolean sustainsPlant(Block ghost, BlockGetter world, BlockPos pos,
+        java.util.function.BiPredicate<BlockState, BlockGetter> ask) {
+        BlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return Boolean.valueOf(ask.test(covered, new OriginView(world, pos, covered)));
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
+    }
+
+    /**
+     * The ground a plant is asked to stand on: the block a ghost covers, where the ground is a ghost, and otherwise the
+     * ground itself - for Fabric, whose plants decide this themselves rather than asking the block (spec GF15).
+     *
+     * <p>
+     * Vanilla's plants check the block below them by identity - grass, dirt, sand - and a ghost is none of those
+     * whatever it is drawn as, so the client refused a sapling on worn ground that the server would have taken. Forge
+     * puts the question to the block ({@code canSustainPlant}, answered by {@link #sustainsPlant}); Fabric's mixins put
+     * the plant's own question to the covered block instead, at the same four places Forge asks it: a bush, a mushroom,
+     * a cactus and a reed. Nothing here calls into the covered block, so nothing can come back round.
+     */
+    public static BlockState soilFor(BlockState ground, BlockPos pos) {
+        if (ground == null || !(ground.getBlock() instanceof BlockGhost)) return ground;
+        BlockState covered = coveredAt(ground.getBlock(), pos);
+        return covered == null ? ground : covered;
+    }
+
+    /**
+     * The world a plant's question about a ghost's square is asked through: one holding the covered block there, as the
+     * Forge question is asked, so a plant that looks at the square it was told about finds what it was told.
+     */
+    public static BlockGetter soilView(BlockGetter world, BlockPos pos) {
+        if (world == null || pos == null) return world;
+        BlockState ground = world.getBlockState(pos);
+        if (!(ground.getBlock() instanceof BlockGhost)) return world;
+        BlockState covered = coveredAt(ground.getBlock(), pos);
+        return covered == null ? world : new OriginView(world, pos, covered);
+    }
+
     /**
      * Whether this machine is the one predicting where this entity goes.
      *

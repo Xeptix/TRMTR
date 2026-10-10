@@ -209,7 +209,7 @@ public final class GolemMasonry {
             // whole of what was wrong here. Ground the golem walks over and mends is ground it can
             // lay a mouthful into, and a square is passed over rather than aborting the column.
             int y = GolemWork.surfaceNear(world, x, anchor[1], z);
-            if (y < 0) continue;
+            if (y == GolemWork.NO_SURFACE) continue;
             SurfaceFamily family = SurfaceRegistry
                 .familyOf(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z));
             if (family == null || !family.staged) continue;

@@ -11,8 +11,8 @@ import com.trmtgtnh.erosion.ErosionState;
  * What the client believes is worn, and what was underneath before it painted over.
  *
  * <p>
- * Read from Celeritas' chunk-meshing worker threads — {@code getIcon} and
- * {@code colorMultiplier} are called there, once per face — and written from the client
+ * Read from Celeritas' chunk-meshing worker threads - {@code getIcon} and
+ * {@code colorMultiplier} are called there, once per face - and written from the client
  * tick. Rather than lock a hot path, each chunk's overlay is an immutable
  * {@link ChunkOverlay} of parallel arrays published into a concurrent map. Updates rebuild
  * the array for one chunk and swap it in; readers binary-search whatever snapshot they got

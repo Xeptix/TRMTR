@@ -146,12 +146,14 @@ public class ItemChunkTamper extends Item implements TamperTool {
         NBTTagCompound tag = stack.getTagCompound()
             .getCompoundTag(TAG_ROOT);
         if (!tag.hasKey(TAG_STEPS)) return 1;
-        return clamp(tag.getInteger(TAG_STEPS), 1, 16);
+        // Held to the setting rather than to sixteen, as reach is held to its own: a lowered chunkTamperMaxSteps, or a
+        // settings packet, went past it until 0.9.222 (spec TA47).
+        return clamp(tag.getInteger(TAG_STEPS), 1, Math.max(1, TrmtConfig.chunkTamperMaxSteps));
     }
 
     public static void setSteps(ItemStack stack, int steps) {
         NBTTagCompound tag = own(stack);
-        if (tag != null) tag.setInteger(TAG_STEPS, clamp(steps, 1, 16));
+        if (tag != null) tag.setInteger(TAG_STEPS, clamp(steps, 1, Math.max(1, TrmtConfig.chunkTamperMaxSteps)));
     }
 
     /**
@@ -511,7 +513,7 @@ public class ItemChunkTamper extends Item implements TamperTool {
      * controls expand with the same shift the rest of the tooltip uses.
      */
     @SideOnly(Side.CLIENT)
-    private void addModeLines(ItemStack stack, List<String> tooltip) {
+    protected void addModeLines(ItemStack stack, List<String> tooltip) {
         boolean reinforce = reinforceActive(stack);
         boolean ward = wardActive(stack);
         boolean light = lightActive(stack);

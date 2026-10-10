@@ -10,7 +10,8 @@ import net.minecraft.world.item.ItemStack;
 import com.trmtgtnh.item.ItemChunkTamper;
 
 /**
- * How much damage a chunk tamper may take, which depends on the stack and not on the item.
+ * How much damage a tamper may take - the chunk tamper, the Wayfarer, the hand tamper - which depends on the stack and
+ * not on the item.
  *
  * <p>
  * <strong>Without this every grade of tamper lasts exactly as long as every other.</strong> A grade
@@ -36,6 +37,13 @@ public abstract class MixinItemStack {
         ItemStack self = (ItemStack) (Object) this;
         if (self.getItem() instanceof ItemChunkTamper) {
             callback.setReturnValue(Integer.valueOf(((ItemChunkTamper) self.getItem()).maxDamageOf(self)));
+        }
+        // The hand tamper too, which keeps its grade the same way: until 0.9.222 only the chunk tamper was asked, and on
+        // this loader every grade of hand tamper lasted its declared figure (spec TA13). Forge's ForgeTampers answers
+        // all three.
+        if (self.getItem() instanceof com.trmtgtnh.item.ItemGradedTamper) {
+            callback.setReturnValue(
+                Integer.valueOf(((com.trmtgtnh.item.ItemGradedTamper) self.getItem()).maxDamageOf(self)));
         }
     }
 }

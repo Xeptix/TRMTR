@@ -11,7 +11,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * The old record held a family and a stage, and how far the ground had physically dropped was
  * worked out from that stage's place in its family's run: the last few stages sank, the earlier
  * ones only discolored. Depth is a stored number now, so the conversion has to answer two
- * questions that used to be one — how far down is this, and how worn does it look.
+ * questions that used to be one - how far down is this, and how worn does it look.
  *
  * <p>
  * Both answers come from the same place the old code got them, which is the point: this asks the
@@ -89,7 +89,7 @@ final class LegacyErosionFormat {
      * <p>
      * A stage two of five and a layer two of sixteen are not the same amount of wear, so this
      * maps the position along the run rather than the number itself. Families that kept their
-     * count — grass at sixteen — come through unchanged.
+     * count - grass at sixteen - come through unchanged.
      */
     private static int legacyLayer(SurfaceFamily family, int stage, int oldStages) {
         FamilySettings settings = TrmtConfig.family(family);

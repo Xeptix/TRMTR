@@ -137,13 +137,13 @@ public final class ErosionEngine {
         int x = Mth.floor(mover.getX());
         // The bottom of the collision box, not the entity's position. They differ exactly when
         // it matters: once ground has sunk, its collision top is below the block boundary, so
-        // "position minus one" names the block underneath instead — and that one is covered, so
+        // "position minus one" names the block underneath instead - and that one is covered, so
         // it is rejected. Wear stopped accumulating the moment a rut started to form, which is
         // the opposite of what should happen.
         int y = Mth.floor(mover.getBoundingBox().minY - 0.001D);
         int z = Mth.floor(mover.getZ());
 
-        long packed = ((long) x << 40) ^ ((long) (y & 0xFF) << 32) ^ (z & 0xFFFFFFFFL);
+        long packed = ((long) x << 48) ^ ((long) (y & 0xFFFF) << 32) ^ (z & 0xFFFFFFFFL);
         long[] previous = lastGround.get(walker);
         if (previous != null && previous[0] == packed) return; // still on the same block
         if (previous == null) {
@@ -333,6 +333,9 @@ public final class ErosionEngine {
         java.util.Set<Long> doomed) {
         if (world == null || world.isClientSide() || radius <= 0f) return;
         if (!TrmtConfig.explosionWear || TrmtConfig.explosionStrength <= 0f) return;
+        // Wearing asks the dimension list, as walking and the tamper do: the setting's own words put the test before
+        // anything is worn, and a dimension it rules out was being scoured by blasts and landings (0.9.222, spec SD47).
+        if (!com.trmtgtnh.erosion.Dimensions.allowed(world)) return;
 
         // The ground a charge scours is wider than the hole it digs, so the reach is the
         // blast's own radius scaled up rather than the radius itself.
@@ -373,6 +376,8 @@ public final class ErosionEngine {
     public void impact(Level world, double centreX, double centreY, double centreZ, float drop, float multiplier) {
         if (world == null || world.isClientSide() || multiplier <= 0f) return;
         if (!TrmtConfig.fallWear || TrmtConfig.fallStrength <= 0f) return;
+        // The same for a landing (spec SD47).
+        if (!com.trmtgtnh.erosion.Dimensions.allowed(world)) return;
         // Below this a landing is one somebody walked into rather than fell, and it is already
         // counted as a step. It is also where vanilla stops doing damage.
         if (drop < TrmtConfig.fallMinDistance) return;
@@ -434,6 +439,14 @@ public final class ErosionEngine {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF);
     }
 
+    /**
+     * Whether a block is a carpet: carpet's material at this version, the material settling asks after too
+     * ({@code PhysicalDecay.restsOnTheGround}), so a mod's carpet is one as well.
+     */
+    static boolean isCarpet(BlockState state) {
+        return state != null && state.getMaterial() == net.minecraft.world.level.material.Material.CLOTH_DECORATION;
+    }
+
     /** Records wear at one position and advances its appearance if the threshold is met. */
     public void step(Level world, int x, int y, int z, float amount) {
         if (y < TrmtConfig.minY || y > TrmtConfig.maxY) return;
@@ -448,6 +461,15 @@ public final class ErosionEngine {
         // the ground answer for itself. A single layer needs none of this: its collision box is of
         // no height at all, so the feet were already standing on the ground.
         if (TrmtConfig.snowCovers && y - 1 >= TrmtConfig.minY && SnowCover.isSnowLayer(ground)) {
+            y--;
+            ground = com.trmtgtnh.util.Worlds.stateAt(world, x, y, z);
+        }
+
+        // A carpet the same way, and always (0.9.222, spec SC14). It collides a sixteenth up at this version, so the
+        // feet stand in its cell and the step arrived addressed to the carpet and was dropped: ground under a carpet
+        // never wore from being walked on. 1.7.10's carpet has a collision box of no height, so the feet are on the
+        // ground and the ground wears, the carpet sheltering nothing - only an opaque cube does, just below.
+        if (y - 1 >= TrmtConfig.minY && isCarpet(ground)) {
             y--;
             ground = com.trmtgtnh.util.Worlds.stateAt(world, x, y, z);
         }
@@ -705,7 +727,10 @@ public final class ErosionEngine {
      * coordinates.
      */
     public void healChunk(Level world, int chunkX, int chunkZ, ChunkErosionData data, boolean notifyClients) {
-        if (!TrmtConfig.healingEnabled || data.isEmpty()) return;
+        // The master switch as well: off, every record is kept as it stands, and a chunk arriving was being caught up
+        // while the loaded ones stood still (0.9.222, spec WH8). Its time is not lost - the records keep their clocks,
+        // and the first sweep once the switch is on again heals what they are owed.
+        if (!TrmtConfig.enabled || !TrmtConfig.healingEnabled || data.isEmpty()) return;
 
         LevelChunk chunk = world.getChunk(chunkX, chunkZ);
         if (chunk == null) return;
@@ -787,6 +812,7 @@ public final class ErosionEngine {
                 }
                 data.remove(key);
                 if (wasVisible && notifyClients) TrmtNetwork.sendDelta(world, x, y, z, ErosionState.NONE);
+                if (notifyClients) dropLight(world, x, y, z, entry);
                 continue;
             }
 
@@ -1031,7 +1057,7 @@ public final class ErosionEngine {
         // signal that somebody planted this. Without it, tallies that last would bring down a village's
         // fields and a player's own crops at the pace of the harvesting.
         if (target == SurfaceFamily.VEGETATION && !TrmtConfig.groundCoverOnTilled
-            && y > 0
+            && y > com.trmtgtnh.util.Heights.bottom(world)
             && com.trmtgtnh.util.Worlds.blockAt(world, x, y - 1, z) == Blocks.FARMLAND) return;
 
         // Snow lying on a leaf takes the crossing in the leaf's place until it has been trodden through,
@@ -1099,6 +1125,7 @@ public final class ErosionEngine {
         data.markDirty();
         ErosionStore.get()
             .markModified(world, x >> 4, z >> 4);
+        dropLight(world, x, y, z, entry);
 
         // Sound and particles as though it had been broken. Spelled out rather than calling the world's
         // own destroy helper, which is unmapped here.
@@ -1133,7 +1160,7 @@ public final class ErosionEngine {
      */
     private static int leafUnderfoot(Level world, int x, int y, int z) {
         if (!TrmtConfig.trampleLeaves) return -1;
-        if (y < 0 || y > 255) return -1;
+        if (!com.trmtgtnh.util.Heights.holds(world, y)) return -1;
         if (!com.trmtgtnh.util.Worlds.loaded(world, x, y, z)) return -1;
 
         BlockState ground = com.trmtgtnh.util.Worlds.stateAt(world, x, y, z);
@@ -1159,7 +1186,7 @@ public final class ErosionEngine {
      * anything about the leaf, so a dedicated server and a single-player world would disagree.
      */
     private static boolean covered(Level world, int x, int y, int z) {
-        if (y >= 255) return false;
+        if (y >= com.trmtgtnh.util.Heights.top(world)) return false;
         BlockState above = com.trmtgtnh.util.Worlds.stateAt(world, x, y + 1, z);
         if (above == null || com.trmtgtnh.util.Worlds.isAir(world, x, y + 1, z)) return false;
         if (SnowCover.isSnowLayer(above)) return false;
@@ -1259,6 +1286,7 @@ public final class ErosionEngine {
         ErosionStore.get()
             .markModified(world, x >> 4, z >> 4);
         if (wasVisible) TrmtNetwork.sendDelta(world, x, y, z, ErosionState.NONE);
+        dropLight(world, x, y, z, entry);
 
         orphans.put(
             orphanKey(ErosionStore.get().indexOf(world), x, y, z),
@@ -1295,11 +1323,25 @@ public final class ErosionEngine {
                     .markModified(world, chunkX, chunkZ);
                 orphans.remove(key);
                 if (orphan.entry.isVisible()) TrmtNetwork.sendDelta(world, x, y, z, orphan.entry.packState());
+                if (orphan.entry.getLight() != 0) TrmtNetwork.sendLightDelta(world, x, y, z, orphan.entry.getLight());
                 return;
             }
             // A different block inside the window: the record keeps waiting for the original.
         }
         forget(world, x, y, z);
+    }
+
+    /**
+     * A record gone, or set aside, with a glow on it: the clients are told it is out, as putting it out tells them.
+     *
+     * <p>
+     * Their light caches are filled by chunk and corrected by this one packet alone - a chunk with nothing lit in
+     * it sends no light packet to say so - so until 0.9.222 a glow lost to the sweep, a break or a trample stayed on
+     * every client that had seen it until the chunk unloaded, and came back drawn the moment new wear was painted
+     * on that square. The server's world has no light to put right: its block never glowed.
+     */
+    private static void dropLight(Level world, int x, int y, int z, ErosionEntry entry) {
+        if (entry != null && entry.getLight() != 0) TrmtNetwork.sendLightDelta(world, x, y, z, 0);
     }
 
     /** Drops the records whose block never came back. Cheap, and usually over an empty map. */
@@ -1337,6 +1379,7 @@ public final class ErosionEngine {
         boolean wasVisible = entry.isVisible();
         data.remove(key);
         if (wasVisible) TrmtNetwork.sendDelta(world, x, y, z, ErosionState.NONE);
+        dropLight(world, x, y, z, entry);
     }
 
     /**
@@ -1662,7 +1705,7 @@ public final class ErosionEngine {
                     int at = x + dx;
                     int up = y + dy;
                     int over = z + dz;
-                    if (up < 0 || up > 255) continue;
+                    if (!com.trmtgtnh.util.Heights.holds(world, up)) continue;
                     if (!com.trmtgtnh.util.Worlds.loaded(world, at, up, over)) continue;
                     if (!work.apply(world, at, up, over)) continue;
                     changed++;

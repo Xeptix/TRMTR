@@ -338,6 +338,25 @@ final class DemoYard {
         if (!loadedAt(world, x, y, z) || !loadedAt(world, x + 1, y, z)) return;
         int placed = CommandTrmt.placeContainer(world, x, y, z, contents, 0);
         if (placed < contents.size()) CommandTrmt.placeContainer(world, x + 1, y, z, contents, placed);
+        joinChests(world, x, y, z);
+    }
+
+    /**
+     * Makes two chests side by side one double chest, as the other edition's do by touching. At this version two
+     * chests join only when a player places the second against the first, so the pair stood as two singles until
+     * 0.9.222 (spec CM78). Facing the same way, the west one is the left half and connects east.
+     */
+    private static void joinChests(Level world, int x, int y, int z) {
+        net.minecraft.core.BlockPos west = new net.minecraft.core.BlockPos(x, y, z);
+        net.minecraft.core.BlockPos east = west.east();
+        net.minecraft.world.level.block.state.BlockState one = world.getBlockState(west);
+        net.minecraft.world.level.block.state.BlockState other = world.getBlockState(east);
+        if (!(one.getBlock() instanceof net.minecraft.world.level.block.ChestBlock) || other.getBlock() != one.getBlock()) return;
+        net.minecraft.core.Direction facing = net.minecraft.core.Direction.NORTH;
+        world.setBlock(west, one.setValue(net.minecraft.world.level.block.ChestBlock.FACING, facing)
+            .setValue(net.minecraft.world.level.block.ChestBlock.TYPE, net.minecraft.world.level.block.state.properties.ChestType.LEFT), 2);
+        world.setBlock(east, other.setValue(net.minecraft.world.level.block.ChestBlock.FACING, facing)
+            .setValue(net.minecraft.world.level.block.ChestBlock.TYPE, net.minecraft.world.level.block.state.properties.ChestType.RIGHT), 2);
     }
 
     /**
@@ -421,7 +440,9 @@ final class DemoYard {
     private static List<ItemStack> healingBlocks() {
         List<ItemStack> out = new ArrayList<ItemStack>();
         out.add(new ItemStack(Blocks.DIRT, 64));
-        out.add(new ItemStack(Blocks.GRASS, 64));
+        // The grass block. Blocks.GRASS is the plant at this version, so until 0.9.222 every pen and its chest carried
+        // tufts of grass where the other edition hands over turf (spec CM79).
+        out.add(new ItemStack(Blocks.GRASS_BLOCK, 64));
         out.add(new ItemStack(Blocks.GRAVEL, 64));
         out.add(new ItemStack(Blocks.COBBLESTONE, 64));
         out.add(new ItemStack(Blocks.SAND, 64));
@@ -534,7 +555,17 @@ final class DemoYard {
     }
 
     private static void place(Level world, int x, int y, int z, Block block, int meta, int flags) {
-        world.setBlock(new net.minecraft.core.BlockPos(x, y, z), block.defaultBlockState(), flags);
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(x, y, z);
+        net.minecraft.world.level.block.state.BlockState state = block.defaultBlockState();
+        // A standing sign's metadata was its rotation, which it keeps as a property here: meta eight faces along the
+        // row, and the default faced the wall until 0.9.222 (spec CM80).
+        if (meta != 0 && state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.ROTATION_16)) {
+            state = state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.ROTATION_16, meta & 15);
+        }
+        // And what its neighbours make of it, as a block placed by hand gets: a fence laid in its default state joins
+        // only the neighbours set after it, so every rail was broken on one side (spec CM77).
+        state = Block.updateFromNeighbourShapes(state, world, pos);
+        world.setBlock(pos, state, flags);
     }
 
     /** A box from two corners, which 1.12.2 builds rather than hands out. */

@@ -28,7 +28,9 @@ import net.minecraft.world.level.block.state.BlockState;
 @Mixin(Block.class)
 public abstract class MixinSettledFaces {
 
-    @Inject(method = "shouldRenderFace", at = @At("RETURN"), cancellable = true)
+    // Optional, as the 1.7.10 edition's cosmetic hooks are: its loss costs a picture, where a required one that a
+    // pack's renderer had moved would stop the game from starting (0.9.222, spec SU21).
+    @Inject(method = "shouldRenderFace", at = @At("RETURN"), cancellable = true, require = 0)
     private static void trmt$keepSettledFace(BlockState state, BlockGetter level, BlockPos pos, Direction face,
         CallbackInfoReturnable<Boolean> callback) {
         // Two windows side by side hide the face between them, the way two panes of glass do - the 1.7.10 edition's

@@ -23,7 +23,7 @@ import io.netty.buffer.ByteBuf;
  * Client to server: "how worn is the block I am looking at, exactly?"
  *
  * <p>
- * The client already knows which surface and stage a position wears — that is what it is drawing. What it
+ * The client already knows which surface and stage a position wears - that is what it is drawing. What it
  * cannot know is the progress toward the next stage, how long the ground has been left alone, and whether
  * the block carries a reinforcement or a spawn ward, because all of those live only in the server's record,
  * and the last two can sit on any block, worn or not. Rather than pay for those on every position in every
@@ -69,8 +69,8 @@ public class PacketInspect implements IMessage {
      * How long until this position next recovers a stage, or -1 when it never will.
      *
      * <p>
-     * Worked out here rather than on the client for two reasons. Healing happens in two steps —
-     * partial wear bleeds off first, and only then does a whole stage cost its healing time — so
+     * Worked out here rather than on the client for two reasons. Healing happens in two steps -
+     * partial wear bleeds off first, and only then does a whole stage cost its healing time - so
      * an estimate that counts just the second one is short by however much wear has built up.
      * And the rates come from the server's config, which is the one that governs; a client on
      * someone else's server has its own copy and no reason to think it matches.

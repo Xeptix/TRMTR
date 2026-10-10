@@ -61,7 +61,7 @@ public final class WearDrops {
         float chance) {
         if (world == null || world.isClientSide() || base == null) return null;
         if (!TrmtConfig.wearDropsEnabled || chance <= 0f) return null;
-        if (y <= 1) return null;
+        if (y <= com.trmtgtnh.util.Heights.bottom(world) + 1) return null;
 
         // buried: not a top-level block. An opaque cube above, as the other editions ask it - until 0.9.220 this
         // asked canOcclude, which a snow layer or a carpet says yes to (see Worlds.isOpaque).
@@ -113,8 +113,7 @@ public final class WearDrops {
     }
 
     /**
-     * One seed off vanilla's grass table, or null - which is the ordinary answer, since the table
-     * gives up a seed about one time in eight.
+     * One seed off vanilla's grass table, rolled until it gives one, or null when it never does.
      *
      * <p>
      * A loot table is server-side data, so a client-side call gets nothing rather than a guess.
@@ -132,20 +131,31 @@ public final class WearDrops {
      */
     private static ItemStack grassSeed(net.minecraft.world.level.Level world) {
         if (!(world instanceof net.minecraft.server.level.ServerLevel)) return null;
-        java.util.List<ItemStack> rolled = com.trmtgtnh.util.Worlds.drops(
-            (net.minecraft.server.level.ServerLevel) world,
-            net.minecraft.world.level.block.Blocks.GRASS.defaultBlockState(),
-            0,
-            0,
-            0);
-        if (rolled == null) return null;
-        for (ItemStack stack : rolled) {
-            if (stack != null && stack.getItem() != null && stack.getItem() != net.minecraft.world.level.block.Blocks.GRASS.asItem()) {
-                return stack;
+        // Rolled until it gives a seed, a bounded number of times. The 1.7.10 edition's seed table hands a seed over on
+        // every roll that reaches it, so a turf square sheds at the full wearDropChance; vanilla's grass table here
+        // gives one about one time in eight, and one roll shed at an eighth of the rate until 0.9.222 (spec WD62).
+        // Sixty-four rolls leave about one chance in five thousand of nothing, and a pack's own seeds still come in
+        // through the table.
+        for (int roll = 0; roll < SEED_ROLLS; roll++) {
+            java.util.List<ItemStack> rolled = com.trmtgtnh.util.Worlds.drops(
+                (net.minecraft.server.level.ServerLevel) world,
+                net.minecraft.world.level.block.Blocks.GRASS.defaultBlockState(),
+                0,
+                0,
+                0);
+            if (rolled == null) return null;
+            for (ItemStack stack : rolled) {
+                if (stack != null && !stack.isEmpty()
+                    && stack.getItem() != net.minecraft.world.level.block.Blocks.GRASS.asItem()) {
+                    return stack;
+                }
             }
         }
         return null;
     }
+
+    /** How many times vanilla's grass table is rolled for one seed. See {@link #grassSeed}. */
+    static final int SEED_ROLLS = 64;
 
     private static ItemStack dropFor(net.minecraft.world.level.Level world, SurfaceFamily base) {
         switch (base) {

@@ -15,7 +15,7 @@ import cpw.mods.fml.common.registry.GameRegistry;
  *
  * <p>
  * Registered on both sides for the reason the ghost blocks are: the id map is compared between
- * client and server on connect and has to agree. Nothing here is client-only — the texture name
+ * client and server on connect and has to agree. Nothing here is client-only - the texture name
  * is a plain field that exists on a dedicated server, and the sprite it names is only ever
  * looked up while an atlas is stitched, which no server does.
  *

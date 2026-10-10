@@ -38,7 +38,7 @@ import com.trmtgtnh.config.TrmtConfig;
  * between Biomes O' Plenty, Natura, Twilight Forest, Et Futurum, Thaumcraft, GregTech and
  * the rest. Naming them all in a config would go stale the moment the pack updates, so the
  * registry walks the block registry once at post-init and classifies by what a block
- * <em>is</em> — superclass, material, and a name check to keep the material rule from
+ * <em>is</em> - superclass, material, and a name check to keep the material rule from
  * swallowing near-misses like farmland, sandstone and soul sand. Per-family config lists
  * then add or remove individual entries.
  *
@@ -186,7 +186,7 @@ public final class SurfaceRegistry {
 
     /**
      * The family a block at this metadata belongs to, or null when it does not erode. Hot
-     * path — called per movement sample and per painted position.
+     * path - called per movement sample and per painted position.
      */
     public static SurfaceFamily familyOf(BlockState state) {
         return state == null ? null : familyOf(state.getBlock());
@@ -343,7 +343,7 @@ public final class SurfaceRegistry {
 
     /**
      * Rebuilds the table from the current block registry and config. Safe to call again at
-     * runtime — {@code /trmt reload} does exactly that.
+     * runtime - {@code /trmt reload} does exactly that.
      */
     public static void resolve() {
         Map<Integer, SurfaceFamily> built = new HashMap<Integer, SurfaceFamily>();
@@ -505,11 +505,27 @@ public final class SurfaceRegistry {
      * and asked defensively because it reaches arbitrary code in a 233-mod pack.
      */
     private static boolean keepsItsOwnState(Block block) {
-        // EntityBlock is the whole question here. 1.12.2 asks it of every metadata value as well,
+        // EntityBlock is the question the shared module can ask. 1.12.2 asks it of every metadata value as well,
         // because a block there may carry a tile entity for some subtypes and not others; 1.13 split
         // those subtypes into separate blocks, so a block either is one or is not.
         if (block instanceof EntityBlock) return true;
-        return false;
+        // And the loader's own (0.9.222, spec SD6 and SD30): a Forge mod at this version keeps a tile entity by
+        // overriding IForgeBlock.hasTileEntity(state) and need never implement EntityBlock, so the shared question
+        // alone let a modded machine be detected as ground.
+        try {
+            return block != null && keepsEntity.test(block);
+        } catch (RuntimeException awkwardBlock) {
+            // Asked defensively, as the rest of detection is: an answer that throws is a block not to touch.
+            return true;
+        }
+    }
+
+    /** The loader's word for whether a block keeps a tile entity, beyond EntityBlock; none until a loader says. */
+    private static volatile java.util.function.Predicate<Block> keepsEntity = block -> false;
+
+    /** Tells detection how this loader says a block keeps a tile entity. Called once by each loader module. */
+    public static void useEntityTest(java.util.function.Predicate<Block> test) {
+        keepsEntity = test == null ? block -> false : test;
     }
 
     /**
@@ -702,7 +718,7 @@ public final class SurfaceRegistry {
      * Ground somebody has already made something of, which should stay as they left it.
      *
      * <p>
-     * The bale entries are not tilled ground at all — a hay bale is built on the grass material,
+     * The bale entries are not tilled ground at all - a hay bale is built on the grass material,
      * so leading with material sweeps it in as turf. It is a stored crop sitting in a barn, not
      * a field anyone walks a path across.
      */
@@ -810,7 +826,7 @@ public final class SurfaceRegistry {
             int meta = ANY_META;
             String name = entry;
             int lastColon = entry.lastIndexOf(':');
-            // "modid:block:meta" — the metadata suffix is optional and may be "*".
+            // "modid:block:meta" - the metadata suffix is optional and may be "*".
             if (lastColon > 0 && entry.indexOf(':') != lastColon) {
                 String tail = entry.substring(lastColon + 1);
                 name = entry.substring(0, lastColon);
@@ -825,41 +841,45 @@ public final class SurfaceRegistry {
 
             if (excluded.contains(name.toLowerCase(Locale.ROOT))) continue;
 
-            // getOptional rather than get: the registry answers a missing name with air rather than
-            // with null, and a stale entry would otherwise quietly claim air as a surface.
-            Block block = net.minecraft.core.Registry.BLOCK
-                .getOptional(net.minecraft.resources.ResourceLocation.tryParse(name))
-                .orElse(null);
-            if (block == null) {
-                // Not an error: pack composition changes, and a stale entry should not shout.
-                Trmt.LOG.debug("Surface entry '{}' names a block that is not installed, skipping", entry);
-                continue;
-            }
-            int id = net.minecraft.core.Registry.BLOCK.getId(block);
-            if (id < 0) continue;
-            // A list is taken at its word about which family a block belongs to, but not about
-            // whether it can carry an overlay at all. Detection writes what it finds back into
-            // these lists and never removes an entry, so one bad name recorded on an older
-            // build would otherwise be re-added on every load for ever.
-            if (keepsItsOwnState(block)) {
-                Trmt.LOG.debug("Surface entry '{}' keeps a tile entity, skipping", entry);
-                continue;
-            }
-            // Nor about whether it is ground at all, for the block that never is. Detection on 0.9.218
-            // and earlier recorded frosted ice in the ice list of every config it ran in, and the list
-            // keeps it, so refusing it in detection alone left every world opened before the fix still
-            // laying it - which is how the 0.9.219 pass found the waterfall again in every instance.
-            if (neverGround(block)) {
-                Trmt.LOG.debug("Surface entry '{}' is never ground, skipping", entry);
-                continue;
-            }
+            // A name 1.13 retired stands for each block it became, so a list carried from 1.7.10 - and this edition's
+            // own vegetation list, which shipped the old spellings - still names its plants (0.9.222, spec SD32).
+            for (String current : com.trmtgtnh.util.OldNames.orSelf(name, meta)) {
+                // getOptional rather than get: the registry answers a missing name with air rather than
+                // with null, and a stale entry would otherwise quietly claim air as a surface.
+                Block block = net.minecraft.core.Registry.BLOCK
+                    .getOptional(net.minecraft.resources.ResourceLocation.tryParse(current))
+                    .orElse(null);
+                if (block == null) {
+                    // Not an error: pack composition changes, and a stale entry should not shout.
+                    Trmt.LOG.debug("Surface entry '{}' names a block that is not installed, skipping", entry);
+                    continue;
+                }
+                int id = net.minecraft.core.Registry.BLOCK.getId(block);
+                if (id < 0) continue;
+                // A list is taken at its word about which family a block belongs to, but not about
+                // whether it can carry an overlay at all. Detection writes what it finds back into
+                // these lists and never removes an entry, so one bad name recorded on an older
+                // build would otherwise be re-added on every load for ever.
+                if (keepsItsOwnState(block)) {
+                    Trmt.LOG.debug("Surface entry '{}' keeps a tile entity, skipping", entry);
+                    continue;
+                }
+                // Nor about whether it is ground at all, for the block that never is. Detection on 0.9.218
+                // and earlier recorded frosted ice in the ice list of every config it ran in, and the list
+                // keeps it, so refusing it in detection alone left every world opened before the fix still
+                // laying it - which is how the 0.9.219 pass found the waterfall again in every instance.
+                if (neverGround(block)) {
+                    Trmt.LOG.debug("Surface entry '{}' is never ground, skipping", entry);
+                    continue;
+                }
 
-            // One entry per block, whether or not the entry carried a :value suffix. A suffix is
-            // accepted and ignored rather than refused, so a settings file written for 1.7.10 or
-            // 1.12.2 still loads here and still means the block it names - which is the promise the
-            // settings file makes about moving between editions. What it cannot mean any more is one
-            // variant of that block, because those are separate blocks now and have their own names.
-            out.put(Integer.valueOf(id), family);
+                // One entry per block, whether or not the entry carried a :value suffix. A suffix is
+                // accepted and ignored rather than refused, so a settings file written for 1.7.10 or
+                // 1.12.2 still loads here and still means the block it names - which is the promise the
+                // settings file makes about moving between editions. What it cannot mean any more is one
+                // variant of that block, because those are separate blocks now and have their own names.
+                out.put(Integer.valueOf(id), family);
+            }
         }
     }
 
@@ -941,7 +961,7 @@ public final class SurfaceRegistry {
      *
      * <p>
      * Applied when a threshold is drawn, so it is paid once per position rather than per step,
-     * and healing is untouched — a path recovers at the same rate as anything else, it just
+     * and healing is untouched - a path recovers at the same rate as anything else, it just
      * takes much longer to wear in the first place.
      */
     public static float resistanceOf(BlockState state) {

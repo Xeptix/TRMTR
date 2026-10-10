@@ -75,6 +75,7 @@ public final class Settling {
         double drop = dropFor(world, pos);
         if (drop <= 0.0D) return null;
         noteShiftRan();
+        if (state.getBlock() instanceof BlockSnow) noteSnowShifted();
         return vanilla == null ? new Vec3d(0.0D, -drop, 0.0D) : vanilla.add(0.0D, -drop, 0.0D);
     }
 
@@ -126,5 +127,39 @@ public final class Settling {
         if (shiftSaid) return;
         shiftSaid = true;
         Trmt.LOG.info("Settling a block onto worn ground; the offset the block renderer draws it at is in place");
+    }
+
+    /**
+     * How many snow layers have been drawn down, and whether the face hook has ever run (0.9.222, spec SC32).
+     *
+     * <p>
+     * The face hook ({@code MixinSettledSnowFaces}) is injected without a requirement, as the 1.7.10 edition injects
+     * its culling hooks, so a renderer detail never takes a client down - and a hook that fails to bind then says
+     * nothing, leaving the step between two settled layers open along every rut. Vanilla asks a snow layer's every face
+     * whether to draw it, so a bound hook runs as soon as snow is drawn at all; thousands of layers drawn down with it
+     * never having run means it did not take, and this says so once, as the 1.7.10 edition does. Racy on purpose: a
+     * lost increment costs nothing and a lock on this path would cost everything.
+     */
+    private static int snowShifted;
+
+    private static volatile boolean faceHookRan;
+
+    private static boolean faceHookWarned;
+
+    /** Called by the face hook every time it runs, before it decides anything. */
+    public static void noteFaceHookRan() {
+        faceHookRan = true;
+    }
+
+    private static void noteSnowShifted() {
+        snowShifted++;
+        if (!faceHookRan && !faceHookWarned && snowShifted > 4096) {
+            faceHookWarned = true;
+            Trmt.error(
+                "Settling has drawn {} snow layers down onto worn ground and the hook that keeps the step between two of"
+                    + " them never ran, so a gap will show along the seam of a rut. That hook did not take; the one that"
+                    + " moves the block did, or this line could not have been reached.",
+                Integer.valueOf(snowShifted));
+        }
     }
 }

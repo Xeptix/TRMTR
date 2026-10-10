@@ -20,15 +20,15 @@ import com.trmtgtnh.erosion.ErosionState;
  * neither happens to it.
  *
  * <p>
- * Only the two right-click gestures live here. Left-click has no item hook in 1.7.10 — the one
- * place it surfaces is {@code PlayerInteractEvent}, which carries no {@link ItemStack} — so
+ * Only the two right-click gestures live here. Left-click has no item hook in 1.7.10 - the one
+ * place it surfaces is {@code PlayerInteractEvent}, which carries no {@link ItemStack} - so
  * those two are wired in {@link TamperEvents}. Both halves call the same methods on
  * {@link TamperActions}, which is where the rules actually are.
  *
  * <p>
  * Plain {@link Item} rather than {@code ItemTool} on purpose. Backhand and Battlegear both work
- * out which hand a click belongs to from the item's class — Backhand's test is literally
- * {@code ItemTool}, {@code ItemSword}, {@code ItemHoe} and TConstruct's harvest tool — so a tool
+ * out which hand a click belongs to from the item's class - Backhand's test is literally
+ * {@code ItemTool}, {@code ItemSword}, {@code ItemHoe} and TConstruct's harvest tool - so a tool
  * that is not a tool by that test is never routed anywhere this does not expect.
  */
 public class ItemTamper extends Item implements TamperTool {
@@ -86,7 +86,7 @@ public class ItemTamper extends Item implements TamperTool {
      * Vanilla has already decided this click is ours by the time it arrives: a block with
      * something to open consumed it at {@code onBlockActivated}, and sneaking skipped that step
      * for every held item rather than just this one. So there is no input to steal here, only
-     * the duty to hand back anything that turns out not to be worn ground — which is what the
+     * the duty to hand back anything that turns out not to be worn ground - which is what the
      * false returns are for.
      *
      * <p>
@@ -122,7 +122,7 @@ public class ItemTamper extends Item implements TamperTool {
      * <p>
      * Left-click is a gesture this tool answers rather than a dig, and the answer is given
      * server side from an event that fires long before this. Refusing here is what stops the
-     * client removing the block from its own copy of the world in the meantime — in creative,
+     * client removing the block from its own copy of the world in the meantime - in creative,
      * where one click destroys immediately and locally, it is the only thing that stops it.
      */
     @Override
@@ -159,7 +159,7 @@ public class ItemTamper extends Item implements TamperTool {
      * Anvil repair, in the same material the tool was made of.
      *
      * <p>
-     * By ore name, so an anvil takes whichever mod's iron the player happens to be holding — and
+     * By ore name, so an anvil takes whichever mod's iron the player happens to be holding - and
      * asked of the stack rather than of the name, because looking an ore id up by name registers
      * it, and a repair check has no business creating ore entries as a side effect.
      */

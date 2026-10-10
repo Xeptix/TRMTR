@@ -542,7 +542,7 @@ public final class QuestbookCompat {
             .rewardChoice("harvestcraft:toastItem", "harvestcraft:friedeggItem", "harvestcraft:butterItem");
         quests.add(wear);
 
-        Quest heal = quest(2, "And Forgets", 48, 96).icon(stack("minecraft:tallgrass", 1, 1))
+        Quest heal = quest(2, "And Forgets", 48, 96).icon(stack("minecraft:grass", 1, 0))
             .after(wear)
             .describe(
                 "Stop walking somewhere and it comes back on its own. Slowly - a stage takes tens of in-game days - but it does.\n\n[note]Point Waila at a worn block to see how far along it is and how long it has left. That readout is the fastest way to understand the whole mod.[/note]")
@@ -684,7 +684,11 @@ public final class QuestbookCompat {
         if (golems) golem.checkbox();
         addIfReal(quests, golem);
 
-        Quest golemBook = book(13, GuideBook.GOLEM, "Keeper of Paths", 288, 288).after(golem)
+        // Task-less with the golem off, as the rest of its branch is, so it drops out with them. Given its book to fetch
+        // regardless, it was written with its parent gone and stood open from the first minute - what the Wayfarer's
+        // quest is re-parented to avoid (0.9.222).
+        Quest golemBook = (golems ? book(13, GuideBook.GOLEM, "Keeper of Paths", 288, 288)
+            : quest(13, "Keeper of Paths", 288, 288)).after(golem)
             .describe(
                 "How to build it, what to put in it, and what each upgrade changes - the loose All Ways included.")
             .rewardBags(BAG_STEAM, 1);

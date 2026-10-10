@@ -122,13 +122,31 @@ public final class TamperGrade {
     // The set
     // ------------------------------------------------------------------
 
+    /** Whether the configured list has been read. Once, as the 1.7.10 edition reads it once, at post-init. */
+    private static volatile boolean read;
+
+    /** Whether which grades the pack can supply has been settled, which needs the tags to have arrived. */
+    private static volatile boolean settled;
+
     /**
-     * Reads the configured grades. Called once everything else has registered its items, so the
-     * ore dictionary can be asked what the pack really has.
+     * Works the grades out: called by the recipe build, once the tags are bound.
+     *
+     * <p>
+     * <strong>Once, on either side.</strong> The list itself asks nothing of the pack, so it is read the first time
+     * anything asks - a client of a dedicated server included, which never builds recipes; until 0.9.222 it was read
+     * only in that build, so such a client named, drew and barred every tamper as iron, with iron's reach (spec
+     * TA10). And read once, as the 1.7.10 edition does at post-init, rather than again at every datapack reload,
+     * where a changed list moved every grade and recipe at the next {@code /reload} (TA9). Which grades the pack can
+     * supply is a question for the tags, settled the first time they have arrived.
      */
     public static void resolve() {
+        read();
+        settle();
+    }
+
+    private static synchronized void read() {
+        if (read) return;
         Map<String, TamperGrade> built = new LinkedHashMap<String, TamperGrade>();
-        List<TamperGrade> found = new ArrayList<TamperGrade>();
 
         for (String raw : TrmtConfig.tamperGrades) {
             if (raw == null) continue;
@@ -164,19 +182,31 @@ public final class TamperGrade {
                 Math.max(1, uses),
                 Math.max(0, reach));
             built.put(grade.key, grade);
-            if (grade.present()) found.add(grade);
         }
 
         grades = built;
+        read = true;
+    }
+
+    /** Which configured grades the pack supplies, once the tags have arrived to say. */
+    private static synchronized void settle() {
+        if (settled || !com.trmtgtnh.util.OreNames.tagsArrived()) return;
+        List<TamperGrade> found = new ArrayList<TamperGrade>();
+        for (TamperGrade grade : grades.values()) {
+            if (grade.present()) found.add(grade);
+        }
         obtainable = found;
+        settled = true;
         Trmt.LOG.info(
             "{} tamper grades configured, {} of them available in this pack",
-            Integer.valueOf(built.size()),
+            Integer.valueOf(grades.size()),
             Integer.valueOf(found.size()));
     }
 
     /** Every grade this pack can actually supply, in configured order. */
     public static List<TamperGrade> available() {
+        read();
+        settle();
         List<TamperGrade> found = obtainable;
         if (found.isEmpty()) {
             List<TamperGrade> only = new ArrayList<TamperGrade>();
@@ -187,6 +217,7 @@ public final class TamperGrade {
     }
 
     public static TamperGrade byKey(String key) {
+        read();
         if (key != null) {
             TamperGrade grade = grades.get(key.toLowerCase(Locale.ROOT));
             if (grade != null) return grade;
@@ -202,6 +233,7 @@ public final class TamperGrade {
      * that lost its grade should still be a tamper rather than a crash.
      */
     public static TamperGrade fallback() {
+        read();
         for (TamperGrade grade : grades.values()) {
             return grade;
         }

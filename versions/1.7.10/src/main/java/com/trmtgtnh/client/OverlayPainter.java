@@ -363,7 +363,7 @@ public final class OverlayPainter {
             return false;
         }
         if (!canWear(family, appearance)) {
-            // The block here is erodable but not into this appearance — someone has replaced
+            // The block here is erodable but not into this appearance - someone has replaced
             // the grass with sand since the server last looked. Painting it would show sand
             // wearing like turf.
             return false;

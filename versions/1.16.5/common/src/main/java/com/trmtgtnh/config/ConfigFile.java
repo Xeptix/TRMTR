@@ -292,7 +292,10 @@ public final class ConfigFile {
         }
         setting.range = "[range: " + min + " ~ " + max + ", default: " + def + "]";
         setting.bound(min, max);
-        return held;
+        // Held to the range, as Forge's getInt and getFloat return it - the file keeps what was typed. Forge's other
+        // bounded getter, get(..., min, max), does not, and this file's had followed that one until 0.9.222, so a
+        // hand-typed stages=40 built a forty-layer run where the 1.7.10 edition reads sixteen (spec CF10).
+        return held < min ? min : held > max ? max : held;
     }
 
     public float getFloat(String name, String category, float def, float min, float max, String comment) {
@@ -307,7 +310,10 @@ public final class ConfigFile {
         }
         setting.range = "[range: " + min + " ~ " + max + ", default: " + def + "]";
         setting.bound(min, max);
-        return held;
+        // Held to the range, as Forge's getInt and getFloat return it - the file keeps what was typed. Forge's other
+        // bounded getter, get(..., min, max), does not, and this file's had followed that one until 0.9.222, so a
+        // hand-typed stages=40 built a forty-layer run where the 1.7.10 edition reads sixteen (spec CF10).
+        return held < min ? min : held > max ? max : held;
     }
 
     public String getString(String name, String category, String def, String comment) {

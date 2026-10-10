@@ -72,7 +72,10 @@ public class PacketTamperSettings implements IMessage {
 
                 @Override
                 public void run() {
+                    // The hand the game tried first, and so the one whose screen this is: the main hand where it holds a
+                    // chunk tamper, the off hand where only that does (0.9.222, spec TA50).
                     ItemStack held = player.getHeldItemMainhand();
+                    if (held == null || !(held.getItem() instanceof ItemChunkTamper)) held = player.getHeldItemOffhand();
                     // The item the player is holding right now, not the one they were holding
                     // when the screen opened. If they have swapped, there is nothing to set.
                     if (held == null || !(held.getItem() instanceof ItemChunkTamper)) return;

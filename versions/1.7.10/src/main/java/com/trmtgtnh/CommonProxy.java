@@ -31,7 +31,7 @@ public class CommonProxy {
         registerEntities();
         // The config screen posts its "you changed something" event on FML's bus and nowhere
         // else. Registered on the Forge bus, as this was, the listener is simply never called
-        // and pressing Done does nothing at all — not even write the file.
+        // and pressing Done does nothing at all - not even write the file.
         FMLCommonHandler.instance()
             .bus()
             .register(new TrmtConfig.ChangeListener());
@@ -242,15 +242,7 @@ public class CommonProxy {
         return null;
     }
 
-    /** Packed {@code blockId << 4 | meta} of the covered block, or -1 when nothing is known. */
-                                                                                                /**
-                                                                                                 * Restamps which blocks
-                                                                                                 * are drawn down with
-                                                                                                 * worn ground. Nothing
-                                                                                                 * on a server, which
-                                                                                                 * never
-                                                                                                 * draws anything.
-                                                                                                 */
+    /** Restamps which blocks are drawn down with worn ground. Nothing on a server, which never draws anything. */
     public void markSettlingBlocks() {}
 
     /**
@@ -268,6 +260,7 @@ public class CommonProxy {
         return 0.0D;
     }
 
+    /** Packed {@code blockId << 4 | meta} of the covered block, or -1 when nothing is known. */
     public int originPackedAt(int x, int y, int z) {
         return -1;
     }

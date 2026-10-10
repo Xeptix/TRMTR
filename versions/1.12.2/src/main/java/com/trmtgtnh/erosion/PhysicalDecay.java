@@ -124,8 +124,9 @@ public final class PhysicalDecay {
      * <p>
      * The one number both sides settle a block's footing from. The server has the record and reads
      * it; the client is asked through the proxy, which hands back the very figure the renderer moved
-     * the picture by. Derived from the collision depth rather than the drawn one on purpose: in
-     * visual mode the ground has not really moved, so nothing resting on it should move either.
+     * the picture by - on a whole block in the visual mode that is the drawn depth, as the 1.7.10 edition's
+     * code has it (Xep, 2026-10-08). Footing does not follow it there: no collision moves in the visual
+     * mode, so only the picture comes down.
      */
     public static double groundDropUnder(World world, int x, int y, int z) {
         if (world == null || y <= 0) return 0.0D;

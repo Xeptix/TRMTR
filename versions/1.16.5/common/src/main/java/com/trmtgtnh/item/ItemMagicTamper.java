@@ -134,6 +134,9 @@ public class ItemMagicTamper extends ItemChunkTamper {
                 + " "
                 + ChatFormatting.WHITE
                 + stepsOf(stack));
+        // The mode it is set to, said as the chunk tamper says it: this tool takes the three unlocks best of all and
+        // its screen offers every mode, and until 0.9.222 nothing on it said which one was on (spec TA72).
+        addModeLines(stack, tooltip);
         // The two gesture lines that stood here are added again inside the expanded block below,
         // so holding Shift printed each of them twice. Dropped rather than removed from the
         // expansion, because the chunk tamper this inherits from shows no gestures at all while

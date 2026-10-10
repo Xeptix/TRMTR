@@ -241,7 +241,7 @@ public class CommandTrmt extends CommandBase {
             reply(
                 sender,
                 EnumChatFormatting.YELLOW,
-                "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there: chunks heal as they reload, and the first sweep after /trmt enable pays out the rest. Purge is the one that throws wear away.");
+                "Erosion disabled and every client's overlay cleared. The stored wear is kept rather than thrown away, so nothing has to be walked in again. Recovery is measured against the world clock, though, and that clock counts time whether erosion is on or off, so a long spell disabled reads as a long spell of nobody walking there. Nothing heals while erosion is off; after /trmt enable each chunk is paid what it is owed as it next loads, and the sweep pays out the rest. Purge is the one that throws wear away.");
         } else if ("purge".equals(sub)) {
             purge(sender);
         } else if ("mapcolor".equals(sub)) {
@@ -2064,7 +2064,7 @@ public class CommandTrmt extends CommandBase {
      *
      * <p>
      * An earlier version of this probed the block under the player, which was useless: a
-     * command runs on the server, and the server's copy of the world never holds a ghost — that
+     * command runs on the server, and the server's copy of the world never holds a ghost - that
      * is the whole design. It reported the ordinary block underneath every time and read as
      * confirmation that nothing was wrong.
      *

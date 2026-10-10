@@ -247,7 +247,7 @@ public class TrmtConfigGui extends GuiConfig {
      * <p>
      * Here rather than in {@link TrmtConfig} for two reasons. The class literal loads a client
      * GUI class, which does not exist on a dedicated server. And a config reload replaces every
-     * {@link Property} object, taking the setting with it — but this runs each time the screen
+     * {@link Property} object, taking the setting with it - but this runs each time the screen
      * is opened, which is exactly when it needs to be true again.
      */
     private static void showIconsOnBlockLists(Configuration config) {

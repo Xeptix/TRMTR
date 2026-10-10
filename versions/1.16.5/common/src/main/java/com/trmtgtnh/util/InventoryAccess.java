@@ -127,7 +127,9 @@ public final class InventoryAccess {
 
             ItemStack there = inventory.getItem(slot);
             int room = roomInSlot(inventory, left);
-            if (there == null) {
+            // A container says EMPTY for a free slot at this version, never null, so null alone found no room in an
+            // empty chest (0.9.222, spec GO42).
+            if (there == null || there.isEmpty()) {
                 if (room >= left.getCount()) {
                     inventory.setItem(slot, left);
                     left = null;

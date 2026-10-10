@@ -33,6 +33,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.util.MainThread;
 
+import cpw.mods.fml.common.eventhandler.EventPriority;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -252,8 +253,12 @@ public final class ServerEvents {
     /**
      * A broken block takes its wear with it. Without this the overlay would linger on
      * whatever is placed there next until the next healing pass noticed the mismatch.
+     *
+     * <p>
+     * Last of every handler, and only if none cancelled the break (0.9.222): the event comes before the block goes,
+     * and a protection mod refusing the break after this had run left the block standing with its wear wiped.
      */
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         // Set aside rather than dropped, in case the same block comes straight back.
         ErosionEngine.get()
@@ -295,14 +300,18 @@ public final class ServerEvents {
     }
 
     /** A player head set on the right shape stands a Golem of Ways up. */
-    @SubscribeEvent
+    // Last of every handler, and only if none cancelled the placement (0.9.222), as for a break: a protection mod
+    // refusing the placement after this had run left the record taken back, or a golem built, where nothing was placed.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onHeadPlaced(BlockEvent.PlaceEvent event) {
         if (event.block == net.minecraft.init.Blocks.skull) {
             com.trmtgtnh.entity.GolemBuilder.onHeadPlaced(event.world, event.x, event.y, event.z, event.player);
         }
     }
 
-    @SubscribeEvent
+    // Last of every handler, and only if none cancelled the placement (0.9.222), as for a break: a protection mod
+    // refusing the placement after this had run left the record taken back, or a golem built, where nothing was placed.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockPlace(BlockEvent.PlaceEvent event) {
         // The same block back in the same spot inside the window gets its record back.
         ErosionEngine.get()

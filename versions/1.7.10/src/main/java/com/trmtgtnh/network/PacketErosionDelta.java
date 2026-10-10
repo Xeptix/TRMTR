@@ -12,7 +12,7 @@ import io.netty.buffer.ByteBuf;
  * Server to client: one position changed appearance.
  *
  * <p>
- * A flags byte of zero means "no longer worn" — a valid appearance always carries a stage
+ * A flags byte of zero means "no longer worn" - a valid appearance always carries a stage
  * of at least one in its biased field, so zero can never collide with a real value and is
  * free to act as the removal sentinel.
  */

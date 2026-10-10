@@ -142,9 +142,10 @@ public final class LightGestures {
      *
      * <p>
      * Three separate things have to happen and all three matter: the record changes, the world's
-     * block light is recomputed so the glow actually reaches the ground around it, and the clients
-     * are told so they can rebuild the chunk mesh. Miss the second and a lit block is a bright
-     * texture in the dark; miss the third and only the server knows.
+     * block light is recomputed, and the clients are told so they can rebuild the chunk mesh. The
+     * relight is on the server's world, where the real block gives off nothing: the glow itself is
+     * the painted square's, on each client, which is what the third step reaches. Miss the third
+     * and only the server knows.
      */
     private static void apply(World world, int x, int y, int z, int level, int color) {
         int dimension = world.provider.dimensionId;

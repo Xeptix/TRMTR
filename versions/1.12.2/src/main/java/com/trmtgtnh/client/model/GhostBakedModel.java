@@ -94,6 +94,13 @@ public class GhostBakedModel implements IBakedModel {
      */
     public static final int LIGHT_TINT = 1;
 
+    /**
+     * The tint index a worn stair's sides and undersides take the covered block's own color through, the path light
+     * multiplied in - see {@link BlockGhost#coveredTint}. The 1.7.10 edition multiplies that color into every face of
+     * its stair stand-in, which is never untinted; until 0.9.222 these took the path light alone (spec GF7).
+     */
+    public static final int COVERED_TINT = 2;
+
     @Override
     public List<BakedQuad> getQuads(@Nullable IBlockState state, @Nullable EnumFacing side, long rand) {
         short record = ErosionState.NONE;
@@ -152,13 +159,18 @@ public class GhostBakedModel implements IBakedModel {
         // bare earth - which is why the claim is made before that substitution, while a null top still
         // says so. The 1.7.10 edition's rule; see ShaderMaterial.
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
-        if (top == null) top = earth;
+        // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
+        // tinted as grass is - rather than earth for every family, which drew a sand or stone square with no
+        // picture as dirt (0.9.222, spec GT11). Earth only where the family has no stock top of its own.
+        boolean stock = top == null;
+        if (top == null) top = stockTop(appearance, earth);
         // Only grass takes the biome's color. Worn through to dirt, a square has no grass left to
         // tint, and a dirt rut washed green by a jungle would be a very strange road.
         // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
         // wearing as grass and the block under it has to be a lawn, because the picture is made from
         // that block's own pixels.
-        int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
+        int tint = GhostSides.tintsAsGrass(origin, appearance) || (stock && appearance == SurfaceFamily.GRASS) ? GRASS_TINT
+            : LIGHT_TINT;
 
         // The top is handed over with no side, so nothing culls it, because a sunk top is not a face of the
         // cell at all and the neighbour above says nothing about it. A whole window's top is a face of the
@@ -218,11 +230,15 @@ public class GhostBakedModel implements IBakedModel {
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
-        if (top == null) top = earth;
-        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
-        // wearing as grass and the block under it has to be a lawn, because the picture is made from
-        // that block's own pixels.
-        int tint = GhostSides.tintsAsGrass(origin, appearance) ? GRASS_TINT : LIGHT_TINT;
+        // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
+        // tinted as grass is - rather than earth for every family, which drew a sand or stone square with no
+        // picture as dirt (0.9.222, spec GT11). Earth only where the family has no stock top of its own.
+        if (top == null) top = stockTop(appearance, earth);
+        // The covered block's own tint on every face, the top included: the 1.7.10 edition's stair stand-in is never
+        // grass's and never untinted, and multiplies that one color into every face it has, the stock top it falls back
+        // to included. Until 0.9.222 a stair drawn with vanilla's grass top took the biome's grass color here as a lawn
+        // does, and every other face the path light alone (spec GF7).
+        int tint = COVERED_TINT;
 
         java.util.List<net.minecraft.util.math.AxisAlignedBB> boxes = BlockGhost.stairBoxes(stair);
         List<BakedQuad> out = new java.util.ArrayList<BakedQuad>(boxes.size() * 6);
@@ -251,13 +267,15 @@ public class GhostBakedModel implements IBakedModel {
                     y1,
                     z1,
                     below.sprite == null ? earth : below.sprite,
-                    LIGHT_TINT,
+                    COVERED_TINT,
                     0F));
 
+            // The covered block's own tint on every side, as on every face of the other edition's stair stand-in
+            // (0.9.222, spec GF7) - never the path light alone.
             for (EnumFacing compass : EnumFacing.HORIZONTALS) {
                 GhostSides.Face face = GhostSides.of(record, origin, compass.getIndex(), rotation, fringeTurn, snowed);
                 TextureAtlasSprite flank = face.sprite == null ? earth : face.sprite;
-                out.add(quad(compass, x0, y0, z0, x1, y1, z1, flank, LIGHT_TINT, 0F));
+                out.add(quad(compass, x0, y0, z0, x1, y1, z1, flank, COVERED_TINT, 0F));
                 if (face.overlay != null) {
                     out.add(quad(compass, x0, y0, z0, x1, y1, z1, face.overlay, GRASS_TINT, 0F));
                 }
@@ -304,6 +322,42 @@ public class GhostBakedModel implements IBakedModel {
         if (family == null) family = appearance;
         int step = WearSteps.topLayer(appearance, record);
         return WearTextures.icon(block, meta, family, appearance, step, rotation);
+    }
+
+    /** A family's own stock top, from the block atlas, or earth for a family with none. See {@link #stockTopName}. */
+    private static TextureAtlasSprite stockTop(SurfaceFamily family, TextureAtlasSprite earth) {
+        String name = stockTopName(family);
+        return name == null ? earth
+            : Minecraft.getMinecraft()
+                .getTextureMapBlocks()
+                .getAtlasSprite("minecraft:" + name);
+    }
+
+    /** The 1.7.10 edition's GhostLogic.fallbackTextureName, at this version's names; null where it says dirt. */
+    static String stockTopName(SurfaceFamily family) {
+        if (family == null) return null;
+        switch (family) {
+            case GRASS:
+                return "blocks/grass_top";
+            case SAND:
+                return "blocks/sand";
+            case GRAVEL:
+                return "blocks/gravel";
+            case STONE:
+                return "blocks/stone";
+            case COBBLE:
+                return "blocks/cobblestone";
+            case NETHER:
+                return "blocks/netherrack";
+            case END:
+                return "blocks/end_stone";
+            case SNOW:
+                return "blocks/snow";
+            case ICE:
+                return "blocks/ice";
+            default:
+                return null;
+        }
     }
 
     private static TextureAtlasSprite earth() {

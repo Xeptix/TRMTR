@@ -110,11 +110,16 @@ public final class UpdateNotice {
 
     /**
      * The mods each jar requires, by their mod ids and the names a player knows them by (0.9.221): what the dependency
-     * check asks the version file about. The file names no mod of its own (DependencyCheck).
+     * check asks the version file about. The file names no mod of its own (DependencyCheck). Each loader hands over its
+     * own with {@link #edition}; until 0.9.222 this chose by comparing the edition's name to "1.16.5-fabric", which a
+     * third loader would have got wrong in silence.
      */
-    static final String[][] REQUIRED_FORGE = { { "cloth-config", "Cloth Config" } };
+    public static final String[][] REQUIRED_FORGE = { { "cloth-config", "Cloth Config" } };
 
-    static final String[][] REQUIRED_FABRIC = { { "fabric", "Fabric API" }, { "cloth-config2", "Cloth Config" } };
+    public static final String[][] REQUIRED_FABRIC = { { "fabric", "Fabric API" }, { "cloth-config2", "Cloth Config" } };
+
+    /** The mods this jar requires, as its loader said; none until one has. */
+    private static volatile String[][] required = new String[0][];
 
     /** How the loader that started the mod reads another mod's version: null for one not installed. */
     private static volatile java.util.function.Function<String, String> versionOf = id -> null;
@@ -126,7 +131,7 @@ public final class UpdateNotice {
 
     /** Each mod this jar requires, with the version installed, or null for one that is not. */
     static String[][] installed() {
-        String[][] required = "1.16.5-fabric".equals(edition) ? REQUIRED_FABRIC : REQUIRED_FORGE;
+        String[][] required = UpdateNotice.required;
         String[][] out = new String[required.length][];
         for (int at = 0; at < required.length; at++) {
             out[at] = new String[] { required[at][0], required[at][1], versionOf.apply(required[at][0]) };
@@ -145,10 +150,14 @@ public final class UpdateNotice {
 
     private UpdateNotice() {}
 
-    /** Which jar this is and whether its game is a development one. Called once by each loader module. */
-    public static void edition(String key, boolean inDevelopment) {
+    /**
+     * Which jar this is, whether its game is a development one, and the mods it requires. Called once by each loader
+     * module.
+     */
+    public static void edition(String key, boolean inDevelopment, String[][] requires) {
         edition = key;
         development = inDevelopment;
+        required = requires;
     }
 
     /** This jar's line in the version file, or null before a loader has said. */
@@ -285,7 +294,7 @@ public final class UpdateNotice {
 
     /** As a player joins: tells them if they can update and there is something to tell. */
     public static void onLogin(Player player) {
-        if (!(player instanceof ServerPlayer) || ((ServerPlayer) player).connection == null) return;
+        if (com.trmtgtnh.util.Machines.is(player)) return;
         ServerPlayer joined = (ServerPlayer) player;
         TOLD.remove(joined.getUUID());
         if (UpdateCheck.due(System.currentTimeMillis())) ask(false);

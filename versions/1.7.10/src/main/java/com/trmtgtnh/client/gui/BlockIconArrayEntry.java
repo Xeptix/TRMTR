@@ -32,7 +32,7 @@ import cpw.mods.fml.client.config.IConfigElement;
  *
  * <p>
  * Forge builds these <em>reflectively</em>, looking for exactly
- * {@code (GuiEditArray, GuiEditArrayEntries, IConfigElement, Object)} — so the fourth parameter
+ * {@code (GuiEditArray, GuiEditArrayEntries, IConfigElement, Object)} - so the fourth parameter
  * has to be declared {@code Object} even though a String is always what arrives, and the class
  * has to be public and top-level. Get it wrong and there is no compile error: the constructor
  * lookup fails at runtime, the row is dropped, and saving the screen then writes the list back
@@ -82,7 +82,7 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
         String key = lastText.trim();
         if (icon == null || BROKEN.contains(key)) return;
 
-        // slotHeight is 16 here — GuiSlot passes its row pitch less four — so a 16x16 icon is
+        // slotHeight is 16 here - GuiSlot passes its row pitch less four - so a 16x16 icon is
         // exactly the height of the band, the same as an inventory slot.
         draw(key, icon, listWidth / 4 - ICON_INSET, y);
     }
@@ -120,7 +120,7 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
             int meta = 0;
             String name = entry;
             int lastColon = entry.lastIndexOf(':');
-            // "modid:block:meta" — the suffix is optional and may be "*", meaning every value.
+            // "modid:block:meta" - the suffix is optional and may be "*", meaning every value.
             if (lastColon > 0 && entry.indexOf(':') != lastColon) {
                 String tail = entry.substring(lastColon + 1);
                 name = entry.substring(0, lastColon);
@@ -180,7 +180,7 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
                 | GL11.GL_TRANSFORM_BIT);
         int depth = GL11.glGetInteger(GL11.GL_MODELVIEW_STACK_DEPTH);
         try {
-            // Vanilla draws inventory items with depth testing off — the isometric cube is
+            // Vanilla draws inventory items with depth testing off - the isometric cube is
             // modelled behind the GUI plane, so with it on the icon is simply not there.
             GL11.glDisable(GL11.GL_DEPTH_TEST);
             GL11.glEnable(GL12.GL_RESCALE_NORMAL);

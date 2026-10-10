@@ -189,7 +189,7 @@ public final class TrmtConfig {
      * <p>
      * 2.0 makes paths form twice as fast <em>and</em> grow back twice as fast; 0.5 slows both by
      * half. Because it moves both sides together it changes the pace of the mod without
-     * changing its balance — which is the thing you actually want when a pack feels too eager
+     * changing its balance - which is the thing you actually want when a pack feels too eager
      * or too sleepy overall. {@link #erosionSpeed} and {@link #healingRate} still tilt one side
      * against the other on top of it.
      */
@@ -205,7 +205,7 @@ public final class TrmtConfig {
      * <p>
      * Without this, detection is a black box: it decides what erodes and there is nothing in
      * the config to look at or argue with. Writing its findings back turns the lists into a
-     * record you can read, prune and freeze — switch {@code autoDetect} off afterwards and the
+     * record you can read, prune and freeze - switch {@code autoDetect} off afterwards and the
      * list is the whole story.
      */
     public static boolean writeDetectedSurfaces = true;
@@ -302,9 +302,9 @@ public final class TrmtConfig {
      * How many separate pictures a surface's run of wear is drawn with.
      *
      * <p>
-     * Sixteen is one per gradation the engine actually tracks, which is what stops two
-     * consecutive steps looking identical. Eight was the old figure and halved them onto each
-     * other; anything lower is coarser still, and buys atlas space back if a machine needs it.
+     * As shipped, one per counted step the engine tracks (WearScale.COUNTED_STEPS, eighty), which is
+     * what stops two consecutive steps looking identical; the sixteen here is only what holds before
+     * the config is read. Anything lower is coarser, and buys atlas space back if a machine needs it.
      */
     public static int wearGradations = 16;
 
@@ -508,8 +508,8 @@ public final class TrmtConfig {
      * Scales every tamper's durability against its tier's own figure.
      *
      * <p>
-     * Read when the items are registered, not when one is used, so changing it is felt by the
-     * next tamper made rather than silently repairing or breaking every one already in a world.
+     * Read live, as the setting's own description says: a change applies at once to every tamper, one already in a
+     * hand included, so lowered far enough it can leave a well-used tamper with fewer uses than it has spent.
      */
     public static float tamperDurabilityScale = 1.0f;
 
@@ -968,7 +968,7 @@ public final class TrmtConfig {
 
     /**
      * How fast ground recovers. Higher heals faster, in the same direction as every other rate
-     * here — the old {@code healingSpeed} key meant the opposite and was renamed rather than
+     * here - the old {@code healingSpeed} key meant the opposite and was renamed rather than
      * silently inverted under anyone's existing config.
      */
     public static double healingRate = 1.0d;
@@ -1234,7 +1234,7 @@ public final class TrmtConfig {
      *
      * <p>
      * {@link #read()} on its own only re-examines the copy already parsed into memory, which
-     * is what the config GUI wants — it has just written to that copy — but not what
+     * is what the config GUI wants - it has just written to that copy - but not what
      * {@code /trmt reload} wants, where the point is to pick up an edit made to the file. Note
      * that stage counts and texture settings still need a resource reload to show, because the
      * wear textures are generated once when the block atlas is stitched.
@@ -1243,7 +1243,7 @@ public final class TrmtConfig {
         if (config == null) return false;
 
         // What the settings are known to contain right now. Forge's parser merges what it finds
-        // over what is already in memory, so a file that lost its tail is survivable — the old
+        // over what is already in memory, so a file that lost its tail is survivable - the old
         // values are still there and saving puts them back. The dangerous case is the file being
         // momentarily absent, which is how some editors save: the parser then clears every
         // category, creates an empty file and parses that quite happily, after which a re-read
@@ -1402,7 +1402,7 @@ public final class TrmtConfig {
             "wearDropsEnabled",
             Configuration.CATEGORY_GENERAL,
             true,
-            "Whether wearing a surface in has a small chance to shed something from it: grass drops a random seed - vanilla wheat, or any seed the pack's farming mods have registered - snow drops a snowball, and gravel drops flint. Rolled once each time an exposed surface block wears a stage, and only above the very bottom of the world, so an area tamper drops from the ground it exposes rather than from every block in the cube.");
+            "Whether wearing a surface in has a small chance to shed something from it: grass drops a random seed - vanilla wheat, or any seed the pack's farming mods have registered - snow drops a snowball, and gravel drops flint. Rolled once each time something wears an exposed surface block in - once however many stages that moves it, so a blast or a landing that drives a square down several sheds at most one thing, while a tamper, which wears a square a gradation at a time, rolls for each gradation it wears in - and only above the very bottom of the world, so an area tamper drops from the ground it exposes rather than from every block in the cube.");
         wearDropChance = readFloat(
             Configuration.CATEGORY_GENERAL,
             "wearDropChance",
@@ -1507,7 +1507,7 @@ public final class TrmtConfig {
             "exclude",
             new String[] { "minecraft:mycelium", "minecraft:soul_sand", "minecraft:farmland", "etfuturum:farmland",
                 "minecraft:tilled_field", "Natura:GrassSlabDouble", "GalacticraftAmunRa:tile.baseGrass" },
-            "Blocks that must never erode, whatever detection concludes. Registry names only, no metadata. Tilled soil is here because a field someone hoed should stay a field; paths are deliberately not, and resist wear instead — see families.dirt.resistantBlocks. Natura's double grass slab is a shape somebody built out of turf rather than ground that grew, and Amun-Ra's red grass turns itself into methane dirt anywhere but its own world, so wearing either is showing you something that is about to stop existing.")
+            "Blocks that must never erode, whatever detection concludes. Registry names only, no metadata. Tilled soil is here because a field someone hoed should stay a field; paths are deliberately not, and resist wear instead - see families.dirt.resistantBlocks. Natura's double grass slab is a shape somebody built out of turf rather than ground that grew, and Amun-Ra's red grass turns itself into methane dirt anywhere but its own world, so wearing either is showing you something that is about to stop existing.")
             .getStringList();
         maxWearSprites = config.getInt(
             "maxWearSprites",
@@ -1548,7 +1548,7 @@ public final class TrmtConfig {
             "settleOnWornGround",
             CATEGORY_CLIENT,
             true,
-            "Draw snow and carpet down with ground that has worn away underneath them. A snow layer lying on a rut half a block deep otherwise hangs in the air over it, because a block's shape is its own business and nothing tells it what has happened below. Purely how it looks: a snow layer has no collision box to move, nothing is sent to the server, and where you stand is unchanged. Deliberately just those two - a rail or a repeater would settle as easily and would then be drawn a step below the box the server still holds it at, and a patterned block would smear, because the renderer stretches a whole texture over a side face once a shape leaves its own block.");
+            "Draw snow and carpet down with ground that has worn away underneath them. A snow layer lying on a rut half a block deep otherwise hangs in the air over it, because a block's shape is its own business and nothing tells it what has happened below. In the real wear mode where you stand comes down with them, so you stand on the snow you can see; in the visual mode only the picture moves. Deliberately just those two - a rail or a repeater would settle as easily and would then be drawn a step below the box the server still holds it at, and a patterned block would smear, because the renderer stretches a whole texture over a side face once a shape leaves its own block.");
         groundCoverAutoDetect = config.getBoolean(
             "groundCoverAutoDetect",
             CATEGORY_SURFACES,
@@ -2286,7 +2286,7 @@ public final class TrmtConfig {
             12,
             1,
             15,
-            "How brightly a lit block glows. For scale: a torch is 14, glowstone 15, and 8 is the threshold below which hostile mobs will still spawn - so a road lit under that is a lit road that things still crawl onto.");
+            "How brightly a lit block glows. For scale: a torch is 14 and glowstone 15. The glow is drawn on each player's own screen and is no light the world knows of, so however bright, it keeps no mob from spawning on the road.");
         lightCostCount = config.getInt(
             "cost",
             CATEGORY_LIGHT,
@@ -2527,7 +2527,7 @@ public final class TrmtConfig {
             CATEGORY_HEALING,
             "healingRate",
             1.0d,
-            "How fast ground recovers. 2.0 recovers twice as fast, 0.5 half as fast — the same direction as every other rate in this config, and it multiplies every family at once. Per-family durations live under families.<name>.healDaysPerStage, and each of those is that family's own figure rather than anything worked out from its wear cost. They used to be derived - one constant times the average threshold - which made the table tidy and made it lie: snow and sand cost almost exactly the same traffic to mark and recover nothing like alike, because fresh snow covers a track in under a week and a rut in sand wants a month of wind. Out of the box a fully worn path takes six in-game days to disappear on snow, thirty on sand, forty-five on gravel, a hundred on dirt, a hundred and twenty-five on turf, a hundred and seventy on cobble, thirty-one on ice, three hundred and twenty on stone, and four hundred in the Nether or the End, where there is no weather to fill anything in. The wear table in game draws all of that from these same figures, so it is the place to look after changing one.",
+            "How fast ground recovers. 2.0 recovers twice as fast, 0.5 half as fast - the same direction as every other rate in this config, and it multiplies every family at once. Per-family durations live under families.<name>.healDaysPerStage, and each of those is that family's own figure rather than anything worked out from its wear cost. They used to be derived - one constant times the average threshold - which made the table tidy and made it lie: snow and sand cost almost exactly the same traffic to mark and recover nothing like alike, because fresh snow covers a track in under a week and a rut in sand wants a month of wind. Out of the box a fully worn path takes six in-game days to disappear on snow, thirty on sand, forty-five on gravel, a hundred on dirt, a hundred and twenty-five on turf, a hundred and seventy on cobble, thirty-one on ice, three hundred and twenty on stone, and four hundred in the Nether or the End, where there is no weather to fill anything in. The wear table in game draws all of that from these same figures, so it is the place to look after changing one.",
             0.01d,
             1000.0d)
             .getDouble();
@@ -2934,6 +2934,21 @@ public final class TrmtConfig {
      * Merged rather than replaced, so anything added by hand survives. The result is sorted and
      * deduplicated, which also means the file stops churning once the pack stops changing.
      */
+    /** Every name listed under a family other than this one, trimmed. */
+    private static Set<String> listedElsewhere(SurfaceFamily family) {
+        Set<String> out = new java.util.HashSet<String>();
+        for (SurfaceFamily other : SurfaceFamily.values()) {
+            if (other == family) continue;
+            FamilySettings settings = family(other);
+            if (settings == null || settings.extra == null) continue;
+            for (String name : settings.extra) {
+                if (name != null && !name.trim()
+                    .isEmpty()) out.add(name.trim());
+            }
+        }
+        return out;
+    }
+
     public static void recordDetectedSurfaces(Map<SurfaceFamily, ? extends Collection<String>> detected) {
         if (config == null || detected.isEmpty()) return;
 
@@ -2950,7 +2965,13 @@ public final class TrmtConfig {
                 }
             }
             int before = merged.size();
-            merged.addAll(entry.getValue());
+            // Never a block another family's list already names: that list was written by hand, or by the magic
+            // tamper's "wear as", and is applied first when it is the earlier family - so a block recorded here as
+            // well took the later family back at the next rebuild, undoing the move (0.9.222, spec CF66).
+            Set<String> elsewhere = listedElsewhere(entry.getKey());
+            for (String found : entry.getValue()) {
+                if (found != null && !elsewhere.contains(found.trim())) merged.add(found.trim());
+            }
             if (merged.size() == before) continue;
             added += merged.size() - before;
 
@@ -3033,9 +3054,7 @@ public final class TrmtConfig {
     public static void setShowErosion(boolean value) {
         showErosion = value;
         if (config != null) {
-            config.get(CATEGORY_CLIENT, "showErosion", true)
-                .set(value);
-            save();
+            writeSwitch(CATEGORY_CLIENT, "showErosion", value);
         }
     }
 
@@ -3043,10 +3062,22 @@ public final class TrmtConfig {
     public static void setEnabled(boolean value) {
         enabled = value;
         if (config != null) {
-            config.get(Configuration.CATEGORY_GENERAL, "enabled", true)
-                .set(value);
-            save();
+            writeSwitch(Configuration.CATEGORY_GENERAL, "enabled", value);
         }
+    }
+
+    /**
+     * Writes one switch back to the file, keeping its help text. Asked of its heading rather than through the short
+     * get, which sets the comment to nothing: until 0.9.222 /trmt enable and disable left general.enabled with no
+     * help in the file until the next read declared it again (spec CF15).
+     */
+    private static void writeSwitch(String heading, String key, boolean value) {
+        net.minecraftforge.common.config.ConfigCategory settings = config.getCategory(heading);
+        if (settings.containsKey(key)) settings.get(key)
+            .set(value);
+        else config.get(heading, key, value)
+            .set(value);
+        save();
     }
 
     /** True when worn ground should be drawn hollowed out at all. */

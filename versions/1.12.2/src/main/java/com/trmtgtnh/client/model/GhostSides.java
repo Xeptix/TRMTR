@@ -105,7 +105,10 @@ public final class GhostSides {
          * `uv [0, 1, 16, 16]`. Sliding an unsunk path drew that transparent row along the top of
          * every side - a see-through band in the cut-out pass, and a black one in the solid pass.
          */
-        boolean sunken = ErosionState.sinkOf(record) > 0;
+        boolean sunken = ErosionState.sinkOf(record) > 0 && !stair(under);
+        // A worn stair is never sunk, whatever depth its record carries: it keeps the stair's own shape, and the
+        // 1.7.10 edition's stair stand-in answers isSunken false and isUntinted false - so its flanks never slide, and
+        // a deep-worn turf stair never shows the earth a sunk lawn does (0.9.222, spec GF7).
         // ...and only a flank may slide. The 1.7.10 edition says `side >= 2` in the same breath as
         // its sunken test, and it matters here in a way it never did there: the underside now comes
         // through this method too, and a bottom face anchored to the top of its own quad samples the
@@ -119,10 +122,16 @@ public final class GhostSides {
             if (worn != null) return new Face(worn, false, null);
         }
 
-        // Worn through to what was underneath: a rut through turf shows the soil it sat on, not the turf's flank.
-        boolean revealsEarth = originFamily == SurfaceFamily.GRASS && appearance != SurfaceFamily.GRASS;
+        // Worn through to what was underneath: a rut through turf shows the soil it sat on, not the turf's flank. And
+        // grass sunk as grass counts as worn through (0.9.222, spec SC22): the 1.7.10 edition draws it with its
+        // untinted sunken ghost, whose sides are earth - `|| ghost.isUntinted()` in its revealsEarth - so a sunken
+        // lawn shows soil on its flanks, under snow or not, rather than turf below the turf beside it.
+        boolean revealsEarth = originFamily == SurfaceFamily.GRASS
+            && (appearance != SurfaceFamily.GRASS || sunken);
         if (revealsEarth) {
-            return new Face(faceSprite(block, meta, 0, originFamily, appearance), slides, null);
+            // Never slid (0.9.222, spec GS4): earth is not the block's own side picture, and the 1.7.10 edition slides
+            // only a face drawn with that (`face == side`) - so revealed earth stays nailed to the bottom of the cell.
+            return new Face(faceSprite(block, meta, 0, originFamily, appearance), false, null);
         }
 
         if (appearance == SurfaceFamily.GRASS) {
@@ -134,18 +143,23 @@ public final class GhostSides {
             // and bottom faces got one too. The 1.7.10 edition keys this off the block drawing
             // vanilla's own grass top, which is the same question {@link #mimicsVanillaGrassTop}
             // already answers for the earth wall just below.
-            boolean lawn = mimicsVanillaGrassTop(block, meta);
+            //
+            // Never a stair, whatever its top is drawn with: the 1.7.10 edition's stair stand-in answers
+            // mimicsVanillaGrassTop false, so a turf stair gets no fringe and no earth wall and takes the covered
+            // block's own tint on its sides like any block (0.9.222, spec GF7).
+            boolean lawn = mimicsVanillaGrassTop(block, meta) && !stair(under);
             boolean flank = side >= 2;
-            // A square that has sunk keeps the look it had before this feature existed, which is
-            // the gate the 1.7.10 edition states twice - once for the thinned fringe and once for
-            // the earth wall below - and which neither port carried. Without it a sinking lawn's
-            // flanks went on receding as it sank: here the wall darkened the top of every side, and
-            // on 1.16.5 the fringe kept thinning and brightening against it. Both are this one
-            // missing condition.
+            // The thinned fringe and the earth wall are only for a square that has not sunk - the gate the
+            // 1.7.10 edition states twice, and which neither port carried until 0.9.219: without it a sinking
+            // lawn's flanks went on receding as it sank. Since 0.9.222 a sunken lawn shows earth (revealsEarth,
+            // above) and never reaches here, as 1.7.10's untinted sunken ghost never reaches its fringe; the gate
+            // stays for the day that changes.
             TextureAtlasSprite fringe = lawn && flank ? fringeFor(record, fringeTurn, !sunken) : null;
-            if (snowed) {
+            if (snowed && flank) {
                 // Snow sits on it, so the flank is the snowed one the block itself would draw; the fringe has
-                // nothing to do under snow.
+                // nothing to do under snow. A flank only (0.9.222, spec SC19): the underside comes through here too,
+                // and 1.7.10 asks `side >= 2` in the same breath as the snow, so a snowed lawn's underside is its own
+                // earth rather than the snowed side picture.
                 return new Face(snowedSide(block, meta, originFamily, appearance), false, null);
             }
             int sideStep = WearSteps.sideLayer(appearance, record);
@@ -169,7 +183,10 @@ public final class GhostSides {
             return new Face(faceSprite(block, meta, side, originFamily, appearance), false, fringe);
         }
 
-        return new Face(faceSprite(block, meta, side, originFamily, appearance), slides, null);
+        // Slid only for a block with sides of its own (0.9.222, spec GS18): one of a single picture all round reaches
+        // here only when its worn side picture could not be had, and the 1.7.10 edition draws its own face unslid.
+        return new Face(faceSprite(block, meta, side, originFamily, appearance), slides && hasOwnSides(block, meta),
+            null);
     }
 
     /**
@@ -209,6 +226,14 @@ public final class GhostSides {
         return mimicsVanillaGrassTop(block, metaOf(block, under));
     }
 
+    /**
+     * Whether the covered block is a stair, whose stand-in in the 1.7.10 edition is never sunk and never grass's
+     * (0.9.222, spec GF7). See BlockGhost.coveredStair.
+     */
+    public static boolean stair(IBlockState under) {
+        return under != null && com.trmtgtnh.surface.SurfaceShape.of(under.getBlock()) == com.trmtgtnh.surface.SurfaceShape.STAIR;
+    }
+
     /** Whether a block's sides are their own texture rather than the one on its top. */
     private static boolean hasOwnSides(Block block, int meta) {
         if (block == null) return false;
@@ -231,9 +256,22 @@ public final class GhostSides {
         return canonical("grass_top").equals(canonical(top));
     }
 
-    /** The flank a snowed block draws: vanilla's snowed grass side for a lawn, else the block's own. */
+    /**
+     * The flank a snowed block draws: the side its own snowy variant draws, as the 1.7.10 edition asks the block itself
+     * (0.9.222, spec SC20) - so a modded turf with a snow picture of its own shows it; else vanilla's snowed grass side
+     * for a lawn, else the block's own side.
+     */
     private static TextureAtlasSprite snowedSide(Block block, int meta, SurfaceFamily originFamily,
         SurfaceFamily appearance) {
+        String own = ModelFaces.snowedSideName(block, meta);
+        if (own != null) {
+            TextureAtlasSprite drawn = Minecraft.getMinecraft()
+                .getTextureMapBlocks()
+                .getAtlasSprite(sprite(own));
+            if (drawn != null && drawn != Minecraft.getMinecraft()
+                .getTextureMapBlocks()
+                .getMissingSprite()) return drawn;
+        }
         if (mimicsVanillaGrassTop(block, meta)) return vanilla("blocks/grass_side_snowed");
         return faceSprite(block, meta, 2, originFamily, appearance);
     }

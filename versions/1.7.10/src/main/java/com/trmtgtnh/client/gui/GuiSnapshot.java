@@ -20,8 +20,8 @@ import cpw.mods.fml.relauncher.SideOnly;
  * than what this client last assumed.
  *
  * <p>
- * Commit turns into Undo once something has been applied, and goes back to Commit as soon as the
- * config is changed again - which is the same moment the undo mark moves.
+ * Undo is a button of its own, open once something has been applied and closed again as soon as
+ * the config is changed - which is the same moment the undo mark moves.
  */
 @SideOnly(Side.CLIENT)
 public class GuiSnapshot extends GuiScreen {

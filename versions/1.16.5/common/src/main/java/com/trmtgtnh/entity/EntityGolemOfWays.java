@@ -1532,7 +1532,9 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
             int taken = Math.min(remaining, held.getCount());
             held.shrink(taken);
             remaining -= taken;
-            if (held.isEmpty()) inventory[slot] = ItemStack.EMPTY;
+            // Null, the storage's one word for a free slot: every reader carried from 1.7.10 asks for null, and an
+            // EMPTY left here read as occupied - stock went to the floor beside free slots (0.9.222, spec GO32).
+            if (held.isEmpty()) inventory[slot] = null;
         }
         return remaining;
     }
@@ -2309,7 +2311,9 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
             return;
         }
         if (slot < 0 || slot >= inventory.length) return;
-        inventory[slot] = stack;
+        // The game hands EMPTY for nothing at this version; the storage keeps null, which is what every reader asks
+        // for (0.9.222, spec GO28). getItem turns it back into EMPTY on the way out.
+        inventory[slot] = stack == null || stack.isEmpty() ? null : stack;
         // Somebody has just reached in. Whatever it was carrying a moment ago is no longer a safe
         // answer, and the difference between armed and unarmed is the difference between a golem
         // that stands its ground and one that runs.
@@ -2344,7 +2348,7 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
     @Override
     public void clearContent() {
         for (int slot = 0; slot < inventory.length; slot++) {
-            inventory[slot] = ItemStack.EMPTY;
+            inventory[slot] = null;
         }
         setUpgradeStack(ItemStack.EMPTY);
         takeStock();
@@ -2549,6 +2553,9 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
         // below and is saved with it. Left in, the equipment the creature class writes for us
         // would come back on load as a tamper the golem does not have and never had.
         tag.remove("Equipment");
+        // Written as HandItems at this version, and the picture came back on load until the next tick replaced it
+        // (0.9.222, spec GO11).
+        tag.remove("HandItems");
         tag.putInt("radius", radius);
         tag.putBoolean("anchored", anchored);
         tag.putInt("ax", anchorX);
@@ -2675,7 +2682,10 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
         for (int i = 0; i < items.size(); i++) {
             CompoundTag entry = items.getCompound(i);
             int slot = entry.getByte("slot") & 0xFF;
-            if (slot < inventory.length) inventory[slot] = ItemStack.of(entry);
+            // A stack whose item is gone loads as EMPTY, which every reader takes for a full slot; a free one is
+            // null here (0.9.222).
+            ItemStack loaded = ItemStack.of(entry);
+            if (slot < inventory.length) inventory[slot] = loaded.isEmpty() ? null : loaded;
         }
         // Nothing about a fight or a stroke survives being put away and taken out again, so a
         // golem always comes back empty-handed and calm. What it is carrying it works out now
