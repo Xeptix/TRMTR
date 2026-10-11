@@ -1242,27 +1242,30 @@ Beyond being a port:
   before you choose.
 - **`/trmt demonstrate`** builds a complete exhibit of every detected surface, every look and
   every golem upgrade in the sky, for judging a change at a glance.
-- **Bytecode injection is limited to fifteen mixins on 1.7.10 and eleven on 1.12.2.** On 1.7.10
+- **Bytecode injection is limited to nineteen mixins on 1.7.10 and eighteen on 1.12.2.** On 1.7.10
   three of them run on a server: the collision hook and the one beside it, both live only under
   `physicalDecay = real` - the first gives worn ground its hollow, the second stops the game deciding
   that something lying in that hollow is buried in the floor and flinging it out - and a hook on a
   librarian's new trades, which keeps an unlock the pack has switched off from being offered for
-  sale. The other twelve are client-side - grass tinting and its side overlay, sprite generation in the
-  one window where every block's pixels exist, sprite filtering, letting a generated sprite declare
-  itself animated, stair metadata, settling on worn ground, shader-material inheritance, hearing the
-  blocks a server writes over painted ground, a Chisel shell lift added only when Chisel is present, and
-  two on the atlas's stitcher, which time it and spare its search the parts of the atlas it already
-  knows are full. On 1.12.2 there are eleven, one of which runs on a server: the librarian hook; and
-  client-side the arrival of blocks a server writes over painted ground, settling on worn ground and
-  the snow faces it leaves open, two seats a ghost claims its shader material from - one for an
-  Iris-family loader and one for OptiFine, each applied only where that loader is installed - and the
-  shade a whole worn square gives the corners beside it, in Forge's light pipeline and in vanilla's; the
-  count of what goes to the atlas's stitcher and the order the atlas loads its textures in; and the same
-  two on the stitcher. Ten of 1.7.10's fifteen target `RenderBlocks`, which 1.8 deleted, and a baked
-  model, a block override or a Forge event does each of those jobs instead - the hollow under worn
-  ground among them. Every
-  server-side hook upstream mixes in for has a Forge event in the Forge editions, and a mixin of its
-  own on Fabric.
+  sale. The other sixteen are client-side - grass tinting, its side overlay and OptiFine's own grass
+  side, sprite generation in the one window where every block's pixels exist, sprite filtering, letting
+  a generated sprite declare itself animated, stair metadata, settling on worn ground and aiming at and
+  outlining what has settled where it is drawn, lighting a sunk top by its height, shader-material
+  inheritance, hearing the blocks a server writes over painted ground, a Chisel shell lift added only
+  when Chisel is present, and two on the atlas's stitcher, which time it and spare its search the parts
+  of the atlas it already knows are full. On 1.12.2 there are eighteen, two of which run on a server:
+  the librarian hook and the one that keeps those unlocks out of vanilla's chest books; and client-side
+  the arrival of blocks a server writes over painted ground and the order its clears are kept in,
+  settling on worn ground, the snow faces it leaves open, and aiming at and outlining what has settled
+  where it is drawn, the corner a stair turns beside a worn one, two seats a ghost claims its shader
+  material from - one for an Iris-family loader and one for OptiFine, each applied only where that
+  loader is installed - the light a worn square takes from its neighbours, read by the mesher and by the
+  world, and the shade a whole worn square gives the corners beside it, in Forge's light pipeline and in
+  vanilla's, which also lights a sunk top by its height; the count of what goes to the atlas's stitcher
+  and the order the atlas loads its textures in; and the same two on the stitcher. Six of 1.7.10's
+  nineteen hook `RenderBlocks`, which 1.8 deleted, and in the later editions a baked model, a block
+  override or a Forge event does each of those jobs instead. Every server-side hook upstream mixes in
+  for has a Forge event in the Forge editions, and a mixin of its own on Fabric.
 - **Brush-based sand recovery is removed** (there is no brush item in either version). The
   **Draught of Lightness** is here with the original's own ingredients, mixed at a bench rather
   than brewed in a stand for the reasons under [Draughts](#draughts), and a
@@ -1334,7 +1337,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **504 tests on 1.7.10, 599 on 1.12.2 and 631 on 1.16.5**, every one
+types in them and are unit tested - **536 tests on 1.7.10, 662 on 1.12.2 and 720 on 1.16.5**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 

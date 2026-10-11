@@ -76,12 +76,45 @@ public final class GhostFamily {
      * Block's own 0.6 for everything else.
      *
      * <p>
-     * Per family, as that edition has it, although this version asks at a square and could answer the covered block's
-     * own figure. The rule is the family's (spec GF17), and that edition says what it costs: a pack's scenery made of
-     * ice's material, Chisel's cloud the plain case, slides a player at 0.98 where the server's block says 0.6.
+     * The figure a square slides at past its covered block's family, or with nothing recorded under it; while it still
+     * wears as that block, {@link #slipperinessAt} asks the block itself (0.9.223, spec GF17).
      */
     public static float slipperinessFor(@Nullable SurfaceFamily family) {
         return family == SurfaceFamily.ICE ? 0.98F : 0.6F;
+    }
+
+    /**
+     * How slippery a square is underfoot: the covered block's own figure while the square still wears as that block's
+     * family - worn blue ice at blue ice's, a pack's scenery made of ice's material at its own - and the family's, the
+     * 1.7.10 edition's figure, past it or where nothing is recorded (0.9.223; Xep, 2026-10-10: worn blue ice slides at
+     * blue ice's own figure, "asked of the covered block"). The line is the tint's: a square worn into another
+     * family is that family's ground, and slides as it.
+     */
+    public static float slipperinessAt(net.minecraft.block.Block ghost, IBlockAccess world, BlockPos pos) {
+        SurfaceFamily family = familyAt(world, pos);
+        IBlockState covered = GhostInherit.coveredAt(ghost, pos);
+        if (covered == null) return slipperinessFor(family);
+        try {
+            net.minecraft.block.Block block = covered.getBlock();
+            return slipperinessOf(
+                family,
+                com.trmtgtnh.surface.SurfaceRegistry.familyOf(block, block.getMetaFromState(covered)),
+                block.slipperiness);
+        } catch (RuntimeException awkwardBlock) {
+            return slipperinessFor(family);
+        }
+    }
+
+    /**
+     * The slide rule itself: the covered block's own figure while the square wears as that block's family, the family's
+     * past it or with nothing known under it. See {@link #slipperinessAt}.
+     *
+     * @param wears         the family the square's record says it wears as
+     * @param own           the covered block's family, or null where nothing is known
+     * @param coveredFigure the covered block's own slipperiness
+     */
+    static float slipperinessOf(SurfaceFamily wears, SurfaceFamily own, float coveredFigure) {
+        return own != null && own == wears ? coveredFigure : slipperinessFor(wears);
     }
 
     /**

@@ -59,6 +59,7 @@ public final class OriginView implements BlockGetter {
 
     @Override
     public int getMaxBuildHeight() {
-        return delegate == null ? 256 : delegate.getMaxBuildHeight();
+        // Asked through Heights, as every world height in this edition is (0.9.223).
+        return com.trmtgtnh.util.Heights.top(delegate) + 1;
     }
 }

@@ -131,6 +131,16 @@ public final class TrmtForge {
                 (net.minecraftforge.fml.event.lifecycle.FMLModIdMappingEvent moved) -> com.trmtgtnh.server.ServerEvents
                     .idsMoved());
 
+        // The One Probe takes its API through a message sent while mods enqueue theirs, and only when it is
+        // installed: OneProbeTooltip is the only class that names it, and nothing loads that class otherwise.
+        // Jade finds its plugin by annotation instead, so it needs nothing here.
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get()
+            .getModEventBus()
+            .addListener((net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent enqueue) -> {
+                if (ModList.get()
+                    .isLoaded("theoneprobe")) OneProbeTooltip.request();
+            });
+
         // Where the mod list's Config button goes. Forge's own GuiConfig is gone at this version and
         // this is what replaced the factory that used to point at it - one line rather than
         // TrmtGuiFactory's forty-four, because the screen itself is shared and says the rest.

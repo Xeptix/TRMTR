@@ -297,6 +297,11 @@ public class ClientProxy extends CommonProxy {
 
         ErosionChain.rebuild();
         PhysicalDecay.refresh();
+        // Whether snow and carpet settle is the server's now (0.9.223), and it decides the footing as well as the
+        // picture: the stamps both read are made again from what was just held. The re-mesh below, on a counted
+        // change, redraws what moved.
+        PhysicalDecay.markSettlingBlocks();
+        markSettlingBlocks();
 
         if (forceOverlay && !wasForced && !TrmtConfig.showErosion) {
             OverlayPainter.get()
@@ -784,6 +789,8 @@ public class ClientProxy extends CommonProxy {
         if (!announced) {
             announced = true;
             TrmtNetwork.sendHello(TrmtConfig.showErosion);
+            // And, once a session, the player is told when this jar is a snapshot (0.9.223).
+            SnapshotNotice.joined(mc);
         }
 
         // Only while a tamper is in hand, and only when it changes, so a player who never holds
@@ -1206,6 +1213,10 @@ public class ClientProxy extends CommonProxy {
         // visit, and leaving it there afterwards would go on trampling ground the player's own
         // file had said to leave alone. Asked of the switches alone, like the join.
         if (enabledHandedBack || tableHandedBack) resettleSurfaces();
+        // The settle switch is the server's for the visit (0.9.223) and the read above handed this client's own back,
+        // so what settles is marked again from it - the stamps are field reads the renderer and collision trust.
+        PhysicalDecay.markSettlingBlocks();
+        markSettlingBlocks();
         if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
         if (appearancesHandedBack) requestRestitch("Back on the materials your own config draws.");
         Trmt.LOG.debug("Disconnected; overlay cache cleared");

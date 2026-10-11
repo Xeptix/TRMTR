@@ -18,7 +18,6 @@ import net.minecraft.network.chat.TextComponent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.world.level.Level;
 
-import com.trmtgtnh.Client;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.network.TrmtNetwork;
 import com.trmtgtnh.server.ConfigSnapshot;
@@ -68,7 +67,7 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
         InteractionHand hand = context.getHand();
         ItemStack stack = player.getItemInHand(hand);
         if (world.isClientSide()) {
-            if (TamperModifiers.held(player)) Client.openSnapshotScreen(0);
+            if (TamperModifiers.held(player)) requestScreen();
             return InteractionResult.SUCCESS;
         }
         if (TamperModifiers.held(player)) return InteractionResult.SUCCESS;
@@ -80,7 +79,7 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
     public InteractionResultHolder<ItemStack> use(Level world, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         if (world.isClientSide()) {
-            if (TamperModifiers.held(player)) Client.openSnapshotScreen(0);
+            if (TamperModifiers.held(player)) requestScreen();
         } else if (!TamperModifiers.held(player)) {
             act(player, SnapshotStore.RIGHT, player.isShiftKeyDown());
         }
@@ -92,6 +91,19 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
         if (world == null || world.isClientSide()) return false;
         act(player, SnapshotStore.LEFT, sneaking);
         return true;
+    }
+
+    /**
+     * Asks the server for the snapshot screen rather than opening it (spec CF81).
+     *
+     * <p>
+     * The server answers with which sides hold something and whether there is a way back, and the
+     * screen opens on that answer; a player without permission is told so and gets no screen. Opened
+     * here at once, as it was until 0.9.223, it showed every side empty and no undo until something
+     * else brought an answer, and opened for anybody at all. 1.7.10: {@code ClientProxy.requestSnapshotScreen}.
+     */
+    private static void requestScreen() {
+        TrmtNetwork.sendSnapshotAction(com.trmtgtnh.network.PacketSnapshotAction.REQUEST);
     }
 
     /** Sneaking stores this side; not sneaking puts it back. */

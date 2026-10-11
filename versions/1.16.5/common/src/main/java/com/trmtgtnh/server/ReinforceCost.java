@@ -4,6 +4,8 @@ import java.util.List;
 
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.Tag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -16,7 +18,8 @@ import com.trmtgtnh.util.Fluids;
  *
  * <p>
  * The list is {@code reinforce.materials}, read in order, and the first entry the player can pay
- * with is the one that is taken. An entry is either an item by name or, with a {@code fluid:}
+ * with is the one that is taken. An entry is either an item by name, every item in an item tag
+ * written {@code #namespace:path} (0.9.223, for {@code forge:concrete}), or, with a {@code fluid:}
  * prefix, a bucket or cell of that fluid - and the container's own rule decides what comes back.
  *
  * <p>
@@ -38,6 +41,8 @@ public final class ReinforceCost {
 
     /** Marks an entry as a fluid rather than an item. */
     private static final String FLUID_PREFIX = "fluid:";
+
+    private static final String TAG_PREFIX = "#";
 
     private ReinforceCost() {}
 
@@ -123,10 +128,9 @@ public final class ReinforceCost {
                 String has = fluidNameOf(stack);
                 if (Fluids.named(want, has) && fluidAmountOf(stack) >= Fluids.BUCKET) return entry;
             } else {
-                Item want = resolve(entry);
                 // Item identity and nothing else. Both older editions also compare a damage value,
                 // which used to pick a variant; there is one item per thing now.
-                if (want != null && want == stack.getItem()) return entry;
+                if (matches(entry, stack.getItem())) return entry;
             }
         }
         return null;
@@ -139,6 +143,11 @@ public final class ReinforceCost {
         if (trimmed.isEmpty()) return false;
         if (trimmed.regionMatches(true, 0, FLUID_PREFIX, 0, FLUID_PREFIX.length())) {
             return fluidExists(trimmed.substring(FLUID_PREFIX.length()));
+        }
+        if (trimmed.startsWith(TAG_PREFIX)) {
+            Tag<Item> tag = tagNamed(trimmed);
+            return tag != null && !tag.getValues()
+                .isEmpty();
         }
         return resolve(trimmed) != null;
     }
@@ -232,15 +241,39 @@ public final class ReinforceCost {
     // ------------------------------------------------------------------
 
     private static int findItem(Player player, String entry) {
-        Item want = resolve(entry);
-        if (want == null) return -1;
         List<ItemStack> inventory = player.inventory.items;
         for (int i = 0; i < inventory.size(); i++) {
             ItemStack held = inventory.get(i);
             if (held.isEmpty()) continue;
-            if (held.getItem() == want) return i;
+            if (matches(entry, held.getItem())) return i;
         }
         return -1;
+    }
+
+    /**
+     * Whether an item entry takes this item: a name, or from 0.9.223 a {@code #namespace:path} item tag. A tag is
+     * asked when something pays and never remembered, so it answers with the tags the world has bound.
+     */
+    static boolean matches(String entry, Item item) {
+        if (item == null) return false;
+        if (entry.startsWith(TAG_PREFIX)) {
+            Tag<Item> tag = tagNamed(entry);
+            return tag != null && tag.contains(item);
+        }
+        Item want = resolve(entry);
+        return want != null && want == item;
+    }
+
+    /** The item tag a {@code #namespace:path} entry names, or null - also before any world has bound one. */
+    private static Tag<Item> tagNamed(String entry) {
+        ResourceLocation id = ResourceLocation.tryParse(entry.substring(TAG_PREFIX.length()));
+        if (id == null) return null;
+        try {
+            return ItemTags.getAllTags()
+                .getTag(id);
+        } catch (RuntimeException tagsNotLoadedYet) {
+            return null;
+        }
     }
 
     private static boolean payItem(Player player, String entry) {

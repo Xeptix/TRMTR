@@ -20,6 +20,9 @@
     "MixinAnimatedSprite",
     "MixinSpriteFiltering",
     "MixinSettleOnWornGround",
+    "MixinSunkLight",
+    "MixinSettledHit",
+    "MixinSettledOutline",
     "MixinGhostShaderMaterial",
     "MixinStairMetadata",
     "MixinBlockArrivals"

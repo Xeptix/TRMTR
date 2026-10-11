@@ -1,5 +1,6 @@
 package com.trmtgtnh;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 
 import com.trmtgtnh.config.ServerRules;
@@ -63,7 +64,7 @@ public final class Client {
 
         void considerServerTable(boolean sent, long fingerprint);
 
-        void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes);
+        void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm);
 
         // ---- screens and readouts ----
 
@@ -154,6 +155,9 @@ public final class Client {
         short ghostRecordAt(BlockGetter level, int x, int y, int z);
 
         int ghostOriginAt(int x, int y, int z);
+
+        /** Holds a square's family while its dust is spawned - see client.model.GhostDust (0.9.223, spec GF19). */
+        void holdDust(BlockGetter level, BlockPos pos);
 
         int clientLightLevel(int x, int y, int z);
 
@@ -259,9 +263,9 @@ public final class Client {
         if (at != null) at.considerServerTable(sent, fingerprint);
     }
 
-    public static void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes) {
+    public static void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm) {
         Side at = reaching();
-        if (at != null) at.installServerTable(fingerprint, holdsSwitch, bytes);
+        if (at != null) at.installServerTable(fingerprint, holdsSwitch, bytes, keysCarryForm);
     }
 
     public static void acceptInspection(int x, int y, int z, float wear, float threshold, int untouchedSeconds,
@@ -306,6 +310,15 @@ public final class Client {
     // both older editions' proxy gives on a server: a record of nothing, no origin, no light and no
     // drop. A ghost block asking any of them on a dedicated server is a ghost block nothing put
     // there, so the honest answer is that there is nothing to see.
+
+    /**
+     * Holds a ghost square's family while its dust is spawned, so the dust takes that family's picture - the 1.7.10
+     * edition's, side by side (0.9.223, spec GF19; see client.model.GhostDust). Asked only where a client spawns dust.
+     */
+    public static void holdDust(BlockGetter level, BlockPos pos) {
+        Side at = reaching();
+        if (at != null && level != null && pos != null) at.holdDust(level, pos);
+    }
 
     /** The wear record painted at this position, or {@link ErosionState#NONE}. */
     public static short ghostRecordAt(BlockGetter level, int x, int y, int z) {

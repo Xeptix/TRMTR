@@ -111,6 +111,24 @@ public final class GhostRendering {
      * left to draw the vanilla fringe for now. With the feature off it is always the vanilla one,
      * so the render path is byte-for-byte what it was.
      */
+    /**
+     * Whether the ground at this square has sunk: its record's own sink, which is what the thinned fringe and the
+     * earth wall are kept from, as the ports ask it. {@code isSunken} says only which stand-in this is, and the short
+     * lawn's is hollow to draw a short block without having sunk at all (0.9.223, spec GS5).
+     */
+    static boolean sunkHere(GhostBlock ghost, int x, int y, int z) {
+        return ghost.isSunken() && ErosionState.sinkOf(Trmt.proxy.erosionStateAt(x, y, z)) > 0;
+    }
+
+    /**
+     * Whether this square's top is lit as a sunk top (0.9.223, SunkLight): the same question as {@link #sunkHere},
+     * asked by the renderer's mixin from outside this package. Only sunk ground: a ghost standing in for a short block
+     * that has not sunk keeps the light its block would have had.
+     */
+    public static boolean litAsSunk(GhostBlock ghost, int x, int y, int z) {
+        return sunkHere(ghost, x, y, z);
+    }
+
     public static IIcon grassSideOverlay(GhostBlock ghost, int x, int y, int z, IIcon vanilla) {
         if (PROBE) probe(
             "grassSideOverlay reached, family=" + ghost.appearance()
@@ -125,7 +143,7 @@ public final class GhostRendering {
         if (!TrmtConfig.grassSideWear) return vanilla;
         if (ghost.appearance() != SurfaceFamily.GRASS || ghost.isUntinted()) return vanilla;
         if (!ghost.mimicsVanillaGrassTop()) return vanilla;
-        if (ghost.isSunken()) return vanilla;
+        if (sunkHere(ghost, x, y, z)) return vanilla;
         int layer = sideLayer(SurfaceFamily.GRASS, x, y, z);
         IIcon thinned = WearTextures.grassSideOverlay(layer, Rotations.forPosition(x, z));
         if (PROBE) probe(
@@ -293,7 +311,7 @@ public final class GhostRendering {
         if (TrmtConfig.grassSideWear && side >= 2
             && ghost.appearance() == SurfaceFamily.GRASS
             && !revealsEarth
-            && !ghost.isSunken()
+            && !sunkHere(ghost, x, y, z)
             // Only the variant standing in for vanilla grass, exactly as MixinGrassTint and the
             // receding fringe are gated. This wall is handed back under the name grass_side so
             // the fringe still draws over it - and that name is a claim only a vanilla-looking

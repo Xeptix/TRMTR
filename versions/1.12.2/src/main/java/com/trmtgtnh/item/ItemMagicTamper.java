@@ -77,17 +77,18 @@ public class ItemMagicTamper extends ItemChunkTamper {
      * name is the same on both and the screen needs it the instant it opens.
      *
      * <p>
-     * Named the way the engine names a mob when it asks what that mob does to the ground, so the
-     * name this writes is the name those settings are keyed by. 1.12.2 has a second name for an
-     * entity - its registry one - and using it here would have written {@code minecraft:zombie}
-     * into a stack whose settings are listed under {@code Zombie}.
+     * Named by the entity's registry name - {@code minecraft:skeleton} - which the engine asks for first. Until
+     * 0.9.223 this wrote the short name the 1.7.10 edition's lists are keyed by, and a short name 1.11 split -
+     * {@code Skeleton} - is read as every kind it became, so stopping a skeleton stopped wither skeletons too (spec
+     * WH4; Xep, 2026-10-10: "Go with your recommendation", the registry name, as 1.16.5 writes it).
      */
     @Override
     public boolean itemInteractionForEntity(ItemStack stack, EntityPlayer player, EntityLivingBase entity,
         EnumHand hand) {
         if (entity == null || player == null) return false;
         if (!TamperModifiers.held(player)) return false;
-        String name = EntityList.getEntityString(entity);
+        net.minecraft.util.ResourceLocation key = EntityList.getKey(entity);
+        String name = key == null ? null : key.toString();
         if (name == null || name.isEmpty()) return true; // consumed the gesture, nothing to name
         setEntity(stack, name);
         if (player.world != null && player.world.isRemote) {

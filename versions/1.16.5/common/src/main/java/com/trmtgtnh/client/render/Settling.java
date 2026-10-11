@@ -79,6 +79,55 @@ public final class Settling {
         return drop > 0.0D ? drop : 0.0D;
     }
 
+    /**
+     * The shape the crosshair hits on a block that settles: its outline shape, lowered by the drop of the rut under it,
+     * so the shape a click finds comes down with the picture - the 1.7.10 edition's Settling.rayTrace (0.9.223).
+     *
+     * <p>
+     * Xep, 2026-10-10, on the outline floating above settled snow: "lower it as long as the actual hitbox lowers with
+     * it, otherwise players may struggle to break it intentionally." This version's crosshair clips a block's outline
+     * shape, so lowering what that clip is handed lowers the hit; the outline drawn round it comes down in
+     * {@link #outline} by the same test, and only once a hit has, so the two cannot part.
+     */
+    public static net.minecraft.world.phys.shapes.VoxelShape hitShape(BlockState state, BlockGetter level, BlockPos pos,
+        net.minecraft.world.phys.shapes.VoxelShape shape) {
+        double drop = state != null && settles(state.getBlock()) ? dropFor(level, pos) : 0.0D;
+        if (shape == null || drop <= 0.0D) return shape;
+        noteHitLowered();
+        return shape.move(0.0D, -drop, 0.0D);
+    }
+
+    /**
+     * The outline drawn round a block the crosshair is on: its shape, lowered by the same drop and the same test as the
+     * hit in {@link #hitShape} - and only once a hit has been lowered, so a clip hook some other mod kept from binding
+     * leaves the outline up, over a hit that is up too, rather than lowered over one that is not (0.9.223).
+     */
+    public static net.minecraft.world.phys.shapes.VoxelShape outline(BlockState state, BlockGetter level, BlockPos pos,
+        net.minecraft.world.phys.shapes.VoxelShape shape) {
+        double drop = state != null && settles(state.getBlock()) ? dropFor(level, pos) : 0.0D;
+        if (shape == null || drop <= 0.0D || !hitSaid) return shape;
+        noteOutlineLowered();
+        return shape.move(0.0D, -drop, 0.0D);
+    }
+
+    private static volatile boolean hitSaid;
+
+    private static boolean outlineSaid;
+
+    /** Proof the hit hook runs, said once - an injector that does not apply says nothing at all. */
+    private static void noteHitLowered() {
+        if (hitSaid) return;
+        hitSaid = true;
+        Trmt.LOG.info("Lowered the crosshair's hit on a block settled onto worn ground; the clip hook is in place");
+    }
+
+    /** Proof the outline hook runs, said once. */
+    private static void noteOutlineLowered() {
+        if (outlineSaid) return;
+        outlineSaid = true;
+        Trmt.LOG.info("Lowered the outline of a block settled onto worn ground; the hit outline hook is in place");
+    }
+
     /** The offset a settling block is drawn at - vanilla's, dropped by the rut under it - or null for unchanged. */
     public static Vec3 offset(BlockState state, BlockGetter level, BlockPos pos, Vec3 vanilla) {
         if (state == null || !settles(state.getBlock())) return null;

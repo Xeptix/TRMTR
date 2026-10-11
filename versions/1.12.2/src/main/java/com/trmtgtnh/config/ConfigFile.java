@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -158,21 +157,40 @@ public final class ConfigFile {
      * Parses the file, or leaves everything empty when there is nothing to parse.
      *
      * <p>
-     * Deliberately forgiving, for the same reason the chunk reader is: a line nobody can make sense
-     * of is skipped rather than thrown, because a settings file somebody has hand-edited into an odd
-     * state should cost them that setting and not their game. What cannot be read keeps the default
-     * the calling code passes in, and the file is rewritten in good order at the next save.
+     * A file Forge's own parser would refuse is refused here too, before anything in memory is touched:
+     * {@link Unreadable} is thrown, {@link #open()} sets the file aside at start, and a re-read keeps the
+     * settings already loaded - each as the 1.7.10 edition does through Forge (0.9.223, spec CF5; Xep:
+     * "Let's match forge for a broken file"). Until then this reader took what it could from any file and
+     * skipped the rest, and the save after the read wrote the file back over the broken one with no copy
+     * kept. A line Forge reads past - words with no type, a value that will not parse - is still read past
+     * here, as it is there; {@link #whyUnreadable} is the whole list of what is refused.
      */
     public void load() {
-        categories.clear();
-        changed = false;
         if (file == null || !file.isFile()) {
+            categories.clear();
             changed = true;
             return;
         }
+        String text;
+        try {
+            text = new String(java.nio.file.Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException unreadable) {
+            // Everything keeps its default and the file is rewritten at the next save.
+            categories.clear();
+            changed = true;
+            return;
+        }
+        // Forge's reader drops a byte-order mark before it parses; without this, a file saved by an editor that writes
+        // one would be refused for its first character.
+        if (!text.isEmpty() && text.charAt(0) == 0xFEFF) text = text.substring(1);
+        String why = whyUnreadable(lines(text));
+        if (why != null) throw new Unreadable(file.getName() + ": " + why);
+
+        categories.clear();
+        changed = false;
         BufferedReader in = null;
         try {
-            in = new BufferedReader(new InputStreamReader(new java.io.FileInputStream(file), StandardCharsets.UTF_8));
+            in = new BufferedReader(new java.io.StringReader(text));
             List<String> path = new ArrayList<String>();
             StringBuilder comment = new StringBuilder();
             String line;
@@ -210,6 +228,156 @@ public final class ConfigFile {
         } finally {
             close(in);
         }
+    }
+
+    /** A file Forge's own parser would refuse, and why (0.9.223, spec CF5). */
+    public static final class Unreadable extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
+        Unreadable(String why) {
+            super(why);
+        }
+    }
+
+    /**
+     * Opens the file at start, as Forge's constructor does (0.9.223, spec CF5): a file {@link #load()} refuses is
+     * renamed beside itself to {@code <name>_<yyyyMMdd_HHmmss>.errored}, and everything starts again at its default, the
+     * file being written fresh at the next save. Returns the line to log when that happened, or null when the file read.
+     * A rename that fails leaves the file where it is and the second read throws, as Forge's does: the game stops rather
+     * than write over a file it could not set aside.
+     */
+    public String open() {
+        try {
+            load();
+            return null;
+        } catch (Unreadable broken) {
+            File aside = new File(
+                file.getAbsolutePath() + "_"
+                    + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date())
+                    + ".errored");
+            file.renameTo(aside);
+            load();
+            return "An exception occurred while loading config file " + file.getName()
+                + " ("
+                + broken.getMessage()
+                + "). It has been renamed to "
+                + aside.getName()
+                + " and a new config file will be generated, as Forge does.";
+        }
+    }
+
+    /**
+     * Why Forge 1.7.10's {@code Configuration.load()} would throw on these lines, or null when it would read them - its
+     * character scan, carried rule for rule (read in its source, 2026-10-10). It refuses five things outright: a closing
+     * brace with no category open, a setting or list outside every category, a list whose opening is not the last thing
+     * on its line or whose closing has no list open, a character it does not know outside a value, a comment or a list,
+     * and an unmatched quote. And it fails on a name it cannot cut out - a brace, an equals sign, a type colon or a list
+     * opening with no name before it - which its constructor catches the same way. Everything after an equals sign is a
+     * value and is not looked at; inside a list almost anything goes.
+     */
+    static String whyUnreadable(List<String> lines) {
+        int depth = 0;
+        boolean inList = false;
+        for (int n = 0; n < lines.size(); n++) {
+            String line = lines.get(n);
+            int at = n + 1;
+            if (marker(line, "START") || marker(line, "END")) continue;
+
+            int nameStart = -1;
+            boolean skip = false;
+            boolean quoted = false;
+            boolean first = true;
+            for (int i = 0; i < line.length() && !skip; ++i) {
+                char c = line.charAt(i);
+                if (Character.isLetterOrDigit(c) || "._-".indexOf(c) != -1 || (quoted && c != '"')) {
+                    if (nameStart == -1) nameStart = i;
+                    first = false;
+                } else if (!Character.isWhitespace(c)) {
+                    switch (c) {
+                        case '#':
+                            if (inList) break;
+                            skip = true;
+                            continue;
+                        case '"':
+                            if (inList) break;
+                            if (quoted) quoted = false;
+                            if (!quoted && nameStart == -1) quoted = true;
+                            break;
+                        case '{':
+                            if (inList) break;
+                            if (nameStart == -1) return "a category with no name on line " + at;
+                            depth++;
+                            break;
+                        case '}':
+                            if (inList) break;
+                            if (depth == 0) return "a category closed that was never opened, on line " + at;
+                            depth--;
+                            break;
+                        case '=':
+                            if (inList) break;
+                            if (nameStart == -1) return "a setting with no name on line " + at;
+                            if (depth == 0) return "a setting outside every category, on line " + at;
+                            i = line.length();
+                            break;
+                        case ':':
+                            if (inList) break;
+                            if (nameStart == -1) return "a type with no letter on line " + at;
+                            nameStart = -1;
+                            break;
+                        case '<':
+                            if (inList == (i + 1 == line.length())) return "a malformed list on line " + at;
+                            if (!inList) {
+                                if (nameStart == -1) return "a list with no name on line " + at;
+                                if (depth == 0) return "a list outside every category, on line " + at;
+                                inList = true;
+                                skip = true;
+                            }
+                            break;
+                        case '>':
+                            if (!inList) return "a list closed that was never opened, on line " + at;
+                            if (first) inList = false;
+                            break;
+                        case '~':
+                            if (inList) break;
+                            if (line.startsWith("~CONFIG_VERSION")) skip = true;
+                            break;
+                        default:
+                            if (inList) break;
+                            return "an unknown character '" + c + "' on line " + at;
+                    }
+                    first = false;
+                }
+            }
+            if (quoted) return "an unmatched quote on line " + at;
+        }
+        return null;
+    }
+
+    /**
+     * Forge's marker for a child file, which it reads past: the word, a colon, a space, and a quoted name holding no
+     * quote and no backslash - its own pattern, matched by hand.
+     */
+    private static boolean marker(String line, String word) {
+        String opens = word + ": " + '"';
+        if (line.length() < opens.length() + 2 || !line.startsWith(opens) || line.charAt(line.length() - 1) != '"') {
+            return false;
+        }
+        String name = line.substring(opens.length(), line.length() - 1);
+        return name.indexOf('"') < 0 && name.indexOf(92) < 0;
+    }
+
+    /** The file's lines as a reader hands them out, for {@link #whyUnreadable}. */
+    static List<String> lines(String text) {
+        List<String> out = new ArrayList<String>();
+        BufferedReader in = new BufferedReader(new java.io.StringReader(text));
+        try {
+            String line;
+            while ((line = in.readLine()) != null) out.add(line);
+        } catch (IOException cannot) {
+            // A string has no I/O to fail.
+        }
+        return out;
     }
 
     /** A banner row of hashes carries no meaning; anything else is help text. */

@@ -38,8 +38,9 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * {@code WearSprite.harvest}, and {@link #animationOf} and {@link #mayMove} only from that harvest, which runs only
  * inside the pass and is the half of it allowed to ask a block or a pack anything; {@link #noteAnimated} from
  * {@code WearSprite.adoptLayer}, as a picture takes its layer; {@link #isWindow} and {@link #anyWindows} from
- * GhostWindows and GhostLayers, which meshers reach them through; and {@link #newTick} and {@link #mayUpload} only from
- * the client tick and the atlas's own animation tick. Nothing else here is read from a worker, and what is - the window
+ * GhostWindows and GhostLayers, which meshers reach them through. There is no upload ceiling here: this atlas animates
+ * each worn moving picture from its own .mcmeta (0.9.223 took the unused one out). Nothing else here is read from a
+ * worker, and what is - the window
  * filing - is published whole through one volatile field and never written after, so it needs no lock either.
  */
 public final class InnerLayers {
@@ -63,7 +64,6 @@ public final class InnerLayers {
         animating = TrmtConfig.animateInnerLayers;
         unpriced = 0;
         closeAsk();
-        uploads.forget();
         readTable();
     }
 
@@ -278,9 +278,6 @@ public final class InnerLayers {
      */
     private static int unpriced;
 
-    /** This tick's uploads, and whether this stitch has yet said that their ceiling turned pictures away. */
-    private static final MovingLayerLedger.UploadTally uploads = new MovingLayerLedger.UploadTally();
-
     /**
      * The animation the pack gives this texture, normalised, or null when it does not move.
      *
@@ -401,36 +398,6 @@ public final class InnerLayers {
     }
 
     /**
-     * A new client tick and a fresh allowance of uploads; and, the first time since the last stitch that a tick turned
-     * pictures away, a line saying so with the figures that tick measured.
-     */
-    public static void newTick() {
-        if (!uploads.newTick(TrmtConfig.innerLayerUploadsPerTick)) return;
-        Trmt.LOG.info(
-            LINE_CEILING,
-            new Object[] { Integer.valueOf(uploads.lastAsked()), Integer.valueOf(uploads.lastAllowed()),
-                Integer.valueOf(uploads.lastTurnedAway()) });
-    }
-
-    /**
-     * Whether another layer may be redrawn this tick.
-     *
-     * <p>
-     * Every picture of a lavastone wants its lava laid again on the same tick, because they all follow one clock, so
-     * on a plain client the atlas asks every moving picture on it each tick, whether or not it is in view, and without
-     * a
-     * ceiling Chisel's faces alone would send several thousand small uploads to the card in one tick and drop a frame
-     * doing it. What goes over is not redrawn late. The clock it follows has already moved
-     * on, so the picture keeps the frame it shows until its layer next moves and asks again, and since the atlas asks
-     * its
-     * pictures in the same order every tick, past the ceiling it is the same pictures that stand still. The first tick
-     * of a stitch that turns any away is said.
-     */
-    public static boolean mayUpload() {
-        return uploads.take();
-    }
-
-    /**
      * Says what moves, what it holds against what it was granted, and what was kept still and why. Render thread, as
      * the
      * sprite pass ends and just before the atlas goes to the stitcher.
@@ -499,8 +466,6 @@ public final class InnerLayers {
     private static final String LINE_NOUGHT = "client.innerLayerAnimationBudgetMb is nought, so none of the {} {} whose layer moves was given movement, the same picture as turning client.animateInnerLayers off";
     private static final String LINE_NONE_FIT = "No layer moves: client.innerLayerAnimationBudgetMb is {} MiB and no surface asking for a moving layer fitted in it, so each keeps its layer's first frame: {}. The cheapest needed {} KiB, and moving every one would need a budget of {} MiB";
     private static final String LINE_REFUSED = "Kept a still layer on {} {} for want of room under client.innerLayerAnimationBudgetMb of {} MiB, each surface priced whole: {}. The cheapest needed {} KiB, and moving every surface asked for would need a budget of {} MiB";
-    private static final String LINE_CEILING = "On one tick {} worn pictures asked to have their moving layer redrawn and client.innerLayerUploadsPerTick allows {}, so {} were turned away. A picture turned away keeps the frame it shows until its layer next moves and asks again, and the atlas asks in the same order every tick, so while this lasts it is the same pictures that stand still";
-
     /** Notes that a named texture could not be read, so the stitch can say so once at the end. */
     static void couldNotRead(String texture) {
         unresolved.add(texture);

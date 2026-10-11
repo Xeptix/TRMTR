@@ -50,10 +50,10 @@ import com.trmtgtnh.network.TrmtNetwork;
  * <h2>What is kept exactly</h2>
  *
  * <p>
- * The client category comes first, because it is the only part a player on somebody else's server
- * can actually change. Every other category is still listed, so a single-player world can be tuned
- * without leaving the game. Both of those are the other edition's reasoning and neither is a
- * property of the library.
+ * The headings are 1.7.10's, in its order, and {@link ConfigLayout} says which: presets, then client -
+ * the only part a player on somebody else's server can actually change - then the rest as that screen
+ * names them, then each family as a heading of its own. The six 1.7.10 leaves to a text editor are
+ * left off here too (spec CF58).
  *
  * <p>
  * The two buttons are kept as well, at the top of the first category rather than in a row of their
@@ -61,14 +61,11 @@ import com.trmtgtnh.network.TrmtNetwork;
  * that over. They are shown only where there is a world to use them in, which is the same gate the
  * other edition puts on them.
  *
- * <h2>What is not kept</h2>
- *
  * <p>
- * The block and mob pickers drew an icon beside each entry, which is what
- * {@code BlockIconArrayEntry} and {@code MobIconArrayEntry} were for. Cloth's string list has no
- * such hook, so those lists are names here. The names are what the file holds and what a pack
- * author types; the icons were a convenience, and {@code WearIcons.drawIcon} - which is what drew
- * them - is still here and still drawing them on the wear table and its editor.
+ * The block and mob lists draw an icon beside each entry, which is what {@code BlockIconArrayEntry}
+ * and {@code MobIconArrayEntry} were for there: {@link IconListEntry} is Cloth's list with rows that
+ * leave room for one (spec CF60). The two counted settings, {@code wearGradations} and
+ * {@code wearRotations}, slide (spec CF59).
  */
 public final class ConfigScreen {
 
@@ -90,10 +87,10 @@ public final class ConfigScreen {
         ConfigEntryBuilder entries = builder.entryBuilder();
 
         boolean first = true;
-        for (String name : ordered(config)) {
+        for (String name : ConfigLayout.headings(config.getCategoryNames())) {
             ConfigFile.Category category = config.getCategory(name);
             if (category == null) continue;
-            ConfigCategory shown = builder.getOrCreateCategory(new TextComponent(title(name)));
+            ConfigCategory shown = builder.getOrCreateCategory(new TextComponent(title(leaf(name))));
             if (first) {
                 first = false;
                 buttons(shown, parent);
@@ -104,23 +101,12 @@ public final class ConfigScreen {
     }
 
     /**
-     * The categories, the client's first.
-     *
-     * <p>
-     * A nested category - {@code families.grass} - is not a category of its own here: it is a folder
-     * inside the one it is named under, which is what Cloth calls a sub-category and what the file's
-     * own dotted name has always meant.
+     * A heading's own name: {@code families.grass} is headed "Grass", as Forge heads it on the 1.7.10
+     * screen by the category's last part.
      */
-    private static List<String> ordered(ConfigFile config) {
-        List<String> tops = new ArrayList<String>();
-        for (String name : config.getCategoryNames()) {
-            String top = name.indexOf('.') < 0 ? name : name.substring(0, name.indexOf('.'));
-            if (!tops.contains(top)) tops.add(top);
-        }
-        // The one piece of ordering this screen insists on, and the other edition's reason for it:
-        // on somebody else's server the client category is the only part a player can change.
-        if (tops.remove("client")) tops.add(0, "client");
-        return tops;
+    private static String leaf(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? name : name.substring(dot + 1);
     }
 
     /** Every setting under one top-level category, with its folders as sub-categories. */
@@ -128,7 +114,7 @@ public final class ConfigScreen {
         ConfigFile.Category category) {
         for (ConfigFile.Setting setting : category.getValues()
             .values()) {
-            if (setting != null) shown.addEntry(entry(entries, setting));
+            if (setting != null) shown.addEntry(entry(entries, top, setting));
         }
 
         // The folders, in the order the file holds them.
@@ -146,8 +132,9 @@ public final class ConfigScreen {
         }
         for (Map.Entry<String, List<ConfigFile.Setting>> folder : folders.entrySet()) {
             SubCategoryBuilder made = entries.startSubCategory(new TextComponent(title(folder.getKey())));
+            String inside = top + ConfigFile.CATEGORY_SPLITTER + folder.getKey();
             for (ConfigFile.Setting setting : folder.getValue()) {
-                made.add(entry(entries, setting));
+                made.add(entry(entries, inside, setting));
             }
             shown.addEntry(made.build());
         }
@@ -155,11 +142,27 @@ public final class ConfigScreen {
 
     /** One setting, as whichever kind of entry its own type asks for. */
     private static me.shedaniel.clothconfig2.api.AbstractConfigListEntry<?> entry(ConfigEntryBuilder entries,
-        final ConfigFile.Setting setting) {
+        String category, final ConfigFile.Setting setting) {
         Component name = named(setting);
         Component[] note = note(setting);
 
         if (setting.isList()) {
+            // A list of blocks or mobs draws what each line names (spec CF60): Cloth's list, with
+            // rows of this mod's own that leave room for the picture.
+            ConfigLayout.Icons icons = ConfigLayout.iconsFor(category, setting.getName());
+            if (icons != ConfigLayout.Icons.NONE) {
+                final java.util.Optional<Component[]> hover = note.length == 0 ? java.util.Optional.empty()
+                    : java.util.Optional.of(note);
+                final List<String> defaults = Arrays.asList(setting.getDefaultList());
+                return new IconListEntry(
+                    name,
+                    Arrays.asList(setting.getStringList()),
+                    () -> hover,
+                    values -> setting.set(values.toArray(new String[values.size()])),
+                    () -> defaults,
+                    entries.getResetButtonKey(),
+                    icons);
+            }
             return entries.startStrList(name, Arrays.asList(setting.getStringList()))
                 .setDefaultValue(Arrays.asList(setting.getDefaultList()))
                 .setTooltip(note)
@@ -176,6 +179,18 @@ public final class ConfigScreen {
                     .setSaveConsumer(value -> setting.set(value.booleanValue()))
                     .build();
             case INTEGER: {
+                // The two counted settings slide rather than type (spec CF59) - within Cloth, by its
+                // own slider. A slider needs both ends, which both have.
+                if (ConfigLayout.slides(category, setting.getName()) && setting.isBounded()) {
+                    int min = (int) setting.getMin();
+                    int max = (int) setting.getMax();
+                    return entries
+                        .startIntSlider(name, clamp((int) number(setting.getString(), min), min, max), min, max)
+                        .setDefaultValue(clamp((int) number(setting.getDefault(), min), min, max))
+                        .setTooltip(note)
+                        .setSaveConsumer(value -> setting.set(value.intValue()))
+                        .build();
+                }
                 me.shedaniel.clothconfig2.impl.builders.IntFieldBuilder made = entries
                     .startIntField(name, (int) number(setting.getString(), 0D))
                     .setDefaultValue((int) number(setting.getDefault(), 0D))
@@ -357,8 +372,13 @@ public final class ConfigScreen {
      * it may ask for. The other edition goes through Forge's config-changed event to the same place.
      */
     private static void saved() {
-        TrmtConfig.save();
-        com.trmtgtnh.config.ConfigReload.fromDisk();
+        // Saved at once and reloaded where the world is (spec CF49): this fires on the client
+        // thread, which in single player does not own the world, so the reload waits for the
+        // integrated server's thread - and the save goes first, because that thread's next tick never
+        // comes when a player goes from the pause menu straight to Save and Quit. It reloads what the
+        // entries just wrote rather than the file, and on somebody else's server it is the path that
+        // tells the player, once a visit, that the server's numbers stood over their edit (spec CF38).
+        com.trmtgtnh.config.ConfigReload.fromGuiDeferred();
     }
 
     /** A category or setting name as a heading: {@code wearStrength} reads as "Wear strength". */
@@ -405,6 +425,10 @@ public final class ConfigScreen {
             }
         }
         return out.toString();
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return value < min ? min : value > max ? max : value;
     }
 
     private static double number(String text, double fallback) {

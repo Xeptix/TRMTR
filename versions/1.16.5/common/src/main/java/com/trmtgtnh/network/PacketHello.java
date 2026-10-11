@@ -19,20 +19,30 @@ public class PacketHello implements Message {
 
     private boolean wantsOverlays;
 
+    /**
+     * The protocol the sender speaks (0.9.223): written after the switch, so an older server reads the switch and
+     * leaves this unread, and read as 1 where a hello from an older client ends at the switch. See
+     * TrmtNetwork.PROTOCOL.
+     */
+    private int protocol = 1;
+
     public PacketHello() {}
 
     public PacketHello(boolean wantsOverlays) {
         this.wantsOverlays = wantsOverlays;
+        this.protocol = TrmtNetwork.PROTOCOL;
     }
 
     @Override
     public void fromBytes(ByteBuf buf) {
         wantsOverlays = buf.readBoolean();
+        protocol = buf.readableBytes() >= 4 ? buf.readInt() : 1;
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeBoolean(wantsOverlays);
+        buf.writeInt(protocol);
     }
 
     public static class Handler implements Receiver<PacketHello> {
@@ -48,6 +58,7 @@ public class PacketHello implements Message {
             // handed to the end of the tick, in the same line as a reload or /trmt enable handed over
             // from another thread. See TrmtNetwork.answerHello for why it is not decided here.
             TrmtNetwork.rememberWanted(player, wants);
+            TrmtNetwork.rememberProtocol(player, message.protocol);
             MainThread.onServer(new Runnable() {
 
                 @Override

@@ -67,8 +67,9 @@ public final class GhostWindows {
      *
      * <p>
      * "The same block" there is the same window twin, chosen by the family the square wears as, so two squares over
-     * different blocks that wear as one family share a pane. Only that class carries the rule: a hollow (sunk, or over
-     * a short block), a stair, and grass drawing vanilla's own top - BlockGhostGrass there - never share one.
+     * different blocks that wear as one family share a pane. A hollow (sunk, or over a short block) and a stair never
+     * share one. Grass does since 0.9.223, when that edition's grass twins took the rule, and a lawn drawing vanilla's
+     * top is a twin of its own there, so a pane of its own here (spec GF4).
      */
     public static int paneAt(BlockGetter world, BlockPos pos) {
         if (world == null || pos == null || !(world.getBlockState(pos)
@@ -76,7 +77,10 @@ public final class GhostWindows {
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         if (!windowSquareAt(world, pos, origin) || !BlockGhost.wholeAt(world, pos)) return 0;
         SurfaceFamily wears = ErosionState.familyOf(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()));
-        if (wears == null || GhostSides.tintsAsGrass(origin, wears)) return 0;
+        if (wears == null) return 0;
+        // Grass shares a pane too since 0.9.223 (spec GF4) - that edition's grass twins took the rule then - and a lawn
+        // drawing vanilla's top is a twin of its own there, so a pane of its own here.
+        if (GhostSides.tintsAsGrass(origin, wears)) return 1 + SurfaceFamily.values().length;
         return 1 + wears.ordinal();
     }
 
@@ -106,16 +110,14 @@ public final class GhostWindows {
      * with the face owner's state and the neighbour's position.
      */
     public static int lightAt(BlockAndTintGetter level, BlockState state, BlockPos pos) {
-        boolean windows = InnerLayers.anyWindows();
-        if ((!windows && !BlockGhost.anyStairPainted()) || level == null || pos == null) return -1;
+        if (!InnerLayers.anyWindows() || level == null || pos == null) return -1;
         if (!(level.getBlockState(pos)
             .getBlock() instanceof BlockGhost)) return -1;
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
-        // A worn stair too, of any family, clear or not: it stops all light, as the 1.7.10 edition's stair stand-in does,
-        // and that stand-in says useNeighborBrightness for every family, so the riser, the treads and the block beside it
-        // are lit from the brightest light around its cell rather than from the cell, which holds none (0.9.222, spec
-        // GF8). Until then a stair let light into its cell instead, through its solid back and floor as well.
-        if (BlockGhost.coveredStair(origin) == null && !(windows && windowSquareAt(level, pos, origin))) return -1;
+        // A window only. A worn stair was lent the same from 0.9.222, when it stopped all light as the 1.7.10 edition's
+        // does; since 0.9.223 it lights as this version's stairs do, light in its cell and stopped by its shape
+        // (BlockGhostStair; spec GF8), so its cell holds its own light and is read as any cell is.
+        if (!windowSquareAt(level, pos, origin)) return -1;
         if (state != null && state.emissiveRendering(level, pos)) return 15728880;
         int sky = 0;
         int block = 0;
@@ -134,12 +136,12 @@ public final class GhostWindows {
      * GF8).
      *
      * <p>
-     * A worn stair stops all light and its cell holds none, and an item lying on its step, or anything small enough to
-     * be lit from inside the cell, is lit from that cell - by the world's own light read, which an entity's renderer
-     * makes and every other renderer here does not ({@code EntityRenderer.getPackedLightCoords}). The 1.7.10 edition's
-     * world answers that read with the brightest neighbour too, its stair stand-in saying useNeighborBrightness, so the
-     * read is lent the same light here; what the renderer read still counts, so a burning or glowing creature keeps its
-     * own.
+     * A window stops all light and its cell holds none, and anything small enough to be lit from inside the cell is lit
+     * from that cell - by the world's own light read, which an entity's renderer makes and every other renderer here
+     * does not ({@code EntityRenderer.getPackedLightCoords}). The 1.7.10 edition's world answers that read with the
+     * brightest neighbour too, its twin saying useNeighborBrightness, so the read is lent the same light here; what the
+     * renderer read still counts, so a burning or glowing creature keeps its own. Written in 0.9.222 for an item lying
+     * on a worn step, whose cell held no light then; a worn stair's cell holds its own since 0.9.223.
      */
     public static int entityLight(BlockAndTintGetter level, BlockPos pos, int packed) {
         int lent = lightAt(level, null, pos);

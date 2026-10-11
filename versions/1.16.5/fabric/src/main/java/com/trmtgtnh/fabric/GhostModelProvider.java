@@ -45,14 +45,19 @@ public class GhostModelProvider implements ModelVariantProvider {
     /** The block whose model is replaced, as the blockstate file names it. */
     private static final ResourceLocation GHOST = new ResourceLocation(Trmt.MODID, "ghost");
 
+    /** The worn stair's own block since 0.9.223 (BlockGhostStair), drawn with the same model. */
+    private static final ResourceLocation GHOST_STAIR = new ResourceLocation(Trmt.MODID, "ghost_stair");
+
     /** What the placeholder blockstate points at, and what the wrapper is wrapped around. */
     private static final ResourceLocation PLACEHOLDER = new ResourceLocation(Trmt.MODID, "block/ghost");
 
     @Override
     public UnbakedModel loadModelVariant(ModelResourceLocation id, ModelProviderContext context) {
         if (!GHOST.getNamespace()
-            .equals(id.getNamespace()) || !GHOST.getPath()
-                .equals(id.getPath())) {
+            .equals(id.getNamespace())
+            || !GHOST.getPath()
+                .equals(id.getPath()) && !GHOST_STAIR.getPath()
+                    .equals(id.getPath())) {
             return null;
         }
         return new Wrapper();

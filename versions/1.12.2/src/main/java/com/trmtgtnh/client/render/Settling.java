@@ -69,6 +69,62 @@ public final class Settling {
         return drop > 0.0D ? drop : 0.0D;
     }
 
+    /**
+     * Where the crosshair hits a block that settles: the block's own answer, asked of a ray raised by the drop of the rut
+     * under it and lowered again, so the shape a click finds comes down with the picture - the 1.7.10 edition's
+     * Settling.rayTrace (0.9.223).
+     *
+     * <p>
+     * Xep, 2026-10-10, on the outline floating above settled snow: "lower it as long as the actual hitbox lowers with
+     * it, otherwise players may struggle to break it intentionally." Raising the ray rather than lowering the block's
+     * box leaves the box alone - collision is worked out from it elsewhere - and answers for a block of any shape, its
+     * own ray test included. The outline is lowered in {@link #outline} by the same test, so the two cannot part.
+     */
+    public static net.minecraft.util.math.RayTraceResult rayTrace(IBlockState state, net.minecraft.world.World world,
+        BlockPos pos, Vec3d start, Vec3d end) {
+        double drop = state != null && settles(state.getBlock()) ? dropFor(world, pos) : 0.0D;
+        if (drop <= 0.0D) return state.collisionRayTrace(world, pos, start, end);
+        noteHitLowered();
+        net.minecraft.util.math.RayTraceResult hit = state
+            .collisionRayTrace(world, pos, start.add(0.0D, drop, 0.0D), end.add(0.0D, drop, 0.0D));
+        if (hit != null && hit.hitVec != null) hit.hitVec = hit.hitVec.add(0.0D, -drop, 0.0D);
+        return hit;
+    }
+
+    /**
+     * The outline drawn round a block the crosshair is on: the block's own box, lowered by the same drop and the same
+     * test as the hit in {@link #rayTrace}, so it goes down only where the hit goes down with it (0.9.223).
+     */
+    public static net.minecraft.util.math.AxisAlignedBB outline(IBlockState state, net.minecraft.world.World world,
+        BlockPos pos) {
+        net.minecraft.util.math.AxisAlignedBB box = state.getSelectedBoundingBox(world, pos);
+        double drop = state != null && settles(state.getBlock()) ? dropFor(world, pos) : 0.0D;
+        // Only once a hit has been lowered: the outline is drawn round what the ray trace found, which went through
+        // rayTrace first - so a hit hook some other mod kept from binding leaves the outline up, over a hit that is
+        // up too, rather than lowered over one that is not.
+        if (box == null || drop <= 0.0D || !hitSaid) return box;
+        noteOutlineLowered();
+        return box.offset(0.0D, -drop, 0.0D);
+    }
+
+    private static volatile boolean hitSaid;
+
+    private static boolean outlineSaid;
+
+    /** Proof the hit hook runs, said once - an injector that does not apply says nothing at all. */
+    private static void noteHitLowered() {
+        if (hitSaid) return;
+        hitSaid = true;
+        Trmt.LOG.info("Lowered the crosshair's hit on a block settled onto worn ground; the ray trace hook is in place");
+    }
+
+    /** Proof the outline hook runs, said once. */
+    private static void noteOutlineLowered() {
+        if (outlineSaid) return;
+        outlineSaid = true;
+        Trmt.LOG.info("Lowered the outline of a block settled onto worn ground; the selection box hook is in place");
+    }
+
     /** The offset a settling block is drawn at - vanilla's, dropped by the rut under it - or null for unchanged. */
     public static Vec3d offset(IBlockState state, IBlockAccess world, BlockPos pos, Vec3d vanilla) {
         if (state == null || !settles(state.getBlock())) return null;

@@ -576,6 +576,15 @@ public final class UpdateCheck {
         return p != null && p.early ? p.target : null;
     }
 
+    /**
+     * Whether a build is an early one - a snapshot, or whatever early word the project uses - which is when the client
+     * tells its player so, once a session (0.9.223; Support.SNAPSHOT_HEADLINE_FALLBACK). A release, a development build
+     * and anything that is not a build name are not.
+     */
+    public static boolean isEarly(String version) {
+        return earlyOf(version) != null;
+    }
+
     /** One build's name, taken apart. */
     static final class Parsed {
 

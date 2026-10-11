@@ -44,8 +44,11 @@ public final class ForgeClientSetup {
         // were opaque, so grass's fringe came out as a grey rectangle over the whole face. But one
         // pass for every ghost is the wrong shape of answer: it left worn ice drawing over what was
         // behind it rather than through it.
-        net.minecraft.client.renderer.ItemBlockRenderTypes
-            .setRenderLayer(com.trmtgtnh.block.ModBlocks.ghost(), com.trmtgtnh.client.GhostLayers::claims);
+        // Both ghosts: the worn stair's is a block of its own since 0.9.223 (BlockGhostStair).
+        for (net.minecraft.world.level.block.Block ghost : com.trmtgtnh.block.ModBlocks.ghosts()) {
+            net.minecraft.client.renderer.ItemBlockRenderTypes
+                .setRenderLayer(ghost, com.trmtgtnh.client.GhostLayers::claims);
+        }
         // And how a covered block's own pass is found, which on Forge is its predicate rather than the chunk table
         // vanilla keeps: a modded block registers through setRenderLayer, which that table never sees, so asking the
         // table answered solid for every one of them (0.9.220). The first pass the block draws in, in the game's own
@@ -100,7 +103,7 @@ public final class ForgeClientSetup {
     @SubscribeEvent
     public static void colors(net.minecraftforge.client.event.ColorHandlerEvent.Block event) {
         event.getBlockColors()
-            .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghost());
+            .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghosts());
     }
 
     /** The grade property, on both tools that are drawn by one. */

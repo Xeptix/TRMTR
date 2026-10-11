@@ -498,6 +498,12 @@ public final class OverlayPainter {
         // take effect on the next repaint rather than only on the next stitch.
         boolean window = TrmtConfig.seeThroughInnerLayers
             && com.trmtgtnh.client.texture.InnerLayers.isWindow(origin, originMeta);
+        // Grass that stood short and has not sunk keeps the lawn: hollow, to draw as short as its block, and
+        // still tinted with its fringe and its earth wall. Until 0.9.223 it took the untinted sunken stand-in and
+        // was earth from its first wear - Xep called that a fault (2026-10-10, spec GS5). A stair is its own.
+        if (appearance == SurfaceFamily.GRASS && shortBase && sink == 0 && shape != SurfaceShape.STAIR) {
+            return ModBlocks.shortLawn(vanillaGrassTop, window);
+        }
         return ModBlocks.forAppearance(
             appearance,
             vanillaGrassTop,

@@ -320,6 +320,67 @@ public final class GhostInherit {
     }
 
     /**
+     * Whether a face of the covered block is solid, or null to let the ghost answer - the 1.7.10 edition's
+     * {@code GhostLogic.sideSolid} (spec GF16).
+     *
+     * <p>
+     * A torch, a lever, a ladder or a rail asks the block it would hang on, and the client asks before it sends the
+     * placement and sends nothing on a no. Until 0.9.223 a ghost answered for itself: its top always solid and every
+     * side whole, so a torch could be put on a worn slab's half-empty top where the server's slab refuses it. Asked of
+     * the covered block's own state, through a view that holds it at its square, and guarded against the question
+     * coming back here - the view passes a question about any other square to the world - as that edition's is.
+     * {@code isTopSolid} itself is asked of the state alone and cannot say; the questions that carry a position are
+     * answered here: Forge's {@code isSideSolid}, the face shape a hanging block reads, and the torch-on-top question
+     * that would otherwise stop at that state-only yes.
+     */
+    @javax.annotation.Nullable
+    public static Boolean sideSolid(Block ghost, IBlockAccess world, BlockPos pos, net.minecraft.util.EnumFacing side) {
+        IBlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return Boolean.valueOf(covered.isSideSolid(new OriginView(world, pos, covered), pos, side));
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
+    }
+
+    /** The covered block's face shape on one side, or null to let the ghost answer. See {@link #sideSolid}. */
+    @javax.annotation.Nullable
+    public static net.minecraft.block.state.BlockFaceShape faceShape(Block ghost, IBlockAccess world, BlockPos pos,
+        net.minecraft.util.EnumFacing side) {
+        IBlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return covered.getBlockFaceShape(new OriginView(world, pos, covered), pos, side);
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
+    }
+
+    /** Whether the covered block takes a torch on its top, or null to let the ghost answer. See {@link #sideSolid}. */
+    @javax.annotation.Nullable
+    public static Boolean torchOnTop(Block ghost, IBlockAccess world, BlockPos pos) {
+        IBlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return Boolean.valueOf(
+                covered.getBlock()
+                    .canPlaceTorchOnTop(covered, new OriginView(world, pos, covered), pos));
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
+    }
+
+    /**
      * Whether this machine is the one predicting where this entity goes.
      *
      * <p>

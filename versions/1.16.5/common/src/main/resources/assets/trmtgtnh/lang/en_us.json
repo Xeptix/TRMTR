@@ -54,6 +54,7 @@
   "trmtgtnh.chunktamper.tip.settings": "Ctrl + right-click: settings",
   "item.trmtgtnh.magic_tamper": "Wayfarer's Tamper",
   "block.trmtgtnh.ghost": "Worn Ground",
+  "block.trmtgtnh.ghost_stair": "Worn Ground",
   "trmtgtnh.magictamper.blurb": "The finest tamper - works any ground for nothing, and never wears down.",
   "trmtgtnh.weartable.title": "Wear Table",
   "trmtgtnh.weartable.local": "single-player",
@@ -197,6 +198,11 @@
   "trmtgtnh.update.reason.crash": "a crash",
   "trmtgtnh.update.reason.world": "world data",
   "trmtgtnh.update.reason.feature": "a broken feature",
+  "trmtgtnh.snapshot.headline": "Snapshot build %s",
+  "trmtgtnh.snapshot.early": "An early build, for trying before its release.",
+  "trmtgtnh.snapshot.report": "Found a problem? Please tell us on the Discord:",
+  "trmtgtnh.snapshot.thanks": "Thank you so much for supporting me and becoming",
+  "trmtgtnh.snapshot.thanksMore": "an early access member. I greatly appreciate it!",
   "trmtgtnh.update.discord": "Join the Discord to hear the moment an update drops:",
   "trmtgtnh.requires.below": "%s %s is older than this mod needs.",
   "trmtgtnh.requires.problems": "You may run into problems until it is updated.",
@@ -423,7 +429,7 @@
   "trmtgtnh.golem.waila.fleeing": "Running - it has nothing to fight with",
   "trmtgtnh.golem.waila.chewing": "Eating what it was given",
   "trmtgtnh.mode.off": "None",
-  "trmtgtnh.rules.serverOwnsGeometry": "This server decides how deep a rut goes, so your own setting is held while you are here.",
+  "trmtgtnh.rules.serverOwnsGeometry": "How deep and how finely ground wears here is this server's to set, so those stay as it sent them. Your change is saved and takes effect as soon as you leave.",
   "trmtgtnh.tamper.title": "Chunk Tamper",
   "trmtgtnh.weareditor.title": "Wear Editor"
 }

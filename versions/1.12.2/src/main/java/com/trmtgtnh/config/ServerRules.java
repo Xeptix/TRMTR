@@ -115,8 +115,26 @@ public final class ServerRules {
          */
         public final int switches;
 
+        /**
+         * Whether snow and carpet settle onto worn ground on this server - 1 or 0, or -1 where it sent none. It decides
+         * the collision a player stands on as well as the picture, so it is the server's (0.9.223; Xep, 2026-10-10:
+         * "make it a server rule that the client is told").
+         */
+        public final int settle;
+
+        /** The most gradations a chunk tamper gesture may move here, or -1 where the server sent none (0.9.223). */
+        public final int tamperSteps;
+
+        /** The furthest a chunk tamper may reach here, or -1 where the server sent none (0.9.223). */
+        public final int tamperReach;
+
         public Geometry(byte[] stages, byte[] maxSink, byte[] sinkStart, byte[] depths, byte[][] successors,
             boolean[] enabled, int switches) {
+            this(stages, maxSink, sinkStart, depths, successors, enabled, switches, -1, -1, -1);
+        }
+
+        public Geometry(byte[] stages, byte[] maxSink, byte[] sinkStart, byte[] depths, byte[][] successors,
+            boolean[] enabled, int switches, int settle, int tamperSteps, int tamperReach) {
             this.stages = stages;
             this.maxSink = maxSink;
             this.sinkStart = sinkStart;
@@ -124,6 +142,9 @@ public final class ServerRules {
             this.successors = successors;
             this.enabled = enabled;
             this.switches = switches;
+            this.settle = settle;
+            this.tamperSteps = tamperSteps;
+            this.tamperReach = tamperReach;
         }
 
         /** Whether there is enough here to be worth applying at all. */
@@ -377,6 +398,24 @@ public final class ServerRules {
             TrmtConfig.wearThroughToOtherSurfaces = wholesale;
             if (TrmtConfig.grassWearsThroughToDirt != turf) changed++;
             TrmtConfig.grassWearsThroughToDirt = turf;
+        }
+
+        // The server's own settle switch and chunk tamper limits (0.9.223): minus one is a server that sent none,
+        // whose players keep their own. Held to the same ranges the config reader holds them to.
+        if (wanted.settle >= 0) {
+            boolean settles = wanted.settle != 0;
+            if (TrmtConfig.settleOnWornGround != settles) changed++;
+            TrmtConfig.settleOnWornGround = settles;
+        }
+        if (wanted.tamperSteps >= 0) {
+            int steps = Math.max(1, Math.min(16, wanted.tamperSteps));
+            if (TrmtConfig.chunkTamperMaxSteps != steps) changed++;
+            TrmtConfig.chunkTamperMaxSteps = steps;
+        }
+        if (wanted.tamperReach >= 0) {
+            int reach = Math.max(0, Math.min(7, wanted.tamperReach));
+            if (TrmtConfig.chunkTamperMaxReach != reach) changed++;
+            TrmtConfig.chunkTamperMaxReach = reach;
         }
 
         SurfaceFamily[] families = SurfaceFamily.values();

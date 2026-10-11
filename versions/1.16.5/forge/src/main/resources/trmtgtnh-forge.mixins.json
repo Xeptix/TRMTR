@@ -12,14 +12,19 @@
     "MixinLootArrivals",
     "MixinRecipeArrivals",
     "MixinSnowRestsOnWornGround",
+    "MixinStairNeighbours",
     "MixinWornCollision"
   ],
   "client": [
+    "MixinGhostSoilTagged",
+    "MixinSettledHit",
+    "MixinSettledOutline",
     "MixinAirSwing",
     "MixinOptiFineSettledFaces",
     "MixinBlockArrivals",
     "MixinChunkForgotten",
     "MixinGhostSustainsPlant",
+    "MixinJadeHarvestLine",
     "MixinLevelReplaced",
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",
@@ -29,6 +34,7 @@
     "MixinStitcherRegion",
     "MixinTextureAtlas",
     "StitcherHolderSize",
+    "MixinSunkLightVanilla",
     "MixinWindowLight",
     "MixinEntityLightLent"
   ],

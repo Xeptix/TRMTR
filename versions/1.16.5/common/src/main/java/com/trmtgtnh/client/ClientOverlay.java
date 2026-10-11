@@ -1,8 +1,8 @@
 package com.trmtgtnh.client;
 
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * The overlay's own traffic: what arrives from the server, and what a ghost asks back.
@@ -83,8 +83,8 @@ public final class ClientOverlay {
 
     /** Whether a record moving from one state to the other changes the square's answer to the light engine. */
     static boolean lightAnswerMoved(short before, short after) {
-        return (com.trmtgtnh.erosion.ErosionState.sinkOf(before) > 0) != (com.trmtgtnh.erosion.ErosionState
-            .sinkOf(after) > 0);
+        return (com.trmtgtnh.erosion.ErosionState.sinkOf(before) > 0)
+            != (com.trmtgtnh.erosion.ErosionState.sinkOf(after) > 0);
     }
 
     /**
@@ -148,8 +148,11 @@ public final class ClientOverlay {
                 (chunkZ << 4) + com.trmtgtnh.erosion.ErosionKey.localZ(key));
             BlockState standing = level.getBlockState(pos);
             if (!(standing.getBlock() instanceof com.trmtgtnh.block.BlockGhost)) continue;
-            if (!answersLightOwnWay(overlay.stateAtIndex(i), standing.getValue(com.trmtgtnh.block.BlockGhost.LIGHT)
-                .intValue(), overlay.originAtIndex(i))) continue;
+            if (!answersLightOwnWay(
+                overlay.stateAtIndex(i),
+                standing.getValue(com.trmtgtnh.block.BlockGhost.LIGHT)
+                    .intValue(),
+                overlay.originAtIndex(i))) continue;
             if (told == null) told = new java.util.ArrayList<>();
             told.add(pos);
         }
@@ -172,13 +175,24 @@ public final class ClientOverlay {
     }
 
     /**
-     * The same, knowing what the square covers: a worn stair answers its own way too, whatever its record, because it
-     * stops all light as the 1.7.10 edition's stair stand-in does, while the stair the server lit lets light into its
-     * cell and on through its open half - this version's rule for a stair (0.9.222, spec GF8). Left with the server's
-     * light, the cells around a worn stair would be lit through it until the next paint.
+     * The same, knowing what the square covers: a worn stair is always re-lit once the square is painted, whatever
+     * depth
+     * its record carries (0.9.223, spec GF8).
+     *
+     * <p>
+     * A worn stair answers light as the stair the server lit does - light into its cell and on through its open half -
+     * so it was thought to need nothing here, and this said so. But the light engine is told of a ghost as it is set,
+     * and a check that runs before the painter has filed what the square covers asks a stair ghost with no stair behind
+     * it, which answers as the whole block of earth and stops all light. Nothing asked again, and the full photograph
+     * pass found the cell left dark - five worn stairs of 189 in the second yard, own light 0 under open sky - and
+     * their
+     * risers, lit from the cell, drawn black under Forge's renderer, OptiFine and Canvas. Re-lit here, after the
+     * origins
+     * are filed, the cell is weighed as the stair it is.
      */
     static boolean answersLightOwnWay(short record, int glow, int origin) {
-        return answersLightOwnWay(record, glow) || com.trmtgtnh.block.BlockGhost.coveredStair(origin) != null;
+        if (com.trmtgtnh.block.BlockGhost.coveredStair(origin) != null) return true;
+        return answersLightOwnWay(record, glow);
     }
 
     public void handleDelta(int x, int y, int z, short state) {
@@ -194,7 +208,12 @@ public final class ClientOverlay {
                 .restoreSingle(Minecraft.getInstance().level, chunkX, chunkZ, key, previous.originAt(key));
         }
         cache.put(chunkX, chunkZ, ClientErosionCache.withSingle(previous, chunkX, chunkZ, key, state));
-        relightIfMoved(previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(key), state, x, y, z);
+        relightIfMoved(
+            previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(key),
+            state,
+            x,
+            y,
+            z);
         OverlayPainter.get()
             .queueChunk(chunkX, chunkZ);
         // And the mesh asked for directly, because the painter cannot always tell that anything

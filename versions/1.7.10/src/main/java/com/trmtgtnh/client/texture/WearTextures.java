@@ -1793,8 +1793,16 @@ public final class WearTextures {
                     String raw = FaceSource.iconName(state.block, meta, 1);
                     if (raw == null) continue;
 
+                    // And by the underside where the pictures are made of it (FaceRules.setKey, 0.9.223): keyed on the
+                    // top alone, vanilla grass shared Biomes O' Plenty's loamy grass's set and wore into its loamy
+                    // dirt.
                     String behind = InnerLayers.textureFor(state.block, meta);
-                    String face = family.ordinal() + " " + raw + (behind == null ? "" : " behind " + behind);
+                    String face = FaceRules.setKey(
+                        family,
+                        raw,
+                        FaceSource.iconName(state.block, meta, 0),
+                        behind,
+                        FaceSource.coverLook(TrmtConfig.family(family)));
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);

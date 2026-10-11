@@ -24,6 +24,12 @@ public class PacketSurfaceTable implements Message {
 
     private byte[] bytes;
 
+    /**
+     * Whether the table's keys carry a block's form in their low four bits - from 0.9.223, which writes a byte
+     * saying so after the table. A table from an older server ends without it, and its keys are block ids (SD20).
+     */
+    private boolean keysCarryForm = true;
+
     public PacketSurfaceTable() {}
 
     public PacketSurfaceTable(long fingerprint, boolean holdsSwitch, byte[] bytes) {
@@ -41,6 +47,7 @@ public class PacketSurfaceTable implements Message {
         if (length <= 0 || length > SurfaceTableCodec.MAX_COMPRESSED || length > buf.readableBytes()) return;
         bytes = new byte[length];
         buf.readBytes(bytes);
+        keysCarryForm = buf.readableBytes() >= 1 && buf.readByte() == 1;
     }
 
     @Override
@@ -50,6 +57,7 @@ public class PacketSurfaceTable implements Message {
         byte[] out = bytes == null ? new byte[0] : bytes;
         buf.writeInt(out.length);
         buf.writeBytes(out);
+        buf.writeByte(1);
     }
 
     public static class Handler implements Receiver<PacketSurfaceTable> {
@@ -61,7 +69,8 @@ public class PacketSurfaceTable implements Message {
 
                 @Override
                 public void run() {
-                    Client.installServerTable(message.fingerprint, message.holdsSwitch, message.bytes);
+                    Client.installServerTable(message.fingerprint, message.holdsSwitch, message.bytes,
+                        message.keysCarryForm);
                 }
             });
             return;

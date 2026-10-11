@@ -8,9 +8,7 @@ import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.renderer.block.statemap.StateMapperBase;
 import net.minecraft.client.renderer.color.IBlockColor;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.ColorizerGrass;
 import net.minecraft.world.IBlockAccess;
-import net.minecraft.world.biome.BiomeColorHelper;
 import net.minecraftforge.client.event.ModelBakeEvent;
 import net.minecraftforge.client.event.ModelRegistryEvent;
 import net.minecraftforge.client.model.ModelLoader;
@@ -77,32 +75,18 @@ public class ClientProxy extends CommonProxy {
                     if (tintIndex == GhostBakedModel.LIGHT_TINT) {
                         return com.trmtgtnh.block.GhostLight.tinted(0xFFFFFF, glow);
                     }
-                    // A worn stair's sides: the covered block's own color with the glow in it, as the 1.7.10 edition
-                    // tints every face of its stair stand-in (0.9.222, spec GF7).
-                    if (tintIndex == GhostBakedModel.COVERED_TINT) {
-                        return com.trmtgtnh.block.GhostLight.tinted(
-                            com.trmtgtnh.block.BlockGhost.coveredTint(world, pos, Minecraft.getMinecraft()
+                    // Everything else is the square's one color with the glow in it - the 1.7.10 edition's colorFor:
+                    // the covered block's own color while it still wears as its own family, white past it or sunk as
+                    // grass. Slot nought carries it on a square's top, fringe and non-lawn flanks (0.9.223, spec GS11,
+                    // GS12, GT14, GT17), slot two on a worn stair's faces (0.9.222, spec GF7); breaking and hitting
+                    // dust asks slot nought with the real world in hand and gets the same answer (spec GF19).
+                    return com.trmtgtnh.block.GhostLight.tinted(
+                        com.trmtgtnh.block.BlockGhost.coveredTint(
+                            world,
+                            pos,
+                            Minecraft.getMinecraft()
                                 .getBlockColors()),
-                            glow);
-                    }
-                    // Breaking and hitting dust asks this slot too, with the real world in hand, and is
-                    // tinted as the square's top is drawn rather than as grass: white where the top carries
-                    // its own colors, so worn sand and stone no longer throw green dust - the 1.7.10
-                    // edition's dust, which takes the ghost's own tint at the square (0.9.222, spec GF19).
-                    // Only while a ghost holds the tint for its dust, and only for a caller holding the world:
-                    // the mesher hands over a view that is not one, so no quad drawn with this slot changes.
-                    if (com.trmtgtnh.block.BlockGhost.tintHeldForDust() && world instanceof net.minecraft.world.World
-                        && pos != null) {
-                        short record = ClientProxy.this.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
-                        if (!com.trmtgtnh.client.model.GhostSides.tintsAsGrass(
-                            ClientProxy.this.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()),
-                            com.trmtgtnh.erosion.ErosionState.familyOf(record))) {
-                            return com.trmtgtnh.block.GhostLight.tinted(0xFFFFFF, glow);
-                        }
-                    }
-                    int grass = world == null || pos == null ? ColorizerGrass.getGrassColor(0.5D, 1.0D)
-                        : BiomeColorHelper.getGrassColorAtPos(world, pos);
-                    return com.trmtgtnh.block.GhostLight.tinted(grass, glow);
+                        glow);
                 }
             }, ModBlocks.ghostGrass());
     }
@@ -228,8 +212,8 @@ public class ClientProxy extends CommonProxy {
 
     /**
      * The client's world being replaced - a join, or a respawn into another dimension - takes every record, light and
-     * queued chunk with it. Both caches are filed by chunk position alone, so until 0.9.222 the last dimension's records
-     * sat on the next one's chunks at the same coordinates (spec PN34).
+     * queued chunk with it. Both caches are filed by chunk position alone, so until 0.9.222 the last dimension's
+     * records sat on the next one's chunks at the same coordinates (spec PN34).
      *
      * <p>
      * Run from this mod's own queue, where the join's or the respawn's packet put it as it arrived
@@ -258,8 +242,8 @@ public class ClientProxy extends CommonProxy {
     public void onClientTick(net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent event) {
         if (event.phase != net.minecraftforge.fml.common.gameevent.TickEvent.Phase.END) return;
         // The hold a ghost takes while its dust is spawned, let go of here, above the world check as the 1.7.10
-        // edition's is: a tick is the smallest window that covers the spawn (0.9.222, spec GF19).
-        com.trmtgtnh.block.BlockGhost.releaseTintForDust();
+        // edition's is: a tick is the smallest window that covers the spawn (0.9.223, spec GF19).
+        com.trmtgtnh.client.model.GhostDust.release();
         com.trmtgtnh.util.MainThread.drainClient();
         // A fresh allowance of moving-layer uploads, every tick, above the world check as the 1.7.10 edition
         // has it. Missing until 0.9.219: the allowance starts closed and nothing ever opened it, so the lava and
@@ -283,6 +267,8 @@ public class ClientProxy extends CommonProxy {
         if (!announced) {
             announced = true;
             com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
+            // And, once a session, the player is told when this jar is a snapshot (0.9.223).
+            SnapshotNotice.joined(mc);
         }
 
         // Only while a tamper is in hand, and only when it changes, so a player who never holds one
@@ -442,6 +428,14 @@ public class ClientProxy extends CommonProxy {
      * models are baked, so an atlas stitched again without baking again moves every sprite out from under every
      * model in the game. Reloading the model manager does both - and only those: not the packs, not the
      * languages, not the sounds, which is what {@code refreshResources} would cost.
+     *
+     * <p>
+     * Two more listeners hold sprites from the atlas the stitch replaces, and are told after it as the full reload
+     * tells them (0.9.223): the item renderer's model cache, which keeps each item's baked model, and the block
+     * renderer's fluid sprites, which water and lava are drawn from. Left out, an atlas that stitches to a different
+     * layout - as a large pack's does, Chisel's on 1.12.2 - drew water, lava and every held or listed item with
+     * whatever picture had come to sit where theirs used to. The 1.16.5 edition's narrow rebuild reloads the same
+     * three.
      */
     private void restitchPictures() {
         Minecraft mc = Minecraft.getMinecraft();
@@ -455,6 +449,10 @@ public class ClientProxy extends CommonProxy {
         }
         try {
             models.onResourceManagerReload(mc.getResourceManager());
+            mc.getRenderItem()
+                .onResourceManagerReload(mc.getResourceManager());
+            mc.getBlockRendererDispatcher()
+                .onResourceManagerReload(mc.getResourceManager());
         } catch (RuntimeException failed) {
             // Not cosmetic, unlike almost everything else this queue runs. A reload deletes the atlas's own
             // texture before it builds the replacement, so a stitch that throws half way leaves every block in
@@ -585,6 +583,9 @@ public class ClientProxy extends CommonProxy {
         // switched off can have been resolved into its table for the visit, and leaving it there would go
         // on trampling ground the player's own file had said to leave alone.
         if (enabledHandedBack || tableHandedBack) resettleSurfaces();
+        // The settle switch was the server's for the visit (0.9.223), and the read above handed this client's own
+        // back: what settles is marked again from it.
+        com.trmtgtnh.erosion.PhysicalDecay.markSettlingBlocks();
         if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
         // A client that wore a server's chains needs its own pictures back.
         if (appearancesHandedBack) requestRestitch("Back on the materials your own config draws.");
@@ -888,6 +889,13 @@ public class ClientProxy extends CommonProxy {
     }
 
     @Override
+    public void holdDust(IBlockAccess world, BlockPos pos) {
+        if (world == null || pos == null) return;
+        com.trmtgtnh.client.model.GhostDust
+            .hold(com.trmtgtnh.erosion.ErosionState.familyOf(ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())));
+    }
+
+    @Override
     public void ghostDrawn(short record, int origin, int rotation, int x, int y, int z) {
         com.trmtgtnh.client.model.GhostBakedModel.noteDrawn(record, origin, rotation, x, y, z);
     }
@@ -941,6 +949,9 @@ public class ClientProxy extends CommonProxy {
 
         com.trmtgtnh.erosion.ErosionChain.rebuild();
         com.trmtgtnh.erosion.PhysicalDecay.refresh();
+        // Whether snow and carpet settle is the server's now (0.9.223), and it decides the footing as well as the
+        // picture: the set both read is made again from what was just held.
+        com.trmtgtnh.erosion.PhysicalDecay.markSettlingBlocks();
 
         if (forceOverlay && !wasForced && !com.trmtgtnh.config.TrmtConfig.showErosion) {
             OverlayPainter.get()

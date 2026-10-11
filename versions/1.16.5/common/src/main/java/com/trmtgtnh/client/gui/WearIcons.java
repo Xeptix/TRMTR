@@ -63,8 +63,8 @@ public final class WearIcons {
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
             List<ItemStack> list = built.get(state.family);
             if (list == null) continue;
-            Item item = heldForm(state.block);
-            if (item != null) list.add(new ItemStack(item));
+            ItemStack picture = pictureOf(state.block, state.family);
+            if (picture != null) list.add(picture);
         }
         for (SurfaceFamily family : built.keySet()) {
             List<ItemStack> list = built.get(family);
@@ -75,6 +75,17 @@ public final class WearIcons {
             }
         }
         cache = built;
+    }
+
+    /**
+     * The picture of a detected block (0.9.223). The older editions pick the first of a block's variants that wears as
+     * its family, because one block there holds many: Chisel numbers its carved cobblestone from 1, and drawing every
+     * block as its variant 0 put the missing-texture square in 1.7.10's Wear Table. A block here is one variant, so its
+     * picture is the block; kept as one method of the same name so the three harnesses ask the same question.
+     */
+    public static ItemStack pictureOf(Block block, SurfaceFamily family) {
+        Item item = heldForm(block);
+        return item == null ? null : new ItemStack(item);
     }
 
     /**

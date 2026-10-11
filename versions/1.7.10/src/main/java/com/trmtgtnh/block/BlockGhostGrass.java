@@ -365,6 +365,20 @@ public class BlockGhostGrass extends BlockGrass implements GhostBlock {
         return GhostLogic.icon(this, side, meta);
     }
 
+    /**
+     * Two whole grass windows of one kind side by side hide the face between them, as two panes of glass do - the
+     * rule {@link BlockGhost#shouldSideBeRendered} gives every other window, and which this class lacked until
+     * 0.9.223, so two worn grass windows drew every face they share (spec GF4). Never a sunken one: a hollow's side
+     * stands open onto its own rut, and two squares of different heights would leave a band seen straight through
+     * - Xep, 2026-10-10, "so long as they are the same physical height". A whole stand-in is a whole cell tall.
+     */
+    @Override
+    @SideOnly(Side.CLIENT)
+    public boolean shouldSideBeRendered(IBlockAccess world, int x, int y, int z, int side) {
+        if (window && !sunken && world.getBlock(x, y, z) == this) return false;
+        return super.shouldSideBeRendered(world, x, y, z, side);
+    }
+
     @SideOnly(Side.CLIENT)
     @Override
     public IIcon getIcon(IBlockAccess world, int x, int y, int z, int side) {

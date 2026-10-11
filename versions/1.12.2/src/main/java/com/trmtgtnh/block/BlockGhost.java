@@ -832,10 +832,12 @@ public class BlockGhost extends Block {
         // beside a worn waterstone went on leaving off the faces it shares with them, and its water
         // showed an empty cell.
         if (Trmt.proxy.ghostWindowOf(origin)) return false;
-        int outline = outlineAt(world, pos, origin);
-        // A whole cube only. A slab or a path stands short, and a neighbour that left off its face
-        // against one would show a hole where the square stops.
-        return floorOf(outline) <= 0F && topOf(outline) >= 1F;
+        // A whole block only, by the 1.7.10 edition's own test - its stand-in for a short block is the hollow one,
+        // and a short block is a partial shape or one topped below 0.999 (OverlayPainter.isShort). A slab or a path
+        // stands short, and a neighbour that left off its face against one would show a hole where the square
+        // stops. Until 0.9.223 this asked the outline rounded to sixteenths, so a block topped between 31/32 and
+        // 0.999 was whole here and hollow there (spec GF2). See wholeAt, which the shade asks too.
+        return wholeAt(world, pos);
     }
 
     /**
@@ -880,16 +882,59 @@ public class BlockGhost extends Block {
     }
 
     /**
+     * The state vanilla's stair rules should see at a square: the covered stair's own wherever a ghost stands over a
+     * stair, and the real state everywhere else - the 1.7.10 edition's {@code GhostStairs.metadataAt}, which puts the
+     * stair's own facing and half back at the point of reading (0.9.223, spec GF5). Asked by {@code
+     * MixinStairNeighbours} for every square a stair reads while it decides its corner, so an unworn stair beside a
+     * worn one joins as beside the real stair, and two worn stairs join each other. One type check for every block in
+     * the world that is not a ghost.
+     */
+    public static IBlockState asStairsSee(IBlockState real, BlockPos pos) {
+        if (real == null || pos == null || !(real.getBlock() instanceof BlockGhost)) return real;
+        IBlockState covered = coveredStair(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        return covered != null ? covered : real;
+    }
+
+    /**
+     * What the crosshair meets in a worn stair: the stair's own boxes, traced as vanilla's {@code
+     * BlockStairs.collisionRayTrace} traces its own, the hit nearest the eye kept - the 1.7.10 edition's stand-in is a
+     * stair class and traces exactly so (0.9.223, spec GF5). Until then a worn stair met the crosshair as the whole
+     * cell, so a player aiming through the empty half in front of it struck the stair. Every other square traces as
+     * any block does.
+     */
+    @Override
+    @Nullable
+    public net.minecraft.util.math.RayTraceResult collisionRayTrace(IBlockState state, World world, BlockPos pos,
+        net.minecraft.util.math.Vec3d start, net.minecraft.util.math.Vec3d end) {
+        int stair = stairCodeAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        if (stair < 0) return super.collisionRayTrace(state, world, pos, start, end);
+        net.minecraft.util.math.RayTraceResult nearest = null;
+        double farthestFromEnd = 0.0D;
+        for (AxisAlignedBB box : stairBoxes(stair)) {
+            net.minecraft.util.math.RayTraceResult hit = rayTrace(pos, start, end, box);
+            if (hit == null) continue;
+            double fromEnd = hit.hitVec.squareDistanceTo(end);
+            if (fromEnd > farthestFromEnd) {
+                nearest = hit;
+                farthestFromEnd = fromEnd;
+            }
+        }
+        return nearest;
+    }
+
+    /**
      * Whether the light read at this square is the brightest of its neighbours' rather than its own cell's - the
      * 1.7.10 edition's {@code useNeighborBrightness}, answered per square (0.9.222, spec GT27, GF8).
      *
      * <p>
-     * This version asks that flag of the state alone, and one ghost stands in for every square, so the flag stays set on
+     * This version asks that flag of the state alone, and one ghost stands in for every square, so the flag stays set
+     * on
      * the block - every ghost here but clear ice needs it, because a top drawn below the top of an opaque cell would
      * take that cell's light and come out black - and the three places the game reads it (the mesher's view, and the
      * world twice) ask this instead, through {@code MixinGhostNeighbourLight}. Worn clear ice is lit from its own cell,
      * as ice is: it lets light through, so its square holds the real answer already, and taking the brightest
-     * neighbour's lit the water under a worn frozen lake brighter, by up to ice's three levels, than the water under the
+     * neighbour's lit the water under a worn frozen lake brighter, by up to ice's three levels, than the water under
+     * the
      * unworn ice beside it. A worn stair takes its neighbours' light whatever its family, clear or not, because it
      * stops all of it - that edition's stair stand-in sets the flag for every family.
      */
@@ -899,11 +944,13 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * The tint a worn stair's sides and undersides take: the covered block's own color, asked of it through a view that
-     * holds it at its own square - the 1.7.10 edition's {@code GhostRendering.colorFor}, {@code
-     * origin.colorMultiplier(new OriginView(...))}, which multiplies into every face of its stair stand-in - or white
-     * where the square no longer wears as the covered block's own family, as that edition's has worn past its tint
-     * (0.9.222, spec GF7).
+     * The one color a worn square takes: the covered block's own color, asked of it through a view that holds it at
+     * its own square - the 1.7.10 edition's {@code GhostRendering.colorFor}, {@code
+     * origin.colorMultiplier(new OriginView(...))} - or white where the square no longer wears as the covered block's
+     * own family, as that edition's has worn past its tint, and white for grass sunk as grass, which that edition
+     * draws with its untinted hollow stand-in ({@code ghost.isUntinted()}). It is the color of every face that edition
+     * multiplies its color onto: a worn stair's (0.9.222, spec GF7), and since 0.9.223 every square's top, its fringe,
+     * and the flanks of anything but a lawn (spec GS11, GS12, GT14, GT17).
      *
      * <p>
      * That edition gives a block one color for all its faces; this version asks a color per tint slot, and slot nought
@@ -911,7 +958,8 @@ public class BlockGhost extends Block {
      * as a block with no color of its own answers white there. The path light is multiplied in by the color handler.
      */
     @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
-    public static int coveredTint(IBlockAccess world, BlockPos pos, net.minecraft.client.renderer.color.BlockColors colors) {
+    public static int coveredTint(IBlockAccess world, BlockPos pos,
+        net.minecraft.client.renderer.color.BlockColors colors) {
         if (world == null || pos == null || colors == null) return 0xFFFFFF;
         IBlockState covered = coveredState(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         if (covered == null) return 0xFFFFFF;
@@ -926,6 +974,12 @@ public class BlockGhost extends Block {
             own = null;
         }
         if (!takesCoveredTint(own, ErosionState.familyOf(record))) return 0xFFFFFF;
+        if (untintedHollow(
+            own,
+            ErosionState.sinkOf(record),
+            SurfaceShape.of(covered.getBlock()) == SurfaceShape.STAIR)) {
+            return 0xFFFFFF;
+        }
         try {
             return opaqueTint(colors.colorMultiplier(covered, new OriginView(world, pos, covered), pos, 0));
         } catch (RuntimeException awkwardBlock) {
@@ -940,6 +994,15 @@ public class BlockGhost extends Block {
      */
     static boolean takesCoveredTint(@Nullable SurfaceFamily own, @Nullable SurfaceFamily wears) {
         return own != null && own == wears;
+    }
+
+    /**
+     * Whether a square is drawn as the 1.7.10 edition's untinted hollow grass: grass sunk as grass. That edition paints
+     * its sunken grass stand-in, built untinted, for every grass square with a sink, and its colorFor returns the light
+     * alone for it; a stair is never sunk there, whatever its record says (spec GT17, SC22, GF7).
+     */
+    static boolean untintedHollow(@Nullable SurfaceFamily own, int sink, boolean stair) {
+        return own == SurfaceFamily.GRASS && sink > 0 && !stair;
     }
 
     /** A color handler's answer as a tint: white for none (-1), the alpha left off. */
@@ -976,6 +1039,15 @@ public class BlockGhost extends Block {
      */
     private static boolean sunkAt(IBlockAccess world, BlockPos pos) {
         return ErosionState.sinkOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
+    }
+
+    /**
+     * Whether this square's top is lit as a sunk top (0.9.223, SunkLight) - the 1.7.10 edition's
+     * {@code GhostRendering.litAsSunk}: only sunk ground, so a ghost standing in for a short block that has not sunk
+     * keeps the light its block would have had.
+     */
+    public static boolean litAsSunk(IBlockAccess world, BlockPos pos) {
+        return sunkAt(world, pos);
     }
 
     /**
@@ -1167,11 +1239,13 @@ public class BlockGhost extends Block {
      * Whether bone meal used on this square is answered as used, the way a crop answers it (0.9.222, spec WD40).
      *
      * <p>
-     * On the client a worn square is this ghost, which is nothing bone meal grows, and the mend itself is the server's -
+     * On the client a worn square is this ghost, which is nothing bone meal grows, and the mend itself is the server's
+     * -
      * so until 0.9.222 the client answered the click with "nothing happened", the arm did not swing, and the game went
      * on to the off hand and sent a second use at the same block: with bone meal in the main hand and torches or blocks
      * in the other, every click on a worn path mended it and placed a torch or a block against it too. So the client
-     * answers for a ghost it holds a record for, as {@link GhostFamily#familyAt} asks, and the game stops there; what is
+     * answers for a ghost it holds a record for, as {@link GhostFamily#familyAt} asks, and the game stops there; what
+     * is
      * mended and what is spent is still the server's answer, sent back as it always was.
      */
     public static boolean answersBoneMeal(boolean clientSide, boolean ghostHere, short record) {
@@ -1224,7 +1298,7 @@ public class BlockGhost extends Block {
     @Override
     public float getSlipperiness(IBlockState state, IBlockAccess world, BlockPos pos,
         @Nullable net.minecraft.entity.Entity entity) {
-        return GhostFamily.slipperinessFor(GhostFamily.familyAt(world, pos));
+        return GhostFamily.slipperinessAt(this, world, pos);
     }
 
     /** The covered block's hardness, unbreakable staying unbreakable. See {@link GhostInherit#blockHardness} (GF11). */
@@ -1235,7 +1309,8 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * The covered block's break speed, tool and all, so ground a pack gates behind a better pick does not break early on
+     * The covered block's break speed, tool and all, so ground a pack gates behind a better pick does not break early
+     * on
      * the client and snap back. See {@link GhostInherit#breakSpeed} (spec GF12).
      */
     @Override
@@ -1243,6 +1318,32 @@ public class BlockGhost extends Block {
         World world, BlockPos pos) {
         float covered = GhostInherit.breakSpeed(this, player, world, pos);
         return Float.isNaN(covered) ? super.getPlayerRelativeBlockHardness(state, player, world, pos) : covered;
+    }
+
+    /**
+     * Whether a face is solid - a torch, a lever, a ladder, a rail against it: the covered block's answer. See
+     * {@link GhostInherit#sideSolid} (spec GF16).
+     */
+    @Override
+    public boolean isSideSolid(IBlockState state, IBlockAccess world, BlockPos pos,
+        net.minecraft.util.EnumFacing side) {
+        Boolean covered = GhostInherit.sideSolid(this, world, pos, side);
+        return covered != null ? covered.booleanValue() : super.isSideSolid(state, world, pos, side);
+    }
+
+    /** The shape a hanging block reads off a face: the covered block's. See {@link GhostInherit#sideSolid}. */
+    @Override
+    public net.minecraft.block.state.BlockFaceShape getBlockFaceShape(IBlockAccess world, IBlockState state,
+        BlockPos pos, net.minecraft.util.EnumFacing face) {
+        net.minecraft.block.state.BlockFaceShape covered = GhostInherit.faceShape(this, world, pos, face);
+        return covered != null ? covered : super.getBlockFaceShape(world, state, pos, face);
+    }
+
+    /** Whether a torch stands on its top: the covered block's answer. See {@link GhostInherit#sideSolid}. */
+    @Override
+    public boolean canPlaceTorchOnTop(IBlockState state, IBlockAccess world, BlockPos pos) {
+        Boolean covered = GhostInherit.torchOnTop(this, world, pos);
+        return covered != null ? covered.booleanValue() : super.canPlaceTorchOnTop(state, world, pos);
     }
 
     /**
@@ -1258,42 +1359,16 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * Set while this square's breaking or hitting dust is spawned, so the dust is tinted as the square is.
-     *
-     * <p>
-     * The dust asks the ghost's color handler for tint slot nought with the real world in hand, and that slot is the
-     * grass slot: every quad that carries it is grass, so it answers the biome's green - and a worn sand or stone square
-     * threw green dust. The 1.7.10 edition's dust takes {@code colorMultiplier}, the ghost's own tint at the square,
-     * with its wear shade held off for a tick by {@code GhostRendering.holdShadeForDust}; this is that hold, and while it
-     * is set the handler answers a caller holding the world - never the mesher, whose view is not one - with the tint
-     * this square's top is drawn in (spec GF19). Let go of on the next client tick, as that edition does.
-     */
-    private static volatile boolean tintHeldForDust;
-
-    /** Called as a ghost lets vanilla spawn its dust. */
-    public static void holdTintForDust() {
-        tintHeldForDust = true;
-    }
-
-    /** Called once a client tick, so the hold cannot outlive the particles it was for. */
-    public static void releaseTintForDust() {
-        tintHeldForDust = false;
-    }
-
-    /** Whether dust is being spawned off a ghost this tick. */
-    public static boolean tintHeldForDust() {
-        return tintHeldForDust;
-    }
-
-    /**
-     * Lets vanilla spawn the hitting dust, with the tint held for it - false, so nothing here replaces vanilla's own
-     * placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19).
+     * Lets vanilla spawn the hitting dust, the square's family held for its picture - false, so nothing here replaces
+     * vanilla's own placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19). The dust asks tint slot
+     * nought with the real world in hand, and since 0.9.223 that slot answers the square's own color, {@link
+     * #coveredTint}, for every caller; its picture is the family's, side by side, through the hold (GhostDust).
      */
     @Override
     @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
     public boolean addHitEffects(IBlockState state, World world, net.minecraft.util.math.RayTraceResult target,
         net.minecraft.client.particle.ParticleManager manager) {
-        holdTintForDust();
+        if (target != null) Trmt.proxy.holdDust(world, target.getBlockPos());
         return false;
     }
 
@@ -1301,7 +1376,17 @@ public class BlockGhost extends Block {
     @Override
     @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
     public boolean addDestroyEffects(World world, BlockPos pos, net.minecraft.client.particle.ParticleManager manager) {
-        holdTintForDust();
+        Trmt.proxy.holdDust(world, pos);
+        return false;
+    }
+
+    /**
+     * And the dust kicked up running across it, the same way - the 1.7.10 edition's sprinting dust takes the
+     * ghost's icon as its breaking dust does (0.9.223, spec GF19). Asked on both sides; only a client holds.
+     */
+    @Override
+    public boolean addRunningEffects(IBlockState state, World world, BlockPos pos, net.minecraft.entity.Entity entity) {
+        if (world != null && world.isRemote) Trmt.proxy.holdDust(world, pos);
         return false;
     }
 }

@@ -180,6 +180,13 @@ dependencies {
     // Deobfuscated on the way in, because a jar from CurseForge is published against the obfuscated
     // names and this workspace runs against the readable ones.
     runtimeOnly rfg.deobf("curse.maven:hwyla-253449:2568751")
+    // The One Probe is the other block tooltip 1.12.2 packs run, and it is told the same facts Hwyla is.
+    // compileOnly for the same reason: without it the integration class is never loaded. Not on the
+    // development runtime, unlike Hwyla, because its overlay draws over every block the crosshair
+    // meets and would appear in the walk harness's photographs, which no other edition takes with it.
+    compileOnly ('curse.maven:the-one-probe-245211:2667280') {
+        transitive = false
+    }
     if (propertyBool('enable_junit_testing')) {
         testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

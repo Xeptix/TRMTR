@@ -3,8 +3,12 @@ package com.trmtgtnh.client.render;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockCarpet;
 import net.minecraft.block.BlockSnow;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.Facing;
+import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.Vec3;
 import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.World;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.GhostBlock;
@@ -81,6 +85,69 @@ public final class Settling {
         Block below = world.getBlock(x, y - 1, z);
         if (!(below instanceof GhostBlock)) return 0.0D;
         return GhostRendering.settledDrop((GhostBlock) below, world, x, y - 1, z);
+    }
+
+    /**
+     * Where the crosshair hits a block that settles: the block's own answer, asked of a ray raised by the drop of the
+     * rut
+     * under it and lowered again, so the shape a click finds comes down with the picture (0.9.223).
+     *
+     * <p>
+     * Xep, 2026-10-10, on the outline floating above settled snow: "lower it as long as the actual hitbox lowers with
+     * it, otherwise players may struggle to break it intentionally." Raising the ray rather than lowering the block's
+     * bounds leaves those bounds alone - one static object read by the integrated server's own thread - and answers for
+     * a block of any shape, its own ray test included. The outline is lowered in {@link #outline} by the same test, so
+     * the two cannot part: wherever this lowers a hit, that lowers the box drawn round it, and nowhere else.
+     */
+    public static MovingObjectPosition rayTrace(Block block, World world, int x, int y, int z, Vec3 start, Vec3 end) {
+        double drop = settles(block) ? dropFor(world, x, y, z) : 0.0D;
+        if (drop <= 0.0D) return block.collisionRayTrace(world, x, y, z, start, end);
+        noteHitLowered();
+        MovingObjectPosition hit = block.collisionRayTrace(
+            world,
+            x,
+            y,
+            z,
+            Vec3.createVectorHelper(start.xCoord, start.yCoord + drop, start.zCoord),
+            Vec3.createVectorHelper(end.xCoord, end.yCoord + drop, end.zCoord));
+        if (hit != null && hit.hitVec != null) {
+            hit.hitVec = Vec3.createVectorHelper(hit.hitVec.xCoord, hit.hitVec.yCoord - drop, hit.hitVec.zCoord);
+        }
+        return hit;
+    }
+
+    /**
+     * The outline drawn round a block the crosshair is on: the block's own box, lowered by the same drop and the same
+     * test as the hit in {@link #rayTrace}, so it goes down only where the hit goes down with it (0.9.223).
+     */
+    public static AxisAlignedBB outline(Block block, World world, int x, int y, int z) {
+        AxisAlignedBB box = block.getSelectedBoundingBoxFromPool(world, x, y, z);
+        double drop = settles(block) ? dropFor(world, x, y, z) : 0.0D;
+        // Only once a hit has been lowered: the outline is drawn round what the ray trace found, which went through
+        // rayTrace first - so a hit hook some other mod kept from binding leaves the outline up, over a hit that is
+        // up too, rather than lowered over one that is not.
+        if (box == null || drop <= 0.0D || !hitSaid) return box;
+        noteOutlineLowered();
+        return box.getOffsetBoundingBox(0.0D, -drop, 0.0D);
+    }
+
+    private static volatile boolean hitSaid;
+
+    private static boolean outlineSaid;
+
+    /** Proof the hit hook runs, said once - an injector that does not apply says nothing at all. */
+    private static void noteHitLowered() {
+        if (hitSaid) return;
+        hitSaid = true;
+        Trmt.LOG
+            .info("Lowered the crosshair's hit on a block settled onto worn ground; the ray trace hook is in place");
+    }
+
+    /** Proof the outline hook runs, said once. */
+    private static void noteOutlineLowered() {
+        if (outlineSaid) return;
+        outlineSaid = true;
+        Trmt.LOG.info("Lowered the outline of a block settled onto worn ground; the selection box hook is in place");
     }
 
     /** Whether this block is one that settles, as one field read. */

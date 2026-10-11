@@ -285,7 +285,9 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
 
     @Override
     public TextureAtlasSprite getParticleIcon() {
-        return fallback.getParticleIcon();
+        // The fallback's, unless a ghost square's dust is being spawned, which takes that square's family's
+        // picture - the 1.7.10 edition's, side by side (0.9.223, spec GF19; see GhostDust).
+        return com.trmtgtnh.client.model.GhostDust.sprite(fallback.getParticleIcon());
     }
 
     @Override

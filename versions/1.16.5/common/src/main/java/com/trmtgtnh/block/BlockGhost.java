@@ -80,6 +80,17 @@ public class BlockGhost extends Block {
         .create("light", 0, 15);
 
     public BlockGhost() {
+        this(false);
+    }
+
+    /**
+     * A ghost that occludes, or one that does not: only the worn stair's, {@link BlockGhostStair}, does. Whether a
+     * block
+     * occludes is a property of the block rather than of a state or a square at this version, so the one ghost that
+     * must - a worn stair, which stops light by its shape as this version's stairs do (0.9.223, spec GF8) - is a second
+     * block; every other ghost occludes nothing, which GF1 keeps.
+     */
+    protected BlockGhost(boolean occludes) {
         // Properties handed to super, rather than setters called on itself: that is how 1.13 onward
         // builds a block, and it is where the hardness and the not-occluding now live.
         //
@@ -90,46 +101,55 @@ public class BlockGhost extends Block {
         // cell's top would come out black. Both are per-block answers this version takes from the
         // shape instead, and whether it gets them right is a thing to look at rather than assume.
         super(
-            BlockBehaviour.Properties.of(Material.DIRT)
-                .strength(0.6F)
-                .noOcclusion()
-                // No state cache, because every interesting answer this block gives is per square.
-                //
-                // <strong>Without this, none of the per-position overrides below ever run.</strong>
-                // This version builds a {@code BlockBehaviour$BlockStateBase$Cache} for each state
-                // the first time it is used, and fills it by calling the block once with
-                // {@code EmptyBlockGetter.INSTANCE} and {@code BlockPos.ZERO} - a view with no world
-                // in it, where a ghost cannot look up its own record and answers as though nothing
-                // had worn. Every later question is answered from that frozen value, whatever square
-                // is being asked about.
-                //
-                // Proved rather than reasoned: getLightBlock was made to log its caller, and across a
-                // whole run - world generation, light, eighty legs of walking, every chunk rebuild -
-                // it was called exactly once, by EmptyBlockGetter, before the first ghost existed.
-                //
-                // What that cost: a sunken square reported that it blocks all light when it blocks
-                // none, and Fabric's Indigo renderer - which, unlike vanilla's, reads opacity to
-                // decide ambient occlusion - drew the walls beside every sunken square two and a half
-                // times too dark. 1.7.10, 1.12.2 and Forge were unaffected and the fault looked like a
-                // Fabric rendering bug, which is where four runs were spent before this was found.
-                //
-                // The cost of the cure is that occlusion, light and shape are now computed per query
-                // rather than once per state. That is what a block whose shape depends on the square
-                // it is in has to pay, and it is the same answer vanilla gives its own such blocks.
-                .dynamicShape()
-                .sound(SoundType.GRAVEL)
-                // What this square glows, read off the state the painter chose. See LIGHT.
-                .lightLevel(state -> state.getValue(LIGHT))
-                // Nothing drops, because nothing is really there. Two methods there -
-                // getItemDropped answering null and quantityDropped answering nought - and one word
-                // here, because what a block drops is a loot table at this version and this is how a
-                // block says it has none. Said rather than left out: a block with no table named
-                // looks for one under its own name, does not find it, and logs a missing-table
-                // warning on every break.
-                .noDrops());
+            occlusion(
+                BlockBehaviour.Properties.of(Material.DIRT)
+                    .strength(0.6F),
+                occludes)
+                    // No state cache, because every interesting answer this block gives is per square.
+                    //
+                    // <strong>Without this, none of the per-position overrides below ever run.</strong>
+                    // This version builds a {@code BlockBehaviour$BlockStateBase$Cache} for each state
+                    // the first time it is used, and fills it by calling the block once with
+                    // {@code EmptyBlockGetter.INSTANCE} and {@code BlockPos.ZERO} - a view with no world
+                    // in it, where a ghost cannot look up its own record and answers as though nothing
+                    // had worn. Every later question is answered from that frozen value, whatever square
+                    // is being asked about.
+                    //
+                    // Proved rather than reasoned: getLightBlock was made to log its caller, and across a
+                    // whole run - world generation, light, eighty legs of walking, every chunk rebuild -
+                    // it was called exactly once, by EmptyBlockGetter, before the first ghost existed.
+                    //
+                    // What that cost: a sunken square reported that it blocks all light when it blocks
+                    // none, and Fabric's Indigo renderer - which, unlike vanilla's, reads opacity to
+                    // decide ambient occlusion - drew the walls beside every sunken square two and a half
+                    // times too dark. 1.7.10, 1.12.2 and Forge were unaffected and the fault looked like a
+                    // Fabric rendering bug, which is where four runs were spent before this was found.
+                    //
+                    // The cost of the cure is that occlusion, light and shape are now computed per query
+                    // rather than once per state. That is what a block whose shape depends on the square
+                    // it is in has to pay, and it is the same answer vanilla gives its own such blocks.
+                    .dynamicShape()
+                    .sound(SoundType.GRAVEL)
+                    // What this square glows, read off the state the painter chose. See LIGHT.
+                    .lightLevel(state -> state.getValue(LIGHT))
+                    // Nothing drops, because nothing is really there. Two methods there -
+                    // getItemDropped answering null and quantityDropped answering nought - and one word
+                    // here, because what a block drops is a loot table at this version and this is how a
+                    // block says it has none. Said rather than left out: a block with no table named
+                    // looks for one under its own name, does not find it, and logs a missing-table
+                    // warning on every break.
+                    .noDrops());
         registerDefaultState(
             getStateDefinition().any()
                 .setValue(LIGHT, Integer.valueOf(0)));
+    }
+
+    /**
+     * Every ghost but the worn stair's says it occludes nothing: a square with a dip in it must not have the renderer
+     * cull its neighbours' faces, and a state's occlusion cannot follow a square (spec GF1).
+     */
+    private static BlockBehaviour.Properties occlusion(BlockBehaviour.Properties properties, boolean occludes) {
+        return occludes ? properties : properties.noOcclusion();
     }
 
     @Override
@@ -148,10 +168,16 @@ public class BlockGhost extends Block {
      * query, here once as the square is painted, because the engine at this version asks a state
      * rather than a position. {@code OverlayPainter.relight} is what asks again when the answer
      * changes.
+     *
+     * <p>
+     * And on the worn stair's own block wherever the covered block is a stair, whichever ghost is handed in: every
+     * paint
+     * and every relight comes through here with the covered block in hand, so no caller can paint a stair square with
+     * the ghost that occludes nothing (0.9.223, spec GF8; see {@link BlockGhostStair}).
      */
     public static BlockState litState(BlockGhost ghost, BlockGetter access, int x, int y, int z, BlockState covered) {
-        // Every paint and every relight comes through here with the covered block in hand (0.9.222, spec GF8).
-        if (covered != null && SurfaceShape.of(covered) == SurfaceShape.STAIR) stairPainted = true;
+        BlockGhost stair = ModBlocks.ghostStair();
+        if (covered != null && stair != null && SurfaceShape.of(covered) == SurfaceShape.STAIR) ghost = stair;
         int lit = GhostLight.levelAt(access, x, y, z);
         int own = 0;
         if (covered != null) {
@@ -542,9 +568,16 @@ public class BlockGhost extends Block {
         }
     }
 
-    // isTopSolid is not answered here any more. It was a flag a block set; it is read off the
-    // collision shape now, and a ghost's collision shape is the hollow a rut actually has - so the
-    // same answer comes out of the shape the block was already returning.
+    /**
+     * Whether a face is sturdy - a torch, a lever, a ladder against it: the covered block's answer, read off its own
+     * support shape rather than the rut this ghost's collision shape has worn. See {@link GhostInherit#supportShape}
+     * (0.9.223, spec GF16).
+     */
+    @Override
+    public VoxelShape getBlockSupportShape(BlockState state, BlockGetter world, BlockPos pos) {
+        VoxelShape covered = GhostInherit.supportShape(this, world, pos);
+        return covered != null ? covered : super.getBlockSupportShape(state, world, pos);
+    }
 
     /**
      * Whether this square has dropped below the top of the block it stands in for.
@@ -558,6 +591,15 @@ public class BlockGhost extends Block {
      */
     private static boolean sunkAt(BlockGetter world, BlockPos pos) {
         return ErosionState.sinkOf(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
+    }
+
+    /**
+     * Whether this square's top is lit as a sunk top (0.9.223, SunkLight) - the 1.7.10 edition's
+     * {@code GhostRendering.litAsSunk}: only sunk ground, so a ghost standing in for a short block that has not sunk
+     * keeps the light its block would have had.
+     */
+    public static boolean litAsSunk(BlockGetter world, BlockPos pos) {
+        return sunkAt(world, pos);
     }
 
     /**
@@ -579,8 +621,9 @@ public class BlockGhost extends Block {
      */
     @Override
     public boolean propagatesSkylightDown(BlockState state, BlockGetter world, BlockPos pos) {
-        // Never through a worn stair, which stops all light - see getLightBlock (0.9.222, spec GF8).
-        if (coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) != null) return false;
+        // A worn stair as the stair does, whatever depth its record carries - see getLightBlock (0.9.223, spec GF8).
+        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        if (stair != null) return stair.propagatesSkylightDown(world, pos);
         if (sunkAt(world, pos)) return true;
         // Otherwise as the block it covers - see coveredFor.
         BlockState covered = coveredFor(world, pos);
@@ -603,10 +646,8 @@ public class BlockGhost extends Block {
      * the cell's edge, and a square answering fifteen holds no light, so on Forge every worn but unsunken
      * stair in the second yard drew its riser black. The older editions never meet it: 1.7.10's stair
      * stand-in, and every 1.12.2 ghost, take their light from the brightest neighbour, a flag this version
-     * does not have. Answering as the stair does lets the light in, as it comes into a stair. <em>A stair no longer
-     * reaches here from 0.9.222</em>: it stops all light as that edition's does, and its cell's faces take the
-     * brightest light around it through GhostWindows.lightAt, the flag's answer at this version (spec GF8). A slab
-     * and a path still do.</li>
+     * does not have. Answering as the stair does lets the light in, as it comes into a stair. A stair is answered
+     * before this is reached, as the covered stair itself (0.9.223, spec GF8); a slab and a path come here.</li>
      * </ul>
      *
      * <p>
@@ -619,7 +660,8 @@ public class BlockGhost extends Block {
      * <p>
      * The 1.7.10 edition paints a stair stand-in over any covered stair before it asks anything else
      * ({@code ModBlocks.forAppearance}, the shape first), and that stand-in is never sunk, never untinted and never
-     * grass's, and stops all light: its record may carry a depth, as every family's does, and nothing about a stair reads
+     * grass's, and stops all light: its record may carry a depth, as every family's does, and nothing about a stair
+     * reads
      * it. So the rules that read the depth, the light or the grass treatment ask this first (0.9.222, spec GF7, GF8).
      */
     public static BlockState coveredStair(int origin) {
@@ -628,14 +670,18 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * Set once a ghost has been painted over a stair, so the light read every renderer makes for every cell can skip
-     * the question until there is a worn stair to ask it of - see GhostWindows.lightAt (0.9.222, spec GF8).
+     * The state vanilla's stair rules should see at a square: the covered stair's own wherever a ghost stands over a
+     * stair, and the real state everywhere else - the 1.7.10 edition's {@code GhostStairs.metadataAt}, which puts the
+     * stair's own facing and half back at the point of reading (0.9.223, spec GF5). Asked by each loader's {@code
+     * MixinStairNeighbours} for every square a stair reads while it decides its corner - on a shape update and as the
+     * client predicts a placed stair - so an unworn stair beside a worn one keeps the corner it has beside the real
+     * stair, and the client never reshapes it against a block with no facing. One type check for every block in the
+     * world that is not a ghost.
      */
-    private static volatile boolean stairPainted;
-
-    /** Whether a ghost has stood in for a stair in this game. */
-    public static boolean anyStairPainted() {
-        return stairPainted;
+    public static BlockState asStairsSee(BlockState real, BlockPos pos) {
+        if (real == null || pos == null || !(real.getBlock() instanceof BlockGhost)) return real;
+        BlockState covered = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        return covered != null ? covered : real;
     }
 
     static BlockState coveredFor(BlockGetter world, BlockPos pos) {
@@ -663,13 +709,16 @@ public class BlockGhost extends Block {
      */
     @Override
     public int getLightBlock(BlockState state, BlockGetter world, BlockPos pos) {
-        // A worn stair stops all of it, whatever its family and however deep its record says it is worn - the 1.7.10
-        // edition's stair stand-in, which sets 255 for every family because a real stair does there and the server still
-        // holds one. Until 0.9.222 this answered as the covered stair, letting light into the cell, or as sunk; and the
-        // ghost occludes nothing, so light went straight through a worn stair's solid back and floor. The faces looking
-        // into its cell, which now holds none, take the brightest light around it, as that edition's flag sends them -
-        // GhostWindows.lightAt, at the one method every renderer here reads a cell's light through (spec GF8).
-        if (coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) != null) return 15;
+        // A worn stair as the stair it covers does, whatever its family and however deep its record says it is worn:
+        // each edition's worn stair lights as that version's real stair does, and the server still holds one (Xep,
+        // 2026-10-10: "Follow each version"; spec GF8). At this version a stair lets light into its cell and stops it
+        // by its shape - which the worn stair's own block, BlockGhostStair, occludes with - so light comes through the
+        // open half and not the solid back and floor. 0.9.222 stopped all of it, as the 1.7.10 and 1.12.2 stairs do,
+        // and
+        // lent the cell's faces the brightest light around it; vanilla stairs at both of those versions are opacity
+        // 255.
+        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        if (stair != null) return stair.getLightBlock(world, pos);
         if (sunkAt(world, pos)) return 0;
         // Otherwise as the block it covers - see coveredFor.
         BlockState covered = coveredFor(world, pos);
@@ -776,11 +825,13 @@ public class BlockGhost extends Block {
      * Whether bone meal used on this square is answered as used, the way a crop answers it (0.9.222, spec WD40).
      *
      * <p>
-     * On the client a worn square is this ghost, which is nothing bone meal grows, and the mend itself is the server's -
+     * On the client a worn square is this ghost, which is nothing bone meal grows, and the mend itself is the server's
+     * -
      * so until 0.9.222 the client answered the click with "nothing happened", the arm did not swing, and the game went
      * on to the off hand and sent a second use at the same block: with bone meal in the main hand and torches or blocks
      * in the other, every click on a worn path mended it and placed a torch or a block against it too. So the client
-     * answers for a ghost it holds a record for, as {@link GhostFamily#familyAt} asks, and the game stops there; what is
+     * answers for a ghost it holds a record for, as {@link GhostFamily#familyAt} asks, and the game stops there; what
+     * is
      * mended and what is spent is still the server's answer, sent back as it always was.
      */
     public static boolean answersBoneMeal(boolean clientSide, boolean ghostHere, short record) {
@@ -837,12 +888,13 @@ public class BlockGhost extends Block {
      */
     public float getSlipperiness(BlockState state, net.minecraft.world.level.LevelReader world, BlockPos pos,
         net.minecraft.world.entity.Entity entity) {
-        return GhostFamily.slipperinessFor(GhostFamily.familyAt(world, pos));
+        return GhostFamily.slipperinessAt(this, world, pos);
     }
 
     /**
      * The covered block's break speed, its hardness and the player's tool and all, so ground a pack gates behind a
-     * better pick does not break early on the client and snap back, and an unbreakable block stays unbreakable. Vanilla's
+     * better pick does not break early on the client and snap back, and an unbreakable block stays unbreakable.
+     * Vanilla's
      * own question, so one answer serves both loaders. See {@link GhostInherit#destroyProgress} (spec GF11, GF12).
      */
     @Override
@@ -853,48 +905,35 @@ public class BlockGhost extends Block {
     }
 
     /**
-     * Set while this square's breaking or hitting dust is spawned, so the dust is tinted as the square is.
-     *
-     * <p>
-     * The dust asks the ghost's color handler for tint slot nought with the real world in hand, and that slot is the
-     * grass slot: every quad that carries it is grass, so it answers the biome's green - and a worn sand or stone square
-     * threw green dust. The 1.7.10 edition's dust takes {@code colorMultiplier}, the ghost's own tint at the square,
-     * with its wear shade held off for a tick by {@code GhostRendering.holdShadeForDust}; this is that hold, and while it
-     * is set {@code GhostTint} answers a caller holding the world - never a mesher, whose view is not one - with the tint
-     * this square's top is drawn in (spec GF19). Let go of on the next client tick, as that edition does. Held by the two
-     * Forge hooks below on Forge, and by the Fabric module's {@code MixinGhostDust} on Fabric.
-     */
-    private static volatile boolean tintHeldForDust;
-
-    /** Called as a ghost's dust is about to be spawned. */
-    public static void holdTintForDust() {
-        tintHeldForDust = true;
-    }
-
-    /** Called once a client tick, so the hold cannot outlive the particles it was for. */
-    public static void releaseTintForDust() {
-        tintHeldForDust = false;
-    }
-
-    /** Whether dust is being spawned this tick. */
-    public static boolean tintHeldForDust() {
-        return tintHeldForDust;
-    }
-
-    /**
-     * Lets the game spawn the hitting dust, with the tint held for it - false, so nothing here replaces the game's own
-     * placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19). Forge's {@code IForgeBlock.addHitEffects}.
+     * Lets the game spawn the hitting dust, the square's family held for its picture - false, so nothing here
+     * replaces the game's own placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19). Forge's
+     * {@code IForgeBlock.addHitEffects}; on Fabric MixinGhostDust holds at the same moment. The dust asks tint slot
+     * nought with the real world in hand, which answers the square's own color for every caller since 0.9.223; its
+     * picture is the family's, side by side, through the hold (client.model.GhostDust).
      */
     public boolean addHitEffects(BlockState state, Level world, net.minecraft.world.phys.HitResult target,
         net.minecraft.client.particle.ParticleEngine manager) {
-        holdTintForDust();
+        if (target instanceof net.minecraft.world.phys.BlockHitResult) {
+            Client.holdDust(world, ((net.minecraft.world.phys.BlockHitResult) target).getBlockPos());
+        }
         return false;
     }
 
     /** The breaking dust, the same way. Forge's {@code IForgeBlock.addDestroyEffects}. */
     public boolean addDestroyEffects(BlockState state, Level world, BlockPos pos,
         net.minecraft.client.particle.ParticleEngine manager) {
-        holdTintForDust();
+        Client.holdDust(world, pos);
+        return false;
+    }
+
+    /**
+     * And the dust kicked up running across it, the same way - the 1.7.10 edition's sprinting dust takes the ghost's
+     * icon as its breaking dust does (0.9.223, spec GF19). Forge's {@code IForgeBlock.addRunningEffects}, asked on both
+     * sides; only a client holds. On Fabric MixinGhostSprintDust holds at the same moment.
+     */
+    public boolean addRunningEffects(BlockState state, Level world, BlockPos pos,
+        net.minecraft.world.entity.Entity entity) {
+        if (world != null && world.isClientSide()) Client.holdDust(world, pos);
         return false;
     }
 }

@@ -307,6 +307,38 @@ public final class GhostInherit {
         return covered == null ? ground : covered;
     }
 
+    private static volatile boolean taggedSoilSaid;
+
+    /**
+     * {@link #soilFor}, for the plants that ask their ground by tag or identity - bamboo and chorus - and saying once
+     * in the log that one of them was handed a covered block, because their hook is not required and a hook that does
+     * not apply says nothing at all (0.9.223).
+     */
+    public static BlockState taggedSoilFor(BlockState ground, BlockPos pos) {
+        BlockState soil = soilFor(ground, pos);
+        if (soil != ground && !taggedSoilSaid) {
+            taggedSoilSaid = true;
+            com.trmtgtnh.Trmt.LOG.info("Bamboo or chorus asked about worn ground and was handed the block under it");
+        }
+        return soil;
+    }
+
+    private static volatile boolean harvestSaid;
+
+    /**
+     * The state a tooltip's harvest line is worked out from: the block a ghost covers where the square is a ghost, and
+     * otherwise the state itself - so Jade names the tool and level the covered block needs (0.9.223). Says once in the
+     * log when it has answered, because its hook is not required and a hook that does not apply says nothing at all.
+     */
+    public static BlockState harvestStateFor(BlockState state, BlockPos pos) {
+        BlockState covered = soilFor(state, pos);
+        if (covered != state && !harvestSaid) {
+            harvestSaid = true;
+            com.trmtgtnh.Trmt.LOG.info("A tooltip's harvest line asked about worn ground and was handed the block under it");
+        }
+        return covered;
+    }
+
     /**
      * The world a plant's question about a ghost's square is asked through: one holding the covered block there, as the
      * Forge question is asked, so a plant that looks at the square it was told about finds what it was told.
@@ -316,7 +348,38 @@ public final class GhostInherit {
         BlockState ground = world.getBlockState(pos);
         if (!(ground.getBlock() instanceof BlockGhost)) return world;
         BlockState covered = coveredAt(ground.getBlock(), pos);
-        return covered == null ? world : new OriginView(world, pos, covered);
+        if (covered == null) return world;
+        // A plant asked from a level is handed a level, as Forge hands it the world it was asked through - a bare
+        // view could not answer a plant that reads the light or takes its world for the level (0.9.223, spec GF15).
+        if (world instanceof net.minecraft.world.level.LevelReader) {
+            return new OriginLevelView((net.minecraft.world.level.LevelReader) world, pos, covered);
+        }
+        return new OriginView(world, pos, covered);
+    }
+
+    /**
+     * The covered block's support shape - what a torch, a lever, a ladder or a block that needs a sturdy face reads off
+     * this square - or null to let the ghost answer: the 1.7.10 edition's {@code GhostLogic.sideSolid} (spec GF16).
+     *
+     * <p>
+     * This version asks whether a face is sturdy of the block's support shape, which is its collision shape unless the
+     * block says otherwise, and a ghost's collision shape is the rut it has worn: so until 0.9.223 a sunk square's top
+     * was not sturdy where the server's block is, and the client refused a torch the server would have taken. Asked of
+     * the covered block's own state, through a view that holds it at its square, and guarded against the question
+     * coming back here, as that edition's is. A ghost's sturdiness is never cached - it is built with a dynamic shape -
+     * so this is asked every time.
+     */
+    public static net.minecraft.world.phys.shapes.VoxelShape supportShape(Block ghost, BlockGetter world, BlockPos pos) {
+        BlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return covered.getBlockSupportShape(new OriginView(world, pos, covered), pos);
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
     }
 
     /**

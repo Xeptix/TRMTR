@@ -3,20 +3,15 @@ package com.trmtgtnh.compat;
 import java.util.List;
 
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.fml.common.event.FMLInterModComms;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.BlockGhost;
 import com.trmtgtnh.client.ClientErosionCache;
 import com.trmtgtnh.client.InspectionCache;
-import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ErosionKey;
 import com.trmtgtnh.erosion.ErosionState;
-import com.trmtgtnh.erosion.Reinforcement;
-import com.trmtgtnh.erosion.SinkProfile;
-import com.trmtgtnh.surface.SurfaceFamily;
 
 import mcp.mobius.waila.api.IWailaConfigHandler;
 import mcp.mobius.waila.api.IWailaDataAccessor;
@@ -43,12 +38,10 @@ import mcp.mobius.waila.api.IWailaRegistrar;
  *
  * <p>
  * Every reference to Waila is confined to this class, and it is only ever loaded in response to
- * Waila answering the registration message below, so a pack without Waila never touches it.
+ * Waila answering the registration message below, so a pack without Waila never touches it. The lines
+ * themselves are worded in {@link TooltipLines}, which words them for The One Probe as well.
  */
 public class WailaCompat implements IWailaDataProvider {
-
-    /** In-game seconds in a Minecraft day, which is how healing durations are expressed. */
-    private static final double SECONDS_PER_DAY = 1200.0D;
 
     /** True for the provider registered against every block, which speaks only where no ghost stands. */
     private final boolean everyBlock;
@@ -99,136 +92,27 @@ public class WailaCompat implements IWailaDataProvider {
         int y = at.getY();
         int z = at.getZ();
 
-        // Reinforcement can sit on any block, worn or not, so this line is written before the wear body's own
-        // "only a ghost" gate and over unworn blocks too. The level is the server's, read through the same
-        // inspection reply the wear numbers use.
-        if (TrmtConfig.reinforceEnabled && InspectionCache.has(x, y, z)) {
-            int level = InspectionCache.reinforce();
-            if (level > 0) {
-                int cap = Math.min(3, TrmtConfig.reinforceMaxLevel);
-                // What the level buys against traffic, which is otherwise invisible: the wear bar simply fills
-                // more slowly and nothing says why. Said only of ground that wears through gradations - a ghost,
-                // or a block the server gives a run of steps - because a reinforced leaf or plant is not trampled
-                // at all and brick never wears; see InspectionReach.wears.
-                boolean wears = com.trmtgtnh.util.InspectionReach.wears(ghostHere, InspectionCache.chainLength() > 0);
-                currentTip.add(
-                    TextFormatting.AQUA + "Reinforced "
-                        + TextFormatting.WHITE
-                        + level
-                        + "/"
-                        + cap
-                        + (level >= cap ? TextFormatting.DARK_GRAY + "  blast-proof" : "")
-                        + (wears ? wearHold(level) : ""));
-            }
-        }
-
-        // Spawn ward, on any block for the same reason, from the same inspection reply.
-        if (TrmtConfig.wardEnabled && InspectionCache.has(x, y, z)) {
-            int ward = InspectionCache.ward();
-            if ((ward & 0x1) != 0) {
-                currentTip.add(TextFormatting.AQUA + "Warded" + TextFormatting.WHITE + "  no hostile spawns");
-            }
-            if ((ward & 0x2) != 0) {
-                currentTip.add(TextFormatting.AQUA + "Warded" + TextFormatting.WHITE + "  no passive spawns");
-            }
-        }
-
-        // The glow needs no inspection round trip: the client already knows it, because it is drawing it. Said
-        // only over a ghost, because only a ghost glows. Ground healed back to pristine keeps its light for when
-        // it wears again, so the client still holds a level for a block that is not lit, and "Lit" over it would
-        // describe a light nobody can see.
-        if (ghostHere && TrmtConfig.lightEnabled) {
-            int glow = com.trmtgtnh.client.ClientLightCache.get()
-                .at(x, y, z);
-            if ((glow & 0xF) != 0) {
-                currentTip.add(
-                    TextFormatting.AQUA + "Lit "
-                        + TextFormatting.WHITE
-                        + (glow & 0xF)
-                        + "/15"
-                        + TextFormatting.DARK_GRAY
-                        + "  "
-                        + net.minecraft.util.text.translation.I18n
-                            .translateToLocal("trmtgtnh.light.color." + ((glow >> 4) & 0xF)));
-            }
-        }
-
-        // Every line below is drawn from wear, and only a ghost has wear to draw. Beyond this gate the provider
-        // also meets leaves, plants and unworn ground, whose records are trample tallies, ground short of its
-        // first gradation, or kept only for a reinforcement or a ward - and a tally's wear is the count that
-        // breaks a leaf, not progress toward a gradation. So nothing below may move above it. A server from
-        // 0.9.213 withholds those figures for such a record as well (RecordReadout); an older one sends them,
-        // and there this gate is all that stands in the way.
-        if (!ghostHere) return currentTip;
-
-        // Straight off the client's own record. It holds the surface, how worn the face is and
-        // how far the ground has dropped, and those are three separate things: a layer count on
-        // its own restarts every time the ground sinks a pixel, so it cannot say how far along a
-        // block really is.
-        short state = stateFromOverlay(x, y, z);
-        if (state == ErosionState.NONE) return currentTip;
-        SurfaceFamily family = ErosionState.familyOf(state);
-        int layer = ErosionState.layerOf(state);
-        int sink = SinkProfile.shown(family, ErosionState.sinkOf(state));
-        if (family == null || layer < 0) return currentTip;
-
-        FamilySettings settings = TrmtConfig.family(family);
-        int layers = settings == null ? layer + 1
-            : Math.max(sink > 0 ? settings.layersPerDepth : settings.stages, layer + 1);
-
-        StringBuilder worn = new StringBuilder();
-        worn.append(TextFormatting.GRAY)
-            .append("Worn: ")
-            .append(TextFormatting.WHITE)
-            .append(label(family))
-            .append(' ')
-            .append(layer + 1)
-            .append('/')
-            .append(layers);
-
-        if (sink > 0) {
-            worn.append(TextFormatting.GRAY)
-                .append(", sunk ")
-                .append(sink)
-                .append("/16");
-        }
-        currentTip.add(worn.toString());
-
-        // Straight off the packed state, so it stands the moment the ghost is drawn rather than
-        // waiting for the server's reply. A position with no overlay record cannot be pinned, so
-        // there is nothing to miss by reading it here.
-        if (ErosionState.frozenOf(state)) {
-            currentTip.add(TextFormatting.AQUA + "Frozen" + TextFormatting.DARK_GRAY + "  no wear, no recovery");
-        }
-
-        // Everything below needs the server's copy of the record. Until the reply lands - one
-        // tick, in practice - the line above already stands on its own.
-        if (!InspectionCache.has(x, y, z)) return currentTip;
-
-        // Where this sits on the whole run, pristine to fully sunk. The line above restarts its
-        // count when grass gives way to earth, so on its own it cannot say how far along a block
-        // really is.
-        int chainLength = InspectionCache.chainLength();
-        int chainIndex = InspectionCache.chainIndex();
-        if (chainLength > 0 && chainIndex >= 0) {
-            currentTip
-                .add(TextFormatting.GRAY + "Overall: " + TextFormatting.WHITE + (chainIndex + 1) + "/" + chainLength);
-        }
-
-        // Asked of the reply as well as of the layers: a reply that tells no progress is for a record with
-        // nothing drawn, which a ghost can outlive on this client for as long as it takes to catch up.
-        if (layer + 1 < layers && InspectionCache.tellsProgress()) {
-            currentTip.add(
-                TextFormatting.DARK_GRAY + "  toward next: " + Math.round(InspectionCache.progress() * 100f) + "%");
-        }
-
-        int recovery = InspectionCache.recoverySeconds();
-        if (recovery >= 0) {
-            String idle = "last step " + format(InspectionCache.untouchedSeconds()) + " ago";
-            currentTip.add(
-                TextFormatting.DARK_GRAY + (recovery == 0 ? "  recovering now, " + idle
-                    : "  recovers in " + format(recovery) + ", " + idle));
-        }
+        // The client's own copies: the overlay it is drawing from, the light it is drawing, and the server's
+        // reply to the crosshair's inspection of exactly this position. The lines themselves are TooltipLines',
+        // which words them for The One Probe too.
+        TooltipLines.Reply reply = InspectionCache.has(x, y, z) ? new TooltipLines.Reply(
+            InspectionCache.reinforce(),
+            InspectionCache.ward(),
+            InspectionCache.chainLength(),
+            InspectionCache.chainIndex(),
+            InspectionCache.tellsProgress(),
+            InspectionCache.progress(),
+            InspectionCache.untouchedSeconds(),
+            InspectionCache.recoverySeconds()) : null;
+        int glow = ghostHere && TrmtConfig.lightEnabled ? com.trmtgtnh.client.ClientLightCache.get()
+            .at(x, y, z) : 0;
+        currentTip.addAll(
+            TooltipLines.block(
+                ghostHere,
+                ghostHere ? stateFromOverlay(x, y, z) : ErosionState.NONE,
+                glow,
+                reply,
+                net.minecraft.util.text.translation.I18n::translateToLocal));
         return currentTip;
     }
 
@@ -238,45 +122,6 @@ public class WailaCompat implements IWailaDataProvider {
             .overlay(x >> 4, z >> 4);
         if (overlay == null) return ErosionState.NONE;
         return overlay.stateAt(ErosionKey.packWorld(x, y, z));
-    }
-
-    /**
-     * What a reinforcement level is worth against traffic, or nothing when it is worth nothing.
-     *
-     * <p>
-     * Read from this client's own settings, the same as every other number on this tooltip. A
-     * server running a different factor will disagree, and that is the existing bargain with all
-     * of these lines rather than anything new here.
-     */
-    private static String wearHold(int level) {
-        float factor = Reinforcement.wearFactor(level);
-        if (factor <= 1f) return "";
-        String shown = factor == Math.round(factor) ? String.valueOf(Math.round(factor))
-            : String.format(java.util.Locale.ROOT, "%.1f", Float.valueOf(factor));
-        return TextFormatting.DARK_GRAY + "  x" + shown + " to wear";
-    }
-
-    /** "grass" reads better in a tooltip than "GRASS". */
-    private static String label(SurfaceFamily family) {
-        String key = family.key();
-        return Character.toUpperCase(key.charAt(0)) + key.substring(1);
-    }
-
-    /**
-     * An in-game duration at whatever scale suits it.
-     *
-     * <p>
-     * The units step down rather than rounding to the nearest day, because both numbers here
-     * are read at both ends of their range: a stage takes tens of days to grow back, and the
-     * ground you are standing on was walked on seconds ago. An earlier version floored
-     * everything below half a day to "1h", which made ground you had just trodden on
-     * indistinguishable from ground you had left alone all morning.
-     */
-    private static String format(int gameSeconds) {
-        if (gameSeconds >= SECONDS_PER_DAY) return Math.round(gameSeconds / SECONDS_PER_DAY) + "d";
-        int minutes = (int) (gameSeconds / SECONDS_PER_DAY * 24.0D * 60.0D);
-        if (minutes >= 60) return (minutes / 60) + "h";
-        return minutes <= 0 ? "moments" : minutes + "m";
     }
 
     @Override

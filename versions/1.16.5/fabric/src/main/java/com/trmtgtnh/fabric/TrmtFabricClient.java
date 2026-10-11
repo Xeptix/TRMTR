@@ -66,10 +66,11 @@ public final class TrmtFabricClient implements ClientModInitializer {
         // filled in, and asked for tints nothing answered. Worn grass came out as grey slabs for
         // both reasons at once. See BlockGhost for the pass and GhostTint for the color; the Forge
         // module says the same two things in ForgeClientSetup.
+        // Both ghosts: the worn stair's is a block of its own since 0.9.223 (BlockGhostStair).
         net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap.INSTANCE
-            .putBlock(com.trmtgtnh.block.ModBlocks.ghost(), net.minecraft.client.renderer.RenderType.cutoutMipped());
+            .putBlocks(net.minecraft.client.renderer.RenderType.cutoutMipped(), com.trmtgtnh.block.ModBlocks.ghosts());
         net.fabricmc.fabric.api.client.rendering.v1.ColorProviderRegistry.BLOCK
-            .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghost());
+            .register(com.trmtgtnh.client.GhostTint.handler(), com.trmtgtnh.block.ModBlocks.ghosts());
 
         // What draws a Golem of Ways, and what screen its orders open on. One line each, in the
         // only place that already knows it is a client; see TrmtForge for the other loader's pair.

@@ -66,8 +66,8 @@ public final class WearIcons {
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
             List<ItemStack> list = built.get(state.family);
             if (list == null) continue;
-            Item item = Item.getItemFromBlock(state.block);
-            if (item != null) list.add(new ItemStack(item, 1, 0));
+            ItemStack picture = pictureOf(state.block, state.family);
+            if (picture != null) list.add(picture);
         }
         for (SurfaceFamily family : built.keySet()) {
             List<ItemStack> list = built.get(family);
@@ -78,6 +78,38 @@ public final class WearIcons {
             }
         }
         cache = built;
+    }
+
+    /**
+     * The picture of a detected block: the first of its own variants that wears as this family (0.9.223).
+     *
+     * <p>
+     * Every picture used to be the block's variant 0. Chisel numbers its carved cobblestone and netherrack from 1 - 0
+     * is
+     * the vanilla block they are carved from - so in a pack with Chisel the cobble and nether rows of the Wear Table
+     * and its editor drew the missing-texture square, which the screens photographs of the 0.9.223 full pass showed;
+     * and a cobblestone slab, variant 3, was drawn as a smooth stone one. The block's own list of variants, the one the
+     * creative inventory shows, is asked instead, and the first whose metadata wears as this family is the picture.
+     * A block that lists nothing keeps variant 0, as before; one that lists variants and none of them wears as this
+     * family has no picture. The same rule is 1.12.2's; 1.16.5 has one block per variant, so its picture is the block.
+     */
+    public static ItemStack pictureOf(Block block, SurfaceFamily family) {
+        Item item = block == null ? null : Item.getItemFromBlock(block);
+        if (item == null) return null;
+        List<ItemStack> variants = new ArrayList<ItemStack>();
+        try {
+            block.getSubBlocks(item, net.minecraft.creativetab.CreativeTabs.tabAllSearch, variants);
+        } catch (Throwable hostileMod) {
+            // A block's list can reach any mod in the pack; one that throws is drawn as it always was.
+            variants.clear();
+        }
+        if (variants.isEmpty()) return new ItemStack(item, 1, 0);
+        for (ItemStack variant : variants) {
+            if (variant == null || variant.getItem() != item) continue;
+            int meta = item.getMetadata(variant.getItemDamage());
+            if (SurfaceRegistry.familyOf(block, meta) == family) return variant.copy();
+        }
+        return null;
     }
 
     /**

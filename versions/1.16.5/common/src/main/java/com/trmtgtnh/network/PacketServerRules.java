@@ -151,6 +151,19 @@ public class PacketServerRules implements Message {
 
     private boolean hasTable;
 
+    /** Guards the switches tail, the sixth (0.9.223). */
+    private static final int SWITCHES_FORMAT = 1;
+
+    /**
+     * The server's settle switch, 1 or 0, and its chunk tamper limits - or -1 each where an older server sent no
+     * switches tail, whose clients keep their own (0.9.223; Xep, 2026-10-10). An older client stops reading before it.
+     */
+    private int settle = -1;
+
+    private int tamperSteps = -1;
+
+    private int tamperReach = -1;
+
     public PacketServerRules() {}
 
     /** Captures the server's current rules. */
@@ -207,6 +220,9 @@ public class PacketServerRules implements Message {
         packet.hasPricing = true;
         packet.tableFingerprint = com.trmtgtnh.surface.SurfaceRegistry.fingerprint();
         packet.hasTable = true;
+        packet.settle = com.trmtgtnh.config.TrmtConfig.settleOnWornGround ? 1 : 0;
+        packet.tamperSteps = com.trmtgtnh.config.TrmtConfig.chunkTamperMaxSteps;
+        packet.tamperReach = com.trmtgtnh.config.TrmtConfig.chunkTamperMaxReach;
         return packet;
     }
 
@@ -328,6 +344,14 @@ public class PacketServerRules implements Message {
         if (tableFormat < TABLE_FORMAT || buf.readableBytes() < 8) return;
         tableFingerprint = buf.readLong();
         hasTable = true;
+
+        // The switches tail (0.9.223): the settle switch and the chunk tamper's two limits, a byte each.
+        if (buf.readableBytes() < 4) return;
+        int switchesFormat = buf.readUnsignedByte();
+        if (switchesFormat < SWITCHES_FORMAT) return;
+        settle = buf.readUnsignedByte() != 0 ? 1 : 0;
+        tamperSteps = buf.readUnsignedByte();
+        tamperReach = buf.readUnsignedByte();
     }
 
     @Override
@@ -393,6 +417,11 @@ public class PacketServerRules implements Message {
 
         buf.writeByte(TABLE_FORMAT);
         buf.writeLong(tableFingerprint);
+
+        buf.writeByte(SWITCHES_FORMAT);
+        buf.writeByte(settle > 0 ? 1 : 0);
+        buf.writeByte(Math.max(0, Math.min(255, tamperSteps)));
+        buf.writeByte(Math.max(0, Math.min(255, tamperReach)));
     }
 
     /** The server's pricing as the Wear Table wants it, or null when this server sent none. */
@@ -472,7 +501,10 @@ public class PacketServerRules implements Message {
                             message.depths,
                             message.successors,
                             message.familyEnabled,
-                            message.chainSwitches));
+                            message.chainSwitches,
+                            message.settle,
+                            message.tamperSteps,
+                            message.tamperReach));
                     // After the rules, so a table that arrives lands on the geometry it belongs to.
                     Client.considerServerTable(message.hasTable, message.tableFingerprint);
                 }

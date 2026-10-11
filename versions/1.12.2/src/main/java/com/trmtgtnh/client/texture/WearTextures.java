@@ -162,6 +162,13 @@ public final class WearTextures {
     private static volatile Lookup lookup = Lookup.EMPTY;
 
     /**
+     * The covered blocks that wanted a mended side at the last stitch - a side texture with holes in it - whether or
+     * not the atlas could fit one. Read by {@link #mendWanted}, which is how a flank that wanted a mend and has none
+     * knows to draw vanilla's grass side rather than the side with its holes (0.9.223, spec GS15).
+     */
+    private static volatile StateFiling<Block, Boolean> wantedMends = StateFiling.<Block, Boolean>empty();
+
+    /**
      * How the ids in force number a block, and which block an id names. The one place this class
      * reads a block id, and only to say in the log whether the filed blocks moved; a lookup keyed
      * by these numbers is exactly what went wrong.
@@ -1353,6 +1360,7 @@ public final class WearTextures {
         StateFiling<Block, TextureAtlasSprite> mendedBuilt = mended.build();
         StateFiling<Block, TextureAtlasSprite> wallsBuilt = walls.build();
         StateFiling<Block, Boolean> filed = everyStateFiled(sets, mendedBuilt, wallsBuilt);
+        wantedMends = mendsWanted.build();
         lookup = new Lookup(
             icons,
             overlaySprites,
@@ -2047,7 +2055,15 @@ public final class WearTextures {
                     if (raw == null) continue;
 
                     String behind = InnerLayers.textureFor(state.block, meta);
-                    String face = family.ordinal() + " " + raw + (behind == null ? "" : " behind " + behind);
+                    // And by the underside where the pictures are made of it (FaceRules.setKey, 0.9.223): keyed on the
+                    // top alone, vanilla grass shared Biomes O' Plenty's loamy grass's set and wore into its loamy
+                    // dirt.
+                    String face = FaceRules.setKey(
+                        family,
+                        raw,
+                        FaceSource.iconName(state.block, meta, 0),
+                        behind,
+                        FaceSource.coverLook(TrmtConfig.family(family)));
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);
@@ -2552,6 +2568,15 @@ public final class WearTextures {
         if (origin == null) return null;
         TextureAtlasSprite icon = lookup.mended.get(origin, originMeta);
         return usable(icon) ? icon : null;
+    }
+
+    /**
+     * Whether the covered block wanted a mended side at the last stitch - its side texture has holes in it - whether
+     * or not the atlas could fit one. A flank that wanted a mend and has none draws vanilla's grass side, as the 1.7.10
+     * edition does: the picture the block shows through its holes anyway (0.9.223, spec GS15).
+     */
+    public static boolean mendWanted(Block origin, int originMeta) {
+        return origin != null && Boolean.TRUE.equals(wantedMends.get(origin, originMeta));
     }
 
     private static void register(TextureMap map, SpritePlan plan) {

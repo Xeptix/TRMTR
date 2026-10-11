@@ -1396,6 +1396,16 @@ public final class CommandTrmt {
             SurfaceShape shape = SurfaceShape.of(demo.state.block.defaultBlockState());
             Block under = shape.isPartial() ? roadBlock(demo.state.family) : demo.state.block;
             int underMeta = shape.isPartial() ? 0 : demo.meta;
+            // And under a turf, what it becomes when covered: a course of grass under grass turns to dirt on its own
+            // random ticks, so which squares were still grass when a photograph was taken was chance, and the band it
+            // drew in a platform's side differed from run to run (0.9.223; Xep, 2026-10-10).
+            if (under instanceof net.minecraft.world.level.block.SpreadingSnowyDirtBlock) {
+                under = net.minecraft.world.level.block.Blocks.DIRT;
+                underMeta = 0;
+            } else if (under instanceof net.minecraft.world.level.block.NyliumBlock) {
+                under = net.minecraft.world.level.block.Blocks.NETHERRACK;
+                underMeta = 0;
+            }
             for (int dx = 0; dx < size; dx++) {
                 for (int dz = 0; dz < size; dz++) {
                     int x = platformX + dx;

@@ -176,14 +176,24 @@ public final class JourneyMapColors {
             Method setProxy = blockMd.getMethod("setBlockColorProxy", proxyType);
             askColor = blockMd.getMethod("getBlockColor", chunkMd, BlockPos.class);
 
-            Object mine = get.invoke(null, ghost.defaultBlockState());
-            if (mine == null) return;
-
             Object proxy = Proxy.newProxyInstance(
                 JourneyMapColors.class.getClassLoader(),
                 new Class<?>[] { proxyType },
                 new Answer(get));
-            setProxy.invoke(mine, proxy);
+            // Every state of both ghosts - the worn stair's is a block of its own since 0.9.223 (BlockGhostStair) - as
+            // the 1.7.10 edition hands one to every stand-in at every metadata (spec CO18). JourneyMap keeps a record
+            // per state, and a lit square's state is not the unlit one.
+            int handed = 0;
+            for (net.minecraft.world.level.block.Block each : ModBlocks.ghosts()) {
+                for (BlockState state : each.getStateDefinition()
+                    .getPossibleStates()) {
+                    Object mine = get.invoke(null, state);
+                    if (mine == null) continue;
+                    setProxy.invoke(mine, proxy);
+                    handed++;
+                }
+            }
+            if (handed == 0) return;
 
             installed = true;
             Trmt.LOG.info("JourneyMap found; worn ground will be drawn on it in the color of what it covers");

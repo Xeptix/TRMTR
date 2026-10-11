@@ -20,7 +20,10 @@
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
     "MixinSettleOnWornGround",
+    "MixinSettledHit",
+    "MixinSettledOutline",
     "MixinSettledSnowFaces",
+    "MixinStairNeighbours",
     "MixinStitcher",
     "MixinStitcherSlot",
     "MixinTextureMap"

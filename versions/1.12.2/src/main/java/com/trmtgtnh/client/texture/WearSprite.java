@@ -403,9 +403,44 @@ public class WearSprite extends TextureAtlasSprite {
          */
         final boolean scaled;
 
+        /**
+         * How far the earth of a lawn with none of its own is worn as its first run shows it, and where the run under
+         * the ground begins (FaceRules.earthHead) - nought for every other surface - with the look that wears it.
+         */
+        final float earthHead;
+
+        final String earthPattern;
+
+        final float earthStrength;
+
         Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
             float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
             AnimationMetadataSection layerAnimation, boolean seeThrough, boolean scaled) {
+            this(
+                edge,
+                top,
+                bottom,
+                mendUnder,
+                grassOrder,
+                pattern,
+                strength,
+                curve,
+                improvised,
+                revealsEarth,
+                innerLayer,
+                layerFrames,
+                layerAnimation,
+                seeThrough,
+                scaled,
+                0f,
+                "",
+                1f);
+        }
+
+        Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
+            float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
+            AnimationMetadataSection layerAnimation, boolean seeThrough, boolean scaled, float earthHead,
+            String earthPattern, float earthStrength) {
             this.edge = edge;
             this.top = top;
             this.bottom = bottom;
@@ -421,6 +456,9 @@ public class WearSprite extends TextureAtlasSprite {
             this.layerAnimation = layerAnimation;
             this.seeThrough = seeThrough;
             this.scaled = scaled;
+            this.earthHead = earthHead;
+            this.earthPattern = earthPattern;
+            this.earthStrength = earthStrength;
         }
 
         boolean isUnreadable() {
@@ -515,8 +553,27 @@ public class WearSprite extends TextureAtlasSprite {
         // The face this appearance is drawn from, at the size it was read, so a surface whose face was not the size
         // its plan priced can be named at the end of the pass.
         int drawnFrom = cover ? Math.max(edgeOf(top), edgeOf(bottom)) : revealsEarth ? edgeOf(bottom) : edgeOf(top);
-        if (FaceRules.standsInForEarth(cover, revealsEarth, FaceRules.isColorless(bottom))) {
-            // The block had no earth to show. A turf block whose every face is one greyscale texture
+        // Both faces at the size this sprite is drawn, so the same-picture test compares pixels at the same places.
+        int[] topAt = rescale(top, size);
+        int[] bottomAt = rescale(bottom, size);
+        // A lawn whose underside is drawn in its top's own colors, and is no grey mask, has no earth of its own to show
+        // through its first run: that run shows its own earth worn to FaceRules.EARTH_HEAD instead, and the run under
+        // the
+        // ground carries on from there (0.9.223, Xep: "wearing as their own block ... it's just the top layer").
+        boolean lawn = FaceRules.lawnCover(originFamily, appearance, cover) || revealsEarth;
+        float earthHead = lawn
+            ? FaceRules.earthHead(FaceRules.isColorless(bottomAt), FaceRules.inTheTopsColors(topAt, bottomAt))
+            : 0f;
+        FamilySettings earthLook = TrmtConfig.family(SurfaceFamily.DIRT);
+        if (FaceRules.standsInForEarth(
+            FaceRules.lawnCover(originFamily, appearance, cover),
+            revealsEarth,
+            cover,
+            FaceRules.isColorless(bottomAt),
+            FaceRules.inTheTopsColors(topAt, bottomAt))) {
+            // The block had no earth to show (0.9.223, as the 1.7.10 edition: nor a lawn drawing its top on its
+            // underside, whose first run showed no wear at all - see FaceRules.standsInForEarth). A turf block whose
+            // every face is one greyscale texture
             // is not a green thing on a brown thing; it is a grey mask that only becomes a color
             // once the biome tint runs through it, and revealing it once the tint has been dropped
             // turns the ground grey the moment it starts to sink. Drawn at this sprite's edge rather
@@ -608,7 +665,10 @@ public class WearSprite extends TextureAtlasSprite {
             layerFrames,
             layerAnimation,
             seeThrough,
-            scaled);
+            scaled,
+            earthHead,
+            earthLook == null ? "" : earthLook.wearPattern,
+            earthLook == null ? 1f : earthLook.wearStrength);
     }
 
     /** One face of this sprite's block as the pass reads it, noting when it was not the block's own loaded pixels. */
@@ -645,12 +705,24 @@ public class WearSprite extends TextureAtlasSprite {
         }
         if (source.grassOrder != null) {
             float[] order = source.grassOrder[rotation % Math.max(1, source.grassOrder.length)];
-            return grassPass(order, source.top, source.bottom, stage, stageCount);
+            int[] under = source.earthHead > 0f
+                ? wearPass(
+                    source.bottom,
+                    size,
+                    source.earthPattern,
+                    source.earthHead,
+                    source.earthStrength,
+                    rotation,
+                    source.curve)
+                : source.bottom;
+            return grassPass(order, source.top, under, stage, stageCount);
         }
 
         int[] pixels = source.revealsEarth ? source.bottom : source.top;
         if (pixels == null) return null;
         float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
+        if (source.revealsEarth && source.earthHead > 0f)
+            progress = FaceRules.earthProgress(progress, source.earthHead);
         int[] worn = wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
         // Only this branch, and only because it is the only one whose source is a single face of the
         // block being worn. The three above compose two faces into one or lay a mended side over

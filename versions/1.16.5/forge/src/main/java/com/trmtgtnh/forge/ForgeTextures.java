@@ -66,8 +66,9 @@ public final class ForgeTextures {
             if (!(each instanceof ModelResourceLocation)) continue;
             if (!Trmt.MODID.equals(each.getNamespace())) continue;
             // "ghost", which is what ModBlocks registers it as - not the 1.12.2 edition's
-            // "ghost_grass", which is a name this edition never had.
-            if (!"ghost".equals(each.getPath())) continue;
+            // "ghost_grass", which is a name this edition never had - and "ghost_stair", the worn
+            // stair's own block since 0.9.223 (BlockGhostStair), which draws with the same model.
+            if (!"ghost".equals(each.getPath()) && !"ghost_stair".equals(each.getPath())) continue;
             BakedModel baked = event.getModelRegistry()
                 .get(each);
             if (baked == null || baked instanceof GhostModelForge) continue;

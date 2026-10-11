@@ -5,13 +5,10 @@ import java.util.List;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.world.level.Level;
 
 import com.trmtgtnh.entity.EntityGolemOfWays;
-import com.trmtgtnh.entity.GolemCombat;
-import com.trmtgtnh.entity.GolemUpgrade;
 
 
 /**
@@ -43,77 +40,7 @@ public final class WailaGolem {
     /** Every line for one golem, appended in the order they are said. */
     public static void golem(List<String> into, Entity entity) {
         if (!(entity instanceof EntityGolemOfWays)) return;
-        EntityGolemOfWays golem = (EntityGolemOfWays) entity;
-        GolemUpgrade fitted = golem.fittedUpgrade();
-        if (fitted != GolemUpgrade.NONE) {
-            into.add(
-                ChatFormatting.AQUA + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.upgrade")
-                    + " "
-                    + ChatFormatting.WHITE
-                    + com.trmtgtnh.util.Translate.get(fitted.itemNameKey()));
-        }
-
-        into.add(
-            ChatFormatting.GRAY + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.radius")
-                + " "
-                + ChatFormatting.WHITE
-                + golem.watchedRadius());
-
-        // What it is doing. Chewing is asked before the busy kinds because it is not one of
-        // them: eating is carried by a bit of its own rather than by a stroke of work, so a
-        // golem visibly taking a mouthful - arms up to its mouth, head dipping to meet them,
-        // the eating sound with it - used to report that it had nothing to do for as long as
-        // the mouthful lasted. The state was already on the wire and simply never asked for.
-        String doing = doingKey(golem.busyKind());
-        if (golem.isFleeing()) {
-            into.add(ChatFormatting.RED + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.fleeing"));
-        } else if (golem.isChewing()) {
-            into.add(ChatFormatting.GREEN + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.chewing"));
-        } else if (doing != null) {
-            into.add(ChatFormatting.GREEN + com.trmtgtnh.util.Translate.get(doing));
-        } else {
-            into.add(ChatFormatting.GRAY + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.idle"));
-        }
-
-        // And, separately, whatever is stopping it - which is not the same question and used to be
-        // asked as though it were. A golem wearing ground perfectly well can still be unable to
-        // mend any of it, and hanging that behind "is it busy" meant the one line that would have
-        // explained the problem was the one line never shown while the problem was happening.
-        if (!golem.isArmed()) {
-            into.add(ChatFormatting.RED + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.noTool"));
-        }
-        if (!golem.watchedOrders()) {
-            into.add(ChatFormatting.RED + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.noOrders"));
-        }
-        if (!golem.hasMendingStock()) {
-            into.add(ChatFormatting.RED + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.noBlocks"));
-        } else if (golem.watchedShortOfBlocks()) {
-            into.add(ChatFormatting.RED + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.wrongBlocks"));
-        }
-
-        String built = golem.watchedSummoner();
-        if (built != null && !built.isEmpty()) {
-            into.add(ChatFormatting.DARK_GRAY + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.gui.built") + " " + built);
-        }
-        String told = golem.watchedConfigurer();
-        if (told != null && !told.isEmpty()) {
-            into.add(ChatFormatting.DARK_GRAY + com.trmtgtnh.util.Translate.get("trmtgtnh.golem.waila.told") + " " + told);
-        }
-        return;
+        // Worded in TooltipLines, which words the same lines for The One Probe.
+        into.addAll(TooltipLines.golem((EntityGolemOfWays) entity, com.trmtgtnh.util.Translate::get));
     }
-
-    /** What to call whatever it has its tool up for, or null when it has it down. */
-    private static String doingKey(int busy) {
-        switch (busy) {
-            case GolemCombat.BUSY_WEAR:
-                return "trmtgtnh.golem.waila.wearing";
-            case GolemCombat.BUSY_MEND:
-                return "trmtgtnh.golem.waila.mending";
-            case GolemCombat.BUSY_FIGHT:
-                return "trmtgtnh.golem.waila.fighting";
-            default:
-                return null;
-        }
-    }
-
 }

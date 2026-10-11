@@ -66,8 +66,8 @@ public final class WearIcons {
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
             List<ItemStack> list = built.get(state.family);
             if (list == null) continue;
-            Item item = heldForm(state.block);
-            if (item != null) list.add(new ItemStack(item, 1, 0));
+            ItemStack picture = pictureOf(state.block, state.family);
+            if (picture != null) list.add(picture);
         }
         for (SurfaceFamily family : built.keySet()) {
             List<ItemStack> list = built.get(family);
@@ -78,6 +78,36 @@ public final class WearIcons {
             }
         }
         cache = built;
+    }
+
+    /**
+     * The picture of a detected block: the first of its own variants that wears as this family (0.9.223).
+     *
+     * <p>
+     * Every picture used to be the block's variant 0, as in 1.7.10, where Chisel numbers its carved cobblestone and
+     * netherrack from 1 and the cobble and nether rows drew the missing-texture square (the screens photographs of the
+     * 0.9.223 full pass); and here, as there, a cobblestone slab, variant 3, was drawn as a smooth stone one. The
+     * block's own list of variants, the one the creative inventory shows, is asked instead, and the first whose
+     * metadata wears as this family is the picture. A block that lists nothing keeps variant 0, as before; one that
+     * lists variants and none of them wears as this family has no picture. 1.16.5 has one block per variant.
+     */
+    public static ItemStack pictureOf(Block block, SurfaceFamily family) {
+        Item item = heldForm(block);
+        if (item == null) return null;
+        net.minecraft.util.NonNullList<ItemStack> variants = net.minecraft.util.NonNullList.create();
+        try {
+            block.getSubBlocks(net.minecraft.creativetab.CreativeTabs.SEARCH, variants);
+        } catch (Throwable hostileMod) {
+            // A block's list can reach any mod in the pack; one that throws is drawn as it always was.
+            variants.clear();
+        }
+        if (variants.isEmpty()) return new ItemStack(item, 1, 0);
+        for (ItemStack variant : variants) {
+            if (variant.isEmpty() || variant.getItem() != item) continue;
+            int meta = item.getMetadata(variant.getMetadata());
+            if (SurfaceRegistry.familyOf(block, meta) == family) return variant.copy();
+        }
+        return null;
     }
 
     /**

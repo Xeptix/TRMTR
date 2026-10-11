@@ -62,6 +62,20 @@ public final class TrmtNetwork {
      */
     private static final java.util.Map<UUID, Boolean> wanted = new ConcurrentHashMap<UUID, Boolean>();
 
+    /**
+     * The protocol this build speaks on the wire: what a client and a server must agree on to read each other. 1 is
+     * every build before 0.9.223, whose hello says nothing of it; 2 from 0.9.223 - the 1.16.5 surface table carries a
+     * doubled slab in its spare nibble, and the rules carry {@code settleOnWornGround} and the chunk tamper's limits
+     * (Xep, 2026-10-10: "match with the protocol bump"). Moved only with Xep's permission, in every edition at once.
+     */
+    public static final int PROTOCOL = 2;
+
+    /** The protocol each player's hello said, 1 for a hello that said none. Forgotten with the player. */
+    private static final java.util.Map<UUID, Integer> protocols = new ConcurrentHashMap<UUID, Integer>();
+
+    /** The players already told this visit that their build is older than the server's. */
+    private static final java.util.Set<UUID> toldToUpdate = ConcurrentHashMap.newKeySet();
+
     private TrmtNetwork() {}
 
     public static void init() {
@@ -136,6 +150,8 @@ public final class TrmtNetwork {
         if (player == null || player.getUniqueID() == null) return;
         subscribers.remove(player.getUniqueID());
         wanted.remove(player.getUniqueID());
+        protocols.remove(player.getUniqueID());
+        toldToUpdate.remove(player.getUniqueID());
         tableSent.remove(player.getUniqueID());
     }
 
@@ -162,6 +178,7 @@ public final class TrmtNetwork {
         boolean should = shouldReceive(asked.booleanValue());
         setSubscribed(player, should);
         PacketServerRules.sendTo(player);
+        tellToUpdateIfOlder(player);
         if (should) {
             sendSurroundings(player);
         } else {
@@ -254,6 +271,41 @@ public final class TrmtNetwork {
      * to disagree. Real ruts subscribe a client whatever it asked, because it will be walking down
      * into hollows and had better be able to see them; nothing is sent while the mod is off.
      */
+    /** Records the protocol a player's hello said. Network thread; read on the server thread. */
+    public static void rememberProtocol(EntityPlayerMP player, int protocol) {
+        UUID id = player == null ? null : player.getUniqueID();
+        if (id != null) protocols.put(id, Integer.valueOf(protocol));
+    }
+
+    /** The protocol a player's hello said, or 1 - every build before 0.9.223 - for one that has said none. */
+    public static int protocolOf(EntityPlayerMP player) {
+        UUID id = player == null ? null : player.getUniqueID();
+        Integer said = id == null ? null : protocols.get(id);
+        return said == null ? 1 : said.intValue();
+    }
+
+    /**
+     * Tells a player whose build speaks an older protocol than this server's to update, once a visit (0.9.223). In
+     * plain words rather than a translation key, because an older build has no key for it.
+     */
+    static void tellToUpdateIfOlder(EntityPlayerMP player) {
+        if (player == null || protocolOf(player) >= PROTOCOL) return;
+        UUID id = player.getUniqueID();
+        if (id == null || !toldToUpdate.add(id)) return;
+        player.addChatMessage(
+            new net.minecraft.util.ChatComponentText(updateWords()).setChatStyle(
+                new net.minecraft.util.ChatStyle().setColor(net.minecraft.util.EnumChatFormatting.YELLOW)));
+    }
+
+    /** What a player whose build is older than this server's is told. */
+    static String updateWords() {
+        return "[TRMT: Reimagined] This server runs " + com.trmtgtnh.Tags.VERSION
+            + ", which shares worn ground in a newer form than your copy of the mod reads. Update TRMT: Reimagined"
+            + " to "
+            + com.trmtgtnh.Tags.VERSION
+            + " or newer to see worn ground as this server has it.";
+    }
+
     public static boolean shouldReceive(boolean wants) {
         return (wants || TrmtConfig.physicalDecayCollides()) && TrmtConfig.enabled;
     }

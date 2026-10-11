@@ -49,11 +49,29 @@ public final class ModBlocks {
 
     private static BlockGhost ghost;
 
+    private static BlockGhostStair ghostStair;
+
     private ModBlocks() {}
 
     /** The one ghost. Null until a loader has registered it, which is during that loader's startup. */
     public static BlockGhost ghost() {
         return ghost;
+    }
+
+    /**
+     * The ghost painted over a worn stair, which occludes as this version's stairs do - see {@link BlockGhostStair}
+     * (0.9.223, spec GF8). Null until registered, like the ghost. Everything that asks whether a block is a ghost asks
+     * by class, so it is one; everything that hands the ghost to a loader - a render layer, a color handler, a model -
+     * hands over both, through {@link #ghosts}.
+     */
+    public static BlockGhostStair ghostStair() {
+        return ghostStair;
+    }
+
+    /** Both ghosts, for the loaders to hand a render layer, a color handler or a model each; none until registered. */
+    public static Block[] ghosts() {
+        if (ghost == null || ghostStair == null) return new Block[0];
+        return new Block[] { ghost, ghostStair };
     }
 
     /**
@@ -84,6 +102,10 @@ public final class ModBlocks {
         // looks like a texture problem for a day.
         if (ghost == null) ghost = new BlockGhost();
         into.block(new ResourceLocation(Trmt.MODID, "ghost"), ghost);
+        // And the worn stair's, which occludes - see BlockGhostStair. Registered whatever any setting says, like the
+        // ghost, so the set of names in a save never moves with one.
+        if (ghostStair == null) ghostStair = new BlockGhostStair();
+        into.block(new ResourceLocation(Trmt.MODID, "ghost_stair"), ghostStair);
 
         // And no item form, which all three editions agree on: there is no way to obtain or place a
         // worn square, because a worn square is what the mod paints rather than something anybody

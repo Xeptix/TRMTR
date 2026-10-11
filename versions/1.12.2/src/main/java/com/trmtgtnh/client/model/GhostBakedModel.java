@@ -79,7 +79,13 @@ public class GhostBakedModel implements IBakedModel {
      */
     private static final int INTS_PER_VERTEX = 7;
 
-    /** The tint index grass takes its biome color through; see the block color registration. */
+    /**
+     * The tint index a square's one color goes through - the 1.7.10 edition's {@code GhostRendering.colorFor}: the
+     * covered block's own color while the square wears as its own family, white past it or sunk as grass, the path
+     * light multiplied in; see {@link BlockGhost#coveredTint}. Named for grass because until 0.9.223 only a lawn's top
+     * and fringe took it, and with the biome's grass color; since then every face that edition multiplies its color
+     * onto carries it - the top, the fringe, and the flanks of anything but a lawn (spec GS11, GS12, GT14, GT17).
+     */
     public static final int GRASS_TINT = 0;
 
     /**
@@ -153,24 +159,24 @@ public class GhostBakedModel implements IBakedModel {
 
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
-        // Said before any of this square's vertices are written, and only ever heard while the seat is
-        // a ghost's: the block underneath while the square still wears as that block's own family, the
-        // block of the family its wear has reached once it does not, and earth where the picture is the
-        // bare earth - which is why the claim is made before that substitution, while a null top still
-        // says so. The 1.7.10 edition's rule; see ShaderMaterial.
-        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
+        // Said before any of this square's vertices are written, and only ever heard while the seat is a ghost's:
+        // the block underneath while the square still wears as that block's own family, and the block of the
+        // family its wear has reached once it does not - the 1.7.10 edition's rule; see ShaderMaterial. Whether a
+        // wear picture exists changes what is drawn, never the claim: until 0.9.223 a missing picture claimed
+        // earth, so a shader pack lit a sand square with no picture as dirt (spec GF23).
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, appearance);
         // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
         // tinted as grass is - rather than earth for every family, which drew a sand or stone square with no
         // picture as dirt (0.9.222, spec GT11). Earth only where the family has no stock top of its own.
-        boolean stock = top == null;
         if (top == null) top = stockTop(appearance, earth);
-        // Only grass takes the biome's color. Worn through to dirt, a square has no grass left to
-        // tint, and a dirt rut washed green by a jungle would be a very strange road.
-        // Grey-and-tinted, or its own colors? See GhostSides.tintsAsGrass - the square has to be
-        // wearing as grass and the block under it has to be a lawn, because the picture is made from
-        // that block's own pixels.
-        int tint = GhostSides.tintsAsGrass(origin, appearance) || (stock && appearance == SurfaceFamily.GRASS) ? GRASS_TINT
-            : LIGHT_TINT;
+        // The top takes the square's one color, whatever the family: the covered block's own, which is the biome's
+        // green for a lawn, a modded turf's own tint for a turf, and white for a block that colors nothing - so a red
+        // block detected into the grass family is never green - and white once worn past its family or sunk as
+        // grass, where a dirt rut washed green would be a very strange road (0.9.223, spec GT14, GT17).
+        int tint = GRASS_TINT;
+        // A lawn's flanks go down grass's path in the 1.7.10 edition - MixinGrassTint: untinted sides, the tinted
+        // fringe drawn over them - and every other square's take its one color, as any block's do (spec GS11).
+        int flankTint = GhostSides.tintsAsGrass(origin, appearance) ? LIGHT_TINT : GRASS_TINT;
 
         // The top is handed over with no side, so nothing culls it, because a sunk top is not a face of the
         // cell at all and the neighbour above says nothing about it. A whole window's top is a face of the
@@ -195,13 +201,13 @@ public class GhostBakedModel implements IBakedModel {
         TextureAtlasSprite flank = face.sprite == null ? earth : face.sprite;
         if (face.overlay == null) {
             return Collections
-                .singletonList(quad(side, floor, height, flank, LIGHT_TINT, shiftFor(face.slid, outline, height)));
+                .singletonList(quad(side, floor, height, flank, flankTint, shiftFor(face.slid, outline, height)));
         }
         // Two quads at one place, the fringe after the flank, which is how vanilla's own grass model draws
         // its overlay: one element for the side and a second, coincident, for the tinted overlay.
         List<BakedQuad> both = new java.util.ArrayList<BakedQuad>(2);
         float shift = shiftFor(face.slid, outline, height);
-        both.add(quad(side, floor, height, flank, LIGHT_TINT, shift));
+        both.add(quad(side, floor, height, flank, flankTint, shift));
         both.add(quad(side, floor, height, face.overlay, GRASS_TINT, shift));
         return both;
     }
@@ -229,7 +235,7 @@ public class GhostBakedModel implements IBakedModel {
         SurfaceFamily appearance = ErosionState.familyOf(record);
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
-        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, top == null ? null : appearance);
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, appearance);
         // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
         // tinted as grass is - rather than earth for every family, which drew a sand or stone square with no
         // picture as dirt (0.9.222, spec GT11). Earth only where the family has no stock top of its own.
@@ -488,7 +494,9 @@ public class GhostBakedModel implements IBakedModel {
 
     @Override
     public TextureAtlasSprite getParticleTexture() {
-        return earth();
+        // Earth, unless a ghost square's dust is being spawned, which takes that square's family's picture -
+        // the 1.7.10 edition's, side by side (0.9.223, spec GF19; see GhostDust).
+        return GhostDust.sprite(earth());
     }
 
     @Override

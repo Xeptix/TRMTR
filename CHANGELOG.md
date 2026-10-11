@@ -1,8 +1,121 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.222 is the same release on Minecraft 1.7.10, 1.12.2
+One version number across every edition. 0.9.223 is the same release on Minecraft 1.7.10, 1.12.2
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.223 - 2026-10-11
+
+**Snow or carpet lying in a worn rut can be aimed at and broken.** When the ground under a snow layer or a carpet wears
+and sinks, the cover settles with it, and its outline and the shape the crosshair hits now come down with it too, so
+what you see is what you click. The outline is only lowered together with the shape it surrounds, so it never sits
+below something the crosshair still finds above it.
+
+*Changes: every edition.*
+
+**Worn ground takes the color of the block it covers** on 1.12.2 and 1.16.5, as on 1.7.10: on its top, its fringe and
+its sides, so worn sand, stone or a modded turf no longer picks up the biome's grass green. The dust from breaking,
+hitting and running across a worn square is the worn ground's own picture.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Worn stairs behave as stairs** on 1.12.2 and 1.16.5: an unworn stair beside a worn one turns its corner and two worn
+stairs join, and on 1.16.5 light passes a worn stair's open half as it does a stair's.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**The One Probe shows what the block tooltips show** on 1.12.2 and 1.16.5 Forge: a worn square, a reinforced or warded
+block, a path light and the Golem of Ways. Jade's harvest line on 1.16.5 names the tool the block a worn square covers
+needs.
+
+*Changes: 1.12.2 and 1.16.5 Forge.*
+
+**1.16.5's settings screen matches 1.7.10's.** Done saves on the server's thread and says once a visit when the server
+has overridden your edit; the headings are 1.7.10's, in its order; gradations and rotations slide; and the block and
+mob lists draw their icons. The snapshot screen asks the server before it opens.
+
+*Changes: 1.16.5.*
+
+**Small ghost differences matched to 1.7.10** on 1.12.2 and 1.16.5: a worn square's faces are as solid as the covered
+block's, so torches and supported blocks stand on them as they would; a neighbour hides its face against a worn square
+as 1.7.10 decides; a mend that does not fit on the texture sheet draws the grass side; and two worn grass windows of
+one kind share their pane. On 1.16.5, worn blue ice is as slippery as blue ice, and bamboo, chorus and saplings stand on
+worn ground wherever they would on the block beneath.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**On 1.7.10, grass that stood short keeps its lawn** while its square has not sunk, as the ports draw it, and two whole
+grass windows of one kind share the face between them.
+
+*Changes: 1.7.10.*
+
+**Servers and clients speak a newer protocol.** A doubled slab now wears with its family whatever that family's slabs
+switch says, as on 1.7.10, which needed the surface table to say so; a server on this version tells a player on an
+older one, in chat, to update. The server also decides whether covers settle on worn ground and how far a chunk tamper
+reaches, so a server's rules hold for everyone on it. The magic tamper on 1.12.2 stops a mob by its registry name, so
+stopping a skeleton stops it alone.
+
+*Changes: every edition.*
+
+**Settings.** On 1.12.2 and 1.16.5 a settings file that will not read is set aside as `.errored` and the game starts on
+fresh settings, as 1.7.10 does. Each edition's own concrete pays for reinforcing out of the box: GregTech's and the
+game's on 1.12.2, every item tagged `forge:concrete` and the sixteen colors on 1.16.5, with an existing settings file
+keeping its own list. Settings that do nothing on an edition say so in their own descriptions, and on 1.16.5 the
+dimension list takes a dimension's name, so a modded dimension can be listed.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**Changing your wear look on 1.16.5** rebuilds the block pictures and models only, not every sound, language and
+texture, except under OptiFine, which keeps the whole reload.
+
+*Changes: 1.16.5.*
+
+**Changing your wear look on 1.12.2 in a large pack** no longer draws water, lava and items with other
+blocks' pictures until resources were reloaded: the rebuild now refreshes the item and fluid pictures as well as the blocks'.
+
+*Changes: 1.12.2.*
+
+**Turf with no earth of its own shows its wear from the first step.** A worn lawn shows the earth under it through
+its top, and a block that draws its top's own colors underneath - in GT New Horizons, Natura's topiary grass, Et
+Futurum's nether wart block and target and GalaxySpace's Barnarda C dirt among them, the game's own nether wart
+block on 1.12.2 and 1.16.5, and on 1.16.5 its warped wart block, target and dried kelp - showed nothing until the
+ground sank. It now shows its own earth wearing through from its first gradation, and keeps its own colors as the
+ground sinks. Every lawn with earth of its own is unchanged.
+
+*Changes: every edition.*
+
+**Worn grass wears into its own earth.** Lawns shared worn pictures whenever they drew the same top, so where a
+modded grass drew vanilla's grass top on an earth of its own - Biomes O' Plenty's loamy grass, in GT New Horizons -
+worn vanilla grass sank into that earth, darker and greyer than dirt, from 0.9.216 on; on 1.12.2 beside Biomes O'
+Plenty it showed no wear at all until it sank. Lawns now share them only over the same earth, so each wears into
+its own.
+
+*Changes: every edition.*
+
+**Sunk ground is lit by its depth.** Where the game's own lighting draws worn ground - on 1.7.10, on 1.16.5 Forge
+without Rubidium or Embeddium, and with OptiFine on any Forge edition - a worn square that had sunk was shaded as
+though it lay at the bottom of its block, so a shallow rut drew as dark as the deepest and a path one block wide
+looked like a trench. It is now lit by how far it has sunk, as Forge's light pipeline and the Sodium-family
+renderers already lit it: a shallow rut stands in nearly the light of the ground beside it, and a deep one darkens
+by degrees.
+
+*Changes: 1.7.10, 1.12.2 and 1.16.5 Forge.*
+
+**A snapshot build says so.** Once a session, on joining a world, a player running a snapshot is told it is one,
+asked to report problems on the Discord, and thanked for being an early access member. Releases say nothing.
+
+*Changes: every edition.*
+
+**The demonstrate yard's lower courses** are laid as what a turf becomes when covered, so no square of them turns to
+dirt at random and a platform's side looks the same every time.
+
+*Changes: every edition.*
+
+**The Wear Table shows each block as it is.** Its rows drew every detected block as that block's first variant, so in a
+pack with Chisel the cobble, nether and ice rows showed the missing-texture square, and a cobblestone slab showed as a
+smooth stone one. Each block is now drawn as its own first variant that wears as that row's surface.
+
+*Changes: 1.7.10 and 1.12.2.*
 
 ## 0.9.222 - 2026-10-10
 

@@ -58,6 +58,24 @@ public final class Support {
      */
     public static final String JOIN_FALLBACK = "Join the Discord to hear the moment an update drops:";
 
+    /**
+     * The snapshot message's words, when a language file has none (0.9.223; Xep, 2026-10-10: "a message to players
+     * that its a snapshot build and to report issues on the discord, and that I greatly appreciate them supporting me
+     * and becoming an early access member"). Told once a session to a player whose own jar is an early build, as the
+     * notice is drawn: the headline with the mark and the build in gold, then a dashed line each, the in-game invite
+     * on a line of its own. Every line fits the chat's 320 pixels with the longest early-build name this project
+     * makes, measured by the 1.7.10 tree's tools/chat_width.py.
+     */
+    public static final String SNAPSHOT_HEADLINE_FALLBACK = "Snapshot build %s";
+
+    public static final String SNAPSHOT_EARLY_FALLBACK = "An early build, for trying before its release.";
+
+    public static final String SNAPSHOT_REPORT_FALLBACK = "Found a problem? Please tell us on the Discord:";
+
+    public static final String SNAPSHOT_THANKS_FALLBACK = "Thank you so much for supporting me and becoming";
+
+    public static final String SNAPSHOT_THANKS_MORE_FALLBACK = "an early access member. I greatly appreciate it!";
+
     private static final AtomicBoolean ASKED = new AtomicBoolean();
 
     private Support() {}

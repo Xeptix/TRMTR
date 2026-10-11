@@ -89,6 +89,21 @@ public final class ModBlocks {
 
     public static Block ghostIceSolidWindowStair;
 
+    /**
+     * Grass that stood short of its cell and has not sunk: hollow, so it draws as short as the block it covers,
+     * and still a lawn - tinted, with its fringe and its earth wall. Until 0.9.223 such ground took the untinted
+     * sunken stand-in, the only one shaped shorter than a cube, so a grass slab was earth from its first wear;
+     * Xep called that a fault (2026-10-10, spec GS5). One for vanilla's grass top, one for any other turf, and a
+     * window twin of each, registered after every other ghost so no earlier name moves.
+     */
+    public static Block ghostGrassShort;
+
+    public static Block ghostGrassPlainShort;
+
+    public static Block ghostGrassShortWindow;
+
+    public static Block ghostGrassPlainShortWindow;
+
     /** The hollowed-out variants, one per family, used once a stage starts sinking. */
     private static final Map<SurfaceFamily, Block> SUNKEN = new EnumMap<SurfaceFamily, Block>(SurfaceFamily.class);
 
@@ -191,6 +206,31 @@ public final class ModBlocks {
             true,
             "ghost_ice_solid_window_sunken");
         ghostIceSolidWindowStair = createStair(SurfaceFamily.ICE, false, true, "ghost_ice_solid_window_stair");
+
+        // The short lawns, last, whatever any setting says - see ghostGrassShort.
+        ghostGrassShort = create(SurfaceFamily.GRASS, true, false, true, false, false, "ghost_grass_short");
+        ghostGrassPlainShort = create(SurfaceFamily.GRASS, false, false, true, false, false, "ghost_grass_plain_short");
+        ghostGrassShortWindow = create(SurfaceFamily.GRASS, true, false, true, false, true, "ghost_grass_short_window");
+        ghostGrassPlainShortWindow = create(
+            SurfaceFamily.GRASS,
+            false,
+            false,
+            true,
+            false,
+            true,
+            "ghost_grass_plain_short_window");
+    }
+
+    /**
+     * The stand-in for grass that stood short of its cell and has not sunk: a lawn, hollow - see ghostGrassShort
+     * (0.9.223, spec GS5).
+     *
+     * @param usesVanillaGrassTop whether the covered block draws vanilla's grass top, which decides its sides
+     * @param window              whether it is drawn through its holes - see the window twins
+     */
+    public static Block shortLawn(boolean usesVanillaGrassTop, boolean window) {
+        if (window) return usesVanillaGrassTop ? ghostGrassShortWindow : ghostGrassPlainShortWindow;
+        return usesVanillaGrassTop ? ghostGrassShort : ghostGrassPlainShort;
     }
 
     private static Block createStair(SurfaceFamily appearance, String name) {

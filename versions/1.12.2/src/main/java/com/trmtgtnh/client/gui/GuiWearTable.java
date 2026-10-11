@@ -113,8 +113,9 @@ public class GuiWearTable extends GuiScreen {
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
             List<ItemStack> list = icons.get(state.family);
             if (list == null) continue;
-            Item item = heldForm(state.block);
-            if (item != null) list.add(new ItemStack(item, 1, 0));
+            // Each block as the first of its own variants that wears as this family: see WearIcons.pictureOf.
+            ItemStack picture = WearIcons.pictureOf(state.block, state.family);
+            if (picture != null) list.add(picture);
         }
         for (SurfaceFamily family : rows) {
             List<ItemStack> list = icons.get(family);

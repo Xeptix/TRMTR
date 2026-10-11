@@ -157,6 +157,11 @@ public class Trmt {
         if (net.minecraftforge.fml.common.Loader.isModLoaded("waila")) {
             com.trmtgtnh.compat.WailaCompat.request();
         }
+        // The One Probe is told the same lines, under the same guard and for the same reason: its compat class
+        // is the only thing that names it.
+        if (net.minecraftforge.fml.common.Loader.isModLoaded("theoneprobe")) {
+            com.trmtgtnh.compat.OneProbeCompat.request();
+        }
         // Before the atlas is built, because the stitcher can only generate wear pictures for
         // surfaces it already knows about - the same ordering the 1.7.10 edition keeps, and for the
         // same reason.

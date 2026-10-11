@@ -29,8 +29,9 @@ import com.trmtgtnh.config.TrmtConfig;
  *
  * <p>
  * This is the same bargain the map settings make - kept in the file so a pack can move between
- * versions, named in the log where they cannot do what they say. The honest fix is a list of names,
- * and that is a settings change rather than a port decision.
+ * versions, named in the log where they cannot do what they say. So the list takes names as well
+ * (0.9.223, Xep: "Keep + names"): {@code twilightforest:twilight_forest} lists that dimension here, and
+ * the older editions skip a name as this one skips a modded number.
  */
 public final class Dimensions {
 
@@ -52,13 +53,10 @@ public final class Dimensions {
 
         sayWhatCannotBeHonoured();
 
+        // By name, or for the vanilla three by the number the older editions list them by (0.9.223). A modded
+        // dimension the list does not name is unlisted - see TrmtConfig.dimensionAllowed.
         int asId = idFor(name);
-        if (asId == NO_ID) {
-            // A dimension none of the numbers can name. Treated as unlisted, which is what the
-            // setting's own default - an empty blacklist - already means for everywhere.
-            return !TrmtConfig.dimensionListIsWhitelist;
-        }
-        return TrmtConfig.dimensionAllowed(asId);
+        return TrmtConfig.dimensionAllowed(name.toString(), asId, asId != NO_ID);
     }
 
     private static final int NO_ID = Integer.MIN_VALUE;
@@ -89,7 +87,8 @@ public final class Dimensions {
             "general.dimensionList names dimensions this version cannot identify by number: {}. The "
                 + "vanilla three are honoured as written; a modded dimension's id was assigned at "
                 + "runtime and is not recoverable from a save, so those entries are ignored rather "
-                + "than guessed at. The rest of the list still works.",
+                + "than guessed at. The rest of the list still works; list such a dimension by its name instead, "
+                + "as twilightforest:twilight_forest.",
             odd);
     }
 }

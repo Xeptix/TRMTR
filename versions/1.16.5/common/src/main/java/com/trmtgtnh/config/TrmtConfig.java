@@ -82,6 +82,12 @@ public final class TrmtConfig {
     /** Dimension ids the list above applies to. Empty plus blacklist mode means "everywhere". */
     public static int[] dimensionList = new int[0];
 
+    /**
+     * The dimensions the list above names by name, lower case - this edition's way to list a modded dimension, whose
+     * number was given it at runtime and cannot be recovered here (0.9.223, Xep: "Keep + names"). See Dimensions.
+     */
+    public static String[] dimensionNames = new String[0];
+
     /** Sneaking adds no wear, so you can cross a lawn without scarring it. */
     public static boolean sneakSuppresses = true;
 
@@ -569,11 +575,19 @@ public final class TrmtConfig {
      * registers it as a fluid is named by the first, and that is the tidiest form since the fluid
      * registry then hands the container back. GT New Horizons does not: its concrete comes in two
      * buckets that are plain items, an iron one and a single-use clay one, and those are named
-     * outright. Obsidian is last and is what plain Minecraft pays with. Nothing here has to exist -
-     * an entry naming an item no mod in the pack provides is skipped.
+     * outright. Then this edition's own (0.9.223): every item a mod tags {@code forge:concrete}, and the
+     * game's sixteen concretes by name, which no vanilla tag gathers. 1.7.10's names stay first so a
+     * settings file moves between editions unchanged. Obsidian is last and is what plain Minecraft pays
+     * with. Nothing here has to exist - an entry naming an item no mod in the pack provides is skipped.
      */
-    public static String[] reinforceMaterials = { "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket",
-        "dreamcraft:clayBucketConcrete", "minecraft:obsidian" };
+    public static String[] reinforceMaterials = {
+        "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
+        "#forge:concrete", "minecraft:white_concrete", "minecraft:orange_concrete", "minecraft:magenta_concrete",
+        "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete",
+        "minecraft:pink_concrete", "minecraft:gray_concrete", "minecraft:light_gray_concrete",
+        "minecraft:cyan_concrete", "minecraft:purple_concrete", "minecraft:blue_concrete",
+        "minecraft:brown_concrete", "minecraft:green_concrete", "minecraft:red_concrete", "minecraft:black_concrete",
+        "minecraft:obsidian", };
 
     /**
      * The blast size each reinforcement level below the top can withstand, added to the block's own
@@ -1230,7 +1244,10 @@ public final class TrmtConfig {
     public static void load(File file) {
         loadedFrom = file;
         config = new ConfigFile(file);
-        config.load();
+        // At start a file Forge would refuse is set aside as .errored and every default used, as the 1.7.10 edition's
+        // Forge constructor does (0.9.223, spec CF5).
+        String setAside = config.open();
+        if (setAside != null) Trmt.error("{}", setAside);
         read();
         save();
         sayWhatMapsCannotDo();
@@ -1457,12 +1474,13 @@ public final class TrmtConfig {
             ConfigFile.CATEGORY_GENERAL,
             false,
             "When true, erosion only happens in the dimensions listed below. When false, it happens everywhere except them.");
-        dimensionList = config.get(
+        ConfigFile.Setting dimensions = config.get(
             ConfigFile.CATEGORY_GENERAL,
             "dimensionList",
             new int[0],
-            "Dimension ids the whitelist/blacklist above applies to. The Overworld is 0, the Nether -1 and the End 1; anything else is whatever id the mod that adds it was given. The list ships empty, and empty means opposite things in the two modes: in blacklist mode nothing is excluded, so ground wears everywhere, and in whitelist mode nothing is included, so ground wears nowhere at all. Turning that switch on and leaving this list alone therefore does not narrow erosion down to somewhere sensible - it stops it in every dimension there is, because the dimension test is asked before anything is tracked, worn, broken or tampered with. Name at least one id here before setting that switch to whitelist.")
-            .getIntList();
+            "Dimensions the whitelist/blacklist above applies to, by number or by name. The Overworld is 0 or minecraft:overworld, the Nether -1 or minecraft:the_nether and the End 1 or minecraft:the_end; any other dimension is listed by its name, as twilightforest:twilight_forest. On the 1.7.10 and 1.12.2 editions a dimension is a number, and a modded one is whatever id its mod was given - which this version cannot recover, so such a number is ignored here and named once in the log, as a name is ignored there. The list ships empty, and empty means opposite things in the two modes: in blacklist mode nothing is excluded, so ground wears everywhere, and in whitelist mode nothing is included, so ground wears nowhere at all. Turning that switch on and leaving this list alone therefore does not narrow erosion down to somewhere sensible - it stops it in every dimension there is, because the dimension test is asked before anything is tracked, worn, broken or tampered with. Name at least one dimension here before setting that switch to whitelist.");
+        dimensionList = dimensions.getIntList();
+        dimensionNames = dimensionNamesIn(dimensions.getStringList());
         sneakSuppresses = config.getBoolean(
             "sneakSuppresses",
             ConfigFile.CATEGORY_GENERAL,
@@ -2006,7 +2024,7 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The id the reinforcement enchantment registers at. -1 takes the first free slot at startup, which is fine for a single pack but drifts if the set of mods changes - and the id is written into the enchanted tool's own data, so a drift silently strips the enchantment off existing tools. Pin it to a fixed free number on a pack you intend to keep.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an enchantment here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin and nothing drifts. What follows is what it means on 1.7.10. The id the reinforcement enchantment registers at. -1 takes the first free slot at startup, which is fine for a single pack but drifts if the set of mods changes - and the id is written into the enchanted tool's own data, so a drift silently strips the enchantment off existing tools. Pin it to a fixed free number on a pack you intend to keep.");
         reinforceMaxLevel = config.getInt(
             "maxLevel",
             CATEGORY_REINFORCE,
@@ -2024,9 +2042,15 @@ public final class TrmtConfig {
         reinforceMaterials = config.get(
             CATEGORY_REINFORCE,
             "materials",
-            new String[] { "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket",
-                "dreamcraft:clayBucketConcrete", "minecraft:obsidian" },
-            "What one reinforcement costs, tried in the order written and paid with the first the player is carrying. A 'fluid:name' entry is a bucket or cell of that fluid, named as the fluid registry names it rather than as the tooltip spells it. A plain 'modid:name[:meta]' entry is one of that item, and is the form to use for a container that no mod registered as a fluid container - which is what GT New Horizons' two concrete buckets are, and why they are named outright here. Either way the container's own rule decides what comes back: a bucket that declares an empty gets its empty handed back, from the fluid registry or from the item's own container item, and a single-use clay one declares none and is spent. An entry naming something this pack does not have is skipped, so the whole list can name four things and find one - which is what the default does, preferring concrete in whichever form the pack has it and falling back to obsidian on plain Minecraft. If what you are carrying is not being taken, stand by the golem and run /trmt golem: it prints what the item actually is, what each entry here resolves to, and the exact line to add.")
+            new String[] {
+                "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
+                "#forge:concrete", "minecraft:white_concrete", "minecraft:orange_concrete",
+                "minecraft:magenta_concrete", "minecraft:light_blue_concrete", "minecraft:yellow_concrete",
+                "minecraft:lime_concrete", "minecraft:pink_concrete", "minecraft:gray_concrete",
+                "minecraft:light_gray_concrete", "minecraft:cyan_concrete", "minecraft:purple_concrete",
+                "minecraft:blue_concrete", "minecraft:brown_concrete", "minecraft:green_concrete",
+                "minecraft:red_concrete", "minecraft:black_concrete", "minecraft:obsidian", },
+            "What one reinforcement costs, tried in the order written and paid with the first the player is carrying. A 'fluid:name' entry is a bucket or cell of that fluid, named as the fluid registry names it rather than as the tooltip spells it. A plain 'modid:name[:meta]' entry is one of that item, and is the form to use for a container that no mod registered as a fluid container - which is what GT New Horizons' two concrete buckets are, and why they are named outright here. Either way the container's own rule decides what comes back: a bucket that declares an empty gets its empty handed back, from the fluid registry or from the item's own container item, and a single-use clay one declares none and is spent. An entry naming something this pack does not have is skipped, so the whole list can name many things and find one - which is what the default does, preferring concrete in whichever form the pack has it and falling back to obsidian on plain Minecraft. On this edition the list names its own concrete too, after 1.7.10's three, which are kept first so a settings file moves between editions unchanged: every item a mod tags forge:concrete, and the game's sixteen concretes by name. A '#namespace:path' entry is every item in that item tag. If what you are carrying is not being taken, stand by the golem and run /trmt golem: it prints what the item actually is, what each entry here resolves to, and the exact line to add.")
             .getStringList();
         reinforceCeiling = new float[] { readFloat(
             CATEGORY_REINFORCE,
@@ -2318,7 +2342,7 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The id the spawn-ward enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an enchantment here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin and nothing drifts. What follows is what it means on 1.7.10. The id the spawn-ward enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
         wardCostCount = config.getInt(
             "cost",
             CATEGORY_WARD,
@@ -2349,7 +2373,7 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The id the path-light enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an enchantment here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin and nothing drifts. What follows is what it means on 1.7.10. The id the path-light enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
         lightLevel = config.getInt(
             "level",
             CATEGORY_LIGHT,
@@ -2511,14 +2535,14 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The effect id Lightness registers at. -1 takes the first free slot counting up from 24, which is right for a pack that does not change - but an effect id is written into your save and sent to clients as a single byte, so a server and a client that resolved to different numbers disagree about what was drunk. Where the other side has a different effect at that number it shows the wrong one; where it has nothing there, the effect is simply dropped on arrival and a line in the client's log says so. It used to be worse than either - an effect with nothing behind it threw inside the client's own world tick - and that is guarded now, but agreeing on the number is still the only way to see the right thing. On a pack you intend to keep, pin this to a number you know is spare and pin the same number on every machine. Plain Minecraft leaves 24 to 31 free. Numbers of 128 and above only survive the journey on a pack that widens the byte they travel in, so the automatic search takes everything below 128 first and says so if it cannot.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an effect here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin. What follows is what it means on 1.7.10. The effect id Lightness registers at. -1 takes the first free slot counting up from 24, which is right for a pack that does not change - but an effect id is written into your save and sent to clients as a single byte, so a server and a client that resolved to different numbers disagree about what was drunk. Where the other side has a different effect at that number it shows the wrong one; where it has nothing there, the effect is simply dropped on arrival and a line in the client's log says so. It used to be worse than either - an effect with nothing behind it threw inside the client's own world tick - and that is guarded now, but agreeing on the number is still the only way to see the right thing. On a pack you intend to keep, pin this to a number you know is spare and pin the same number on every machine. Plain Minecraft leaves 24 to 31 free. Numbers of 128 and above only survive the journey on a pack that widens the byte they travel in, so the automatic search takes everything below 128 first and says so if it cannot.");
         heavyFootPotionId = config.getInt(
             "heavyFootPotionId",
             CATEGORY_POTIONS,
             -1,
             -1,
             255,
-            "The effect id Heavy-Footedness registers at, under the same rules and the same warning as the setting above. Lightness is claimed first, so where a pack has exactly one slot left it goes to the faithful effect and this one is skipped. The log says which at startup, and so does /trmt status, which is the quickest way to compare two machines.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an effect here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin. What follows is what it means on 1.7.10. The effect id Heavy-Footedness registers at, under the same rules and the same warning as the setting above. Lightness is claimed first, so where a pack has exactly one slot left it goes to the faithful effect and this one is skipped. The log says which at startup, and so does /trmt status, which is the quickest way to compare two machines.");
     }
 
     /**
@@ -3231,6 +3255,41 @@ public final class TrmtConfig {
     /** Guards a rate against zero or nonsense, which would otherwise divide the world away. */
     static double positive(double rate) {
         return rate <= 0 ? 1.0d : rate;
+    }
+
+    /**
+     * Whether the mod may work in a dimension, asked by its name and, where this version can know one, its number - the
+     * vanilla three (0.9.223). Listed when the list names it or numbers it; a modded dimension the list does not name is
+     * unlisted, which is what the setting's own default - an empty blacklist - already means for everywhere.
+     */
+    public static boolean dimensionAllowed(String name, int id, boolean numbered) {
+        String asked = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        boolean listed = false;
+        if (dimensionNames != null) {
+            for (String one : dimensionNames) {
+                if (one.equals(asked)) {
+                    listed = true;
+                    break;
+                }
+            }
+        }
+        if (!listed && numbered) return dimensionAllowed(id);
+        return dimensionListIsWhitelist == listed;
+    }
+
+    /**
+     * The entries of the dimension list that are names rather than numbers, lower case; a name with no namespace is
+     * the game's own, as the game reads one (0.9.223).
+     */
+    static String[] dimensionNamesIn(String[] entries) {
+        java.util.List<String> names = new java.util.ArrayList<String>();
+        for (String each : entries) {
+            String one = each.trim()
+                .toLowerCase(java.util.Locale.ROOT);
+            if (one.isEmpty() || one.matches("[-+]?[0-9]+")) continue;
+            names.add(one.indexOf(':') < 0 ? "minecraft:" + one : one);
+        }
+        return names.toArray(new String[names.size()]);
     }
 
     public static boolean dimensionAllowed(int dimensionId) {

@@ -289,6 +289,12 @@ public class CommonProxy {
         return -1;
     }
 
+    /**
+     * Holds a ghost square's family while its dust is spawned, so the dust takes that family's picture - see
+     * client.model.GhostDust (0.9.223, spec GF19). Only a client has ghosts, or dust.
+     */
+    public void holdDust(net.minecraft.world.IBlockAccess world, net.minecraft.util.math.BlockPos pos) {}
+
     /** Notes a ghost square about to be drawn, for the moving pictures near the player. Only a client draws. */
     public void ghostDrawn(short record, int origin, int rotation, int x, int y, int z) {}
 

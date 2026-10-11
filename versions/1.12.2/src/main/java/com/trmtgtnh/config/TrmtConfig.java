@@ -569,11 +569,15 @@ public final class TrmtConfig {
      * registers it as a fluid is named by the first, and that is the tidiest form since the fluid
      * registry then hands the container back. GT New Horizons does not: its concrete comes in two
      * buckets that are plain items, an iron one and a single-use clay one, and those are named
-     * outright. Obsidian is last and is what plain Minecraft pays with. Nothing here has to exist -
-     * an entry naming an item no mod in the pack provides is skipped.
+     * outright. Then this edition's own (0.9.223): GregTech's wet concrete, as the fluid it registers, and
+     * the game's own concrete block, every color - an entry with no metadata takes any. 1.7.10's names stay
+     * first so a settings file moves between editions unchanged. Obsidian is last and is what plain
+     * Minecraft pays with. Nothing here has to exist - an entry naming an item no mod in the pack provides
+     * is skipped.
      */
-    public static String[] reinforceMaterials = { "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket",
-        "dreamcraft:clayBucketConcrete", "minecraft:obsidian" };
+    public static String[] reinforceMaterials = {
+        "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
+        "fluid:concrete", "minecraft:concrete", "minecraft:obsidian", };
 
     /**
      * The blast size each reinforcement level below the top can withstand, added to the block's own
@@ -1259,7 +1263,10 @@ public final class TrmtConfig {
     public static void load(File file) {
         loadedFrom = file;
         config = new ConfigFile(file);
-        config.load();
+        // At start a file Forge would refuse is set aside as .errored and every default used, as the 1.7.10 edition's
+        // Forge constructor does (0.9.223, spec CF5).
+        String setAside = config.open();
+        if (setAside != null) Trmt.error("{}", setAside);
         read();
         save();
         sayWhatMapsCannotDo();
@@ -2099,7 +2106,7 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The id the reinforcement enchantment registers at. -1 takes the first free slot at startup, which is fine for a single pack but drifts if the set of mods changes - and the id is written into the enchanted tool's own data, so a drift silently strips the enchantment off existing tools. Pin it to a fixed free number on a pack you intend to keep.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an enchantment here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin and nothing drifts. What follows is what it means on 1.7.10. The id the reinforcement enchantment registers at. -1 takes the first free slot at startup, which is fine for a single pack but drifts if the set of mods changes - and the id is written into the enchanted tool's own data, so a drift silently strips the enchantment off existing tools. Pin it to a fixed free number on a pack you intend to keep.");
         reinforceMaxLevel = config.getInt(
             "maxLevel",
             CATEGORY_REINFORCE,
@@ -2117,9 +2124,10 @@ public final class TrmtConfig {
         reinforceMaterials = config.get(
             CATEGORY_REINFORCE,
             "materials",
-            new String[] { "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket",
-                "dreamcraft:clayBucketConcrete", "minecraft:obsidian" },
-            "What one reinforcement costs, tried in the order written and paid with the first the player is carrying. A 'fluid:name' entry is a bucket or cell of that fluid, named as the fluid registry names it rather than as the tooltip spells it. A plain 'modid:name[:meta]' entry is one of that item, and is the form to use for a container that no mod registered as a fluid container - which is what GT New Horizons' two concrete buckets are, and why they are named outright here. Either way the container's own rule decides what comes back: a bucket that declares an empty gets its empty handed back, from the fluid registry or from the item's own container item, and a single-use clay one declares none and is spent. An entry naming something this pack does not have is skipped, so the whole list can name four things and find one - which is what the default does, preferring concrete in whichever form the pack has it and falling back to obsidian on plain Minecraft. If what you are carrying is not being taken, stand by the golem and run /trmt golem: it prints what the item actually is, what each entry here resolves to, and the exact line to add.")
+            new String[] {
+                "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
+                "fluid:concrete", "minecraft:concrete", "minecraft:obsidian", },
+            "What one reinforcement costs, tried in the order written and paid with the first the player is carrying. A 'fluid:name' entry is a bucket or cell of that fluid, named as the fluid registry names it rather than as the tooltip spells it. A plain 'modid:name[:meta]' entry is one of that item, and is the form to use for a container that no mod registered as a fluid container - which is what GT New Horizons' two concrete buckets are, and why they are named outright here. Either way the container's own rule decides what comes back: a bucket that declares an empty gets its empty handed back, from the fluid registry or from the item's own container item, and a single-use clay one declares none and is spent. An entry naming something this pack does not have is skipped, so the whole list can name many things and find one - which is what the default does, preferring concrete in whichever form the pack has it and falling back to obsidian on plain Minecraft. On this edition the list names its own concrete too, after 1.7.10's three, which are kept first so a settings file moves between editions unchanged: GregTech's wet concrete as fluid:concrete, and the game's own concrete block, every color, as minecraft:concrete - an entry with no metadata takes any. If what you are carrying is not being taken, stand by the golem and run /trmt golem: it prints what the item actually is, what each entry here resolves to, and the exact line to add.")
             .getStringList();
         reinforceCeiling = new float[] { readFloat(
             CATEGORY_REINFORCE,
@@ -2411,7 +2419,7 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The id the spawn-ward enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an enchantment here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin and nothing drifts. What follows is what it means on 1.7.10. The id the spawn-ward enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
         wardCostCount = config.getInt(
             "cost",
             CATEGORY_WARD,
@@ -2442,7 +2450,7 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The id the path-light enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an enchantment here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin and nothing drifts. What follows is what it means on 1.7.10. The id the path-light enchantment registers at. -1 takes the first free slot from the top at startup - fine for one pack, but it drifts if the mod set changes, and the id is written into the enchanted tool, so a drift strips it off existing tools. Pin it to a fixed free number on a pack you keep.");
         lightLevel = config.getInt(
             "level",
             CATEGORY_LIGHT,
@@ -2604,14 +2612,14 @@ public final class TrmtConfig {
             -1,
             -1,
             255,
-            "The effect id Lightness registers at. -1 takes the first free slot counting up from 24, which is right for a pack that does not change - but an effect id is written into your save and sent to clients as a single byte, so a server and a client that resolved to different numbers disagree about what was drunk. Where the other side has a different effect at that number it shows the wrong one; where it has nothing there, the effect is simply dropped on arrival and a line in the client's log says so. It used to be worse than either - an effect with nothing behind it threw inside the client's own world tick - and that is guarded now, but agreeing on the number is still the only way to see the right thing. On a pack you intend to keep, pin this to a number you know is spare and pin the same number on every machine. Plain Minecraft leaves 24 to 31 free. Numbers of 128 and above only survive the journey on a pack that widens the byte they travel in, so the automatic search takes everything below 128 first and says so if it cannot.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an effect here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin. What follows is what it means on 1.7.10. The effect id Lightness registers at. -1 takes the first free slot counting up from 24, which is right for a pack that does not change - but an effect id is written into your save and sent to clients as a single byte, so a server and a client that resolved to different numbers disagree about what was drunk. Where the other side has a different effect at that number it shows the wrong one; where it has nothing there, the effect is simply dropped on arrival and a line in the client's log says so. It used to be worse than either - an effect with nothing behind it threw inside the client's own world tick - and that is guarded now, but agreeing on the number is still the only way to see the right thing. On a pack you intend to keep, pin this to a number you know is spare and pin the same number on every machine. Plain Minecraft leaves 24 to 31 free. Numbers of 128 and above only survive the journey on a pack that widens the byte they travel in, so the automatic search takes everything below 128 first and says so if it cannot.");
         heavyFootPotionId = config.getInt(
             "heavyFootPotionId",
             CATEGORY_POTIONS,
             -1,
             -1,
             255,
-            "The effect id Heavy-Footedness registers at, under the same rules and the same warning as the setting above. Lightness is claimed first, so where a pack has exactly one slot left it goes to the faithful effect and this one is skipped. The log says which at startup, and so does /trmt status, which is the quickest way to compare two machines.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: an effect here is registered by name, and the number it travels under is the game's own to keep in step, so there is no slot to pin. What follows is what it means on 1.7.10. The effect id Heavy-Footedness registers at, under the same rules and the same warning as the setting above. Lightness is claimed first, so where a pack has exactly one slot left it goes to the faithful effect and this one is skipped. The log says which at startup, and so does /trmt status, which is the quickest way to compare two machines.");
     }
 
     /**
@@ -3000,7 +3008,7 @@ public final class TrmtConfig {
             "mapWearThroughTint",
             CATEGORY_CLIENT,
             true,
-            "Whether worn ground reports how worn it is through its own tint, which is the one question about a particular square that a minimap reading the world can ask a block. JourneyMap does not need this and is not affected by it either way - it is handed a color handler of its own and asks that. Every other map on 1.7.10 works its colors out from the block, and for them this is the difference between a road that darkens as it wears and a road that looks exactly like the ground beside it. It costs nothing where nothing asks. What it rests on is worth knowing before switching it off for no reason, and worth knowing before leaving it on if something looks wrong: the tint is given only to a caller that hands over the world itself, because the renderer hands over a view of one chunk instead, and worn ground is already darkened in the picture it is drawn with - so a renderer told the same thing twice would draw it twice as dark. That test holds for vanilla's own mesher and for this pack's, both checked by name, and it is an inference about who is asking rather than a promise anybody made. If a future renderer or shader starts handing the whole world over, every worn block in the world goes too dark and this is the setting that puts it right. One thing already falls the wrong side of it and is left alone: the cracks drawn on a block you are breaking take the shade too, for as long as the swing lasts. Two further things are worth knowing before judging whether this is working. Xaero's asks in its Accurate block-color mode, which is the one it ships with, and in its Vanilla mode only when 'Biomes in Vanilla Color Mode' is also on - in plain Vanilla mode it takes the block's map color and hands it back without asking anything about the position, so this changes nothing there and a path shows only where the ground has worn through into a different material. And a map that keeps the tiles it has drawn only redraws one when something tells it the chunk changed; this mod tells Xaero's directly, because nothing else would, but any other map that caches the same way will show the wear as of the last time it drew that square.");
+            "Does nothing in this edition, and left in the file so a pack can move between versions: a map here asks a worn square for one of the game's sixty-four palette colors, which carries no tint, so a worn square reports the material it has worn into instead, and JourneyMap is handed a color of its own. What follows is what it means on 1.7.10, where the tint is how a world-reading map is told anything at all. Whether worn ground reports how worn it is through its own tint, which is the one question about a particular square that a minimap reading the world can ask a block. JourneyMap does not need this and is not affected by it either way - it is handed a color handler of its own and asks that. Every other map on 1.7.10 works its colors out from the block, and for them this is the difference between a road that darkens as it wears and a road that looks exactly like the ground beside it. It costs nothing where nothing asks. What it rests on is worth knowing before switching it off for no reason, and worth knowing before leaving it on if something looks wrong: the tint is given only to a caller that hands over the world itself, because the renderer hands over a view of one chunk instead, and worn ground is already darkened in the picture it is drawn with - so a renderer told the same thing twice would draw it twice as dark. That test holds for vanilla's own mesher and for this pack's, both checked by name, and it is an inference about who is asking rather than a promise anybody made. If a future renderer or shader starts handing the whole world over, every worn block in the world goes too dark and this is the setting that puts it right. One thing already falls the wrong side of it and is left alone: the cracks drawn on a block you are breaking take the shade too, for as long as the swing lasts. Two further things are worth knowing before judging whether this is working. Xaero's asks in its Accurate block-color mode, which is the one it ships with, and in its Vanilla mode only when 'Biomes in Vanilla Color Mode' is also on - in plain Vanilla mode it takes the block's map color and hands it back without asking anything about the position, so this changes nothing there and a path shows only where the ground has worn through into a different material. And a map that keeps the tiles it has drawn only redraws one when something tells it the chunk changed; this mod tells Xaero's directly, because nothing else would, but any other map that caches the same way will show the wear as of the last time it drew that square.");
         desirePathHighlight = readFloat(
             CATEGORY_CLIENT,
             "desirePathHighlight",
@@ -3358,6 +3366,17 @@ public final class TrmtConfig {
      * configured ones. A line naming the mob outranks '*', nought included, so a mob named at nought
      * stays out under a wildcard. A mob on a lead never gets this far: the lead weighs it first.
      */
+    /**
+     * The weight a line naming this mob by its registry name gives it, or null where no line does - asked before the
+     * short name, which carries the 1.7.10 edition's meanings, so a kind the tamper stopped by its registry name
+     * stops alone (0.9.223, spec WH4).
+     */
+    public static Float mobNamed(String registryName) {
+        if (registryName == null) return null;
+        Map<String, Float> current = mobMultipliers;
+        return current.isEmpty() ? null : current.get(registryName.toLowerCase(java.util.Locale.ROOT));
+    }
+
     public static float mobMultiplier(String entityName) {
         if (entityName == null) return 0f;
         return MobEntries.lookup(mobMultipliers, entityName);

@@ -45,7 +45,11 @@ public class GuiSnapshot extends Screen {
     /** Called when the server sends a fresh state while the screen is already open. */
     public void update(int newFlags) {
         this.flags = newFlags;
-        init();
+        // Through the three-argument init, which clears the buttons before laying them out again.
+        // The bare init() only adds, so every answer stacked a fresh row of buttons over the last,
+        // the old ones still clickable underneath with the old answer's greying - unseen until
+        // 0.9.223, when answers began refreshing this screen rather than opening a new one (CF81).
+        if (minecraft != null) init(minecraft, width, height);
     }
 
     private boolean hasLeft() {

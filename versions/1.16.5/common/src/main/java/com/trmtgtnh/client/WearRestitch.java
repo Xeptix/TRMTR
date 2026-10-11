@@ -104,25 +104,67 @@ public final class WearRestitch {
     }
 
     /**
-     * Reads every resource again, which is how a wear picture changes here.
+     * Builds the wear pictures again: the model manager, the item renderer and the block renderer, then every chunk.
      *
      * <p>
-     * <strong>This costs more than it does in either older edition, and there is no narrower door.</strong>
-     * Both of those compose their wear pictures into the block atlas while it is being stitched, so
-     * asking for the atlas to be stitched again - and, at 1.12.2, for every model to be baked against
-     * it - rebuilds the pictures and touches nothing else. Here the pictures are composed into a
-     * resource pack of this mod's own and handed to the game as files, and a pack is read when packs
-     * are read: there is no point between "reload the packs" and "do nothing" at which a pack's
-     * contents are looked at again.
+     * Both older editions compose their wear pictures into the block atlas while it is being stitched, so asking for
+     * the atlas to be stitched again - and, at 1.12.2, for every model to be baked against it - rebuilds the pictures
+     * and touches nothing else. Here the pictures are composed into a resource pack of this mod's own, and until 0.9.223
+     * this was the whole reload - packs, languages, sounds, models, atlas - on the reading that a pack is looked at only
+     * when packs are read. The pack is not where the narrowing happens, though (WP67, the worker's report in the 1.7.10
+     * tree's docs/goals/0.9.223-WP30-WP67.md): it stays open in the resource manager and draws every picture fresh
+     * whenever the block atlas is stitched, and the model manager's prepare stitches it. So the model manager runs
+     * alone, through the same prepare-then-apply barrier a full reload uses and under the same loading screen; then the
+     * item renderer, whose items would otherwise keep models baked against the atlas just closed, and the block
+     * renderer, whose water and lava would keep its sprites; then every chunk is built again, as a full reload ends.
      *
      * <p>
-     * So this is the whole reload - packs, languages, sounds, models, atlas - and it is why the line
-     * said before it warns that the game will stop responding. It is asked for rarely and only by
-     * something the player has just done.
+     * Under OptiFine it is still the whole reload: OptiFine rebuilds its better grass, custom colors and shader layers
+     * from a listener of its own, which is not one of the three. And a narrow run that fails falls back to the whole
+     * reload, as 1.7.10 falls back. Either way the line said before it warns that the game will stop responding, and
+     * how long it took is logged, so the two can be compared on one machine.
      */
     private void restitchPictures() {
-        Minecraft.getInstance()
-            .reloadResourcePacks();
+        Minecraft mc = Minecraft.getInstance();
+        if (optiFinePresent() || !(mc.getResourceManager() instanceof net.minecraft.server.packs.resources.ReloadableResourceManager)) {
+            com.trmtgtnh.Trmt.LOG.info("Rebuilding the wear pictures with a full resource reload{}", optiFinePresent() ? ", OptiFine being present" : "");
+            mc.reloadResourcePacks();
+            return;
+        }
+        final long began = System.nanoTime();
+        java.util.List<net.minecraft.server.packs.resources.PreparableReloadListener> narrow = java.util.Arrays
+            .<net.minecraft.server.packs.resources.PreparableReloadListener>asList(
+                mc.getModelManager(),
+                mc.getItemRenderer(),
+                mc.getBlockRenderer());
+        net.minecraft.server.packs.resources.ReloadInstance run = net.minecraft.server.packs.resources.SimpleReloadInstance
+            .of(
+                mc.getResourceManager(),
+                narrow,
+                net.minecraft.Util.backgroundExecutor(),
+                mc,
+                java.util.concurrent.CompletableFuture.completedFuture(net.minecraft.util.Unit.INSTANCE));
+        mc.setOverlay(new net.minecraft.client.gui.screens.LoadingOverlay(mc, run, failed -> {
+            if (failed.isPresent()) {
+                com.trmtgtnh.Trmt.error("Rebuilding the wear pictures by the model manager alone failed, so the whole reload runs instead", failed.get());
+                mc.reloadResourcePacks();
+                return;
+            }
+            mc.levelRenderer.allChanged();
+            com.trmtgtnh.Trmt.LOG.info(
+                "Rebuilt the wear pictures by the model manager alone in {} ms",
+                Long.valueOf((System.nanoTime() - began) / 1000000L));
+        }, true));
+    }
+
+    /** Whether OptiFine is loaded, asked of its own class without starting it. */
+    private static boolean optiFinePresent() {
+        try {
+            Class.forName("net.optifine.Config", false, WearRestitch.class.getClassLoader());
+            return true;
+        } catch (Throwable absent) {
+            return false;
+        }
     }
 
     private static void tell(String message) {

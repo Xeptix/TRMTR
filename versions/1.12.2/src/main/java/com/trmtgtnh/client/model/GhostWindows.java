@@ -66,9 +66,10 @@ public final class GhostWindows {
      * <p>
      * The 1.7.10 edition's {@code BlockGhost.shouldSideBeRendered}: {@code window && !sunken && world.getBlock(x, y, z)
      * == this}. "The same block" there is the same window twin, and the twin is chosen by the family the square wears
-     * as, so two squares over different Chisel carvings that wear as one family share a pane. Not every window carries
-     * the rule there, and none of these does here: a square wearing as grass (that edition's grass twins are another
-     * class, with no such rule), a hollow one - sunk, or over a block that stands short, which
+     * as, so two squares over different Chisel carvings that wear as one family share a pane - and grass, whose twins
+     * there carry the rule since 0.9.223, is two twins: a lawn drawing vanilla's top, and any other turf (spec GF4).
+     * Not every window carries the rule there, and none of these does here: a hollow one - sunk, or over a block that
+     * stands short, which
      * {@link BlockGhost#wholeAt}
      * says the way that edition's painter does - and a stair, which {@code wholeAt} counts as not whole. Nor clear ice,
      * which has no window twin there and keeps its own clear stand-in.
@@ -81,6 +82,11 @@ public final class GhostWindows {
         if (!BlockGhost.wholeAt(world, pos) || BlockGhost.clearCovers(world, pos) != null) return 0;
         SurfaceFamily wears = ErosionState
             .familyOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()));
-        return wears == null || wears == SurfaceFamily.GRASS ? 0 : 1 + wears.ordinal();
+        if (wears == null) return 0;
+        // Grass shares a pane too since 0.9.223 (spec GF4) - that edition's grass twins took the rule then - and a lawn
+        // drawing vanilla's top is a twin of its own there, so a pane of its own here.
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        if (GhostSides.tintsAsGrass(origin, wears)) return 1 + SurfaceFamily.values().length;
+        return 1 + wears.ordinal();
     }
 }

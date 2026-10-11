@@ -165,9 +165,9 @@ public final class ClientSide implements Client.Side {
     }
 
     @Override
-    public void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes) {
+    public void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm) {
         ClientRules.get()
-            .installServerTable(fingerprint, holdsSwitch, bytes);
+            .installServerTable(fingerprint, holdsSwitch, bytes, keysCarryForm);
     }
 
     // ------------------------------------------------------------------
@@ -191,10 +191,19 @@ public final class ClientSide implements Client.Side {
             ward);
     }
 
+    /**
+     * The server's answer about the snapshot sides: the screen, opened on it, or - when it is already
+     * open - refreshed in place, so pressing a button does not blink the screen (spec CF81; 1.7.10
+     * {@code ClientProxy.openSnapshotScreen}).
+     */
     @Override
     public void openSnapshotScreen(int flags) {
-        net.minecraft.client.Minecraft.getInstance()
-            .setScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
+        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+        if (client.screen instanceof com.trmtgtnh.client.gui.GuiSnapshot) {
+            ((com.trmtgtnh.client.gui.GuiSnapshot) client.screen).update(flags);
+            return;
+        }
+        client.setScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
     }
 
     /**
@@ -245,9 +254,10 @@ public final class ClientSide implements Client.Side {
      * The server is deciding the geometry, so this client's own choice is held.
      *
      * <p>
-     * Said in chat, through the same notice every other line of this mod uses, and said each time
-     * rather than once: it is the answer to a button the player has just pressed, and an answer that
-     * only arrives the first time looks like the button stopped working.
+     * Said in chat, through the same notice every other line of this mod uses, in 1.7.10's words and
+     * gray (spec CF38): what the server sets, that the change is saved, and that it applies on leaving.
+     * A wear editor chip says it each time, because it answers a button just pressed; the settings
+     * screen's Done says it once a visit, which {@code ServerRules.shouldTellPlayer} decides.
      */
     @Override
     public void tellServerOwnsGeometry() {
@@ -257,7 +267,7 @@ public final class ClientSide implements Client.Side {
             client.player,
             com.trmtgtnh.server.Notices.line(
                 com.trmtgtnh.util.Translate.get("trmtgtnh.rules.serverOwnsGeometry"),
-                net.minecraft.ChatFormatting.YELLOW,
+                net.minecraft.ChatFormatting.GRAY,
                 true));
     }
 
@@ -380,6 +390,12 @@ public final class ClientSide implements Client.Side {
     }
 
     @Override
+    public void holdDust(BlockGetter level, net.minecraft.core.BlockPos pos) {
+        com.trmtgtnh.client.model.GhostDust.hold(
+            com.trmtgtnh.erosion.ErosionState.familyOf(ghostRecordAt(level, pos.getX(), pos.getY(), pos.getZ())));
+    }
+
+    @Override
     public int ghostOriginAt(int x, int y, int z) {
         return ClientOverlay.get()
             .ghostOriginAt(x, y, z);
@@ -413,8 +429,8 @@ public final class ClientSide implements Client.Side {
      */
     public static void tick() {
         // The hold a ghost takes while its dust is spawned, let go of here, as the 1.7.10 edition's is: a tick is the
-        // smallest window that covers the spawn (0.9.222, spec GF19).
-        com.trmtgtnh.block.BlockGhost.releaseTintForDust();
+        // smallest window that covers the spawn (0.9.223, spec GF19).
+        com.trmtgtnh.client.model.GhostDust.release();
         sayHello();
         tellAboutTheModifier();
         // Put in place once, from here rather than from start-up: JourneyMap builds its own tables
@@ -538,6 +554,8 @@ public final class ClientSide implements Client.Side {
         if (announced) return;
         announced = true;
         com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
+        // And, once a session, the player is told when this jar is a snapshot (0.9.223).
+        SnapshotNotice.joined(net.minecraft.client.Minecraft.getInstance());
     }
 
     /**
@@ -593,6 +611,9 @@ public final class ClientSide implements Client.Side {
         // table for the visit, and leaving it there would go on trampling ground the player's own file had
         // said to leave alone.
         if (enabledHandedBack || tableHandedBack) ClientRules.resettleSurfaces();
+        // The settle switch was the server's for the visit (0.9.223), and the read above handed this client's own
+        // back: what settles is marked again from it.
+        com.trmtgtnh.erosion.PhysicalDecay.markSettlingBlocks();
         if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
         // A client that wore a server's chains needs its own pictures back - serviced with no world loaded,
         // see idleTick, so before the next world rather than in the middle of joining it.

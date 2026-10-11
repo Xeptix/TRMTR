@@ -1,16 +1,25 @@
 package com.trmtgtnh.mixin;
 
+import java.util.BitSet;
+
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.trmtgtnh.block.BlockGhost;
+import com.trmtgtnh.client.render.SunkLighting;
+import com.trmtgtnh.client.texture.SunkLight;
 
 /**
  * Vanilla's smooth lighting, which draws when Forge's light pipeline is off - and OptiFine switches it off and
@@ -66,5 +75,50 @@ public abstract class MixinGhostShadeVanilla {
             return BlockGhost.WHOLE_SHADE;
         }
         return original.call(state);
+    }
+
+    @Shadow
+    @Final
+    private float[] vertexColorMultiplier;
+
+    @Shadow
+    @Final
+    private int[] vertexBrightness;
+
+    /**
+     * A sunk top lit by its height, as Forge's light pipeline lights it (0.9.223; Xep, 2026-10-11: "On the bottom 3
+     * images, I prefer how the middle one looks the most, honestly") - the 1.7.10 edition's {@code MixinSunkLight}.
+     *
+     * <p>
+     * Vanilla's smooth lighting takes a face that is not flush with its block's top from inside the block -
+     * {@code shapeState.get(0) ? centerPos.offset(direction) : centerPos} - so a sunk square's every corner was shaded
+     * by
+     * the ground beside it. Once this face's corners are worked out, a sunk ghost's top has them replaced by what
+     * {@link SunkLight} answers for each, which is Forge's lighter's arithmetic. The corners are the quad's own, from
+     * the
+     * bounds the renderer measured it by - {@code faceShape}, west and east, north and south - in the order vanilla
+     * fills an upward face's: (west, north), (west, south), (east, south), (east, north), which is the order the ghost
+     * model builds its tops in. Here rather than round the quad loop that calls this, because OptiFine draws through
+     * this same method from a loop of its own.
+     */
+    @Inject(method = "updateVertexBrightness", at = @At("TAIL"), require = 0)
+    private void trmt$lightSunkTop(IBlockAccess world, IBlockState state, BlockPos pos, EnumFacing direction,
+        float[] faceShape, BitSet shapeState, CallbackInfo callback) {
+        if (direction != EnumFacing.UP || !(state.getBlock() instanceof BlockGhost)) return;
+        float height = faceShape[EnumFacing.UP.getIndex()];
+        if (height >= 0.999F || !BlockGhost.litAsSunk(world, pos)) return;
+        float west = faceShape[EnumFacing.WEST.getIndex()], east = faceShape[EnumFacing.EAST.getIndex()];
+        float north = faceShape[EnumFacing.NORTH.getIndex()], south = faceShape[EnumFacing.SOUTH.getIndex()];
+        float[][] corners = SunkLighting.topCorners(
+            world,
+            state,
+            pos,
+            height,
+            new float[][] { { west, north }, { west, south }, { east, south }, { east, north } });
+        for (int i = 0; i < 4; i++) {
+            vertexBrightness[i] = SunkLight.packed(corners[i][0], corners[i][1]);
+            vertexColorMultiplier[i] = corners[i][2];
+        }
+        SunkLighting.noteLit();
     }
 }

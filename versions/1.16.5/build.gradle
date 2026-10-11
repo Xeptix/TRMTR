@@ -61,8 +61,12 @@ subprojects {
 
     dependencies {
         minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-        // Mojang's own names. See the note in gradle.properties.
-        mappings loom.officialMojangMappings()
+        // Mojang's own names, with Parchment's parameter names over them for the game's decompiled sources
+        // (0.9.223). See the note in gradle.properties.
+        mappings loom.layered() {
+            officialMojangMappings()
+            parchment("org.parchmentmc.data:parchment-${rootProject.parchment_minecraft}:${rootProject.parchment_version}@zip")
+        }
     }
 }
 
@@ -92,6 +96,12 @@ allprojects {
         maven {
             url = "https://maven.shedaniel.me/"
             content { includeGroup "me.shedaniel.cloth" }
+        }
+        // Where Parchment comes from: the parameter names in the game's own decompiled sources, which change
+        // nothing in the jar (0.9.223). Narrowed the same way.
+        maven {
+            url = "https://maven.parchmentmc.org"
+            content { includeGroup "org.parchmentmc.data" }
         }
         // Mod Menu, which is how a Fabric player reaches a mod's settings screen. Compile only and
         // narrowed the same way; see TrmtFabric for why it is optional where Cloth is not.

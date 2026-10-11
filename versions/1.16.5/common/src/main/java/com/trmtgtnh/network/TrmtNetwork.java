@@ -144,6 +144,20 @@ public final class TrmtNetwork {
      */
     private static final java.util.Map<UUID, Boolean> wanted = new ConcurrentHashMap<UUID, Boolean>();
 
+    /**
+     * The protocol this build speaks on the wire: what a client and a server must agree on to read each other. 1 is
+     * every build before 0.9.223, whose hello says nothing of it; 2 from 0.9.223 - the 1.16.5 surface table carries a
+     * doubled slab in its spare nibble, and the rules carry {@code settleOnWornGround} and the chunk tamper's limits
+     * (Xep, 2026-10-10: "match with the protocol bump"). Moved only with Xep's permission, in every edition at once.
+     */
+    public static final int PROTOCOL = 2;
+
+    /** The protocol each player's hello said, 1 for a hello that said none. Forgotten with the player. */
+    private static final java.util.Map<UUID, Integer> protocols = new ConcurrentHashMap<UUID, Integer>();
+
+    /** The players already told this visit that their build is older than the server's. */
+    private static final java.util.Set<UUID> toldToUpdate = ConcurrentHashMap.newKeySet();
+
     private TrmtNetwork() {}
 
     // ------------------------------------------------------------------
@@ -247,6 +261,8 @@ public final class TrmtNetwork {
         if (player == null || player.getUUID() == null) return;
         subscribers.remove(player.getUUID());
         wanted.remove(player.getUUID());
+        protocols.remove(player.getUUID());
+        toldToUpdate.remove(player.getUUID());
         tableSent.remove(player.getUUID());
     }
 
@@ -273,6 +289,7 @@ public final class TrmtNetwork {
         boolean should = shouldReceive(asked.booleanValue());
         setSubscribed(player, should);
         PacketServerRules.sendTo(player);
+        tellToUpdateIfOlder(player);
         if (should) {
             sendSurroundings(player);
         } else {
@@ -318,6 +335,10 @@ public final class TrmtNetwork {
      */
     public static void sendSurfaceTable(ServerPlayer player) {
         if (!wired() || player == null || player.getUUID() == null) return;
+        // A client older than this protocol reads a table's keys as block ids, and this one's carry a slab's form
+        // in their low four bits (spec SD20): it keeps its own table rather than misread this one, and has been
+        // told to update (tellToUpdateIfOlder).
+        if (protocolOf(player) < PROTOCOL) return;
         long fingerprint = com.trmtgtnh.surface.SurfaceRegistry.fingerprint();
         Long already = tableSent.get(player.getUUID());
         if (already != null && already.longValue() == fingerprint) return;
@@ -362,6 +383,40 @@ public final class TrmtNetwork {
      * to disagree. Real ruts subscribe a client whatever it asked, because it will be walking down
      * into hollows and had better be able to see them; nothing is sent while the mod is off.
      */
+    /** Records the protocol a player's hello said. Network thread; read on the server thread. */
+    public static void rememberProtocol(ServerPlayer player, int protocol) {
+        UUID id = player == null ? null : player.getUUID();
+        if (id != null) protocols.put(id, Integer.valueOf(protocol));
+    }
+
+    /** The protocol a player's hello said, or 1 - every build before 0.9.223 - for one that has said none. */
+    public static int protocolOf(ServerPlayer player) {
+        UUID id = player == null ? null : player.getUUID();
+        Integer said = id == null ? null : protocols.get(id);
+        return said == null ? 1 : said.intValue();
+    }
+
+    /**
+     * Tells a player whose build speaks an older protocol than this server's to update, once a visit (0.9.223). In
+     * plain words rather than a translation key, because an older build has no key for it.
+     */
+    static void tellToUpdateIfOlder(ServerPlayer player) {
+        if (player == null || protocolOf(player) >= PROTOCOL) return;
+        UUID id = player.getUUID();
+        if (id == null || !toldToUpdate.add(id)) return;
+        player.sendMessage(
+            new net.minecraft.network.chat.TextComponent(updateWords())
+                .withStyle(net.minecraft.ChatFormatting.YELLOW),
+            net.minecraft.Util.NIL_UUID);
+    }
+
+    /** What a player whose build is older than this server's is told. */
+    static String updateWords() {
+        return "[TRMT: Reimagined] This server runs " + com.trmtgtnh.Trmt.version()
+            + ", which shares worn ground in a newer form than your copy of the mod reads. Update TRMT: Reimagined"
+            + " to " + com.trmtgtnh.Trmt.version() + " or newer to see worn ground as this server has it.";
+    }
+
     public static boolean shouldReceive(boolean wants) {
         return (wants || TrmtConfig.physicalDecayCollides()) && TrmtConfig.enabled;
     }

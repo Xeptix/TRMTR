@@ -189,7 +189,36 @@ public final class SurfaceRegistry {
      * path - called per movement sample and per painted position.
      */
     public static SurfaceFamily familyOf(BlockState state) {
-        return state == null ? null : familyOf(state.getBlock());
+        if (state == null) return null;
+        Map<Integer, SurfaceFamily> current = table;
+        if (current.isEmpty()) return null;
+        int id = key(state.getBlock());
+        if (id < 0) return null;
+        return current.get(Integer.valueOf(formed(id, formOf(state))));
+    }
+
+    /** The single form of a block, and every block that is not a slab. See {@link #formed}. */
+    static final int SINGLE = 0;
+
+    /** A slab's doubled form. See {@link #formed}. */
+    static final int DOUBLED = 1;
+
+    /**
+     * A block's key in the published table with its form in the low four bits - the older editions' id and
+     * metadata layout, its spare nibble holding whether a slab is doubled (0.9.223, spec SD20). The 1.7.10 edition's
+     * doubled slab is a block of its own and wears with its family whatever the family's slabs switch says; here it
+     * is a state of the slab block, so the table tells the two forms apart or it cannot say that.
+     */
+    static int formed(int id, int form) {
+        return (id << 4) | form;
+    }
+
+    /** Which form of its block a state is: a doubled slab, or anything else. */
+    static int formOf(BlockState state) {
+        return state.getBlock() instanceof SlabBlock && state.hasProperty(SlabBlock.TYPE)
+            && state.getValue(SlabBlock.TYPE) == net.minecraft.world.level.block.state.properties.SlabType.DOUBLE
+                ? DOUBLED
+                : SINGLE;
     }
 
     /** The same, for a caller that genuinely has only the block. */
@@ -199,7 +228,7 @@ public final class SurfaceRegistry {
         if (current.isEmpty()) return null;
         int id = key(block);
         if (id < 0) return null;
-        return current.get(Integer.valueOf(id));
+        return current.get(Integer.valueOf(formed(id, SINGLE)));
     }
 
     /** True when this block state erodes into stages the client can paint. */
@@ -284,7 +313,8 @@ public final class SurfaceRegistry {
      *
      * @return false, holding nothing, when the table names a family this build does not have
      */
-    public static boolean holdServerTable(SurfaceTableCodec.Table decoded, boolean holdsSwitch, long fingerprint) {
+    public static boolean holdServerTable(SurfaceTableCodec.Table decoded, boolean holdsSwitch, long fingerprint,
+        boolean keysCarryForm) {
         SurfaceFamily[] all = SurfaceFamily.values();
         Map<Integer, SurfaceFamily> families = new HashMap<Integer, SurfaceFamily>(decoded.families.size() * 2);
         for (Map.Entry<Integer, Integer> entry : decoded.families.entrySet()) {
@@ -293,6 +323,9 @@ public final class SurfaceRegistry {
             if (ordinal < 0 || ordinal >= all.length) return false;
             families.put(entry.getKey(), all[ordinal]);
         }
+        // A table from a server older than 0.9.223 keys a block by its id alone and means both its forms; read
+        // as that build meant it (spec SD20).
+        if (!keysCarryForm) families = withForms(families, Collections.<Integer, SurfaceFamily>emptyMap());
         Held visiting = new Held(
             Collections.unmodifiableMap(families),
             decoded.cover,
@@ -347,11 +380,13 @@ public final class SurfaceRegistry {
      */
     public static void resolve() {
         Map<Integer, SurfaceFamily> built = new HashMap<Integer, SurfaceFamily>();
+        // Each slab block's doubled form, by block id, with the family it wears as whatever the slabs switch says.
+        Map<Integer, SurfaceFamily> doubled = new HashMap<Integer, SurfaceFamily>();
         Map<SurfaceFamily, Set<String>> detected = new EnumMap<SurfaceFamily, Set<String>>(SurfaceFamily.class);
         Set<String> excluded = parseNameSet(TrmtConfig.surfaceExclude);
 
         if (TrmtConfig.surfaceAutoDetect) {
-            autoDetect(built, excluded, detected);
+            autoDetect(built, excluded, detected, doubled);
         }
 
         for (SurfaceFamily family : SurfaceFamily.values()) {
@@ -361,6 +396,8 @@ public final class SurfaceRegistry {
         }
 
         dropDisabledFamilies(built);
+        dropDisabledFamilies(doubled);
+        Map<Integer, SurfaceFamily> formed = withForms(built, doubled);
 
         resistance = collectResistance(excluded);
 
@@ -369,7 +406,7 @@ public final class SurfaceRegistry {
         Set<String> holds = new java.util.TreeSet<String>();
         Set<Integer> builtHolds = collectHolders(builtCover, holds);
         ownFingerprint = SurfaceTableCodec
-            .fingerprint(ordinals(built), builtCover, builtHolds, TrmtConfig.groundCoverHolds);
+            .fingerprint(ordinals(formed), builtCover, builtHolds, TrmtConfig.groundCoverHolds);
 
         // A server's table in use for the visit is published again rather than this side's own, so no
         // rebuild made while connected - a reload, the config screen, a family changing hands - can
@@ -379,7 +416,7 @@ public final class SurfaceRegistry {
         if (visiting != null) {
             publish(visiting.table, visiting.cover, visiting.holds);
         } else {
-            publish(Collections.unmodifiableMap(built), builtCover, builtHolds);
+            publish(Collections.unmodifiableMap(formed), builtCover, builtHolds);
         }
 
         // Detection is only useful if you can see and override what it decided, so what it
@@ -409,7 +446,7 @@ public final class SurfaceRegistry {
     // ------------------------------------------------------------------
 
     private static void autoDetect(Map<Integer, SurfaceFamily> out, Set<String> excluded,
-        Map<SurfaceFamily, Set<String>> detected) {
+        Map<SurfaceFamily, Set<String>> detected, Map<Integer, SurfaceFamily> doubled) {
         // Iterated as Object because Forge's registry is generic while vanilla's is raw;
         // this compiles against either without a cast warning at the call site.
         for (Object candidate : net.minecraft.core.Registry.BLOCK) {
@@ -429,6 +466,14 @@ public final class SurfaceRegistry {
 
             int id = net.minecraft.core.Registry.BLOCK.getId(block);
             if (id < 0) continue;
+
+            // A doubled slab is a whole block of its family whatever the slabs switch says, as the 1.7.10
+            // edition's doubled slab block is (0.9.223, spec SD20): its family, ungated by shape.
+            if (block instanceof SlabBlock) {
+                SurfaceFamily asDoubled = refineSlab(block, name, whole, 0);
+                FamilySettings doubledSettings = asDoubled == null ? null : TrmtConfig.family(asDoubled);
+                if (doubledSettings != null && doubledSettings.autoDetect) doubled.put(Integer.valueOf(id), asDoubled);
+            }
 
             // Detection cannot tell which metadata values of an ordinary block are the erodable
             // variant, so it claims all sixteen and the exclude list carves out specifics. A slab
@@ -898,6 +943,30 @@ public final class SurfaceRegistry {
         return set;
     }
 
+    /**
+     * The published table from the one keyed by block id: each block's single form, and a slab's doubled form
+     * wherever its single form wears or detection found the doubled one wearing on its own (spec SD20). See
+     * {@link #formed}.
+     */
+    static Map<Integer, SurfaceFamily> withForms(Map<Integer, SurfaceFamily> byBlock,
+        Map<Integer, SurfaceFamily> doubled) {
+        Map<Integer, SurfaceFamily> out = new HashMap<Integer, SurfaceFamily>(byBlock.size() * 3);
+        for (Map.Entry<Integer, SurfaceFamily> entry : byBlock.entrySet()) {
+            int id = entry.getKey()
+                .intValue();
+            out.put(Integer.valueOf(formed(id, SINGLE)), entry.getValue());
+            if (net.minecraft.core.Registry.BLOCK.byId(id) instanceof SlabBlock) {
+                out.put(Integer.valueOf(formed(id, DOUBLED)), entry.getValue());
+            }
+        }
+        for (Map.Entry<Integer, SurfaceFamily> entry : doubled.entrySet()) {
+            Integer key = Integer.valueOf(formed(entry.getKey()
+                .intValue(), DOUBLED));
+            if (!out.containsKey(key)) out.put(key, entry.getValue());
+        }
+        return out;
+    }
+
     /** Strips whole families out when their toggle is off. */
     private static void dropDisabledFamilies(Map<Integer, SurfaceFamily> out) {
         Iterator<Map.Entry<Integer, SurfaceFamily>> it = out.entrySet()
@@ -938,7 +1007,9 @@ public final class SurfaceRegistry {
         Map<Integer, SurfaceFamily> byBlock = new HashMap<Integer, SurfaceFamily>();
         for (Map.Entry<Integer, SurfaceFamily> entry : built.entrySet()) {
             if (!entry.getValue().staged) continue;
-            byBlock.put(entry.getKey(), entry.getValue());
+            // One per block, whichever of its forms wears: the key carries the form in its low four bits (SD20).
+            byBlock.put(Integer.valueOf(entry.getKey()
+                .intValue() >> 4), entry.getValue());
         }
 
         List<SurfaceState> states = new ArrayList<SurfaceState>(byBlock.size());

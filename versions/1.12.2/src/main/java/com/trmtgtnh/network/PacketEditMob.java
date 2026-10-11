@@ -171,10 +171,13 @@ public class PacketEditMob implements IMessage {
         if (name.isEmpty()) return null;
         String looser = null;
         for (net.minecraftforge.fml.common.registry.EntityEntry known : net.minecraftforge.fml.common.registry.ForgeRegistries.ENTITIES) {
-            String key = known.getName();
+            // The registry name is what is written (0.9.223, spec WH4); a stack made before then holds the short
+            // name, which is matched to the same entry and written as its registry name.
+            String key = known.getRegistryName() == null ? null : known.getRegistryName()
+                .toString();
             if (key == null) continue;
-            if (key.equals(name)) return key;
-            if (looser == null && key.equalsIgnoreCase(name)) looser = key;
+            if (key.equals(name) || name.equals(known.getName())) return key;
+            if (looser == null && (key.equalsIgnoreCase(name) || name.equalsIgnoreCase(known.getName()))) looser = key;
         }
         return looser;
     }

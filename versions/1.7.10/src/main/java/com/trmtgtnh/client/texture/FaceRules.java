@@ -48,6 +48,36 @@ public final class FaceRules {
     }
 
     /**
+     * Whether a set of a family's worn pictures is made from the block's underside as well as its top: grass worn
+     * through
+     * to its earth (revealsEarth), and a first run drawn as a cover, which lays the top over the underside - grass's
+     * look by default, and any family's whose look is set to it ({@code coverLook}).
+     */
+    public static boolean readsUnderside(SurfaceFamily family, boolean coverLook) {
+        return family == SurfaceFamily.GRASS || coverLook;
+    }
+
+    /**
+     * What blocks must have in common to share one set of worn pictures: the family, which decides the appearances a
+     * set
+     * holds; every face the pictures are made of; and the layer drawn behind it. The underside only where the pictures
+     * read it (readsUnderside), so a stone stair, slab and block still share the one set "stone" draws.
+     *
+     * <p>
+     * The underside was left out until 0.9.223 and nothing showed it until a pack held two lawns with one top on two
+     * earths. Xep, 2026-10-10: worn vanilla grass sank into an earth far darker than modded lawns', in GT New Horizons
+     * and back to 0.9.216. Biomes O' Plenty's loamy grass draws vanilla's grass_top and sorts before minecraft:grass,
+     * so
+     * it made the shared set from its own underside, dirt_loamy, and vanilla grass wore into that.
+     */
+    public static String setKey(SurfaceFamily family, String top, String underside, String behind, boolean coverLook) {
+        return family.ordinal() + " "
+            + top
+            + (readsUnderside(family, coverLook) ? " over " + underside : "")
+            + (behind == null ? "" : " behind " + behind);
+    }
+
+    /**
      * Which family's material a sprite is made of, which is not always the one covered.
      *
      * <p>
@@ -104,13 +134,93 @@ public final class FaceRules {
     }
 
     /**
-     * Whether grass worn through to its earth has no earth to show, so vanilla's is laid in its place. A turf block
-     * whose every face is one greyscale texture is not a green thing on a brown thing; it is a grey mask that only
-     * becomes a color once the biome tint runs through it, and revealing it once the tint has been dropped turns the
-     * ground grey the moment it starts to sink.
+     * Whether vanilla's earth is laid in for a lawn's own - which is only ever for a grey mask.
+     *
+     * <ul>
+     * <li><em>Grass worn through to its earth</em> ({@code revealsEarth}, not a cover), when the underside is grey. A
+     * turf block whose every face is one greyscale texture is not a green thing on a brown thing; it is a grey mask
+     * that
+     * only becomes a color once the biome tint runs through it, and revealing it once the tint has been dropped turns
+     * the
+     * ground grey the moment it starts to sink.</li>
+     * <li><em>A lawn's first run</em> ({@code lawnCover}), when the underside is that grey mask and is drawn in the
+     * top's
+     * own colors (0.9.223) - Natura's topiary grass, grey all round. That run takes the top away in patches to show the
+     * underside, and where the underside is the top's own picture nothing changed until the ground sank; it now shows
+     * vanilla's earth from the first step, as its sunk run always did.</li>
+     * </ul>
+     *
+     * <p>
+     * A lawn whose underside is in its top's own colors and has a color of its own - Et Futurum's nether wart block and
+     * target, GalaxySpace's Barnarda C dirt - keeps its own earth, sunk and unsunk: Xep, 2026-10-10, "Before they were
+     * wearing as their own block, which is what I want, it's just the top layer wasn't really showing any wear." Its
+     * first run is given its own earth worn to {@link #EARTH_HEAD} instead; see {@link #earthHead}.
      */
-    public static boolean standsInForEarth(boolean cover, boolean revealsEarth, boolean undersideColorless) {
+    public static boolean standsInForEarth(boolean lawnCover, boolean revealsEarth, boolean cover,
+        boolean undersideColorless, boolean undersideInTopsColors) {
+        if (lawnCover) return undersideInTopsColors && undersideColorless;
         return !cover && revealsEarth && undersideColorless;
+    }
+
+    /**
+     * How far a lawn with no earth of its own has worn its own earth by the end of its first run (0.9.223). The first
+     * run
+     * shows its underside through the top, and where the underside is drawn in the top's own colors that shows nothing;
+     * so it shows the underside as the earth's own look has worn it this far, and the run under the ground starts from
+     * here rather than from untouched (see {@link #earthProgress}), so the picture never steps back lighter as the
+     * ground sinks.
+     */
+    public static final float EARTH_HEAD = 0.4f;
+
+    /**
+     * The head a lawn's earth starts from: {@link #EARTH_HEAD} where its underside is drawn in its top's own colors and
+     * is no grey mask (which takes vanilla's earth instead), and nought - every lawn on earth of its own - otherwise.
+     */
+    public static float earthHead(boolean undersideColorless, boolean undersideInTopsColors) {
+        return undersideInTopsColors && !undersideColorless ? EARTH_HEAD : 0f;
+    }
+
+    /**
+     * Where along its own run an earth that starts at {@code head} is, at {@code progress} along the run under ground.
+     */
+    public static float earthProgress(float progress, float head) {
+        return head + (1f - head) * progress;
+    }
+
+    /** Whether a sprite is a lawn's first run: grass drawn as grass, its top over its underside. */
+    public static boolean lawnCover(SurfaceFamily originFamily, SurfaceFamily appearance, boolean cover) {
+        return cover && originFamily == SurfaceFamily.GRASS && appearance == SurfaceFamily.GRASS;
+    }
+
+    /**
+     * How much of an underside has to be drawn in colors its top uses before it is no earth of its own. Measured on
+     * 2026-10-10 against the blocks themselves: the four with no visible first run came to 1.00 (the target's side
+     * against its top included), and every lawn on earth of its own measured - vanilla grass, mycelium and podzol on
+     * dirt, Botania's dry grass, Biomes O' Plenty's lawns, GalaxySpace's Barnarda C grass on its own purple dirt - to
+     * 0.02 or less. Exact colors, so an earth merely near its lawn's colors is never taken for none.
+     */
+    public static final float TOPS_COLORS = 0.9f;
+
+    /**
+     * Whether an underside is drawn in its top's own colors: at least {@link #TOPS_COLORS} of its opaque pixels in a
+     * color, exactly, that some opaque pixel of the top has. The top's own picture is, and so is the same set of colors
+     * rearranged; earth beneath a lawn is not. Sizes may differ - it is the colors that are asked, not their places.
+     */
+    public static boolean inTheTopsColors(int[] top, int[] under) {
+        if (top == null || under == null) return false;
+        java.util.HashSet<Integer> colors = new java.util.HashSet<Integer>();
+        for (int argb : top) {
+            if (((argb >>> 24) & 0xFF) != 0) colors.add(Integer.valueOf(argb & 0xFFFFFF));
+        }
+        if (colors.isEmpty()) return false;
+        int opaque = 0;
+        int shared = 0;
+        for (int argb : under) {
+            if (((argb >>> 24) & 0xFF) == 0) continue;
+            opaque++;
+            if (colors.contains(Integer.valueOf(argb & 0xFFFFFF))) shared++;
+        }
+        return opaque > 0 && shared >= TOPS_COLORS * opaque;
     }
 
     /**

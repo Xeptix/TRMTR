@@ -1787,6 +1787,11 @@ public final class ErosionEngine {
         }
         // Otherwise only the mobs named in the config, which by default is villagers. Looking
         // the name up costs one map lookup, and this already only runs on a sampled tick.
+        // A line naming the mob by its registry name first - what the magic tamper writes since 0.9.223 - then its
+        // short name, with the 1.7.10 edition's meanings for a kind 1.11 split (spec WH4).
+        net.minecraft.util.ResourceLocation key = net.minecraft.entity.EntityList.getKey(entity);
+        Float byKey = key == null ? null : TrmtConfig.mobNamed(key.toString());
+        if (byKey != null) return byKey.floatValue();
         return TrmtConfig.mobMultiplier(net.minecraft.entity.EntityList.getEntityString(entity));
     }
 }

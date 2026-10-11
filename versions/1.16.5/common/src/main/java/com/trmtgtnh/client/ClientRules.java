@@ -57,6 +57,9 @@ public final class ClientRules {
 
         com.trmtgtnh.erosion.ErosionChain.rebuild();
         com.trmtgtnh.erosion.PhysicalDecay.refresh();
+        // Whether snow and carpet settle is the server's now (0.9.223), and it decides the footing as well as the
+        // picture: the set both read is made again from what was just held.
+        com.trmtgtnh.erosion.PhysicalDecay.markSettlingBlocks();
 
         if (forceOverlay && !wasForced && !TrmtConfig.showErosion) {
             OverlayPainter.get()
@@ -128,7 +131,7 @@ public final class ClientRules {
      * Refused rather than held when it is not the table the rules last named, and a table that cannot be
      * used stays remembered as asked for, so it is not sent again with every announcement to fail again.
      */
-    public void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes) {
+    public void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm) {
         if (com.trmtgtnh.Trmt.runningServer() != null) return;
         if (serverNamedTable == 0L || fingerprint != serverNamedTable) {
             // Not remembered as asked for, so a server that comes back to this table is asked for it again.
@@ -145,7 +148,7 @@ public final class ClientRules {
         }
         OverlayPainter painter = OverlayPainter.get();
         painter.restoreAll();
-        if (!SurfaceRegistry.holdServerTable(decoded, holdsSwitch, fingerprint)) {
+        if (!SurfaceRegistry.holdServerTable(decoded, holdsSwitch, fingerprint, keysCarryForm)) {
             // Nothing was held, so the table in use is still this client's own; the ground is only put back.
             tableAskedFor = fingerprint;
             com.trmtgtnh.Trmt.LOG

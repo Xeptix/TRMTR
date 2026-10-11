@@ -52,6 +52,11 @@ dependencies {
     // itself, which is not there to look when it is not installed.
     modCompileOnly "curse.maven:jade-324717:3910873"
 
+    // The One Probe, the other block tooltip Forge packs run on this version, told the same lines Jade
+    // is. compileOnly for the same reason, named only in its own class, which nothing loads unless The
+    // One Probe is installed. Forge only: it has no Fabric release for this version.
+    modCompileOnly "curse.maven:the-one-probe-245211:3752096"
+
     // Cloth Config, which is this port's one deliberate new dependency and is required rather
     // than optional: Forge's own config screen is gone at this version and there is nothing in
     // vanilla to replace it, so without this there is no settings screen at all. See ConfigScreen.

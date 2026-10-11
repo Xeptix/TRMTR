@@ -167,6 +167,13 @@ public final class WearTextures {
     private static volatile Lookup lookup = Lookup.EMPTY;
 
     /**
+     * The covered blocks that wanted a mended side at the last stitch - a side texture with holes in it - whether or
+     * not the atlas could fit one. Read by {@link #mendWanted}, which is how a flank that wanted a mend and has none
+     * knows to draw vanilla's grass side rather than the side with its holes (0.9.223, spec GS15).
+     */
+    private static volatile StateFiling<Block, Boolean> wantedMends = StateFiling.<Block, Boolean>empty();
+
+    /**
      * How the ids in force number a block, and which block an id names. The one place this class
      * reads a block id, and only to say in the log whether the filed blocks moved; a lookup keyed
      * by these numbers is exactly what went wrong.
@@ -447,12 +454,6 @@ public final class WearTextures {
         // Counted before anything is harvested, because the budget prices a surface whole and only this walk can say
         // how many pictures will share its layer.
         pass = new Pass(manager, mipmapLevels, countLayerPictures());
-    }
-
-    /** The mipmap levels this stitch's atlas is built with, which every wear picture's frame needs a slot for. */
-    static int stitchLevels() {
-        Pass current = pass;
-        return current == null ? 0 : current.mipmapLevels;
     }
 
     /**
@@ -944,14 +945,6 @@ public final class WearTextures {
         return row == null ? null : row.get(key);
     }
 
-    /** Whether any wear sprite registered this stitch has a size, which every one the atlas loads is given. */
-    private static boolean anySized() {
-        for (WearSprite sprite : REGISTERED) {
-            if (sprite.edge() > 0) return true;
-        }
-        return false;
-    }
-
     /**
      * Says where the pass's faces came from and how many had the filtering border taken off, every stitch that loads,
      * and warns where filtering is on and not one face read out of the atlas was marked as loaded with it.
@@ -965,10 +958,6 @@ public final class WearTextures {
 
     // Word for word what the sprite pass writes, kept in one place so a line found in latest.log leads straight back
     // to the branch that wrote it.
-    private static final String LINE_NOTHING_LOADED = "None of this mod's {} wear sprites had been loaded when the block atlas went to the stitcher, which is what Forge's skipped first stitch at start-up does, loading nothing, so no face was read and no picture composed for this stitch; the stitch that loads the atlas composes them, and says so.";
-
-    private static final String LINE_SIZED = "Sized {} wear sprites for the stitcher in {} ms, each at the edge its plan priced it at, without reading a face or composing a pixel; the sprite pass below composes each of them once.";
-
     private static final String LINE_BUILT = "Composed {} wear textures once each in {} ms, from {} surfaces read once apiece, each picture at the size the stitcher reserved for it; {} had to be guessed at, {} had nothing readable to be made from and {} could not be composed or installed. Of those last two, a block's own wear falls through to its family's fallback, a side wall to the fallback wall and a mended side to vanilla grass's side; a family's fallback and the fallback wall have nothing below them, and a family's fallback missing at its first gradation is named in a warning below.";
 
     // One count rather than four, and the wording follows. Both older editions read a face out of the atlas where
@@ -1564,6 +1553,10 @@ public final class WearTextures {
         StateFiling<Block, WearSprite> mendedBuilt = mended.build();
         StateFiling<Block, WearSprite> wallsBuilt = walls.build();
         StateFiling<Block, Boolean> filed = everyStateFiled(sets, mendedBuilt, wallsBuilt);
+        // Published now rather than with the lookup: it names blocks, not sprites, so it waits on nothing the
+        // atlas has yet to make, and a flank asking in between finds no mend and a wanted one - vanilla's grass
+        // side - for the moment the old lookup is still in force.
+        wantedMends = mendsWanted.build();
         // Held rather than published. Everything in it is a producer, and the Lookup the renderer
         // reads wants the atlas's own sprites - which do not exist until this stitch finishes. See
         // resolve, which is the other half of this line.
@@ -2259,7 +2252,15 @@ public final class WearTextures {
                     if (raw == null) continue;
 
                     String behind = InnerLayers.textureFor(state.block, meta);
-                    String face = family.ordinal() + " " + raw + (behind == null ? "" : " behind " + behind);
+                    // And by the underside where the pictures are made of it (FaceRules.setKey, 0.9.223): keyed on the
+                    // top alone, vanilla grass shared Biomes O' Plenty's loamy grass's set and wore into its loamy
+                    // dirt.
+                    String face = FaceRules.setKey(
+                        family,
+                        raw,
+                        FaceSource.iconName(state.block, 0),
+                        behind,
+                        FaceSource.coverLook(TrmtConfig.family(family)));
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);
@@ -2752,6 +2753,15 @@ public final class WearTextures {
         if (origin == null) return null;
         TextureAtlasSprite icon = lookup.mended.get(origin, originMeta);
         return usable(icon) ? icon : null;
+    }
+
+    /**
+     * Whether the covered block wanted a mended side at the last stitch - its side texture has holes in it - whether
+     * or not the atlas could fit one. A flank that wanted a mend and has none draws vanilla's grass side, as the 1.7.10
+     * edition does: the picture the block shows through its holes anyway (0.9.223, spec GS15).
+     */
+    public static boolean mendWanted(Block origin, int originMeta) {
+        return origin != null && Boolean.TRUE.equals(wantedMends.get(origin, originMeta));
     }
 
     private static void register(Registrar into, SpritePlan plan) {

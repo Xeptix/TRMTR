@@ -2,10 +2,8 @@ package com.trmtgtnh.client;
 
 import net.minecraft.client.color.block.BlockColor;
 import net.minecraft.client.color.block.BlockColors;
-import net.minecraft.client.renderer.BiomeColors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockAndTintGetter;
-import net.minecraft.world.level.GrassColor;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.trmtgtnh.block.GhostLight;
@@ -23,11 +21,12 @@ import com.trmtgtnh.client.model.GhostQuads;
  * untinted pixels, and the rest was the dirt below it.
  *
  * <p>
- * The quads ask for one of two slots and this answers both. {@link GhostQuads#GRASS_TINT} is the
- * biome's grass color, for faces that still have grass on them; {@link GhostQuads#LIGHT_TINT} is
- * white, for faces that carry their own color already. Both then have the path light multiplied
- * into them, which is what makes a lit square lit without replacing what it is made of - grass in a
- * swamp still reads as swamp grass when somebody lights it green.
+ * The quads ask for one of three slots and this answers all of them. {@link GhostQuads#LIGHT_TINT} is white,
+ * for a lawn's flanks, which go grass's way under a tinted fringe; {@link GhostQuads#GRASS_TINT} and
+ * {@link GhostQuads#COVERED_TINT} are the square's one color - the 1.7.10 edition's colorFor, the covered block's
+ * own color handler while it wears as its own family (0.9.223, spec GS11, GS12, GT14, GT17). Each then has the
+ * path light multiplied into it, which is what makes a lit square lit without replacing what it is made of -
+ * grass in a swamp still reads as swamp grass when somebody lights it green.
  *
  * <p>
  * Shared rather than written twice, because it is a rule and not wiring. The loaders differ only in
@@ -57,41 +56,23 @@ public final class GhostTint implements BlockColor {
         if (tintIndex == GhostQuads.LIGHT_TINT) {
             return GhostLight.tinted(0xFFFFFF, glow);
         }
-        // A worn stair's faces: the covered block's own color with the glow in it, as the 1.7.10 edition tints every
-        // face of its stair stand-in (0.9.222, spec GF7).
-        if (tintIndex == GhostQuads.COVERED_TINT) {
-            return GhostLight.tinted(coveredTint(world, pos, net.minecraft.client.Minecraft.getInstance()
-                .getBlockColors()), glow);
-        }
-
-        // Breaking and hitting dust asks this slot too, with the real world in hand, and is tinted as the square's
-        // top is drawn rather than as grass: white where the top carries its own colors, so worn sand and stone no
-        // longer throw green dust - the 1.7.10 edition's dust, which takes the ghost's own tint at the square (0.9.222,
-        // spec GF19). Only while a ghost holds the tint for its dust, and only for a caller holding the world: a
-        // mesher - vanilla's, Indigo's, Sodium's - hands over a view of a region that is not one, so no quad drawn
-        // with this slot changes.
-        if (com.trmtgtnh.block.BlockGhost.tintHeldForDust() && world instanceof net.minecraft.world.level.Level
-            && pos != null) {
-            short record = com.trmtgtnh.Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ());
-            if (!com.trmtgtnh.client.model.GhostSides.tintsAsGrass(
-                com.trmtgtnh.Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()),
-                com.trmtgtnh.erosion.ErosionState.familyOf(record))) {
-                return GhostLight.tinted(0xFFFFFF, glow);
-            }
-        }
-
-        // Nought five and one are vanilla's own fallback pair - temperature and humidity for a
-        // position there is no world to ask about, which is what an item in a menu is.
-        int grass = world == null || pos == null ? GrassColor.get(0.5D, 1.0D)
-            : BiomeColors.getAverageGrassColor(world, pos);
-        return GhostLight.tinted(grass, glow);
+        // Everything else is the square's one color with the glow in it - the 1.7.10 edition's colorFor: the covered
+        // block's own color while it still wears as its own family, white past it or sunk as grass. Slot nought carries
+        // it on a square's top, fringe and non-lawn flanks (0.9.223, spec GS11, GS12, GT14, GT17), slot two on a worn
+        // stair's faces (0.9.222, spec GF7); breaking and hitting dust asks slot nought with the real world in hand and
+        // gets the same answer (spec GF19).
+        return GhostLight.tinted(coveredTint(world, pos, net.minecraft.client.Minecraft.getInstance()
+            .getBlockColors()), glow);
     }
 
     /**
-     * The tint a worn stair's faces take: the covered block's own color, asked of it through a view that holds it at its
-     * own square - the 1.7.10 edition's {@code GhostRendering.colorFor}, {@code origin.colorMultiplier(new
-     * OriginView(...))}, which multiplies into every face of its stair stand-in - or white where the square no longer
-     * wears as the covered block's own family, as that edition's has worn past its tint (0.9.222, spec GF7).
+     * The one color a worn square takes: the covered block's own color, asked of it through a view that holds it at
+     * its own square - the 1.7.10 edition's {@code GhostRendering.colorFor}, {@code origin.colorMultiplier(new
+     * OriginView(...))} - or white where the square no longer wears as the covered block's own family, as that
+     * edition's has worn past its tint, and white for grass sunk as grass, which that edition draws with its untinted
+     * hollow stand-in ({@code ghost.isUntinted()}). It is the color of every face that edition multiplies its color
+     * onto: a worn stair's (0.9.222, spec GF7), and since 0.9.223 every square's top, its fringe, and the flanks of
+     * anything but a lawn (spec GS11, GS12, GT14, GT17).
      *
      * <p>
      * That edition gives a block one color for all its faces; this version asks a color per tint slot, and slot nought
@@ -116,6 +97,10 @@ public final class GhostTint implements BlockColor {
             own = null;
         }
         if (!takesCoveredTint(own, com.trmtgtnh.erosion.ErosionState.familyOf(record))) return 0xFFFFFF;
+        if (untintedHollow(own, com.trmtgtnh.erosion.ErosionState.sinkOf(record),
+            com.trmtgtnh.surface.SurfaceShape.of(covered) == com.trmtgtnh.surface.SurfaceShape.STAIR)) {
+            return 0xFFFFFF;
+        }
         try {
             return opaqueTint(colors.getColor(covered, new OriginTintView(world, pos, covered), pos, 0));
         } catch (RuntimeException awkwardBlock) {
@@ -130,6 +115,15 @@ public final class GhostTint implements BlockColor {
      */
     static boolean takesCoveredTint(com.trmtgtnh.surface.SurfaceFamily own, com.trmtgtnh.surface.SurfaceFamily wears) {
         return own != null && own == wears;
+    }
+
+    /**
+     * Whether a square is drawn as the 1.7.10 edition's untinted hollow grass: grass sunk as grass. That edition paints
+     * its sunken grass stand-in, built untinted, for every grass square with a sink, and its colorFor returns the light
+     * alone for it; a stair is never sunk there, whatever its record says (spec GT17, SC22, GF7).
+     */
+    static boolean untintedHollow(com.trmtgtnh.surface.SurfaceFamily own, int sink, boolean stair) {
+        return own == com.trmtgtnh.surface.SurfaceFamily.GRASS && sink > 0 && !stair;
     }
 
     /** A color handler's answer as a tint: white for none (-1), the alpha left off. */
@@ -193,7 +187,8 @@ public final class GhostTint implements BlockColor {
 
         @Override
         public int getMaxBuildHeight() {
-            return delegate.getMaxBuildHeight();
+            // Asked through Heights, as every world height in this edition is (0.9.223).
+            return com.trmtgtnh.util.Heights.top(delegate) + 1;
         }
     }
 }

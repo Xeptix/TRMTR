@@ -1,26 +1,12 @@
 package com.trmtgtnh.client.texture;
 
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
-import net.minecraft.world.level.block.Block;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.renderer.texture.TextureAtlas;
-import com.mojang.blaze3d.platform.TextureUtil;
-import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.client.resources.metadata.animation.AnimationMetadataSection;
 import net.minecraft.resources.ResourceLocation;
-
-import org.lwjgl.opengl.GL11;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
@@ -41,15 +27,6 @@ public class WearSprite {
 
     /** The color of the placeholder a sprite is stitched with until the pass installs its picture. */
     private static final int PLACEHOLDER_COLOR = 0xFF7A6A55;
-
-    /**
-     * How many wear sprites have been sized for the stitcher since the pass last asked, and how long it took. Read
-     * and written only under the class lock. Summed across threads, so a parallel loader makes the time a total, not
-     * a wait.
-     */
-    private static int loads;
-
-    private static long loadNanos;
 
     /**
      * Whether anything should draw this sprite. False until the sprite pass installs its picture, and false again
@@ -217,9 +194,9 @@ public class WearSprite {
     }
 
     public GeneratedPack.Sheet sheet(ResourceManager manager) {
-        long began = System.nanoTime();
         int size = edge > 0 ? edge : FaceRules.PLACEHOLDER_EDGE;
-        // Whether this is usable is the sprite pass's to say and nobody else's: it installs or marks every sprite of the
+        // Whether this is usable is the sprite pass's to say and nobody else's: it installs or marks every sprite of
+        // the
         // stitch, all at once, on the first load to ask, so a load that cleared the flag here - as this did while each
         // load composed its own - would take back what the pass had just installed.
         if ((long) size * size > Integer.MAX_VALUE) {
@@ -238,7 +215,6 @@ public class WearSprite {
         // pack is read while one is being built. See docs/WEAR-TEXTURES.md. Composed by the sprite pass rather than
         // here, on a pool, and already encoded; this load collects it.
         GeneratedPack.Sheet made = edge > 0 ? WearTextures.pictureOf(this) : null;
-        countLoad(System.nanoTime() - began);
         // What cannot be made keeps the placeholder and stays unusable, as it did in both older editions, and every
         // lookup falls past it.
         return made == null ? blank(size) : made;
@@ -353,9 +329,44 @@ public class WearSprite {
          */
         final boolean scaled;
 
+        /**
+         * How far the earth of a lawn with none of its own is worn as its first run shows it, and where the run under
+         * the ground begins (FaceRules.earthHead) - nought for every other surface - with the look that wears it.
+         */
+        final float earthHead;
+
+        final String earthPattern;
+
+        final float earthStrength;
+
         Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
             float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
             AnimationMetadataSection layerAnimation, boolean seeThrough, boolean scaled) {
+            this(
+                edge,
+                top,
+                bottom,
+                mendUnder,
+                grassOrder,
+                pattern,
+                strength,
+                curve,
+                improvised,
+                revealsEarth,
+                innerLayer,
+                layerFrames,
+                layerAnimation,
+                seeThrough,
+                scaled,
+                0f,
+                "",
+                1f);
+        }
+
+        Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
+            float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
+            AnimationMetadataSection layerAnimation, boolean seeThrough, boolean scaled, float earthHead,
+            String earthPattern, float earthStrength) {
             this.edge = edge;
             this.top = top;
             this.bottom = bottom;
@@ -371,6 +382,9 @@ public class WearSprite {
             this.layerAnimation = layerAnimation;
             this.seeThrough = seeThrough;
             this.scaled = scaled;
+            this.earthHead = earthHead;
+            this.earthPattern = earthPattern;
+            this.earthStrength = earthStrength;
         }
 
         boolean isUnreadable() {
@@ -466,8 +480,27 @@ public class WearSprite {
         // The face this appearance is drawn from, at the size it was read, so a surface whose face was not the size
         // its plan priced can be named at the end of the pass.
         int drawnFrom = cover ? Math.max(edgeOf(top), edgeOf(bottom)) : revealsEarth ? edgeOf(bottom) : edgeOf(top);
-        if (FaceRules.standsInForEarth(cover, revealsEarth, FaceRules.isColorless(bottom))) {
-            // The block had no earth to show. A turf block whose every face is one greyscale texture
+        // Both faces at the size this sprite is drawn, so the same-picture test compares pixels at the same places.
+        int[] topAt = rescale(top, size);
+        int[] bottomAt = rescale(bottom, size);
+        // A lawn whose underside is drawn in its top's own colors, and is no grey mask, has no earth of its own to show
+        // through its first run: that run shows its own earth worn to FaceRules.EARTH_HEAD instead, and the run under
+        // the
+        // ground carries on from there (0.9.223, Xep: "wearing as their own block ... it's just the top layer").
+        boolean lawn = FaceRules.lawnCover(originFamily, appearance, cover) || revealsEarth;
+        float earthHead = lawn
+            ? FaceRules.earthHead(FaceRules.isColorless(bottomAt), FaceRules.inTheTopsColors(topAt, bottomAt))
+            : 0f;
+        FamilySettings earthLook = TrmtConfig.family(SurfaceFamily.DIRT);
+        if (FaceRules.standsInForEarth(
+            FaceRules.lawnCover(originFamily, appearance, cover),
+            revealsEarth,
+            cover,
+            FaceRules.isColorless(bottomAt),
+            FaceRules.inTheTopsColors(topAt, bottomAt))) {
+            // The block had no earth to show (0.9.223, as the 1.7.10 edition: nor a lawn drawing its top on its
+            // underside, whose first run showed no wear at all - see FaceRules.standsInForEarth). A turf block whose
+            // every face is one greyscale texture
             // is not a green thing on a brown thing; it is a grey mask that only becomes a color
             // once the biome tint runs through it, and revealing it once the tint has been dropped
             // turns the ground grey the moment it starts to sink. Drawn at this sprite's edge rather
@@ -559,7 +592,10 @@ public class WearSprite {
             layerFrames,
             layerAnimation,
             seeThrough,
-            scaled);
+            scaled,
+            earthHead,
+            earthLook == null ? "" : earthLook.wearPattern,
+            earthLook == null ? 1f : earthLook.wearStrength);
     }
 
     /** One face of this sprite's block as the pass reads it, noting when it was not the block's own loaded pixels. */
@@ -596,12 +632,24 @@ public class WearSprite {
         }
         if (source.grassOrder != null) {
             float[] order = source.grassOrder[rotation % Math.max(1, source.grassOrder.length)];
-            return grassPass(order, source.top, source.bottom, stage, stageCount);
+            int[] under = source.earthHead > 0f
+                ? wearPass(
+                    source.bottom,
+                    size,
+                    source.earthPattern,
+                    source.earthHead,
+                    source.earthStrength,
+                    rotation,
+                    source.curve)
+                : source.bottom;
+            return grassPass(order, source.top, under, stage, stageCount);
         }
 
         int[] pixels = source.revealsEarth ? source.bottom : source.top;
         if (pixels == null) return null;
         float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
+        if (source.revealsEarth && source.earthHead > 0f)
+            progress = FaceRules.earthProgress(progress, source.earthHead);
         int[] worn = wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
         // Only this branch, and only because it is the only one whose source is a single face of the
         // block being worn. The three above compose two faces into one or lay a mended side over
@@ -719,8 +767,8 @@ public class WearSprite {
     }
 
     /** The same, for any animation and frame count - what the instance writes, and what a test can ask. */
-    static String animationMeta(net.minecraft.client.resources.metadata.animation.AnimationMetadataSection layerAnimation,
-        int count) {
+    static String animationMeta(
+        net.minecraft.client.resources.metadata.animation.AnimationMetadataSection layerAnimation, int count) {
         int time = Math.max(1, layerAnimation.getDefaultFrameTime());
         StringBuilder meta = new StringBuilder("{\"animation\":{\"frametime\":").append(time);
         if (layerAnimation.isInterpolatedFrames()) meta.append(",\"interpolate\":true");
@@ -1508,31 +1556,6 @@ public class WearSprite {
     }
 
     /**
-     * Reads and resets how many wear sprites have been sized for the stitcher since this was last read. For the log.
-     */
-    static synchronized int takeLoads() {
-        int count = loads;
-        loads = 0;
-        return count;
-    }
-
-    /** Reads and resets how long those loads took together, in whole milliseconds. For the log. */
-    static synchronized long takeLoadMillis() {
-        long millis = loadNanos / 1000000L;
-        loadNanos = 0L;
-        return millis;
-    }
-
-    /**
-     * Counts one load for the log. Under the class lock, as the placeholders are and for the same reason: a mod that
-     * loads sprites in parallel would otherwise lose counts, and the line would under-report a stitch that did run.
-     */
-    private static synchronized void countLoad(long nanos) {
-        loads++;
-        loadNanos += nanos;
-    }
-
-    /**
      * A flat square of the placeholder color, for a sprite that could not be made.
      *
      * <p>
@@ -1550,6 +1573,5 @@ public class WearSprite {
         Arrays.fill(flat, PLACEHOLDER_COLOR);
         return new GeneratedPack.Sheet(flat, size, size, null);
     }
-
 
 }

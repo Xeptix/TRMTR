@@ -174,11 +174,13 @@ public final class GhostSides {
             // straight through. The mend is composed at stitch time for exactly the blocks whose side
             // texture has holes in it - see WearTextures.wantsMendedSide - and there is none for
             // anything else, so this costs a null check per face and nothing else. When the atlas
-            // could not fit one, the block's own side is drawn as before and the composer's report
-            // says how many it could not install.
+            // could not fit one, vanilla's own grass side is drawn - the picture the block shows through its
+            // holes anyway - as the 1.7.10 edition draws it, and the composer's report says how many it could
+            // not install. Until 0.9.223 the block's own side was drawn, holes and all (spec GS15).
             if (flank) {
                 TextureAtlasSprite mended = WearTextures.mendedSide(block, meta);
                 if (mended != null) return new Face(mended, false, fringe);
+                if (WearTextures.mendWanted(block, meta)) return new Face(atlasSprite(sprite("grass_side")), false, fringe);
             }
             return new Face(faceSprite(block, meta, side, originFamily, appearance), false, fringe);
         }
