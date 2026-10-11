@@ -19,7 +19,7 @@ with nothing else installed, except that 1.16.5 wants Cloth Config for its setti
 
 One mod, one version number, three editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
-left them. Thirty-four classes are shared between them byte for byte. Where an edition cannot match
+left them. Thirty-five classes are shared between them byte for byte. Where an edition cannot match
 the others it is because the Minecraft version took away what the behaviour was built on, and the
 section it belongs to says so rather than leaving you to find out. They are collected in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) if you would rather see them all at once.
@@ -1341,7 +1341,7 @@ types in them and are unit tested - **536 tests on 1.7.10, 662 on 1.12.2 and 720
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 
-**Thirty-four of those classes are shared between the editions byte for byte**, and a test in each
+**Thirty-five of those classes are shared between the editions byte for byte**, and a test in each
 reads its own copy and the one in the edition it was carried from, failing the build on any
 difference and naming the files.
 
