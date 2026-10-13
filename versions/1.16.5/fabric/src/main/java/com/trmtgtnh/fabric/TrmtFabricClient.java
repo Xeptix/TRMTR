@@ -40,6 +40,19 @@ public final class TrmtFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // A tamper's left-click, refused as a dig on this side, still sent to the server, which is where it acts: Fabric
+        // API 0.42 sends nothing once the click is answered. See FabricEvents.sendClickToServer.
+        FabricEvents.sendClickToServer = (pos, face) -> {
+            net.minecraft.client.multiplayer.ClientPacketListener connection = net.minecraft.client.Minecraft.getInstance()
+                .getConnection();
+            if (connection != null) {
+                connection.send(
+                    new net.minecraft.network.protocol.game.ServerboundPlayerActionPacket(
+                        net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK,
+                        pos,
+                        face));
+            }
+        };
         FabricClientChannel.open();
 
         // Before anything reloads resources, and that ordering is the whole of it. The pack

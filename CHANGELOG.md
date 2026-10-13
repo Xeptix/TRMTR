@@ -4,6 +4,57 @@ One version number across every edition. 0.9.223 is the same release on Minecraf
 and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
 
+## 0.9.224 - 2026-10-13
+
+**A tamper's left-click works on 1.16.5 Fabric.** Fabric API for 1.16 kept the click on the client, so wearing a square
+in and sneak-clicking to mend one did nothing on Fabric in any earlier release. The click is now sent on to the server,
+where a claim mod that refuses it, Flan among them, is still asked first.
+
+*Changes: 1.16.5 Fabric.*
+
+**Worn ground follows what the texture sheet draws** on 1.16.5. The worn pictures were built from texture files read
+before the sheet was stitched, so a block texture another mod makes in memory drew its family's vanilla art when worn, a
+runtime texture larger than sixteen pixels drew at sixteen, and a texture rewritten after loading showed its plain file.
+Each worn picture is now checked against the finished sheet and built again from it where they differ. And the second
+rebuild of the wear pictures in a session draws worn ground: in 0.9.223 it drew none until the game was restarted.
+
+*Changes: 1.16.5.*
+
+**The One Probe's lines follow your own settings** on 1.12.2 and 1.16.5 Forge: a client setting of their own,
+`client.probeLines`, turns this mod's lines off, and the overlay's hide key hides them too. The client tells the server
+what it wants shown in its hello, after everything an older server reads, so 0.9.224 and 0.9.223 still play together.
+
+*Changes: 1.12.2 and 1.16.5 Forge.*
+
+**Matched to 1.7.10** on 1.12.2 and 1.16.5: the Golem of Ways holds its tool as 1.7.10 does, at its size and its angle, and JourneyMap is handed
+this mod's colors back every five seconds, as 1.7.10 does. Where JourneyMap had put its own back meanwhile, the ground
+around you is mapped again, because worn ground it drew in between kept its stand-in's plain grey for good - worn
+Botania dry grass and nether wart block among it. On 1.16.5 Fabric, Canvas lights sunk ground by its height, as the
+other renderers do. And each Wear Table row starts on its family's plain block - grass on the grass row, sand on the
+sand row - where it had started on whichever block the game listed first: dried kelp, or concrete powder.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**The quest chapter reaches 1.12.2's BetterQuesting.** That version keeps a pack's whole default book in
+`config/betterquesting/DefaultQuests.json` and never read the chapter, written only in the shape GT New Horizons uses.
+Where a pack has that file, the chapter is now merged into it - this mod's own chapter alone, numbered after the pack's
+quests, the file copied beside itself as `DefaultQuests.json.trmt-backup` first - and its rewards name only items the
+pack has.
+
+*Changes: 1.12.2.*
+
+**The Wear Table's stripes show** on every edition: the row stripes and the wear editor's cell boxes were drawn on 1.7.10
+and 1.12.2 just under the transparency the screen throws away, and the setting that shows stripes everywhere now reaches
+the cost bar, the plot and the tamper's bands as well.
+
+*Changes: every edition.*
+
+**Settings.** A reinforcement list still exactly at the old default gains this edition's concrete, as a new settings
+file has it: GregTech's and the game's on 1.12.2, every item tagged `forge:concrete` and the sixteen colors on 1.16.5,
+and on Fabric also every item tagged `c:concrete`. A list you have edited is left alone.
+
+*Changes: 1.12.2 and 1.16.5.*
+
 ## 0.9.223 - 2026-10-11
 
 **Snow or carpet lying in a worn rut can be aimed at and broken.** When the ground under a snow layer or a carpet wears

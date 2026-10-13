@@ -187,6 +187,12 @@ dependencies {
     compileOnly ('curse.maven:the-one-probe-245211:2667280') {
         transitive = false
     }
+    // Except when a run asks for it by name, -PwithProbe, which only tools/probe_server.py in the 1.7.10 tree does: a
+    // development server with The One Probe on it, for the check that a dedicated server writes this mod's lines for
+    // each player as their own client draws (0.9.224). Never a client the harness photographs.
+    if (project.hasProperty('withProbe')) {
+        runtimeOnly rfg.deobf('curse.maven:the-one-probe-245211:2667280')
+    }
     if (propertyBool('enable_junit_testing')) {
         testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

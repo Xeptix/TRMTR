@@ -207,6 +207,7 @@ public final class TrmtNetwork {
         subscribers.remove(player.getUniqueID());
         wanted.remove(player.getUniqueID());
         protocols.remove(player.getUniqueID());
+        probeLines.remove(player.getUniqueID());
         toldToUpdate.remove(player.getUniqueID());
         tableSent.remove(player.getUniqueID());
     }
@@ -324,6 +325,41 @@ public final class TrmtNetwork {
      * to disagree. Real ruts subscribe a client whatever it asked, because it will be walking down
      * into hollows and had better be able to see them; nothing is sent while the mod is off.
      */
+    /**
+     * Whether each player's client wants The One Probe to show this mod's lines, as its hello last said (0.9.224).
+     * Forgotten with the player.
+     */
+    private static final java.util.Map<UUID, Boolean> probeLines = new ConcurrentHashMap<UUID, Boolean>();
+
+    /** Records what a player's hello said of The One Probe's lines. Network thread; read on the server thread. */
+    public static void rememberProbeLines(EntityPlayerMP player, boolean shown) {
+        UUID id = player == null ? null : player.getUniqueID();
+        if (id != null) probeLines.put(id, Boolean.valueOf(shown));
+    }
+
+    /**
+     * Whether The One Probe shows this mod's lines to this player: what their client's hello said, or this machine's
+     * own setting for a player whose client has said nothing yet - which on a single-player world is the same client.
+     */
+    public static boolean probeLinesFor(EntityPlayer player) {
+        UUID id = player == null ? null : player.getUniqueID();
+        Boolean said = id == null ? null : probeLines.get(id);
+        return said == null ? TrmtConfig.probeLines : said.booleanValue();
+    }
+
+    /**
+     * Whether this player's client is drawing worn ground: the overlay it asked for in its hello, or held on by real
+     * ruts - what the server's rules tell that client to do - and the mod on. For a player whose client has said
+     * nothing yet, this machine's own answer. So The One Probe, whose lines are written here, says of a square what
+     * that player sees, as Hwyla and Jade say what their client draws (0.9.224; Xep: "Follow the client").
+     */
+    public static boolean drawsWearFor(EntityPlayer player) {
+        UUID id = player == null ? null : player.getUniqueID();
+        Boolean asked = id == null ? null : wanted.get(id);
+        if (asked == null) return TrmtConfig.enabled && TrmtConfig.overlayVisible();
+        return shouldReceive(asked.booleanValue());
+    }
+
     /** Records the protocol a player's hello said. Network thread; read on the server thread. */
     public static void rememberProtocol(EntityPlayerMP player, int protocol) {
         UUID id = player == null ? null : player.getUniqueID();
@@ -346,15 +382,17 @@ public final class TrmtNetwork {
         UUID id = player.getUniqueID();
         if (id == null || !toldToUpdate.add(id)) return;
         player.sendMessage(
-            new net.minecraft.util.text.TextComponentString(updateWords()).setStyle(
-                new net.minecraft.util.text.Style().setColor(net.minecraft.util.text.TextFormatting.YELLOW)));
+            new net.minecraft.util.text.TextComponentString(updateWords())
+                .setStyle(new net.minecraft.util.text.Style().setColor(net.minecraft.util.text.TextFormatting.YELLOW)));
     }
 
     /** What a player whose build is older than this server's is told. */
     static String updateWords() {
         return "[TRMT: Reimagined] This server runs " + com.trmtgtnh.Tags.VERSION
             + ", which shares worn ground in a newer form than your copy of the mod reads. Update TRMT: Reimagined"
-            + " to " + com.trmtgtnh.Tags.VERSION + " or newer to see worn ground as this server has it.";
+            + " to "
+            + com.trmtgtnh.Tags.VERSION
+            + " or newer to see worn ground as this server has it.";
     }
 
     public static boolean shouldReceive(boolean wants) {

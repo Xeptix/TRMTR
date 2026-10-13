@@ -70,8 +70,8 @@ reason above; within 1.16.5 they exist once.
 ## How a release is verified
 
 **This repository carries what builds the jars, and nothing else.** The tests stay in the development
-trees, where every one of them runs and passes before a release is built here - 536 on 1.7.10, 662 on
-1.12.2 and 720 on 1.16.5. `./gradlew build` here compiles and packages; it has no tests to run.
+trees, where every one of them runs and passes before a release is built here - 541 on 1.7.10, 687 on
+1.12.2 and 753 on 1.16.5. `./gradlew build` here compiles and packages; it has no tests to run.
 Among what runs before a release:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those

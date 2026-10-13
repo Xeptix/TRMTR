@@ -425,6 +425,18 @@ public final class WearTextures {
          */
         final Map<WearSprite, GeneratedPack.Sheet> finished = new IdentityHashMap<WearSprite, GeneratedPack.Sheet>();
 
+        /**
+         * Each composed sprite's source, and each source's faces as they were read, kept to the end of the model bake
+         * for the check against the finished atlas (WP30, 0.9.224). A map entry a sprite and the arrays the sources
+         * already hold; let go with the pass.
+         */
+        final Map<WearSprite, WearSprite.Source> sourceOf = new IdentityHashMap<WearSprite, WearSprite.Source>();
+
+        final Map<WearSprite.Source, List<FaceSource.Read>> readsOf = new IdentityHashMap<WearSprite.Source, List<FaceSource.Read>>();
+
+        /** Set as the stitch ends: the check runs only on a stitch that finished. */
+        boolean stitched;
+
         Pass(ResourceManager manager, int mipmapLevels,
             Map<Block, Map<String, MovingLayerLedger.Pictures>> layerPictures) {
             this.manager = manager;
@@ -448,6 +460,8 @@ public final class WearTextures {
      * fracture fields, the inner-layer table - so the first load and the ten-thousandth read the same values.
      */
     private static void beginPass(ResourceManager manager, int mipmapLevels) {
+        // A stitch whose bake never came - its reload stopped part way - still says what it did, before this one.
+        if (pass != null) finishPass();
         WearPatterns.primeOrders(manager, rotations);
         WearCompositor.primeFractures(rotations);
         InnerLayers.prime();
@@ -544,6 +558,8 @@ public final class WearTextures {
                     // Held open round the harvest, so the one call in it that asks the budget prices every picture of
                     // the surface at once. No harvest runs anywhere else.
                     InnerLayers.openAsk(picturesOf(current.layerPictures, origin, key), current.mipmapLevels);
+                    // Whatever an earlier harvest left unread is not this one's.
+                    current.faces.takeReads();
                     try {
                         source = sprite.harvest(current.faces, current.manager);
                     } catch (Throwable awkwardBlock) {
@@ -555,6 +571,7 @@ public final class WearTextures {
                         InnerLayers.closeAsk();
                     }
                     sources.put(key, source);
+                    current.readsOf.put(source, current.faces.takeReads());
                     tally.surfaces++;
                     if (source.scaled) {
                         tally.scaled++;
@@ -569,6 +586,7 @@ public final class WearTextures {
 
                 pending.add(sprite);
                 ingredients.add(source);
+                current.sourceOf.put(sprite, source);
                 if (pending.size() >= COMPOSE_BATCH) {
                     WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished);
                 }
@@ -596,8 +614,16 @@ public final class WearTextures {
         pass = null;
         if (current == null) return;
         synchronized (current) {
+            lastComposed = current.tally.built;
             report(current);
         }
+    }
+
+    /** How many wear pictures the last pass composed, for the harness's atlas part to read. */
+    private static volatile int lastComposed;
+
+    public static int lastComposed() {
+        return lastComposed;
     }
 
     /** The lines {@link #finishPass} writes, from the pass it was handed. */
@@ -862,12 +888,255 @@ public final class WearTextures {
         return out.build();
     }
 
+    /**
+     * For the walk harness alone (its atlas part, 0.9.224): run on the finished block atlas just before its faces are
+     * checked, to rewrite one sprite as a mod that makes a texture after loading would - no rig instance carries such a
+     * mod. Null in every game the harness is not driving, and nothing in this mod sets it. Named on the export's
+     * PRIVATE list beside the harness that sets it.
+     */
+    public static volatile java.util.function.Consumer<TextureAtlas> atlasCheckHook;
+
+    /** How many wear pictures the last check composed again from the atlas, for the harness's atlas part to read. */
+    private static volatile int lastRecomposed;
+
+    public static int lastRecomposed() {
+        return lastRecomposed;
+    }
+
+    /**
+     * The end of the model bake (MixinModelManagerBaked in each loader's module): every wear picture's faces asked of the sprites
+     * the blocks actually draw, and every picture whose face the atlas draws differently composed again from it and
+     * written into its own sprite (WP30, 0.9.224; Xep: "Do it in 0.9.224").
+     *
+     * <p>
+     * This edition reads faces from their files, because its pictures are a pack and a pack is read while the atlas is
+     * being built, before any sprite has pixels. Both older editions read the atlas, which holds what the game will
+     * actually put on screen - a texture with no file behind it, a texture another mod rewrites once it is loaded, a
+     * connected tile cut after stitching - and fall back to the file only where it holds nothing. So here the file
+     * comes first and the atlas corrects it: a face the atlas confirms counts as taken from it, and the improvised
+     * tally then means what it means on 1.7.10 (Xep: "improvised as 1.7.10 means it"). Only on a stitch that
+     * finished; the pass is let go afterwards whatever the check did.
+     */
+    public static void afterBake(net.minecraft.client.resources.model.ModelManager models) {
+        Pass current = pass;
+        if (current == null || !current.stitched || models == null) return;
+        try {
+            synchronized (current) {
+                checkAgainstAtlas(current, models);
+            }
+        } catch (RuntimeException couldNotCheck) {
+            Trmt.error("The wear pictures could not be checked against the finished atlas; they stand as composed", couldNotCheck);
+        } finally {
+            finishPass();
+        }
+    }
+
+    private static void checkAgainstAtlas(Pass current, net.minecraft.client.resources.model.ModelManager models) {
+        TextureAtlas atlas = models.getAtlas(TextureAtlas.LOCATION_BLOCKS);
+        if (atlas == null) return;
+        java.util.function.Consumer<TextureAtlas> hook = atlasCheckHook;
+        if (hook != null) hook.accept(atlas);
+        net.minecraft.client.renderer.block.BlockModelShaper shaper = models.getBlockModelShaper();
+
+        Map<Block, int[][]> drawn = new IdentityHashMap<Block, int[][]>();
+        Set<FaceSource.Read> confirmed = java.util.Collections.newSetFromMap(new IdentityHashMap<FaceSource.Read, Boolean>());
+        Set<Block> moved = java.util.Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>());
+        int[] count = new int[5]; // asked, as composed, drawn otherwise, not askable, sprites with no kept image
+        int wider = 0;
+        for (List<FaceSource.Read> reads : current.readsOf.values()) {
+            for (FaceSource.Read read : reads) {
+                int[] face = drawnFace(shaper, read.block, read.side, drawn, count);
+                if (face == null) {
+                    count[3]++;
+                    continue;
+                }
+                count[0]++;
+                if (AtlasFaces.same(read.pixels, face)) {
+                    confirmed.add(read);
+                    count[1]++;
+                    continue;
+                }
+                count[2]++;
+                current.faces.useAtlas(read.block, read.side, face);
+                moved.add(read.block);
+                // Drawn wider than its file says: the slot was priced too small, and the next plan prices it from this.
+                int edge = AtlasFaces.edgeOf(face);
+                if (read.name != null && edge > WearPatterns.headerWidth(current.manager, read.name)
+                    && !FaceSource.drawnWiderKnown(read.name, edge)) {
+                    FaceSource.rememberDrawnWider(read.name, edge);
+                    wider++;
+                }
+            }
+        }
+
+        // Composed again from the atlas, every picture of a block whose face it draws otherwise, and written into the
+        // sprite that already holds the picture: no second stitch, no second atlas.
+        int recomposed = 0;
+        Map<WearSprite.Source, WearSprite.Source> redone = new IdentityHashMap<WearSprite.Source, WearSprite.Source>();
+        int mipLevels = current.mipmapLevels;
+        for (Map.Entry<WearSprite, WearSprite.Source> each : current.sourceOf.entrySet()) {
+            WearSprite sprite = each.getKey();
+            if (sprite.origin() == null || !moved.contains(sprite.origin())) continue;
+            WearSprite.Source old = each.getValue();
+            WearSprite.Source fresh = redone.get(old);
+            if (fresh == null) {
+                current.faces.takeReads();
+                InnerLayers.openAsk(picturesOf(current.layerPictures, sprite.origin(), sprite.sourceKey()), mipLevels);
+                try {
+                    fresh = sprite.harvest(current.faces, current.manager);
+                } catch (Throwable awkwardBlock) {
+                    Trmt.LOG.debug("Could not read the source of wear texture {} again", sprite.name(), awkwardBlock);
+                    fresh = null;
+                } finally {
+                    InnerLayers.closeAsk();
+                }
+                if (fresh == null) continue;
+                redone.put(old, fresh);
+                current.readsOf.put(fresh, current.faces.takeReads());
+            }
+            if (fresh.isUnreadable()) continue;
+            GeneratedPack.Sheet sheet = sprite.install(sprite.compose(fresh), fresh);
+            if (sheet != null && intoAtlas(atlas, sprite, sheet)) recomposed++;
+            each.setValue(fresh);
+        }
+
+        // The tally as 1.7.10 keeps it: a picture is improvised where a face it was composed from did not come out of
+        // the atlas - read from a file the atlas could not be asked about, or a family's stand-in.
+        Tally tally = current.tally;
+        tally.guessed = 0;
+        tally.improvised.clear();
+        for (Map.Entry<WearSprite, WearSprite.Source> each : current.sourceOf.entrySet()) {
+            WearSprite sprite = each.getKey();
+            if (!sprite.isUsable()) continue;
+            if (improvised(each.getValue(), current.readsOf.get(each.getValue()), confirmed)) {
+                tally.guessed++;
+                tally.improvised.add(sprite.originName());
+            }
+        }
+
+        lastRecomposed = recomposed;
+        Trmt.LOG.info(
+            "Wear pictures checked against the finished atlas: {} face(s) asked, {} as composed, {} drawn otherwise and "
+                + "{} picture(s) composed again from what is drawn; {} face(s) with no baked quad to ask; {} sprite(s) "
+                + "kept no image after upload{}",
+            new Object[] { Integer.valueOf(count[0]), Integer.valueOf(count[1]), Integer.valueOf(count[2]),
+                Integer.valueOf(recomposed), Integer.valueOf(count[3]), Integer.valueOf(count[4]),
+                wider > 0 ? "; " + wider + " face(s) drawn wider than their file, priced from the atlas from now on" : "" });
+        if (wider > 0) {
+            com.trmtgtnh.client.WearRestitch.get()
+                .requestRestitch(
+                    wider + " block face(s) are drawn wider than their texture files, so the wear pictures are built again at that size.");
+        }
+    }
+
+    /**
+     * Whether a picture is improvised, as 1.7.10 counts it: the source's own stand-in for earth, or any face not taken
+     * from the atlas - neither confirmed by it nor read again from it.
+     */
+    static boolean improvised(WearSprite.Source source, List<FaceSource.Read> reads, Set<FaceSource.Read> confirmed) {
+        if (source == null) return false;
+        if (reads == null || reads.isEmpty()) return source.improvised;
+        boolean allOwn = true;
+        for (FaceSource.Read read : reads) {
+            if (!read.fromAtlas && !confirmed.contains(read)) return true;
+            allOwn &= read.own;
+        }
+        // Every face out of the atlas; improvised only where the harvest laid a stand-in of its own under them.
+        return source.improvised && allOwn;
+    }
+
+    /**
+     * What a block draws on one side, as this mod's pixels: frame nought of the sprite its baked model's first quad on
+     * that side uses, read from the sprite's own kept image. Null where there is no quad on that side - a model that
+     * draws nothing outside a render context, say - or the sprite kept no image. The particle sprite is not asked: a
+     * block's particle is often not its face (grass's is dirt), and a wrong answer would put that face on worn ground.
+     */
+    private static int[] drawnFace(net.minecraft.client.renderer.block.BlockModelShaper shaper, Block block, int side,
+        Map<Block, int[][]> drawn, int[] count) {
+        if (block == null || side < 0 || side > 5) return null;
+        int[][] sides = drawn.get(block);
+        if (sides == null) {
+            sides = new int[6][];
+            drawn.put(block, sides);
+        }
+        if (sides[side] != null) return sides[side].length == 0 ? null : sides[side];
+        sides[side] = new int[0];
+        try {
+            net.minecraft.world.level.block.state.BlockState state = block.defaultBlockState();
+            net.minecraft.client.resources.model.BakedModel model = shaper.getBlockModel(state);
+            net.minecraft.core.Direction facing = net.minecraft.core.Direction.from3DDataValue(side);
+            List<net.minecraft.client.renderer.block.model.BakedQuad> quads = model
+                .getQuads(state, facing, new java.util.Random(42L));
+            if (quads == null || quads.isEmpty()) {
+                quads = new ArrayList<net.minecraft.client.renderer.block.model.BakedQuad>();
+                for (net.minecraft.client.renderer.block.model.BakedQuad quad : model
+                    .getQuads(state, null, new java.util.Random(42L))) {
+                    if (quad.getDirection() == facing) quads.add(quad);
+                }
+            }
+            if (quads.isEmpty()) return null;
+            TextureAtlasSprite sprite = ((QuadSprite) quads.get(0)).trmt$quadSprite();
+            if (sprite == null) return null;
+            com.mojang.blaze3d.platform.NativeImage[] images = ((SpriteImages) sprite).trmt$images();
+            if (images == null || images.length == 0 || images[0] == null) {
+                count[4]++;
+                return null;
+            }
+            int width = sprite.getWidth();
+            if (width <= 0 || images[0].getWidth() < width || images[0].getHeight() < width) return null;
+            int[] abgr = new int[width * width];
+            for (int y = 0; y < width; y++) {
+                for (int x = 0; x < width; x++) abgr[y * width + x] = images[0].getPixelRGBA(x, y);
+            }
+            int[] face = AtlasFaces.frameNought(abgr, width);
+            if (face != null) sides[side] = face;
+            return face;
+        } catch (RuntimeException awkwardModel) {
+            Trmt.LOG.debug("Could not ask {}'s baked model for side {}", block, Integer.valueOf(side), awkwardModel);
+            return null;
+        }
+    }
+
+    /**
+     * Writes a recomposed picture into the sprite that already holds it: its own image, its mip levels made again
+     * from it, and an upload into its place in the atlas. An animated picture animates from these frames afterwards,
+     * because every frame the game uploads is read from this image.
+     */
+    private static boolean intoAtlas(TextureAtlas atlas, WearSprite sprite, GeneratedPack.Sheet sheet) {
+        TextureAtlasSprite there = atlas.getSprite(sprite.name());
+        if (there == null || !sprite.name()
+            .equals(there.getName())) return false;
+        com.mojang.blaze3d.platform.NativeImage[] images = ((SpriteImages) there).trmt$images();
+        if (images == null || images.length == 0 || images[0] == null) return false;
+        com.mojang.blaze3d.platform.NativeImage base = images[0];
+        if (base.getWidth() != sheet.width || base.getHeight() != sheet.height) return false;
+        for (int y = 0; y < sheet.height; y++) {
+            for (int x = 0; x < sheet.width; x++) {
+                base.setPixelRGBA(x, y, AtlasFaces.swapRedBlue(sheet.pixels[y * sheet.width + x]));
+            }
+        }
+        if (images.length > 1) {
+            com.mojang.blaze3d.platform.NativeImage[] levels = net.minecraft.client.renderer.texture.MipmapGenerator
+                .generateMipLevels(base, images.length - 1);
+            for (int level = 1; level < images.length && level < levels.length; level++) {
+                if (images[level] != null && images[level] != levels[level]) images[level].close();
+                images[level] = levels[level];
+            }
+        }
+        atlas.bind();
+        there.uploadFirstFrame();
+        return true;
+    }
+
     /** The other end of the same pair, as that stitch finishes. */
     public static void endStitch(TextureAtlas atlas) {
         resolve(atlas);
         // Whatever the pack still holds for this stitch is let go now; see GeneratedPack.answers.
         GeneratedPack.forgetAll();
-        finishPass();
+        // Not finished here any more (WP30, 0.9.224): the pass is kept to the end of the model bake, where its faces are
+        // asked of the finished atlas - afterBake, which finishes it.
+        Pass current = pass;
+        if (current != null) current.stitched = true;
         // Says what did not run, and clears every figure this stitch measured, the plan with them - so a later
         // stitch is judged and planned on its own. Until 0.9.220 nothing called it here.
         reportStitchHooks();

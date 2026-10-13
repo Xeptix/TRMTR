@@ -364,9 +364,11 @@ public class GuiTamper extends Screen {
         // A faint backing behind each -/+ pair, so a setting reads as one unit rather than two
         // buttons with a number floating between them.
         fill(pose, midX - 114, top + 49, midX + 114, top + 75, 0x40FFFFFF);
-        fill(pose, midX - 113, top + 50, midX + 113, top + 74, 0x14FFFFFF);
+        // 0x1A, as 1.7.10 draws it: there and on 1.12.2 the alpha test drops anything below 0.1, so 0.9.224 raised
+        // these from 0x14 and 0x18 to the floor that shows, and this edition, which has no alpha test, followed.
+        fill(pose, midX - 113, top + 50, midX + 113, top + 74, 0x1AFFFFFF);
         fill(pose, midX - 114, top + 77, midX + 114, top + 103, 0x40FFFFFF);
-        fill(pose, midX - 113, top + 78, midX + 113, top + 102, 0x14FFFFFF);
+        fill(pose, midX - 113, top + 78, midX + 113, top + 102, 0x1AFFFFFF);
         fill(pose, midX - 112, top + 107, midX + 112, top + 108, 0x30FFFFFF);
 
         // The operator editor is its own panel, in purple, below a gap - a different and rarer

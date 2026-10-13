@@ -70,4 +70,15 @@ public final class SunkLighting {
         }
         return out;
     }
+
+    /**
+     * The brighter of two packed lightmap values, block light and sky light each on its own (0.9.224): a corner of a sunk
+     * top under Canvas is never darker than the cell it sits in, which on this version holds the light let into it - the
+     * light the Sodium family reads there. See MixinCanvasSunkLight.
+     */
+    public static int brighterOf(int packed, int cell) {
+        int block = Math.max(packed & 0xFFFF, cell & 0xFFFF);
+        int sky = Math.max(packed >>> 16, cell >>> 16);
+        return block | (sky << 16);
+    }
 }

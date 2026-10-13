@@ -63,11 +63,39 @@ public final class JourneyMapColors {
     /** Whether the proxy is in place, so the install is attempted once rather than every tick. */
     private static volatile boolean installed;
 
+    /**
+     * JourneyMap's lookup and setter, and this mod's proxy, kept from the install so the proxy can be handed over again
+     * (0.9.224, spec CO18): JourneyMap 6 puts its own handler back on the stand-in's record after this mod's - played on
+     * the 1.12.2 instance, it held its own before any change of dimension - as the version 1.7.10 was written against
+     * did on every color reload and change of dimension. So the 1.7.10 edition's answer is carried: handed over again
+     * every hundred ticks, which is a lookup and a set a state.
+     */
+    private static volatile Method recordFor;
+
+    private static volatile Method handTo;
+
+    private static volatile Object ours;
+
     /** Whether the attempt has been made and failed, so a broken look is not retried for ever. */
     private static volatile boolean refused;
 
     /** {@code BlockMD.getBlockColor(ChunkMD, BlockPos)}, for asking what a real block is drawn as. */
     private static volatile Method askColor;
+
+    /** {@code BlockMD.getBlockColorProxy()}, for whether a hand-over put this handler where it was not (0.9.224). */
+    private static volatile Method askedNow;
+
+    /** JourneyMap's {@code DataCache.INSTANCE}, which keeps its record of every chunk mapped (0.9.224). */
+    private static Object dataCache;
+
+    /** Its {@code invalidateChunkMDCache()}, and {@code MapPlayerTask.forceNearbyRemap()}, found once, by name. */
+    private static Method forgetAll;
+
+    private static Method remapNearby;
+
+    private static boolean forgetLooked;
+
+    private static boolean forgetGaveUp;
 
     /** How often the watchdog looks, in client ticks - the 1.7.10 edition's install pass, every five seconds. */
     private static final int WATCH_INTERVAL_TICKS = 100;
@@ -103,6 +131,7 @@ public final class JourneyMapColors {
             if (refused) return;
         }
         if (tickCounter++ % WATCH_INTERVAL_TICKS != 0) return;
+        handOver();
         watchdog();
     }
 
@@ -115,6 +144,57 @@ public final class JourneyMapColors {
         answered = false;
         warned = false;
         quiet = 0;
+    }
+
+    /**
+     * Every chunk's record dropped and the ground around the player mapped again, for a hand-over that put this handler
+     * where JourneyMap had its own back (0.9.224, CO18 and CO19). JourneyMap puts its own colors back on the stand-in
+     * now and then - on the 1.12.2 Lawns instance three seconds after the harness laid its lawns - and every square it
+     * mapped before the next hand-over was drawn by its own handler, from the stand-in's untinted texture: flat grey,
+     * and kept, because JourneyMap asks a square again only when the block there changes, and a worn square's block
+     * never does. Seen by the harness's minimap part: worn dry grass and wart block grey at every gradation while this
+     * handler answered their colors; with this, the same lawns fade to earth.
+     */
+    private static void forgetEverything() {
+        if (!lookForForgetting()) return;
+        try {
+            forgetAll.invoke(dataCache);
+            remapNearby.invoke(null);
+            Trmt.LOG.debug("JourneyMap had put its own colors back on worn ground; this mod's are handed back and the ground around you mapped again");
+        } catch (Throwable awkward) {
+            giveUpForgetting(awkward);
+        }
+    }
+
+    /** Whether JourneyMap's chunk records can be dropped: looked for once, quietly where JourneyMap is not installed. */
+    private static boolean lookForForgetting() {
+        if (forgetGaveUp) return false;
+        if (!forgetLooked) {
+            forgetLooked = true;
+            if (!ModsPresent.has("journeymap")) return false;
+            try {
+                Class<?> cache = Class.forName("journeymap.client.data.DataCache");
+                dataCache = cache.getField("INSTANCE")
+                    .get(null);
+                forgetAll = cache.getMethod("invalidateChunkMDCache");
+                remapNearby = Class.forName("journeymap.client.task.multi.MapPlayerTask")
+                    .getMethod("forceNearbyRemap");
+            } catch (Throwable movedOrGone) {
+                dataCache = null;
+                Trmt.LOG.info(
+                    "JourneyMap's chunk records are not where this build looks for them ({}); worn ground it mapped while its own colors were back stays as it drew it",
+                    String.valueOf(movedOrGone));
+            }
+        }
+        return dataCache != null && forgetAll != null && remapNearby != null;
+    }
+
+    /** One warning, then no more asking for the session, rather than a failure every square. */
+    private static void giveUpForgetting(Throwable awkward) {
+        forgetGaveUp = true;
+        Trmt.LOG.warn(
+            "JourneyMap would not map worn ground again ({}); what it drew while its own colors were back stays as it is",
+            String.valueOf(awkward));
     }
 
     /**
@@ -164,6 +244,40 @@ public final class JourneyMapColors {
             "Desire-path highlight is on and this client has worn ground, but JourneyMap has not asked this mod for a color in twenty seconds. Either JourneyMap is not mapping right now - automap off, or nothing worn within range - or it kept a color handler of its own instead of ours.");
     }
 
+    /**
+     * Hands this mod's proxy to JourneyMap's record for every state of both ghosts - the worn stair's is a block of its
+     * own since 0.9.223 (BlockGhostStair) - as the 1.7.10 edition hands one to every stand-in at every metadata (spec
+     * CO18): JourneyMap keeps a record per state, and a lit square's state is not the unlit one. Says how many records
+     * took it.
+     */
+    private static int handOver() {
+        Method get = recordFor;
+        Method set = handTo;
+        Object proxy = ours;
+        if (get == null || set == null || proxy == null) return 0;
+        int handed = 0;
+        int replaced = 0;
+        Method now = askedNow;
+        for (net.minecraft.world.level.block.Block each : ModBlocks.ghosts()) {
+            for (BlockState state : each.getStateDefinition()
+                .getPossibleStates()) {
+                try {
+                    Object mine = get.invoke(null, state);
+                    if (mine == null) continue;
+                    if (now != null && now.invoke(mine) != proxy) replaced++;
+                    set.invoke(mine, proxy);
+                    handed++;
+                } catch (ReflectiveOperationException | RuntimeException awkward) {
+                    // One state JourneyMap will not describe is not worth stopping the rest.
+                }
+            }
+        }
+        // Where this handler went in place of JourneyMap's own - the first hand-over, and after JourneyMap reloads its
+        // colors - every square it already drew was drawn without it, and is kept (see forgetEverything).
+        if (replaced > 0) forgetEverything();
+        return handed;
+    }
+
     private static void install() {
         BlockGhost ghost = ModBlocks.ghost();
         if (ghost == null) return;
@@ -175,25 +289,19 @@ public final class JourneyMapColors {
             Method get = blockMd.getMethod("get", BlockState.class);
             Method setProxy = blockMd.getMethod("setBlockColorProxy", proxyType);
             askColor = blockMd.getMethod("getBlockColor", chunkMd, BlockPos.class);
+            try {
+                askedNow = blockMd.getMethod("getBlockColorProxy");
+            } catch (NoSuchMethodException older) {
+                askedNow = null;
+            }
 
-            Object proxy = Proxy.newProxyInstance(
+            recordFor = get;
+            handTo = setProxy;
+            ours = Proxy.newProxyInstance(
                 JourneyMapColors.class.getClassLoader(),
                 new Class<?>[] { proxyType },
                 new Answer(get));
-            // Every state of both ghosts - the worn stair's is a block of its own since 0.9.223 (BlockGhostStair) - as
-            // the 1.7.10 edition hands one to every stand-in at every metadata (spec CO18). JourneyMap keeps a record
-            // per state, and a lit square's state is not the unlit one.
-            int handed = 0;
-            for (net.minecraft.world.level.block.Block each : ModBlocks.ghosts()) {
-                for (BlockState state : each.getStateDefinition()
-                    .getPossibleStates()) {
-                    Object mine = get.invoke(null, state);
-                    if (mine == null) continue;
-                    setProxy.invoke(mine, proxy);
-                    handed++;
-                }
-            }
-            if (handed == 0) return;
+            if (handOver() == 0) return;
 
             installed = true;
             Trmt.LOG.info("JourneyMap found; worn ground will be drawn on it in the color of what it covers");

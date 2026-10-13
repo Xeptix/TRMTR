@@ -6,7 +6,8 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "trmtgtnh-fabric-refmap.json",
   "client": [
-    "MixinCanvasSettles"
+    "MixinCanvasSettles",
+    "MixinCanvasSunkLight"
   ],
   "injectors": {
     "defaultRequire": 0

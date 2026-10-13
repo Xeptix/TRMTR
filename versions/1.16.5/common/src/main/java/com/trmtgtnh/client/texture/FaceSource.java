@@ -63,10 +63,55 @@ final class FaceSource {
         }
     }
 
+    /**
+     * One face a picture was composed from, for the check against the finished atlas after the bake (WP30, 0.9.224):
+     * which block and side it stood for, the name it was read under, the pixels used at their own width, whether they
+     * were the block's own or a stand-in, and whether they came out of the atlas already.
+     */
+    static final class Read {
+
+        final Block block;
+
+        final int side;
+
+        final String name;
+
+        final int[] pixels;
+
+        final boolean own;
+
+        final boolean fromAtlas;
+
+        Read(Block block, int side, String name, int[] pixels, boolean own, boolean fromAtlas) {
+            this.block = block;
+            this.side = side;
+            this.name = name;
+            this.pixels = pixels;
+            this.own = own;
+            this.fromAtlas = fromAtlas;
+        }
+    }
+
+    /**
+     * The widths the atlas drew faces at, by name, where that was wider than the face's file says - a texture made or
+     * enlarged after loading. Remembered for the session, so the next plan prices the slot from what is drawn, as
+     * 1.7.10 builds its slot from the loaded sprite (WP30's fifth step).
+     */
+    private static final Map<String, Integer> DRAWN_WIDER = new java.util.concurrent.ConcurrentHashMap<String, Integer>();
+
     private final ResourceManager manager;
 
     /** Faces read from files this pass, by the name read, null where the file gave nothing. */
     private final Map<String, int[]> files = new HashMap<String, int[]>();
+
+    /** The faces the harvest in progress has read, taken by the pass after each harvest. */
+    private final java.util.List<Read> reading = new java.util.ArrayList<Read>();
+
+    /**
+     * Faces the finished atlas showed to differ from what was read, by block and side, which a harvest after the bake
+     * is handed in their place. Empty until the check has run.
+     */
+    private final Map<Block, int[][]> atlasFaces = new java.util.IdentityHashMap<Block, int[][]>();
 
     private int fileFaces;
 
@@ -148,9 +193,44 @@ final class FaceSource {
         return FaceRules.vanillaName(made, side);
     }
 
-    /** The width of the file a face is read from, from its header, or nought where it cannot be read. */
+    /**
+     * The width of the file a face is read from, from its header, or nought where it cannot be read - or the width the
+     * atlas last drew it at, where that was wider (WP30).
+     */
     static int pricedWidth(ResourceManager manager, Block block, int side, SurfaceFamily made) {
-        return WearPatterns.headerWidth(manager, faceName(manager, block, side, made));
+        String name = faceName(manager, block, side, made);
+        int header = WearPatterns.headerWidth(manager, name);
+        Integer drawn = name == null ? null : DRAWN_WIDER.get(name);
+        return drawn == null ? header : Math.max(header, drawn.intValue());
+    }
+
+    /** Remembers that the atlas drew a face wider than its file, for the plans after this one. */
+    static void rememberDrawnWider(String name, int width) {
+        if (name != null && width > 0) DRAWN_WIDER.put(name, Integer.valueOf(width));
+    }
+
+    /** Whether a face has been remembered at that width already, so a rebuild for it is asked once. */
+    static boolean drawnWiderKnown(String name, int width) {
+        Integer known = name == null ? null : DRAWN_WIDER.get(name);
+        return known != null && known.intValue() >= width;
+    }
+
+    /** The faces read since this was last asked, in order; the list starts again empty. */
+    java.util.List<Read> takeReads() {
+        java.util.List<Read> out = new java.util.ArrayList<Read>(reading);
+        reading.clear();
+        return out;
+    }
+
+    /** Hands a later harvest the atlas's face for one block's side in place of the one read before the stitch. */
+    void useAtlas(Block block, int side, int[] pixels) {
+        if (block == null || side < 0 || side > 5 || pixels == null) return;
+        int[][] sides = atlasFaces.get(block);
+        if (sides == null) {
+            sides = new int[6][];
+            atlasFaces.put(block, sides);
+        }
+        sides[side] = pixels;
     }
 
     /**
@@ -182,6 +262,15 @@ final class FaceSource {
      * the atlas held no frames for it.
      */
     Face read(Block origin, int side, SurfaceFamily originFamily, SurfaceFamily appearance) {
+        // After the bake, where the finished atlas drew this side differently, what it drew - the block's own pixels, as
+        // 1.7.10 copies them out of its atlas (WP30).
+        if (origin != null && side >= 0 && side <= 5) {
+            int[][] drawn = atlasFaces.get(origin);
+            if (drawn != null && drawn[side] != null) {
+                reading.add(new Read(origin, side, null, drawn[side], true, true));
+                return new Face(drawn[side], true);
+            }
+        }
         SurfaceFamily made = FaceRules.madeOf(originFamily, appearance);
         String name = null;
         if (origin != null) {
@@ -205,6 +294,7 @@ final class FaceSource {
             pixels = fileFace(FaceRules.vanillaName(originFamily, side));
             own = false;
         }
+        if (origin != null) reading.add(new Read(origin, side, name, pixels, own, false));
         return new Face(pixels, own);
     }
 

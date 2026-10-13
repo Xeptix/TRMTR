@@ -130,7 +130,7 @@ own pipeline and was photographed under that.
 | | 1.7.10 | 1.12.2 | 1.16.5 |
 |---|---|---|---|
 | Block tooltip | Waila | Hwyla | Jade on Forge, WTHIT on Fabric |
-| BetterQuesting quest chapter | verified | format unverified on this version | no such mod here |
+| BetterQuesting quest chapter | verified | verified, merged into `DefaultQuests.json` | no such mod here |
 | Amazing Trophies definitions | verified | unverified; the mod may not exist | no such mod here |
 
 All three tooltip mods descend from WAILA and keep the same `mcp.mobius.waila.api` package, so one

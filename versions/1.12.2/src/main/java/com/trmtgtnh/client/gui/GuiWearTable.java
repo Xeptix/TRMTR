@@ -124,7 +124,19 @@ public class GuiWearTable extends GuiScreen {
                 Item item = heldForm(fallback);
                 if (item != null) list.add(new ItemStack(item, 1, 0));
             }
+            // Each row opens on its family's road block: see RowOrder.
+            final Item road = heldForm(com.trmtgtnh.command.CommandTrmt.roadBlock(family));
+            RowOrder.leadWith(list, stack -> stack.getItem() == road);
         }
+    }
+
+    /**
+     * A row's pictures in the order it cycles them, or null for a family with no row - the harness reads it to check
+     * each row opens on its family's road block.
+     */
+    public List<ItemStack> rowPictures(SurfaceFamily family) {
+        List<ItemStack> list = icons.get(family);
+        return list == null ? null : java.util.Collections.unmodifiableList(list);
     }
 
     @Override
@@ -289,7 +301,9 @@ public class GuiWearTable extends GuiScreen {
         double total = live.crossings[3];
         if (!(total > 0d)) return;
 
-        drawRect(x0, y, x0 + w, y + 7, 0x18FFFFFF);
+        // 0x1A, not 0x14 or 0x18: these screens draw with the alpha test on, which drops anything below 0.1 -
+        // the 0x1A floor, decided for 0.9.224 so the stripes show here as they do on 1.16.5, which has no alpha test.
+        drawRect(x0, y, x0 + w, y + 7, 0x1AFFFFFF);
         final int[] shade = { 0xFF4A4A5A, 0xFF6A6A7A, 0xFF8C8CA0, 0xFFC9C9D6 };
         int prev = 0;
         for (int k = 0; k < 4; k++) {
@@ -305,8 +319,10 @@ public class GuiWearTable extends GuiScreen {
         int y1 = rowY + 4;
         int y2 = rowY + 15;
 
-        if (shade) drawRect(cl - 4, rowY, cl + QX[3] + 2, rowY + ROW_H - 1, 0x14FFFFFF);
-        drawRect(cl - 4, rowY + ROW_H - 1, cl + QX[3] + 2, rowY + ROW_H, 0x18FFFFFF);
+        // 0x1A, not 0x14 or 0x18: these screens draw with the alpha test on, which drops anything below 0.1 -
+        // the 0x1A floor, decided for 0.9.224 so the stripes show here as they do on 1.16.5, which has no alpha test.
+        if (shade) drawRect(cl - 4, rowY, cl + QX[3] + 2, rowY + ROW_H - 1, 0x1AFFFFFF);
+        drawRect(cl - 4, rowY + ROW_H - 1, cl + QX[3] + 2, rowY + ROW_H, 0x1AFFFFFF);
 
         // Cycling block icon.
         List<ItemStack> group = icons.get(family);

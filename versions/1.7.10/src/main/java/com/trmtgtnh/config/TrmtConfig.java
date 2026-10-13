@@ -2710,6 +2710,15 @@ public final class TrmtConfig {
         show.setLanguageKey("trmtgtnh.config.showErosion");
         showErosion = show.getBoolean();
 
+        // The One Probe's switch for this mod's lines, read on 1.12.2 and 1.16.5 (0.9.224) and written here only so a
+        // pack moving between versions keeps the same settings file. No One Probe is made for this version.
+        config.get(
+            CATEGORY_CLIENT,
+            "probeLines",
+            true,
+            "Does nothing in this edition, and left in the file so a pack can move between versions: there is no The One Probe for 1.7.10. What follows is what it means on 1.12.2 and 1.16.5. Client only. Whether The One Probe shows this mod's lines - how worn a square is, its reinforcement, ward and path light, and what a Golem of Ways is doing. Hwyla and Jade have a switch of their own for these lines; The One Probe has none, so this is it. Told to the server as you join, and again whenever it changes, since the probe's lines are written there.")
+            .setLanguageKey("trmtgtnh.config.probeLines");
+
         Property distance = config.get(
             CATEGORY_CLIENT,
             "overlayDistanceChunks",

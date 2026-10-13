@@ -29,6 +29,9 @@
     "MixinWornCollision"
   ],
   "client": [
+    "MixinModelManagerBaked",
+    "MixinQuadSprite",
+    "MixinSpriteImages",
     "MixinGhostSoilTagged",
     "MixinSettledHit",
     "MixinSettledOutline",

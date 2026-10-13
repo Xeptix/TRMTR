@@ -576,11 +576,35 @@ public final class TrmtConfig {
      * registry then hands the container back. GT New Horizons does not: its concrete comes in two
      * buckets that are plain items, an iron one and a single-use clay one, and those are named
      * outright. Then this edition's own (0.9.223): every item a mod tags {@code forge:concrete}, and the
-     * game's sixteen concretes by name, which no vanilla tag gathers. 1.7.10's names stay first so a
-     * settings file moves between editions unchanged. Obsidian is last and is what plain Minecraft pays
+     * game's sixteen concretes by name, which no vanilla tag gathers - and from 0.9.224 every item tagged
+     * {@code c:concrete}, the namespace Fabric mods tag in (Xep, 2026-10-11). Forge carries no c: tags, so on
+     * Forge that entry finds nothing and is skipped, and one list serves both loaders. 1.7.10's names stay first
+     * so a settings file moves between editions unchanged. Obsidian is last and is what plain Minecraft pays
      * with. Nothing here has to exist - an entry naming an item no mod in the pack provides is skipped.
      */
     public static String[] reinforceMaterials = {
+        "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
+        "#forge:concrete", "#c:concrete", "minecraft:white_concrete", "minecraft:orange_concrete",
+        "minecraft:magenta_concrete",
+        "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete",
+        "minecraft:pink_concrete", "minecraft:gray_concrete", "minecraft:light_gray_concrete",
+        "minecraft:cyan_concrete", "minecraft:purple_concrete", "minecraft:blue_concrete",
+        "minecraft:brown_concrete", "minecraft:green_concrete", "minecraft:red_concrete", "minecraft:black_concrete",
+        "minecraft:obsidian", };
+
+    /** The list as it ships, the default {@code reinforce.materials} is read with. */
+    static final String[] REINFORCE_MATERIALS = reinforceMaterials.clone();
+
+    /**
+     * The list every edition shipped until 0.9.223: 1.7.10's three names for concrete, then obsidian. A file that still
+     * holds exactly this was written by the mod and never edited - see {@link #addEditionConcrete}.
+     */
+    public static final String[] REINFORCE_MATERIALS_WAS = {
+        "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
+        "minecraft:obsidian", };
+
+    /** The list 0.9.223 shipped, before #c:concrete joined it: as untouched as the one before it. */
+    public static final String[] REINFORCE_MATERIALS_0923 = {
         "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
         "#forge:concrete", "minecraft:white_concrete", "minecraft:orange_concrete", "minecraft:magenta_concrete",
         "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete",
@@ -1070,6 +1094,14 @@ public final class TrmtConfig {
 
     /** Client only. When false you see plain terrain; nobody else is affected. */
     public static boolean showErosion = true;
+
+    /**
+     * Client only: whether The One Probe shows this mod's lines (0.9.224; Xep: "Add a TRMT probe switch"). The probe has
+     * no switch per provider on these versions, where Hwyla and Jade carry {@code trmtgtnh.wear}, so this is that switch.
+     * The probe's lines are written on the server, so the client says this in its hello and the server asks it for that
+     * player (TrmtNetwork.probeLinesFor).
+     */
+    public static boolean probeLines = true;
 
     /**
      * Set for the session when a server has ruts you can walk down into.
@@ -2039,18 +2071,12 @@ public final class TrmtConfig {
             0.0f,
             16.0f,
             "How much longer each reinforcement level makes a block take to wear, counted as whole extra lifetimes added per level. At the default of 1 a block reinforced once needs twice the traffic to move a step, twice needs three times and three times needs four - and because it applies to every one of the eighty steps, a fully reinforced road takes four times the walking to sink from new to bare. Healing is untouched: the recovery rate is a share of the threshold, so a reinforced block still mends a step in the same idle time. Only the rate is governed here. A reinforced leaf or plant is never trampled at all, as trampling.leaves and trampling.vegetation say, and reinforced ground never wears away under trampling.groundWearsAway, whatever this is set to. Set to 0 to take reinforcement off the rate ground wears at, as it was before this existed: it still guards against explosions, against trampling and against ground wearing away.");
+        addEditionConcrete(config);
         reinforceMaterials = config.get(
             CATEGORY_REINFORCE,
             "materials",
-            new String[] {
-                "fluid:wet.concrete", "dreamcraft:dreamcraft_Concrete_bucket", "dreamcraft:clayBucketConcrete",
-                "#forge:concrete", "minecraft:white_concrete", "minecraft:orange_concrete",
-                "minecraft:magenta_concrete", "minecraft:light_blue_concrete", "minecraft:yellow_concrete",
-                "minecraft:lime_concrete", "minecraft:pink_concrete", "minecraft:gray_concrete",
-                "minecraft:light_gray_concrete", "minecraft:cyan_concrete", "minecraft:purple_concrete",
-                "minecraft:blue_concrete", "minecraft:brown_concrete", "minecraft:green_concrete",
-                "minecraft:red_concrete", "minecraft:black_concrete", "minecraft:obsidian", },
-            "What one reinforcement costs, tried in the order written and paid with the first the player is carrying. A 'fluid:name' entry is a bucket or cell of that fluid, named as the fluid registry names it rather than as the tooltip spells it. A plain 'modid:name[:meta]' entry is one of that item, and is the form to use for a container that no mod registered as a fluid container - which is what GT New Horizons' two concrete buckets are, and why they are named outright here. Either way the container's own rule decides what comes back: a bucket that declares an empty gets its empty handed back, from the fluid registry or from the item's own container item, and a single-use clay one declares none and is spent. An entry naming something this pack does not have is skipped, so the whole list can name many things and find one - which is what the default does, preferring concrete in whichever form the pack has it and falling back to obsidian on plain Minecraft. On this edition the list names its own concrete too, after 1.7.10's three, which are kept first so a settings file moves between editions unchanged: every item a mod tags forge:concrete, and the game's sixteen concretes by name. A '#namespace:path' entry is every item in that item tag. If what you are carrying is not being taken, stand by the golem and run /trmt golem: it prints what the item actually is, what each entry here resolves to, and the exact line to add.")
+            REINFORCE_MATERIALS.clone(),
+            "What one reinforcement costs, tried in the order written and paid with the first the player is carrying. A 'fluid:name' entry is a bucket or cell of that fluid, named as the fluid registry names it rather than as the tooltip spells it. A plain 'modid:name[:meta]' entry is one of that item, and is the form to use for a container that no mod registered as a fluid container - which is what GT New Horizons' two concrete buckets are, and why they are named outright here. Either way the container's own rule decides what comes back: a bucket that declares an empty gets its empty handed back, from the fluid registry or from the item's own container item, and a single-use clay one declares none and is spent. An entry naming something this pack does not have is skipped, so the whole list can name many things and find one - which is what the default does, preferring concrete in whichever form the pack has it and falling back to obsidian on plain Minecraft. On this edition the list names its own concrete too, after 1.7.10's three, which are kept first so a settings file moves between editions unchanged: every item a mod tags forge:concrete or c:concrete - the second is the namespace Fabric mods tag in, and on Forge it finds nothing and is skipped - and the game's sixteen concretes by name. A '#namespace:path' entry is every item in that item tag. If what you are carrying is not being taken, stand by the golem and run /trmt golem: it prints what the item actually is, what each entry here resolves to, and the exact line to add.")
             .getStringList();
         reinforceCeiling = new float[] { readFloat(
             CATEGORY_REINFORCE,
@@ -2753,6 +2779,33 @@ public final class TrmtConfig {
     static final String DESIRE_PATH_COLOR_WAS = "desirePathColour";
 
     /**
+     * Gives a reinforcement list the mod wrote, and nobody has edited since, the list as it ships now (0.9.224; Xep,
+     * 2026-10-11, "Migrate untouched lists"). A file keeps whatever it holds, so the concrete 0.9.223 added to the
+     * shipped list reached only new files, and every player upgrading still paid with 1.7.10's three names and obsidian;
+     * and #c:concrete, added in 0.9.224, would reach nobody who ran 0.9.223. The mod replaces only what the mod wrote,
+     * as 1.12.2's does: a list that is exactly {@link #REINFORCE_MATERIALS_WAS} or {@link #REINFORCE_MATERIALS_0923},
+     * in its order, becomes {@link #REINFORCE_MATERIALS}; anything else - an entry added, removed or moved - is
+     * somebody's, and is left as it is. Called before the list is read.
+     */
+    static void addEditionConcrete(ConfigFile from) {
+        if (!from.hasCategory(CATEGORY_REINFORCE)) return;
+        Category reinforce = from.getCategory(CATEGORY_REINFORCE);
+        if (!reinforce.containsKey("materials")) return;
+        Setting held = reinforce.get("materials");
+        if (!held.isList()) return;
+        String[] list = held.getStringList();
+        String[] trimmed = new String[list.length];
+        for (int i = 0; i < list.length; i++) trimmed[i] = list[i] == null ? "" : list[i].trim();
+        if (!java.util.Arrays.equals(trimmed, REINFORCE_MATERIALS_WAS)
+            && !java.util.Arrays.equals(trimmed, REINFORCE_MATERIALS_0923)) {
+            return;
+        }
+        held.set(REINFORCE_MATERIALS.clone());
+        Trmt.LOG.info(
+            "Brought reinforce.materials up to the list this edition ships, since it still held one an older build wrote; edit the list and it is left as you leave it");
+    }
+
+    /**
      * Moves a player's desire-path color from the name it was saved under until 0.9.220 to the name it has
      * now.
      *
@@ -2803,6 +2856,14 @@ public final class TrmtConfig {
             "Client only. When off you see plain terrain - with one exception worth knowing, because it is the shipped default rather than an edge: where the ruts are real enough to walk down into (general.physicalDecay=real) the drawing is held on whatever this says, in a world of your own as much as on somebody else's server, because a hollow you can fall into and cannot see is worse than one you did not want to look at; the server keeps tracking and other players are unaffected.");
         show.setLanguageKey("trmtgtnh.config.showErosion");
         showErosion = show.getBoolean();
+
+        Setting probe = config.get(
+            CATEGORY_CLIENT,
+            "probeLines",
+            true,
+            "Client only. Whether The One Probe shows this mod's lines - how worn a square is, its reinforcement, ward and path light, and what a Golem of Ways is doing. Hwyla and Jade have a switch of their own for these lines; The One Probe has none, so this is it. Told to the server as you join, and again whenever it changes, since the probe's lines are written there.");
+        probe.setLanguageKey("trmtgtnh.config.probeLines");
+        probeLines = probe.getBoolean();
 
         Setting distance = config.get(
             CATEGORY_CLIENT,

@@ -21,14 +21,22 @@ import com.trmtgtnh.entity.EntityGolemOfWays;
  * the same angles. An unarmed golem holds nothing and this costs it one empty-stack check.
  *
  * <p>
- * <strong>Most of the other edition's version of this is gone, and should be.</strong> There the
- * transform for a long-handled tool is applied here by hand - a scale, a hundred degrees about one
- * axis and forty-five about another, copied out of vanilla - with a second branch for a flat sprite
- * that nothing in the mod takes, and after it a two-branch draw that loops over an item's render
- * passes and tints each one. In 1.12.2 an item is a model and carries its own
- * {@code thirdperson_righthand} display transform, which is where {@code item/handheld} puts exactly
- * that angle, and tint is an {@code IItemColor} the renderer applies itself. So this is vanilla's own
- * way into a hand, two numbers of the golem's own, and one call.
+ * <strong>The tool is held as 1.7.10 holds it, turn for turn</strong> (GO62, 0.9.224; Xep: "Let's fix this in
+ * 0.9.224"). Until then this layer handed the item to its own {@code thirdperson_righthand} transform, which holds a
+ * tool the way a 1.12.2 player does: from the south 1.7.10's golem showed the tamper's flat face and this one its
+ * edge. 1.7.10 turns the fist three times - a scale of 0.9 that also flips the vertical, a hundred degrees down about
+ * the arm and forty-five about the vertical - and its item renderer then turns any flat item five times more before
+ * drawing it as a slab a block across. {@link #HELD} is those eight steps, and the model is drawn with no transform of
+ * its own.
+ *
+ * <p>
+ * Not copied as written, though, for one reason: the flip. A negative scale turns every face inside out, which shows
+ * the far face of the slab once culling is on and lights it as facing away. So the whole chain is mirrored left to
+ * right instead - which a sprite drawn on both faces of a slab cannot show - and the flip becomes half a turn about
+ * the arm's own axis: the turns about the vertical and about the depth change sign, so do the steps across, and the
+ * last step lays this edition's centered item model where 1.7.10's slab lies, its sprite reading from the far corner
+ * as 1.7.10's does. {@code GolemToolIsHeldAsTheReferenceHoldsItTest} multiplies both chains out and checks every
+ * corner of the sprite lands in the same place.
  *
  * <p>
  * The matrix is popped from a finally, because the whole of an entity's drawing sits inside one
@@ -40,14 +48,22 @@ import com.trmtgtnh.entity.EntityGolemOfWays;
 public class LayerGolemTool implements LayerRenderer<EntityGolemOfWays> {
 
     /**
-     * How much bigger than a player's the tool is drawn.
-     *
-     * <p>
-     * A tool sized for a hand at chest height reads as a twig in a fist this size, and the golem is
-     * half again the height of the man who handed it over. Only a little over one, because an item
-     * model already carries a third-person scale of its own and this multiplies it.
+     * The steps from the fist to the drawn item, after the half turn that stands in for 1.7.10's flip. Each is a kind -
+     * {@code 'T'} a step, {@code 'S'} a scale, {@code 'X'}, {@code 'Y'} or {@code 'Z'} a turn in degrees about that
+     * axis - and its numbers. In 1.7.10's words: the golem's own 0.9, -100 about X and 45 about Y; its item renderer's
+     * step down 0.3, 1.5, 50 about Y, 335 about Z and the step to the slab's corner; then where this edition's model
+     * sits in that slab.
      */
-    private static final float TOOL_SIZE = 1.15F;
+    static final float[][] HELD = {
+        { 'S', 0.9F, 0.9F, 0.9F },
+        { 'X', -100F },
+        { 'Y', -45F },
+        { 'T', 0F, -0.3F, 0F },
+        { 'S', 1.5F, 1.5F, 1.5F },
+        { 'Y', -50F },
+        { 'Z', -335F },
+        { 'T', 0.9375F, -0.0625F, 0F },
+        { 'T', -0.5F, 0.5F, -0.03125F } };
 
     private final RenderGolemOfWays renderer;
 
@@ -68,18 +84,30 @@ public class LayerGolemTool implements LayerRenderer<EntityGolemOfWays> {
             // The middle of the fist, in the arm's own units: eleven across and twenty-five and a
             // half down from the shoulder is where that box is drawn.
             GlStateManager.translate(-0.6875F, 1.59375F, 0F);
-            // The two turns from vanilla's LayerHeldItem, and only those two. They are what an item
-            // model's thirdperson_righthand transform is written against, so they are not the golem's
-            // to change - but the small translation that follows them in vanilla is, and is dropped:
-            // it steps from a player's arm origin into a player's hand, and the line above has already
-            // stepped into a fist a good deal further down a much longer arm. Keeping both put the
-            // tamper two-thirds of a block out past the fist, with its handle through the chest.
-            GlStateManager.rotate(-90F, 1F, 0F, 0F);
-            GlStateManager.rotate(180F, 0F, 1F, 0F);
-            GlStateManager.scale(TOOL_SIZE, TOOL_SIZE, TOOL_SIZE);
+            // 1.7.10's flip of the vertical, as half a turn about the arm: see the class comment.
+            GlStateManager.rotate(180F, 0F, 0F, 1F);
+            for (float[] step : HELD) {
+                switch ((char) step[0]) {
+                    case 'T':
+                        GlStateManager.translate(step[1], step[2], step[3]);
+                        break;
+                    case 'S':
+                        GlStateManager.scale(step[1], step[2], step[3]);
+                        break;
+                    case 'X':
+                        GlStateManager.rotate(step[1], 1F, 0F, 0F);
+                        break;
+                    case 'Y':
+                        GlStateManager.rotate(step[1], 0F, 1F, 0F);
+                        break;
+                    default:
+                        GlStateManager.rotate(step[1], 0F, 0F, 1F);
+                        break;
+                }
+            }
             Minecraft.getMinecraft()
                 .getItemRenderer()
-                .renderItemSide(golem, shown, ItemCameraTransforms.TransformType.THIRD_PERSON_RIGHT_HAND, false);
+                .renderItemSide(golem, shown, ItemCameraTransforms.TransformType.NONE, false);
         } finally {
             GlStateManager.popMatrix();
             GlStateManager.color(1F, 1F, 1F, 1F);

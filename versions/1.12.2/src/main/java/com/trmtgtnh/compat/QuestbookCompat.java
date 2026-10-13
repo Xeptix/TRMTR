@@ -69,6 +69,23 @@ public final class QuestbookCompat {
 
     private static final String STAMP = ".trmt-version";
 
+    /**
+     * The one file 1.12.2's own BetterQuesting (3.5.329, the last Funwayguy build) keeps a pack's default book in, beside
+     * the folder the GT New Horizons fork reads; what it was written for is said in its own stamp beside it, and what it
+     * held before each write is kept beside it too (0.9.224, BP58).
+     */
+    private static final String SINGLE_FILE = "DefaultQuests.json";
+
+    private static final String SINGLE_STAMP = "DefaultQuests.trmt-version";
+
+    private static final String SINGLE_BACKUP = "DefaultQuests.json.trmt-backup";
+
+    /** The only shape of that file this edition knows; any other is left alone. */
+    private static final String SINGLE_FORMAT = "2.0.0";
+
+    /** This version's sound for a quest updated or done, where the GT New Horizons fork names 1.7.10's. */
+    private static final String LEVEL_UP = "minecraft:entity.player.levelup";
+
     /** The pack's own bags, by the meta its loot config gives each age. */
     private static final String LOOT_BAG = "enhancedlootbags:lootbag";
 
@@ -236,6 +253,11 @@ public final class QuestbookCompat {
         if (!active()) return;
         try {
             File defaults = defaultsFolder();
+            // This version's own BetterQuesting keeps a pack's whole book in one file beside the folder the GT New
+            // Horizons fork reads (0.9.224, BP58): merged into where the pack has one, as the folder is written into
+            // only where the pack has it.
+            File single = defaults == null ? null : new File(defaults.getParentFile(), SINGLE_FILE);
+            if (single != null && single.isFile()) mergeIntoSingleFile(single);
             if (defaults == null || !defaults.isDirectory()) {
                 Trmt.LOG.debug("No BetterQuesting DefaultQuests folder, so no quest line was written");
                 return;
@@ -298,7 +320,10 @@ public final class QuestbookCompat {
      */
     private static String stamp() {
         return com.trmtgtnh.Tags.VERSION + lessons()
-            .stamp() + "/golems=" + TrmtConfig.golemEnabled + "/upgrades=" + TrmtConfig.golemUpgrades;
+            .stamp() + "/golems=" + TrmtConfig.golemEnabled + "/upgrades=" + TrmtConfig.golemUpgrades
+            // And which rewards this pack can give (0.9.224): a pack that gains or loses the loot bags or Pam's foods
+            // is written for again, rather than kept offering what it no longer has.
+            + "/bags=" + (registered(LOOT_BAG) != null) + "/pam=" + net.minecraftforge.fml.common.Loader.isModLoaded("harvestcraft");
     }
 
     private static int effectId(net.minecraft.enchantment.Enchantment enchantment) {
@@ -426,6 +451,210 @@ public final class QuestbookCompat {
         } catch (IOException problem) {
             Trmt.LOG.warn("Could not write {}", file.getName(), problem);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // The one file this version's own BetterQuesting reads
+    // ------------------------------------------------------------------
+
+    /**
+     * Merges the chapter into the pack's {@code DefaultQuests.json} (0.9.224, BP58; Xep chose this over a file to import
+     * by hand).
+     *
+     * <p>
+     * BetterQuesting 3.5.329 keeps a pack's whole default book in this one file and loads it whole - into a new world,
+     * and on {@code /bq_admin default load}, which replaces the world's book with it - and reads nothing of the folder
+     * this class writes for GT New Horizons' fork: on the set-aside 1.12.2 Packs instance that command answered "Quest
+     * database not found" and the chapter never reached the book. So the chapter goes into the file itself, and this is
+     * the one place this mod edits a file of the pack's, which is why it is careful:
+     * <ul>
+     * <li>only where the pack has the file and it is the shape this edition knows, as the folder is written into only
+     * where the pack has it;</li>
+     * <li>this mod's own entries alone: its line is found by its name, and that line and the quests it holds are what is
+     * taken out and written again; every other quest and line is carried across as it was read;</li>
+     * <li>under ids above the pack's highest, so nothing of the pack's is renumbered;</li>
+     * <li>the file as it was copied beside itself before every write, and written through a temporary file.</li>
+     * </ul>
+     */
+    private static void mergeIntoSingleFile(File file) {
+        File stampFile = new File(file.getParentFile(), SINGLE_STAMP);
+        try {
+            com.google.gson.JsonObject root = new com.google.gson.JsonParser().parse(readText(file))
+                .getAsJsonObject();
+            com.google.gson.JsonElement format = root.get("format:8");
+            com.google.gson.JsonObject quests = objectAt(root, "questDatabase:9");
+            com.google.gson.JsonObject lines = objectAt(root, "questLines:9");
+            if (format == null || !SINGLE_FORMAT.equals(format.getAsString()) || quests == null || lines == null) {
+                Trmt.LOG.warn("{} is not in the shape this edition knows, so the quest line was not merged into it", file);
+                return;
+            }
+
+            // This mod's line, found by its name, and the quests it holds.
+            String ourLine = null;
+            java.util.Set<Integer> ours = new java.util.HashSet<Integer>();
+            for (java.util.Map.Entry<String, com.google.gson.JsonElement> each : lines.entrySet()) {
+                com.google.gson.JsonObject line = each.getValue()
+                    .getAsJsonObject();
+                if (!LINE_NAME.equals(lineName(line))) continue;
+                ourLine = each.getKey();
+                com.google.gson.JsonObject held = objectAt(line, "quests:9");
+                if (held == null) continue;
+                for (java.util.Map.Entry<String, com.google.gson.JsonElement> entry : held.entrySet()) {
+                    com.google.gson.JsonElement id = entry.getValue()
+                        .getAsJsonObject()
+                        .get("id:3");
+                    if (id != null) ours.add(Integer.valueOf(id.getAsInt()));
+                }
+            }
+            if (ourLine != null && stampFile.isFile() && readText(stampFile).contains("generatedFor=" + stamp())) {
+                Trmt.LOG.debug("The quest line in {} is already current", file);
+                return;
+            }
+
+            List<Quest> built = build();
+            if (built.isEmpty()) return;
+
+            // Ours out, then the highest of what is left is what ours are numbered above.
+            if (ourLine != null) lines.remove(ourLine);
+            java.util.Iterator<java.util.Map.Entry<String, com.google.gson.JsonElement>> walk = quests.entrySet()
+                .iterator();
+            while (walk.hasNext()) {
+                com.google.gson.JsonElement id = walk.next()
+                    .getValue()
+                    .getAsJsonObject()
+                    .get("questID:3");
+                if (id != null && ours.contains(Integer.valueOf(id.getAsInt()))) walk.remove();
+            }
+            int nextQuest = highest(quests, "questID:3") + 1;
+            int nextLine = highest(lines, "lineID:3") + 1;
+
+            java.util.Map<Long, Integer> numbered = new java.util.HashMap<Long, Integer>();
+            for (Quest quest : built) {
+                numbered.put(Long.valueOf(quest.id), Integer.valueOf(nextQuest++));
+            }
+            com.google.gson.JsonObject placed = new com.google.gson.JsonObject();
+            int index = nextIndex(quests);
+            int place = 0;
+            for (Quest quest : built) {
+                quests.add(index++ + ":10", asThisVersionsQuest(quest, numbered));
+                com.google.gson.JsonObject at = new com.google.gson.JsonObject();
+                at.addProperty("id:3", numbered.get(Long.valueOf(quest.id)));
+                at.addProperty("sizeX:3", Integer.valueOf(24));
+                at.addProperty("sizeY:3", Integer.valueOf(24));
+                at.addProperty("x:3", Integer.valueOf(quest.x));
+                at.addProperty("y:3", Integer.valueOf(quest.y));
+                placed.add(place++ + ":10", at);
+            }
+            com.google.gson.JsonObject line = new com.google.gson.JsonParser().parse(lineProperties().toString())
+                .getAsJsonObject();
+            line.remove("questLineIDHigh:4");
+            line.remove("questLineIDLow:4");
+            line.addProperty("lineID:3", Integer.valueOf(nextLine));
+            line.add("quests:9", placed);
+            lines.add(nextIndex(lines) + ":10", line);
+
+            java.nio.file.Files.copy(
+                file.toPath(),
+                new File(file.getParentFile(), SINGLE_BACKUP).toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            File fresh = new File(file.getParentFile(), SINGLE_FILE + ".trmt-new");
+            write(
+                fresh,
+                new com.google.gson.GsonBuilder().setPrettyPrinting()
+                    .create()
+                    .toJson(root));
+            java.nio.file.Files.move(
+                fresh.toPath(),
+                file.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            write(stampFile, "generatedFor=" + stamp() + "\n");
+            Trmt.LOG.info(
+                "Merged the '{}' quest line ({} quests) into {}, the book as it was kept beside it as {}. Run /bq_admin default load in game to pick it up.",
+                LINE_NAME,
+                Integer.valueOf(built.size()),
+                file.getName(),
+                SINGLE_BACKUP);
+        } catch (IOException | RuntimeException problem) {
+            Trmt.LOG.warn("Could not merge the quest line into {}", file, problem);
+        }
+    }
+
+    /**
+     * One quest as this version's BetterQuesting writes it: numbered by one id where the GT New Horizons fork names it by
+     * two halves of a long pair, its prerequisites a list of those numbers, and this version's level-up sound.
+     */
+    private static com.google.gson.JsonObject asThisVersionsQuest(Quest quest, java.util.Map<Long, Integer> numbered) {
+        com.google.gson.JsonObject written = new com.google.gson.JsonParser().parse(quest.definition())
+            .getAsJsonObject();
+        written.remove("questIDHigh:4");
+        written.remove("questIDLow:4");
+        written.addProperty("questID:3", numbered.get(Long.valueOf(quest.id)));
+        com.google.gson.JsonObject before = objectAt(written, "preRequisites:9");
+        written.remove("preRequisites:9");
+        com.google.gson.JsonArray after = new com.google.gson.JsonArray();
+        if (before != null) {
+            for (java.util.Map.Entry<String, com.google.gson.JsonElement> each : before.entrySet()) {
+                Integer to = numbered.get(
+                    Long.valueOf(
+                        each.getValue()
+                            .getAsJsonObject()
+                            .get("questIDLow:4")
+                            .getAsLong()));
+                if (to != null) after.add(new com.google.gson.JsonPrimitive(to));
+            }
+        }
+        written.add("preRequisites:11", after);
+        com.google.gson.JsonObject properties = objectAt(objectAt(written, "properties:10"), "betterquesting:10");
+        if (properties != null) {
+            properties.addProperty("snd_complete:8", LEVEL_UP);
+            properties.addProperty("snd_update:8", LEVEL_UP);
+        }
+        return written;
+    }
+
+    @javax.annotation.Nullable
+    private static com.google.gson.JsonObject objectAt(@javax.annotation.Nullable com.google.gson.JsonObject in, String key) {
+        if (in == null) return null;
+        com.google.gson.JsonElement found = in.get(key);
+        return found != null && found.isJsonObject() ? found.getAsJsonObject() : null;
+    }
+
+    @javax.annotation.Nullable
+    private static String lineName(com.google.gson.JsonObject line) {
+        com.google.gson.JsonObject properties = objectAt(objectAt(line, "properties:10"), "betterquesting:10");
+        com.google.gson.JsonElement name = properties == null ? null : properties.get("name:8");
+        return name == null ? null : name.getAsString();
+    }
+
+    /** The highest id under {@code key} among a list's entries, or -1 where there are none. */
+    private static int highest(com.google.gson.JsonObject list, String key) {
+        int top = -1;
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> each : list.entrySet()) {
+            com.google.gson.JsonElement id = each.getValue()
+                .getAsJsonObject()
+                .get(key);
+            if (id != null) top = Math.max(top, id.getAsInt());
+        }
+        return top;
+    }
+
+    /** The next free index of a list written as {@code "<index>:10"} keys. */
+    private static int nextIndex(com.google.gson.JsonObject list) {
+        int next = 0;
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> each : list.entrySet()) {
+            String key = each.getKey();
+            int colon = key.indexOf(':');
+            try {
+                next = Math.max(next, Integer.parseInt(colon < 0 ? key : key.substring(0, colon)) + 1);
+            } catch (NumberFormatException notAnIndex) {
+                // A key that is not an index takes no number from the list.
+            }
+        }
+        return next;
+    }
+
+    private static String readText(File file) throws IOException {
+        return new String(java.nio.file.Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     // ------------------------------------------------------------------
@@ -733,13 +962,15 @@ public final class QuestbookCompat {
             .after(commands)
             .after(golemBook)
             .describe(
-                "Every road in this chapter walked, worn, mended and handed over.\n\nTake the tamper if you want the tool, the bags if you want the contents, or the eggs if you would rather never lay another path yourself.")
+                registered(LOOT_BAG) != null
+                    ? "Every road in this chapter walked, worn, mended and handed over.\n\nTake the tamper if you want the tool, the bags if you want the contents, or the eggs if you would rather never lay another path yourself."
+                    : "Every road in this chapter walked, worn, mended and handed over.\n\nTake the tamper if you want the tool, or the eggs if you would rather never lay another path yourself.")
             .checkbox()
             .rewardBags(BAG_STEAM, 8);
         Json finale = Json.obj();
         int choice = 0;
         if (wayfarer != null) finale.add(choice++, maxedWayfarer(wayfarer, lessons));
-        finale.add(choice++, stack(LOOT_BAG, 4, BAG_LV));
+        if (registered(LOOT_BAG) != null) finale.add(choice++, stack(LOOT_BAG, 4, BAG_LV));
         String egg = registryName(ModItems.golemEgg(), null);
         if (egg != null) finale.add(choice++, stack(egg, 4, 0));
         done.rewardChoices(finale);
@@ -822,6 +1053,19 @@ public final class QuestbookCompat {
             .put("Damage:2", damage)
             .putText("OreDict:8", "")
             .putText("id:8", id);
+    }
+
+    /**
+     * An item a reward names, as this version registers it, or null where nothing is registered under it (0.9.224,
+     * BP58). The rewards were written from 1.7.10's GT New Horizons book: its loot bags, which no 1.12.2 pack has, and
+     * Pam's foods spelled as 1.7.10 spells them, where this version's registry names are lower case - so a 1.12.2 book
+     * offered rewards it could not give. A reward is written only for an item that is here, under its own name.
+     */
+    @javax.annotation.Nullable
+    static String registered(String id) {
+        net.minecraft.util.ResourceLocation name = new net.minecraft.util.ResourceLocation(
+            id.toLowerCase(java.util.Locale.ROOT));
+        return net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.containsKey(name) ? name.toString() : null;
     }
 
     private static String registryName(Item item, String fallback) {
@@ -958,7 +1202,8 @@ public final class QuestbookCompat {
         }
 
         Quest rewardBags(int meta, int count) {
-            return rewardItems(stack(LOOT_BAG, count, meta));
+            String bag = registered(LOOT_BAG);
+            return bag == null ? this : rewardItems(stack(bag, count, meta));
         }
 
         private Quest rewardItems(Json what) {
@@ -980,7 +1225,8 @@ public final class QuestbookCompat {
             Json choices = Json.obj();
             int index = 0;
             for (String item : items) {
-                choices.add(index++, stack(item, 2, 0));
+                String found = registered(item);
+                if (found != null) choices.add(index++, stack(found, 2, 0));
             }
             return rewardChoices(choices);
         }

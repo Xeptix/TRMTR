@@ -166,6 +166,9 @@ public class ClientProxy extends CommonProxy {
     /** The last state of the settings modifier this client told the server about. */
     private boolean modifierWasDown;
 
+    /** What this client's last hello said of The One Probe's lines (0.9.224). */
+    private boolean probeLinesSaid;
+
     /**
      * Whether anything on this client reads the numbers an inspection fetches.
      *
@@ -266,6 +269,7 @@ public class ClientProxy extends CommonProxy {
         }
         if (!announced) {
             announced = true;
+            probeLinesSaid = com.trmtgtnh.config.TrmtConfig.probeLines;
             com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
             // And, once a session, the player is told when this jar is a snapshot (0.9.223).
             SnapshotNotice.joined(mc);
@@ -281,6 +285,14 @@ public class ClientProxy extends CommonProxy {
             .getItem() instanceof com.trmtgtnh.item.ItemChunkTamper
             || mc.player.getHeldItemOffhand()
                 .getItem() instanceof com.trmtgtnh.item.ItemChunkTamper;
+        // The One Probe's lines are written on the server, so a change to the switch that hides them is said there,
+        // in a hello, from whichever screen or file it was changed in (0.9.224). The hello answers with the player's
+        // surroundings again, as the overlay's own switch does; it is a setting, changed by hand, and rarely.
+        if (com.trmtgtnh.config.TrmtConfig.probeLines != probeLinesSaid) {
+            probeLinesSaid = com.trmtgtnh.config.TrmtConfig.probeLines;
+            com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
+        }
+
         boolean down = relevant && modifierHeld();
         if (down != modifierWasDown) {
             modifierWasDown = down;

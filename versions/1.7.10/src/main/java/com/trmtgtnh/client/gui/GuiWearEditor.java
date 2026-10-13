@@ -853,7 +853,7 @@ public class GuiWearEditor extends GuiScreen {
             int rightX = cellLeft + 69;
             drawCenteredString(fontRendererObj, caps[c], cellLeft + 37, t + 64, 0x8C8CA0);
             if (c == 0) outline(cl - 1, t + 61, cl + 74, t + 87, 0xFF6A6A7A);
-            else drawRect(cellLeft, t + 61, cellLeft + 74, t + 87, 0x14FFFFFF);
+            else drawRect(cellLeft, t + 61, cellLeft + 74, t + 87, 0x1AFFFFFF);
 
             double value = c == 0 ? row.crossingsPerPhase : row.crossings[c - 1];
             double bval = base == null ? Double.NaN : (c == 0 ? base.crossingsPerPhase : base.crossings[c - 1]);
@@ -2181,7 +2181,10 @@ public class GuiWearEditor extends GuiScreen {
             int x0 = cl + 76;
             int y0 = y + 2;
             // A ground behind the columns, or the steepest curve's opening is invisible.
-            drawRect(x0, y0, x0 + PLOT_WIDTH, y0 + PLOT_HEIGHT, 0x14FFFFFF);
+            // 0x1A, not 0x14 or 0x18: these screens draw with the alpha test on, which drops anything below 0.1 -
+            // the 0x1A floor, decided for 0.9.224 so the stripes show here as they do on 1.16.5, which has no alpha
+            // test.
+            drawRect(x0, y0, x0 + PLOT_WIDTH, y0 + PLOT_HEIGHT, 0x1AFFFFFF);
             // One on a nought-to-two axis is exactly halfway up, so the flat curve's columns lie
             // along this line for their whole length - the plainest statement of what flat means.
             drawRect(x0, y0 + PLOT_HEIGHT / 2, x0 + PLOT_WIDTH, y0 + PLOT_HEIGHT / 2 + 1, 0x30FFFFFF);

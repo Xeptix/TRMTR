@@ -38,6 +38,19 @@ public final class FabricEvents {
 
     private FabricEvents() {}
 
+    /**
+     * Sends a refused dig on to the server: set by the client entrypoint ({@link TrmtFabricClient}), null on a server.
+     *
+     * <p>
+     * <strong>Fabric API 0.42 for 1.16 swallows the click this callback answers.</strong> On the client its hook cancels
+     * the attack and sends nothing, so the server never heard a tamper's left-click on Fabric, and the gestures it
+     * carries - wear a square in, sneak to mend one - did nothing (0.9.224, found by the harness's claim part: the same
+     * click wore the square on 1.16.5 Forge and nothing on Fabric). Later Fabric API versions send the dig themselves
+     * when the answer accepts it; 0.42 is the last for 1.16, so this does what they do, and the server's own call of
+     * this callback - where a claim mod that refuses the dig is asked too (spec TA42) - is what acts.
+     */
+    public static volatile java.util.function.BiConsumer<net.minecraft.core.BlockPos, net.minecraft.core.Direction> sendClickToServer;
+
     public static void open() {
         // /trmt, which is registered each time the command tree is built - once per server start
         // rather than once per launch. See the Forge module's copy of this.
@@ -82,6 +95,8 @@ public final class FabricEvents {
             if (!TamperEvents.holdsTamper(held)) return InteractionResult.PASS;
             TamperEvents.get()
                 .leftClicked(level, player, pos.getX(), pos.getY(), pos.getZ(), held);
+            java.util.function.BiConsumer<net.minecraft.core.BlockPos, net.minecraft.core.Direction> send = sendClickToServer;
+            if (level.isClientSide() && send != null) send.accept(pos, face);
             return InteractionResult.SUCCESS;
         });
 

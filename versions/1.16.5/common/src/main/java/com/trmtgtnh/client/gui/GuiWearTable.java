@@ -133,7 +133,19 @@ public class GuiWearTable extends Screen {
                 Item item = heldForm(fallback);
                 if (item != null) list.add(new ItemStack(item));
             }
+            // Each row opens on its family's road block: see RowOrder.
+            final Item road = heldForm(com.trmtgtnh.command.CommandTrmt.roadBlock(family));
+            RowOrder.leadWith(list, stack -> stack.getItem() == road);
         }
+    }
+
+    /**
+     * A row's pictures in the order it cycles them, or null for a family with no row - the harness reads it to check
+     * each row opens on its family's road block.
+     */
+    public List<ItemStack> rowPictures(SurfaceFamily family) {
+        List<ItemStack> list = icons.get(family);
+        return list == null ? null : java.util.Collections.unmodifiableList(list);
     }
 
     @Override
@@ -302,7 +314,9 @@ public class GuiWearTable extends Screen {
         double total = live.crossings[3];
         if (!(total > 0d)) return;
 
-        fill(pose, x0, y, x0 + w, y + 7, 0x18FFFFFF);
+        // 0x1A, as 1.7.10 draws it: there and on 1.12.2 the alpha test drops anything below 0.1, so 0.9.224 raised
+        // these from 0x14 and 0x18 to the floor that shows, and this edition, which has no alpha test, followed.
+        fill(pose, x0, y, x0 + w, y + 7, 0x1AFFFFFF);
         final int[] shade = { 0xFF4A4A5A, 0xFF6A6A7A, 0xFF8C8CA0, 0xFFC9C9D6 };
         int prev = 0;
         for (int k = 0; k < 4; k++) {
@@ -318,8 +332,10 @@ public class GuiWearTable extends Screen {
         int y1 = rowY + 4;
         int y2 = rowY + 15;
 
-        if (shade) fill(pose, cl - 4, rowY, cl + QX[3] + 2, rowY + ROW_H - 1, 0x14FFFFFF);
-        fill(pose, cl - 4, rowY + ROW_H - 1, cl + QX[3] + 2, rowY + ROW_H, 0x18FFFFFF);
+        // 0x1A, as 1.7.10 draws it: there and on 1.12.2 the alpha test drops anything below 0.1, so 0.9.224 raised
+        // these from 0x14 and 0x18 to the floor that shows, and this edition, which has no alpha test, followed.
+        if (shade) fill(pose, cl - 4, rowY, cl + QX[3] + 2, rowY + ROW_H - 1, 0x1AFFFFFF);
+        fill(pose, cl - 4, rowY + ROW_H - 1, cl + QX[3] + 2, rowY + ROW_H, 0x1AFFFFFF);
 
         // Cycling block icon.
         List<ItemStack> group = icons.get(family);

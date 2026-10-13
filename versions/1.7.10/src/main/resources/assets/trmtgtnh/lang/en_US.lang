@@ -1,6 +1,8 @@
 trmtgtnh.config.title=The Roads More Travelled
 trmtgtnh.config.showErosion=Show worn paths
 trmtgtnh.config.showErosion.tooltip=When off, terrain renders untouched for you alone - except where the ruts are real enough to walk into, which is the shipped default and holds the drawing on. Other players are unaffected and the server keeps tracking wear, so switching it back on brings every path straight back.
+trmtgtnh.config.probeLines=Show TRMT lines in The One Probe
+trmtgtnh.config.probeLines.tooltip=Does nothing in this edition, which has no One Probe; kept so every edition's settings are the same settings.
 trmtgtnh.config.overlayDistance=Overlay distance
 trmtgtnh.config.overlayDistance.tooltip=How many chunks out worn ground is painted. Independent of render distance.
 trmtgtnh.config.perSurfaceTextures=Per-surface wear textures

@@ -364,9 +364,11 @@ public class GuiTamper extends GuiScreen {
         // A faint backing behind each -/+ pair, so a setting reads as one unit rather than two
         // buttons with a number floating between them.
         drawRect(midX - 114, top + 49, midX + 114, top + 75, 0x40FFFFFF);
-        drawRect(midX - 113, top + 50, midX + 113, top + 74, 0x14FFFFFF);
+        // 0x1A, not 0x14 or 0x18: these screens draw with the alpha test on, which drops anything below 0.1 -
+        // the 0x1A floor, decided for 0.9.224 so the stripes show here as they do on 1.16.5, which has no alpha test.
+        drawRect(midX - 113, top + 50, midX + 113, top + 74, 0x1AFFFFFF);
         drawRect(midX - 114, top + 77, midX + 114, top + 103, 0x40FFFFFF);
-        drawRect(midX - 113, top + 78, midX + 113, top + 102, 0x14FFFFFF);
+        drawRect(midX - 113, top + 78, midX + 113, top + 102, 0x1AFFFFFF);
         drawRect(midX - 112, top + 107, midX + 112, top + 108, 0x30FFFFFF);
 
         // The operator editor is its own panel, in purple, below a gap - a different and rarer

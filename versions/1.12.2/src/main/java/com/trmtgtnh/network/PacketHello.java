@@ -1,12 +1,12 @@
 package com.trmtgtnh.network;
 
 import net.minecraft.entity.player.EntityPlayerMP;
-
-import com.trmtgtnh.util.MainThread;
-
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
+
+import com.trmtgtnh.util.MainThread;
+
 import io.netty.buffer.ByteBuf;
 
 /**
@@ -29,23 +29,39 @@ public class PacketHello implements IMessage {
      */
     private int protocol = 1;
 
+    /**
+     * Whether the sender wants The One Probe to show this mod's lines (0.9.224, TrmtConfig.probeLines): written after
+     * the protocol as the protocol was written after the switch, so an older server leaves it unread, and read as on
+     * where a hello from an older client ends at the protocol. Not a protocol of its own: nothing else is read
+     * differently because of it.
+     */
+    private boolean probeLines = true;
+
     public PacketHello() {}
 
     public PacketHello(boolean wantsOverlays) {
         this.wantsOverlays = wantsOverlays;
         this.protocol = TrmtNetwork.PROTOCOL;
+        this.probeLines = com.trmtgtnh.config.TrmtConfig.probeLines;
     }
 
     @Override
     public void fromBytes(ByteBuf buf) {
         wantsOverlays = buf.readBoolean();
         protocol = buf.readableBytes() >= 4 ? buf.readInt() : 1;
+        probeLines = buf.readableBytes() >= 1 ? buf.readBoolean() : true;
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeBoolean(wantsOverlays);
         buf.writeInt(protocol);
+        buf.writeBoolean(probeLines);
+    }
+
+    /** What the hello says of The One Probe's lines. */
+    boolean probeLines() {
+        return probeLines;
     }
 
     public static class Handler implements IMessageHandler<PacketHello, IMessage> {
@@ -62,6 +78,7 @@ public class PacketHello implements IMessage {
             // from another thread. See TrmtNetwork.answerHello for why it is not decided here.
             TrmtNetwork.rememberWanted(player, wants);
             TrmtNetwork.rememberProtocol(player, message.protocol);
+            TrmtNetwork.rememberProbeLines(player, message.probeLines);
             MainThread.onServer(new Runnable() {
 
                 @Override

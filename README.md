@@ -756,7 +756,9 @@ instead.
 
 **BetterQuesting** and **Amazing Trophies** are integrated by writing their own JSON into their
 own config folders - the mod links against neither, so both cost exactly nothing when absent. The
-quest chapter is written additively into `DefaultQuests` and quests whose subject is switched off
+quest chapter is written additively into `DefaultQuests` - on 1.12.2, whose BetterQuesting keeps a
+pack's whole book in `DefaultQuests.json`, merged into that file, this mod's own chapter alone and the file
+copied beside itself as `DefaultQuests.json.trmt-backup` first - and quests whose subject is switched off
 are dropped, with anything that depended on them re-parented onto what is left, and the Wayfarer's
 Tamper offered as the final prize carries only the enchantments the chapter still teaches.
 
@@ -1177,13 +1179,14 @@ wear table and the config screen.
 | Mod | What it adds |
 |---|---|
 | **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5) | the wear readout on the tooltip, and a golem provider |
+| **[The One Probe](https://github.com/McJtyMods/TheOneProbe)** (1.12.2, 1.16.5 Forge) | the same readout in its panel, for worn ground, reinforced and warded blocks, path light and the golem; `client.probeLines` turns it off, and the overlay's hide key hides it too |
 | **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map coloring and the desire-path highlight, in every edition |
 | **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | the map told when a square changes, in every edition; worn ground drawn darker as it wears through its tint on 1.7.10, through its map color on the later editions |
 | **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge), **[Iris](https://github.com/IrisShaders/Iris)**, **[Canvas](https://github.com/vram-guild/canvas)** or **[OptiFabric](https://github.com/Chocohead/OptiFabric)** (1.16.5 Fabric) | worn ground inherits the covered block's shader material |
 | **[Chisel](https://github.com/Chisel-Team/Chisel)** | the liquid layer painted into worn textures and drawn through the carving's gaps (1.7.10, 1.12.2), and the layered-block shell lift (1.7.10) |
 | **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **[Amazing Trophies](https://github.com/GTNewHorizons/Amazing-Trophies)** | seven trophy definitions written into its own config folder |
-| **[BetterQuesting](https://github.com/Funwayguy/BetterQuesting)** | a chapter of up to seventeen quests, written additively into `DefaultQuests` |
+| **[BetterQuesting](https://github.com/Funwayguy/BetterQuesting)** | a chapter of up to seventeen quests, written additively into `DefaultQuests`, or merged into `DefaultQuests.json` on 1.12.2 |
 | **[Et Futurum Requiem](https://github.com/Roadhog360/Et-Futurum-Requiem)** | two registry names in default block lists, and nothing more |
 | **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
 
@@ -1337,7 +1340,7 @@ Run `./gradlew spotlessApply` before building, or the build fails on formatting.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **536 tests on 1.7.10, 662 on 1.12.2 and 720 on 1.16.5**, every one
+types in them and are unit tested - **541 tests on 1.7.10, 687 on 1.12.2 and 753 on 1.16.5**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 

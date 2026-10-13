@@ -231,6 +231,39 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
             // would then skip the next call it believed was already in force.
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             GlStateManager.disableRescaleNormal();
+            // And the switches, for the same reason (0.9.224): the item renderer turns blending on through the manager,
+            // the pop turns it off again behind its back, and the next drawRect - which asks the manager for blending -
+            // was skipped as already on and drew opaque. The wear editor's rule under its heading came out solid white,
+            // where 1.7.10 draws it faint. Each is set from what the driver now says, so the manager agrees with it.
+            agree(GL11.GL_BLEND);
+            agree(GL11.GL_DEPTH_TEST);
+            agree(GL11.GL_ALPHA_TEST);
+            agree(GL11.GL_LIGHTING);
+        }
+    }
+
+    /** Tells the state manager what the driver says of one switch, so its next call is not skipped as already made. */
+    static void agree(int cap) {
+        boolean on = GL11.glIsEnabled(cap);
+        switch (cap) {
+            case GL11.GL_BLEND:
+                if (on) GlStateManager.enableBlend();
+                else GlStateManager.disableBlend();
+                break;
+            case GL11.GL_DEPTH_TEST:
+                if (on) GlStateManager.enableDepth();
+                else GlStateManager.disableDepth();
+                break;
+            case GL11.GL_ALPHA_TEST:
+                if (on) GlStateManager.enableAlpha();
+                else GlStateManager.disableAlpha();
+                break;
+            case GL11.GL_LIGHTING:
+                if (on) GlStateManager.enableLighting();
+                else GlStateManager.disableLighting();
+                break;
+            default:
+                throw new IllegalArgumentException("not a switch this agrees: " + cap);
         }
     }
 }

@@ -125,7 +125,7 @@ public final class GeneratedPack implements PackResources {
 
     public GeneratedPack(Sheets sheets) {
         this.sheets = sheets;
-        latest = this;
+        OPEN.add(this);
     }
 
     @Override
@@ -163,8 +163,20 @@ public final class GeneratedPack implements PackResources {
      */
     private final Map<ResourceLocation, Answer> answers = new ConcurrentHashMap<ResourceLocation, Answer>();
 
-    /** The pack the current reload opened, whose answers the end of the stitch lets go. */
-    private static volatile GeneratedPack latest;
+    /**
+     * Every pack this class has made and not closed, whose answers the end of a stitch lets go.
+     *
+     * <p>
+     * Every one, not the last made (0.9.224). The game makes a pack from its supplier each time the pack list is read,
+     * and the resource manager goes on reading through the one it opened while newer ones are made beside it - so a
+     * single "latest" could be a pack nothing reads, and the one being read kept the last stitch's pictures. The second
+     * rebuild of the wear pictures in a session then had the atlas served those kept pictures without asking for new
+     * ones, every wear sprite was left unusable, and no worn ground showed until the game was restarted: the narrow
+     * rebuild of 0.9.223 asked twice in a row did it every time, found by the harness's atlas part. Weak, so a pack the
+     * game has let go is not held here.
+     */
+    private static final Set<GeneratedPack> OPEN = Collections
+        .synchronizedSet(Collections.newSetFromMap(new java.util.WeakHashMap<GeneratedPack, Boolean>()));
 
     private static final class Answer {
 
@@ -194,8 +206,9 @@ public final class GeneratedPack implements PackResources {
 
     /** Lets go of every answer the current reload's pack still holds - the end of a stitch. */
     public static void forgetAll() {
-        GeneratedPack pack = latest;
-        if (pack != null) pack.answers.clear();
+        synchronized (OPEN) {
+            for (GeneratedPack pack : OPEN) pack.answers.clear();
+        }
     }
 
     @Override
@@ -300,6 +313,7 @@ public final class GeneratedPack implements PackResources {
     @Override
     public void close() {
         answers.clear();
+        OPEN.remove(this);
     }
 
     /**

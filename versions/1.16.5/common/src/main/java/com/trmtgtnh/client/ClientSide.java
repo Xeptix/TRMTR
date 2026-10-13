@@ -433,6 +433,7 @@ public final class ClientSide implements Client.Side {
         com.trmtgtnh.client.model.GhostDust.release();
         sayHello();
         tellAboutTheModifier();
+        tellAboutTheProbe();
         // Put in place once, from here rather than from start-up: JourneyMap builds its own tables
         // as a world loads, and a BlockMD asked for before then is one it will replace.
         com.trmtgtnh.client.journeymap.JourneyMapColors.tick();
@@ -497,6 +498,21 @@ public final class ClientSide implements Client.Side {
     /** Whether the modifier was held last tick, so only the changes are sent. */
     private static boolean modifierWasDown;
 
+    /** What this client's last hello said of The One Probe's lines (0.9.224). */
+    private static boolean probeLinesSaid;
+
+    /**
+     * Says a change to the switch that hides this mod's lines in The One Probe, in a hello, from whichever screen or
+     * file it was changed in (0.9.224). The probe's lines are written on the server, so that is where the switch has to
+     * be known. The hello answers with the player's surroundings again, as the overlay's own switch does; it is a
+     * setting, changed by hand, and rarely.
+     */
+    private static void tellAboutTheProbe() {
+        if (!announced || com.trmtgtnh.config.TrmtConfig.probeLines == probeLinesSaid) return;
+        probeLinesSaid = com.trmtgtnh.config.TrmtConfig.probeLines;
+        com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
+    }
+
     /**
      * Tells the server whether the modifier key is held, when that changes.
      *
@@ -553,6 +569,7 @@ public final class ClientSide implements Client.Side {
     private static void sayHello() {
         if (announced) return;
         announced = true;
+        probeLinesSaid = com.trmtgtnh.config.TrmtConfig.probeLines;
         com.trmtgtnh.network.TrmtNetwork.sendHello(com.trmtgtnh.config.TrmtConfig.showErosion);
         // And, once a session, the player is told when this jar is a snapshot (0.9.223).
         SnapshotNotice.joined(net.minecraft.client.Minecraft.getInstance());

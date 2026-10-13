@@ -20,6 +20,7 @@ import com.trmtgtnh.erosion.ErosionEntry;
 import com.trmtgtnh.erosion.ErosionState;
 import com.trmtgtnh.erosion.ErosionStore;
 import com.trmtgtnh.network.PacketInspect;
+import com.trmtgtnh.network.TrmtNetwork;
 
 import mcjty.theoneprobe.api.IProbeHitData;
 import mcjty.theoneprobe.api.IProbeHitEntityData;
@@ -84,24 +85,25 @@ public final class OneProbeTooltip implements Function<ITheOneProbe, Void>, IPro
     public void addProbeInfo(ProbeMode mode, IProbeInfo probeInfo, Player player, Level world, BlockState blockState,
         IProbeHitData data) {
         BlockPos at = data.getPos();
-        if (at == null || world == null) return;
-        add(probeInfo, linesAt(world, at.getX(), at.getY(), at.getZ()));
+        if (at == null || world == null || !TrmtNetwork.probeLinesFor(player)) return;
+        add(probeInfo, linesAt(world, at.getX(), at.getY(), at.getZ(), TrmtNetwork.drawsWearFor(player)));
     }
 
     /**
      * The lines for one position, from the server's record.
      *
      * <p>
-     * A worn square is drawn where the record's packed state shows one and the overlay is being drawn at all - the
-     * two questions the client answers before it stands a ghost there. The settings asked are this machine's: on a
-     * single-player world the client's own, since the server shares them, and on a dedicated server the server's,
-     * which are the ones that govern there.
+     * A worn square is drawn where the record's packed state shows one and the reader's client is drawing the
+     * overlay at all - the two questions that client answers before it stands a ghost there. The second is asked of
+     * that player (TrmtNetwork.drawsWearFor) since 0.9.224: until then it was this machine's settings, so on a
+     * dedicated server a player who had hidden worn ground was still told of it, where Hwyla and Jade, which ask the
+     * client, said nothing.
      */
-    static List<String> linesAt(Level world, int x, int y, int z) {
+    static List<String> linesAt(Level world, int x, int y, int z, boolean drawsWear) {
         ErosionEntry entry = ErosionStore.get()
             .getEntry(world, x, y, z);
         short state = entry == null ? ErosionState.NONE : entry.packState();
-        boolean ghostHere = TrmtConfig.enabled && TrmtConfig.overlayVisible() && BlockGhost.shows(state);
+        boolean ghostHere = drawsWear && BlockGhost.shows(state);
         int glow = entry == null ? 0 : entry.getLight();
         return TooltipLines.block(
             ghostHere,
@@ -114,7 +116,7 @@ public final class OneProbeTooltip implements Function<ITheOneProbe, Void>, IPro
     @Override
     public void addProbeEntityInfo(ProbeMode mode, IProbeInfo probeInfo, Player player, Level world, Entity entity,
         IProbeHitEntityData data) {
-        if (!(entity instanceof EntityGolemOfWays)) return;
+        if (!(entity instanceof EntityGolemOfWays) || !TrmtNetwork.probeLinesFor(player)) return;
         add(probeInfo, TooltipLines.golem((EntityGolemOfWays) entity, OneProbeTooltip::marked));
     }
 
