@@ -68,7 +68,7 @@ public final class FabricEvents {
         // neither loader's chunk-data event does. See ErosionStore for what each of the four does.
         ServerChunkEvents.CHUNK_LOAD.register(
             (level, chunk) -> com.trmtgtnh.erosion.ErosionStore.get()
-                .chunkLoaded(level, chunk.getPos().x, chunk.getPos().z));
+                .chunkLoaded(level, chunk));
         ServerChunkEvents.CHUNK_UNLOAD.register(
             (level, chunk) -> com.trmtgtnh.erosion.ErosionStore.get()
                 .chunkUnloaded(level, chunk.getPos().x, chunk.getPos().z));

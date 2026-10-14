@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_chunk_tamper",
+    "display": {
+        "icon": {
+            "item": "minecraft:glowstone"
+        },
+        "title": {
+            "translate": "achievement.trmtLighting"
+        },
+        "description": {
+            "translate": "achievement.trmtLighting.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

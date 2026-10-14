@@ -293,7 +293,7 @@ public final class ForgeEvents {
         if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk)) return;
         Level level = ((net.minecraft.world.level.chunk.LevelChunk) chunk).getLevel();
         com.trmtgtnh.erosion.ErosionStore.get()
-            .chunkLoaded(level, chunk.getPos().x, chunk.getPos().z);
+            .chunkLoaded(level, (net.minecraft.world.level.chunk.LevelChunk) chunk);
     }
 
     /**

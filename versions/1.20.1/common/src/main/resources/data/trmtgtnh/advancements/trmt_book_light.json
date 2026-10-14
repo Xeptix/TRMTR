@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_lighting",
+    "display": {
+        "icon": {
+            "item": "minecraft:enchanted_book"
+        },
+        "title": {
+            "translate": "achievement.trmtBookLight"
+        },
+        "description": {
+            "translate": "achievement.trmtBookLight.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

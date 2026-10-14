@@ -700,10 +700,13 @@ public final class ErosionEngine {
      * By the end of the tick those players are queued, so they are left to the watch event, which sends
      * the chunk as it stands when it actually arrives.
      */
-    public void catchUpChunk(final Level world, final int chunkX, final int chunkZ, ChunkErosionData data) {
+    public void catchUpChunk(final Level world, LevelChunk arriving, ChunkErosionData data) {
+        final int chunkX = arriving.getPos().x;
+        final int chunkZ = arriving.getPos().z;
         // No per-position deltas here: the whole chunk goes out afterwards, and for a chunk that has been
-        // away for months that is one packet instead of hundreds.
-        healChunk(world, chunkX, chunkZ, data, false);
+        // away for months that is one packet instead of hundreds. The chunk as it arrived, never asked of the level:
+        // see ErosionStore.chunkLoaded.
+        healChunk(world, arriving, data, false);
         if (world == null || world.isClientSide()) return;
         final int dimension = ErosionStore.get().indexOf(world);
         com.trmtgtnh.util.MainThread.onServer(new Runnable() {
@@ -731,9 +734,16 @@ public final class ErosionEngine {
         // while the loaded ones stood still (0.9.222, spec WH8). Its time is not lost - the records keep their clocks,
         // and the first sweep once the switch is on again heals what they are owed.
         if (!TrmtConfig.enabled || !TrmtConfig.healingEnabled || data.isEmpty()) return;
+        // The sweep's path: a chunk it has already found loaded and full, so the level answers at once.
+        healChunk(world, world.getChunk(chunkX, chunkZ), data, notifyClients);
+    }
 
-        LevelChunk chunk = world.getChunk(chunkX, chunkZ);
+    /** The same, for a chunk in hand - the one arriving, during its load, when the level must not be asked for it. */
+    private void healChunk(Level world, LevelChunk chunk, ChunkErosionData data, boolean notifyClients) {
+        if (!TrmtConfig.enabled || !TrmtConfig.healingEnabled || data.isEmpty()) return;
         if (chunk == null) return;
+        int chunkX = chunk.getPos().x;
+        int chunkZ = chunk.getPos().z;
 
         int now = nowSeconds(world);
         // Read once for the whole chunk, because rain falls on all of it at once. A position the
@@ -839,8 +849,8 @@ public final class ErosionEngine {
             if (!heal(entry, base, elapsed, now, cap, wet, SurfaceRegistry.resistanceOf(ground))) continue;
 
             data.markDirty();
-            ErosionStore.get()
-                .markModified(world, x >> 4, z >> 4);
+            // The chunk in hand, never asked of the level: see ErosionStore.markModified.
+            chunk.setUnsaved(true);
             short after = entry.isVisible() ? entry.packState() : ErosionState.NONE;
             if (entry.isPrunable()) data.remove(key);
             // Healing that only bled off partial wear changes nothing anyone can see, so the

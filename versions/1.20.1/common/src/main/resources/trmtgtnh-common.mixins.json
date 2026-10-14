@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "plugin": "com.trmtgtnh.mixin.OculusGate",
+  "mixins": [
+    "MixinOculusBlockContext",
+    "MixinOptiFineShaderSeat",
+    "MixinPackRepository"
+  ],
+  "client": [
+    "MixinSettledFacesSodium"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

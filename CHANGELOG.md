@@ -1,8 +1,42 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.223 is the same release on Minecraft 1.7.10, 1.12.2
-and 1.16.5, and later releases will carry whatever editions exist then. A change in one edition
+One version number across every edition. 0.9.225 is the same release on Minecraft 1.7.10, 1.12.2,
+1.16.5 and 1.20.1, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.225 - 2026-10-14
+
+**Minecraft 1.20.1, on Forge and Fabric, as an alpha.** The same mod as the other editions, held to the 1.7.10 edition
+rule for rule, in two new jars: Forge 47 with Cloth Config, and Fabric with Fabric API 0.86.0 or newer and Cloth Config.
+A world brought up from 1.16.5 keeps its wear. It draws under Embeddium with Oculus and under OptiFine on Forge, and under Sodium with Indium and Iris,
+under Canvas and under OptiFine through OptiFabric on Fabric, and under a shader pack worn ground keeps the covered
+block's shader material through Oculus, Iris and OptiFine; Jade on Forge and WTHIT on Fabric show each square's wear, JourneyMap and
+Xaero's Minimap draw it, the blocks Rechiseled, Chisel Reborn and Chipped add wear with the ground they are made of, and
+GregTech CEu Modern turns on `integration.gtnhEnhanced`. The quest chapter is written for FTB Quests on both loaders,
+its rewards paid in vanilla stand-ins, since GT New Horizons' loot bags and HarvestCraft's food have no 1.20.1
+build. It is an alpha because it is the first build for this version.
+
+*Changes: 1.20.1.*
+
+**A worn world opens again on 1.16.5 Fabric.** From 0.9.222 a chunk arriving with wear saved in it is caught up on the
+healing it was owed while it was away, and on Fabric that catch-up asked the level for the very chunk that was still
+arriving - so opening a world with worn ground near where you stand hung at "Preparing spawn area". The catch-up now
+works on the chunk it is handed. Forge was not caught by it, and has the same change.
+
+*Changes: 1.16.5 Fabric and 1.16.5 Forge.*
+
+**The Golem of Ways and the two tampers have their plain names** on 1.12.2 and 1.16.5, the ones 1.7.10 gives them,
+where the game asks for a name with no item in hand: the statistics screen, and the chunk tamper with graded icons off.
+
+*Changes: 1.12.2 and 1.16.5.*
+
+**The quest chapter pays in vanilla items where a pack has not got GT New Horizons' own.** Written into a pack with
+`integration.gtnhEnhanced` on, the chapter's rewards are GT New Horizons' loot bags and HarvestCraft's food, and a
+pack without them went unpaid until the finale. Now a Steam bag is paid as 4 iron ingots and 8 coal and an LV bag as
+2 gold ingots and a diamond, each times the bags it was; a food choice offers bread, cooked beef or baked potato; and
+the finale's bags become 4 diamonds. A chapter already written is written again.
+
+*Changes: 1.12.2 and 1.20.1.*
 
 ## 0.9.224 - 2026-10-13
 

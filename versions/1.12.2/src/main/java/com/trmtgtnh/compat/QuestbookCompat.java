@@ -70,8 +70,10 @@ public final class QuestbookCompat {
     private static final String STAMP = ".trmt-version";
 
     /**
-     * The one file 1.12.2's own BetterQuesting (3.5.329, the last Funwayguy build) keeps a pack's default book in, beside
-     * the folder the GT New Horizons fork reads; what it was written for is said in its own stamp beside it, and what it
+     * The one file 1.12.2's own BetterQuesting (3.5.329, the last Funwayguy build) keeps a pack's default book in,
+     * beside
+     * the folder the GT New Horizons fork reads; what it was written for is said in its own stamp beside it, and what
+     * it
      * held before each write is kept beside it too (0.9.224, BP58).
      */
     private static final String SINGLE_FILE = "DefaultQuests.json";
@@ -321,9 +323,26 @@ public final class QuestbookCompat {
     private static String stamp() {
         return com.trmtgtnh.Tags.VERSION + lessons()
             .stamp() + "/golems=" + TrmtConfig.golemEnabled + "/upgrades=" + TrmtConfig.golemUpgrades
-            // And which rewards this pack can give (0.9.224): a pack that gains or loses the loot bags or Pam's foods
-            // is written for again, rather than kept offering what it no longer has.
-            + "/bags=" + (registered(LOOT_BAG) != null) + "/pam=" + net.minecraftforge.fml.common.Loader.isModLoaded("harvestcraft");
+        // And which rewards this pack can give (0.9.224): a pack that gains or loses the loot bags or Pam's foods
+        // is written for again, rather than kept offering what it no longer has.
+            + "/bags="
+            + (registered(LOOT_BAG) != null)
+            + "/pam="
+            + net.minecraftforge.fml.common.Loader.isModLoaded("harvestcraft")
+            // And what the chapter holds (0.9.225): the stand-in rewards changed it within one version, and every
+            // 0.9.225
+            // snapshot a tester had played kept its old one.
+            + "/chapter="
+            + chapterPrint();
+    }
+
+    /** Every quest of the chapter as this build writes it, hashed, so a changed chapter is written again. */
+    private static String chapterPrint() {
+        StringBuilder all = new StringBuilder();
+        for (Quest quest : build()) all.append(quest.definition());
+        return Integer.toHexString(
+            all.toString()
+                .hashCode());
     }
 
     private static int effectId(net.minecraft.enchantment.Enchantment enchantment) {
@@ -458,7 +477,8 @@ public final class QuestbookCompat {
     // ------------------------------------------------------------------
 
     /**
-     * Merges the chapter into the pack's {@code DefaultQuests.json} (0.9.224, BP58; Xep chose this over a file to import
+     * Merges the chapter into the pack's {@code DefaultQuests.json} (0.9.224, BP58; Xep chose this over a file to
+     * import
      * by hand).
      *
      * <p>
@@ -470,7 +490,8 @@ public final class QuestbookCompat {
      * <ul>
      * <li>only where the pack has the file and it is the shape this edition knows, as the folder is written into only
      * where the pack has it;</li>
-     * <li>this mod's own entries alone: its line is found by its name, and that line and the quests it holds are what is
+     * <li>this mod's own entries alone: its line is found by its name, and that line and the quests it holds are what
+     * is
      * taken out and written again; every other quest and line is carried across as it was read;</li>
      * <li>under ids above the pack's highest, so nothing of the pack's is renumbered;</li>
      * <li>the file as it was copied beside itself before every write, and written through a temporary file.</li>
@@ -485,7 +506,8 @@ public final class QuestbookCompat {
             com.google.gson.JsonObject quests = objectAt(root, "questDatabase:9");
             com.google.gson.JsonObject lines = objectAt(root, "questLines:9");
             if (format == null || !SINGLE_FORMAT.equals(format.getAsString()) || quests == null || lines == null) {
-                Trmt.LOG.warn("{} is not in the shape this edition knows, so the quest line was not merged into it", file);
+                Trmt.LOG
+                    .warn("{} is not in the shape this edition knows, so the quest line was not merged into it", file);
                 return;
             }
 
@@ -563,10 +585,7 @@ public final class QuestbookCompat {
                 new com.google.gson.GsonBuilder().setPrettyPrinting()
                     .create()
                     .toJson(root));
-            java.nio.file.Files.move(
-                fresh.toPath(),
-                file.toPath(),
-                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            java.nio.file.Files.move(fresh.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             write(stampFile, "generatedFor=" + stamp() + "\n");
             Trmt.LOG.info(
                 "Merged the '{}' quest line ({} quests) into {}, the book as it was kept beside it as {}. Run /bq_admin default load in game to pick it up.",
@@ -580,7 +599,8 @@ public final class QuestbookCompat {
     }
 
     /**
-     * One quest as this version's BetterQuesting writes it: numbered by one id where the GT New Horizons fork names it by
+     * One quest as this version's BetterQuesting writes it: numbered by one id where the GT New Horizons fork names it
+     * by
      * two halves of a long pair, its prerequisites a list of those numbers, and this version's level-up sound.
      */
     private static com.google.gson.JsonObject asThisVersionsQuest(Quest quest, java.util.Map<Long, Integer> numbered) {
@@ -613,7 +633,8 @@ public final class QuestbookCompat {
     }
 
     @javax.annotation.Nullable
-    private static com.google.gson.JsonObject objectAt(@javax.annotation.Nullable com.google.gson.JsonObject in, String key) {
+    private static com.google.gson.JsonObject objectAt(@javax.annotation.Nullable com.google.gson.JsonObject in,
+        String key) {
         if (in == null) return null;
         com.google.gson.JsonElement found = in.get(key);
         return found != null && found.isJsonObject() ? found.getAsJsonObject() : null;
@@ -908,14 +929,15 @@ public final class QuestbookCompat {
         if (golems) golem.checkbox();
         addIfReal(quests, golem);
 
-        // Task-less with the golem off, as the rest of its branch is, so it drops out with them. Given its book to fetch
+        // Task-less with the golem off, as the rest of its branch is, so it drops out with them. Given its book to
+        // fetch
         // regardless, it was written with its parent gone and stood open from the first minute - what the Wayfarer's
         // quest is re-parented to avoid (0.9.222).
         Quest golemBook = (golems ? book(13, GuideBook.GOLEM, "Keeper of Paths", 288, 288)
             : quest(13, "Keeper of Paths", 288, 288)).after(golem)
-            .describe(
-                "How to build it, what to put in it, and what each upgrade changes - the loose All Ways included.")
-            .rewardBags(BAG_STEAM, 1);
+                .describe(
+                    "How to build it, what to put in it, and what each upgrade changes - the loose All Ways included.")
+                .rewardBags(BAG_STEAM, 1);
         addIfReal(quests, golemBook);
 
         Quest eightWays = quest(14, "Nine Ways to Work", 336, 288)
@@ -964,13 +986,16 @@ public final class QuestbookCompat {
             .describe(
                 registered(LOOT_BAG) != null
                     ? "Every road in this chapter walked, worn, mended and handed over.\n\nTake the tamper if you want the tool, the bags if you want the contents, or the eggs if you would rather never lay another path yourself."
-                    : "Every road in this chapter walked, worn, mended and handed over.\n\nTake the tamper if you want the tool, or the eggs if you would rather never lay another path yourself.")
+                    : "Every road in this chapter walked, worn, mended and handed over.\n\nTake the tamper if you want the tool, the diamonds if you would rather have something to spend, or the eggs if you would rather never lay another path yourself.")
             .checkbox()
             .rewardBags(BAG_STEAM, 8);
         Json finale = Json.obj();
         int choice = 0;
         if (wayfarer != null) finale.add(choice++, maxedWayfarer(wayfarer, lessons));
-        if (registered(LOOT_BAG) != null) finale.add(choice++, stack(LOOT_BAG, 4, BAG_LV));
+        // Where the pack has no bags, the bag is paid in diamonds (standInChoice), and the words above say so.
+        finale.add(
+            choice++,
+            registered(LOOT_BAG) != null ? stack(LOOT_BAG, 4, BAG_LV) : standInChoice(LOOT_BAG, BAG_LV, 4, 0));
         String egg = registryName(ModItems.golemEgg(), null);
         if (egg != null) finale.add(choice++, stack(egg, 4, 0));
         done.rewardChoices(finale);
@@ -1045,6 +1070,48 @@ public final class QuestbookCompat {
     private static Json upgradeIcon(GolemUpgrade upgrade, String fallback) {
         String name = registryName(ModItems.upgrade(upgrade), null);
         return stack(name == null ? fallback : name, 1, 0);
+    }
+
+    /**
+     * The vanilla stand-ins for a bag the pack has not got (0.9.225; Xep, at the review of 2026-10-14: "Vanilla
+     * stand-ins", in "Every edition" that writes the chapter into a pack). The rewards are GT New Horizons' own - its
+     * loot
+     * bags and HarvestCraft's food - and a pack without them was paid only at the finale. Each bag is paid in a fixed
+     * vanilla equivalent of its tier, scaled by how many bags it was: a Steam bag 4 iron ingots and 8 coal, an LV bag 2
+     * gold ingots and a diamond. 1.20.1's FTB Quests chapter holds the same table, and check_tools holds the two to
+     * each
+     * other.
+     */
+    static List<Json> standInsFor(int meta, int count) {
+        List<Json> out = new ArrayList<Json>();
+        if (meta == BAG_LV) {
+            out.add(stack("minecraft:gold_ingot", 2 * count, 0));
+            out.add(stack("minecraft:diamond", count, 0));
+        } else {
+            out.add(stack("minecraft:iron_ingot", 4 * count, 0));
+            out.add(stack("minecraft:coal", 8 * count, 0));
+        }
+        return out;
+    }
+
+    /** The vanilla food a choice offers in place of HarvestCraft's, in turn. */
+    static final String[] STAND_IN_FOOD = { "minecraft:bread", "minecraft:cooked_beef", "minecraft:baked_potato" };
+
+    /**
+     * One option of a choice, stood in for where the pack has not got it: the food in turn - the first missing option
+     * bread, the next cooked beef, then baked potato - at its own count, and a bag as the one stack that is worth most
+     * of
+     * its stand-ins, since an option is a single stack. Null for anything else, which is left out as before.
+     */
+    @javax.annotation.Nullable
+    static Json standInChoice(String id, int meta, int count, int missingAt) {
+        if (LOOT_BAG.equals(id)) {
+            return meta == BAG_LV ? stack("minecraft:diamond", count, 0) : stack("minecraft:iron_ingot", 4 * count, 0);
+        }
+        if (id.startsWith("harvestcraft:")) {
+            return stack(STAND_IN_FOOD[missingAt % STAND_IN_FOOD.length], count, 0);
+        }
+        return null;
     }
 
     private static Json stack(String id, int count, int damage) {
@@ -1203,20 +1270,25 @@ public final class QuestbookCompat {
 
         Quest rewardBags(int meta, int count) {
             String bag = registered(LOOT_BAG);
-            return bag == null ? this : rewardItems(stack(bag, count, meta));
+            // The pack's own bags where it has them, their vanilla stand-ins where it has not (0.9.225, Xep's
+            // decision).
+            return bag != null ? rewardItems(stack(bag, count, meta)) : rewardItems(standInsFor(meta, count));
         }
 
         private Quest rewardItems(Json what) {
+            return rewardItems(java.util.Collections.singletonList(what));
+        }
+
+        private Quest rewardItems(List<Json> what) {
+            Json items = Json.obj();
+            for (int at = 0; at < what.size(); at++) items.add(at, what.get(at));
             rewards.add(
                 rewardIndex,
                 Json.obj()
                     .put("ignoreDisabled:1", 0L)
                     .put("index:3", rewardIndex)
                     .putText("rewardID:8", "bq_standard:item")
-                    .put(
-                        "rewards:9",
-                        Json.obj()
-                            .add(0, what)));
+                    .put("rewards:9", items));
             rewardIndex++;
             return this;
         }
@@ -1224,9 +1296,14 @@ public final class QuestbookCompat {
         Quest rewardChoice(String... items) {
             Json choices = Json.obj();
             int index = 0;
+            int missingAt = 0;
+            java.util.Set<String> offered = new java.util.HashSet<String>();
             for (String item : items) {
                 String found = registered(item);
-                if (found != null) choices.add(index++, stack(found, 2, 0));
+                // The pack's own item where it has it, its vanilla stand-in where it has not (0.9.225).
+                Json paying = found != null ? stack(found, 2, 0) : standInChoice(item, 0, 2, missingAt++);
+                // Offered once: two options that stand in as the same stack are one option.
+                if (paying != null && offered.add(paying.toString())) choices.add(index++, paying);
             }
             return rewardChoices(choices);
         }

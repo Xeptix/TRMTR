@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_tamper",
+    "display": {
+        "icon": {
+            "item": "trmtgtnh:guide_mk1"
+        },
+        "title": {
+            "translate": "achievement.trmtRead_mk1"
+        },
+        "description": {
+            "translate": "achievement.trmtRead_mk1.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

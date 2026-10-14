@@ -78,7 +78,7 @@ public final class ErosionStore {
      */
     public interface CatchUp {
 
-        void catchUpChunk(Level level, int chunkX, int chunkZ, ChunkErosionData data);
+        void catchUpChunk(Level level, net.minecraft.world.level.chunk.LevelChunk chunk, ChunkErosionData data);
     }
 
     private static volatile CatchUp engine;
@@ -296,8 +296,10 @@ public final class ErosionStore {
     /** Tells a chunk it has changed, so the next ordinary save writes it. */
     public static void markModified(Level level, int chunkX, int chunkZ) {
         if (level == null) return;
-        net.minecraft.world.level.chunk.ChunkAccess chunk = level
-            .getChunk(chunkX, chunkZ, net.minecraft.world.level.chunk.ChunkStatus.FULL, false);
+        // Asked only for a chunk already whole (0.9.225): getChunk with FULL waits for a chunk still being made one, and
+        // under a chunk's own load event that is the step waiting on this - which hung 1.16.5 Fabric reopening a world.
+        net.minecraft.world.level.chunk.LevelChunk chunk = level.getChunkSource()
+            .getChunkNow(chunkX, chunkZ);
         if (chunk != null) chunk.setUnsaved(true);
     }
 
@@ -347,6 +349,23 @@ public final class ErosionStore {
      * everything the chunk missed while it was away.
      */
     public void chunkLoaded(Level level, int chunkX, int chunkZ) {
+        chunkLoaded(level, chunkX, chunkZ, null);
+    }
+
+    /**
+     * The same, handed the chunk that has arrived - which is how each loader calls it (0.9.225, carried from the 1.20.1
+     * port). The catch-up reads the chunk it is handed and never asks the level for it: Fabric's load event comes while
+     * the chunk is still being made a full one, and asking the level for it there waits for the very step that is
+     * waiting for this. The reload part found it in every edition's harness at once: 1.16.5 Fabric hung on reopening
+     * its own world at "Preparing spawn area", with the server thread parked in healChunk's getChunk, from 0.9.222,
+     * when chunks began to be caught up as they arrived.
+     */
+    public void chunkLoaded(Level level, net.minecraft.world.level.chunk.LevelChunk chunk) {
+        if (chunk == null) return;
+        chunkLoaded(level, chunk.getPos().x, chunk.getPos().z, chunk);
+    }
+
+    private void chunkLoaded(Level level, int chunkX, int chunkZ, net.minecraft.world.level.chunk.LevelChunk chunk) {
         if (level == null || level.isClientSide()) return;
 
         long key = chunkKey(indexOf(level), chunkX, chunkZ);
@@ -365,8 +384,9 @@ public final class ErosionStore {
         ChunkErosionData stranded = unloading.remove(Long.valueOf(key));
         if (stranded != null && !stranded.isEmpty()) {
             data = stranded;
-            // It has not been written, so the next save must not skip this chunk.
-            markModified(level, chunkX, chunkZ);
+            // It has not been written, so the next save must not skip this chunk - the one in hand when it is arriving.
+            if (chunk != null) chunk.setUnsaved(true);
+            else markModified(level, chunkX, chunkZ);
         }
 
         if (data != null && !data.isEmpty()) {
@@ -377,7 +397,7 @@ public final class ErosionStore {
         if (data == null || data.isEmpty()) return;
 
         CatchUp asking = engine;
-        if (asking != null) asking.catchUpChunk(level, chunkX, chunkZ, data);
+        if (asking != null && chunk != null) asking.catchUpChunk(level, chunk, data);
     }
 
     /**

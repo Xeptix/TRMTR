@@ -1,0 +1,78 @@
+// The Fabric jar, for Fabric on Minecraft 1.20.1. Holds the entry point and the answers the common module cannot
+// reach for itself; everything that is the mod lives next door.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    fabric()
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-fabric-refmap.json"
+    }
+    // One private vanilla method opened, so a tamper can be drawn as the metal it is made of, and one private field.
+    // Forge patches both public and needs nothing of the sort; this is Fabric's way of saying it. The file itself
+    // says which and why.
+    accessWidenerPath = file("src/main/resources/trmtgtnh.accesswidener")
+}
+
+configurations {
+    common
+    shadowBundle
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+
+    // Fabric API brings a loader of its own along, and two loaders on the classpath is a refusal at start: the one
+    // named in gradle.properties is the only one, as in 1.16.5.
+    modApi("net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}") {
+        exclude group: "net.fabricmc", module: "fabric-loader"
+    }
+
+    // WTHIT, the block tooltip on this loader, compile only; Mod Menu, compile only, the way a Fabric player reaches
+    // the settings screen; Cloth Config, required, as in 1.16.5.
+    modCompileOnly "maven.modrinth:wthit:${rootProject.wthit_fabric_version}"
+    modCompileOnly("com.terraformersmc:modmenu:${rootProject.modmenu_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+    modImplementation("me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowBundle project(path: ":common", configuration: "transformProductionFabric")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand version: project.version
+    }
+
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+// Compile this module, fold the common module in, then remap the lot to the names the game runs under.
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = "fabric"
+}

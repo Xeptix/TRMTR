@@ -1,0 +1,68 @@
+// The code that names Minecraft but no loader. Most of the mod belongs here, as in 1.16.5.
+
+architectury {
+    common("fabric", "forge")
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-common-refmap.json"
+    }
+}
+
+dependencies {
+    // Compiled against Fabric's loader so the common module can be annotated for both sides; the produced classes
+    // are loader-agnostic and are not shipped from here.
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+
+    // MixinExtras' annotations, compiled against here; each loader's jar finds it at run time - Fabric's loader
+    // carries it, and the Forge jar carries it inside itself.
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${rootProject.mixinextras_version}"))
+
+    // Cloth Config, so the one settings screen lives here rather than once per loader, as in 1.16.5. Compile only:
+    // each loader module brings its own build of it along at run time.
+    modCompileOnly "me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_version}"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The portable core's tests run here as ordinary JUnit: not one of its classes names Minecraft.
+test {
+    useJUnitPlatform()
+
+    // Several tests read the tree rather than running it, and Gradle cannot see that from a classpath, so the trees
+    // they read are inputs of this task - or a change to a loader module would leave the guard UP-TO-DATE and unrun.
+    inputs.files(
+        fileTree(rootProject.projectDir) {
+            include 'common/src/main/**'
+            include 'forge/src/main/**'
+            include 'fabric/src/main/**'
+        })
+        .withPropertyName('theSourceTheseTestsRead')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// Where the specification is, for the drift check: read from an untracked file at the repository root, so a tree
+// checked out alone still builds and the check skips. Resolved here, because a test runs in the module's directory.
+def sibling = rootProject.file('sibling.properties')
+if (sibling.exists()) {
+    Properties held = new Properties()
+    sibling.withInputStream { held.load(it) }
+    String other = held.getProperty('otherEdition', '').trim()
+    if (!other.isEmpty()) {
+        String resolved = rootProject.file(other).absolutePath
+        tasks.named('test', Test) {
+            systemProperty 'trmt.other.edition', resolved
+        }
+    }
+    // And the first port, for the one table whose reference is 1.12.2's rather than 1.7.10's: the golem's held tool,
+    // which 1.7.10 draws in a renderer of its own (GolemToolIsHeldAsTheReferenceHoldsItTest).
+    String firstPort = held.getProperty('firstPort', '').trim()
+    if (!firstPort.isEmpty()) {
+        String resolved = rootProject.file(firstPort).absolutePath
+        tasks.named('test', Test) {
+            systemProperty 'trmt.first.port', resolved
+        }
+    }
+}

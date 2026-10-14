@@ -1,0 +1,23 @@
+{
+    "parent": "trmtgtnh:trmt_reinforcing",
+    "display": {
+        "icon": {
+            "item": "minecraft:enchanted_book"
+        },
+        "title": {
+            "translate": "achievement.trmtBookReinforce"
+        },
+        "description": {
+            "translate": "achievement.trmtBookReinforce.desc"
+        },
+        "frame": "task",
+        "show_toast": true,
+        "announce_to_chat": true,
+        "hidden": false
+    },
+    "criteria": {
+        "trmt": {
+            "trigger": "minecraft:impossible"
+        }
+    }
+}

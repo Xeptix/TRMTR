@@ -1,0 +1,46 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.forge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "MixinChestBooksDrawAgain",
+    "MixinChunkSerializer",
+    "MixinCrashReportSupport",
+    "MixinGhostMapColor",
+    "MixinLootArrivals",
+    "MixinRecipeArrivals",
+    "MixinSnowRestsOnWornGround",
+    "MixinStairNeighbours",
+    "MixinWornCollision"
+  ],
+  "client": [
+    "MixinModelManagerBaked",
+    "MixinSpriteImages",
+    "MixinGhostSoilTagged",
+    "MixinSettledHit",
+    "MixinSettledOutline",
+    "MixinAirSwing",
+    "MixinOptiFineSettledFaces",
+    "MixinBlockArrivals",
+    "MixinChunkForgotten",
+    "MixinGhostSustainsPlant",
+    "MixinJadeHarvestLine",
+    "MixinLevelReplaced",
+    "MixinBlockRenderDispatcher",
+    "MixinServerLightArrives",
+    "MixinSettleOnWornGround",
+    "MixinSettledFaces",
+    "MixinStitcher",
+    "MixinStitcherRegion",
+    "MixinSpriteLoader",
+    "SpriteResourceLoaderSources",
+    "StitcherHolderSize",
+    "MixinSunkLightVanilla",
+    "MixinWindowLight",
+    "MixinEntityLightLent"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
