@@ -134,6 +134,7 @@ public final class Settling {
         double drop = dropFor(level, pos);
         if (drop <= 0.0D) return null;
         noteShiftRan();
+        if (!cullHookRan && !cullHookWarned) noteCorrectionWanted(state, level, pos);
         return vanilla == null ? new Vec3(0.0D, -drop, 0.0D) : vanilla.add(0.0D, -drop, 0.0D);
     }
 
@@ -147,6 +148,12 @@ public final class Settling {
      * about the drop and the neighbour does not cover this face.
      */
     public static boolean keepsFace(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
+        cullHookRan = true;
+        return wanted(state, level, pos, side);
+    }
+
+    /** The face rule itself, asked by the culling hooks through keepsFace and by the count below. */
+    private static boolean wanted(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
         if (state == null || side == null || level == null || !settles(state.getBlock())) return false;
         BlockPos at = pos.relative(side);
         BlockState neighbour = level.getBlockState(at);
@@ -171,6 +178,37 @@ public final class Settling {
         }
         if (state.getBlock() instanceof WoolCarpetBlock) return 0.0625D;
         return 1.0D;
+    }
+
+    // Whether a culling hook has asked keepsFace at all, and how often a dropped block wanted a face kept before one did.
+    // 1.7.10's rule (spec SC32): its six culling hooks are injected without a requirement, so a renderer detail never
+    // takes a client down, and a hook that fails to bind otherwise says nothing - so after 4096 corrections wanted with
+    // no hook run, an error says they did not take. The hooks here are require = 0 too (vanilla's face test on each
+    // loader, the Sodium family's, OptiFine's), and until 0.9.226 nothing said so. The correction is counted at the shift,
+    // the one hook a dropped block always passes, and only until a culling hook is first seen: after that it costs
+    // nothing. Racy on purpose, as 1.7.10's count is: a lost increment on a mesher thread costs nothing.
+    private static volatile boolean cullHookRan;
+
+    private static volatile boolean cullHookWarned;
+
+    private static int correctionsWanted;
+
+    private static void noteCorrectionWanted(BlockState state, BlockGetter level, BlockPos pos) {
+        boolean any = false;
+        for (Direction side : Direction.values()) {
+            if (wanted(state, level, pos, side)) {
+                any = true;
+                break;
+            }
+        }
+        if (!any) return;
+        correctionsWanted++;
+        if (correctionsWanted > 4096 && !cullHookRan && !cullHookWarned) {
+            cullHookWarned = true;
+            Trmt.error(
+                "Settling has wanted a face correction {} times and the culling hooks that would apply it have never run, so worn snow and carpet will show a gap along a wear seam. Those hooks did not take; the one that shifts the block did, or this line could not have been reached.",
+                Integer.valueOf(correctionsWanted));
+        }
     }
 
     private static volatile boolean shiftSaid;

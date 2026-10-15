@@ -1,0 +1,35 @@
+accessWidener	v1	named
+# The header has to be the first line of this file - a comment above it is not a comment, it is a bad
+# header, and the build says so clearly. So the explanation comes after it.
+#
+# In 1.20.1 this file was Fabric's alone. In 1.21.1 it is the shared module's, so the code both loaders
+# share may reach what it widens: Fabric applies it as it is, and the Forge and NeoForge builds turn it
+# into their access transformers. Every entry is still one member named in full.
+#
+# A block's own collision shape. MixinWornCollision hooks the state's question, which is what the game
+# asks, so PhysicalDecay - which works out what a worn square rests on - asks the block underneath past
+# that hook, as every older edition does. 1.21 made the block's method protected; widened here rather
+# than reached through a mixin invoker, because the shared module's tests run with no mixins applied and
+# WornFootingIsTheBlocksOwnTest asks it of real blocks.
+accessible	method	net/minecraft/world/level/block/state/BlockBehaviour	getCollisionShape	(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/shapes/CollisionContext;)Lnet/minecraft/world/phys/shapes/VoxelShape;
+#
+# One line, and it buys the chunk tamper its forty-three pictures.
+#
+# ItemProperties.register is how an item gains a property its model can be chosen by, which is how a
+# tamper is drawn as the metal it is made of at this version. It is private, and from 1.17 takes a
+# ClampedItemPropertyFunction; Forge adds a public one taking the plain function, and Fabric does not,
+# and this is Fabric's own way of saying the same thing. TamperModels hands this side a clamped function
+# that does not clamp, because a grade is an index, not a fraction. The two loaders reach one vanilla method by their own routes, and
+# TamperModels, which holds the rule, knows about neither.
+#
+# Narrow on purpose: one method, named in full, rather than the class. A widened class is a standing
+# invitation to reach for the next private thing, and the whole of what this edition needs from here
+# is one door.
+accessible	method	net/minecraft/client/renderer/item/ItemProperties	register	(Lnet/minecraft/world/item/Item;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/client/renderer/item/ClampedItemPropertyFunction;)V
+# And one private field, for the same kind of reason.
+#
+# The game's own set of item color handlers - the one every mod registers into - is what the wear
+# editor tints its previews with, and it is private with no accessor at this version. Forge patches
+# one back on and needs nothing here; this is Fabric's way of reaching the same field. ItemTints is
+# what both hand it to, and says what happens if neither does.
+accessible	field	net/minecraft/client/Minecraft	itemColors	Lnet/minecraft/client/color/item/ItemColors;

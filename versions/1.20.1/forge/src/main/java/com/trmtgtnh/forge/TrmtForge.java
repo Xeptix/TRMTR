@@ -146,7 +146,9 @@ public final class TrmtForge {
                     () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory(
                         (client, parent) -> com.trmtgtnh.client.gui.ConfigScreen.build(parent))));
 
-        Trmt.LOG.info("{} on Forge, Minecraft 1.20.1", Trmt.NAME);
+        // The game version read from the game, so the line cannot go stale as the edition is carried (see TrmtFabric).
+        Trmt.LOG.info("{} on Forge, Minecraft {}", Trmt.NAME, net.minecraft.SharedConstants.getCurrentVersion()
+            .getName());
     }
 
     /**

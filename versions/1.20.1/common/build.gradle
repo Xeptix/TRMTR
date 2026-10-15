@@ -23,6 +23,13 @@ dependencies {
     // each loader module brings its own build of it along at run time.
     modCompileOnly "me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_version}"
 
+    // The two block-tooltip mods whose API names no loader, so their plugins live here once and both jars carry them
+    // (0.9.226, filling 1.20.1's gaps: Jade on Fabric and WTHIT on Forge were not supported before). Compiled against
+    // their Fabric builds, whose API classes are the same classes the Forge builds hold. The One Probe names Forge's
+    // and stays there.
+    modCompileOnly "maven.modrinth:wthit:${rootProject.wthit_fabric_version}"
+    modCompileOnly "maven.modrinth:jade:${rootProject.jade_fabric_version}"
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

@@ -13,11 +13,12 @@ ever written into the world. The server keeps a compact wear record per chunk an
 cosmetic blocks over its own copy of the terrain, so the mod is removable, switchable per player,
 switchable per server, and invisible in a world opened without it.
 
-Minecraft 1.7.10, 1.12.2, 1.16.5 and 1.20.1, on Forge, and on Fabric for 1.16.5 and 1.20.1 - 1.20.1 as an
-alpha, the first build for that version. It runs on a plain loader with nothing else installed, except that 1.16.5
-and 1.20.1 want Cloth Config for their settings screen. The 1.7.10 edition is built against GT: New Horizons 2.8.4.
+Minecraft 1.7.10, 1.12.2, 1.16.5, 1.20.1 and 1.21.1, on Forge, on Fabric for 1.16.5, 1.20.1 and 1.21.1, and on
+NeoForge for 1.21.1 - 1.20.1 as a beta, and 1.21.1 as an alpha, the first build for that version. It runs on a plain
+loader with nothing else installed, except that 1.16.5, 1.20.1 and 1.21.1 want Cloth Config for their settings screen.
+The 1.7.10 edition is built against GT: New Horizons 2.8.4.
 
-One mod, one version number, four editions: they do the same thing, by the same numbers, and read
+One mod, one version number, five editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
 left them. Thirty-five classes are shared between them byte for byte. Where an edition cannot match
 the others it is because the Minecraft version took away what the behaviour was built on, and the
@@ -102,8 +103,9 @@ a golem that will hold a stretch of road at a wear level you choose while you ar
 ## Install
 
 Drop the jar for your Minecraft version and loader - `trmtr-1.7.10-<version>-forge.jar`,
-`trmtr-1.12.2-<version>-forge.jar`, `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar`, or
-`trmtr-1.20.1-<version>-alpha-forge.jar` / `-fabric.jar` - into
+`trmtr-1.12.2-<version>-forge.jar`, `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar`,
+`trmtr-1.20.1-<version>-beta-forge.jar` / `-fabric.jar`, or
+`trmtr-1.21.1-<version>-alpha-neoforge.jar` / `-forge.jar` / `-fabric.jar` - into
 your pack's `mods` folder, on **both** the client and the server. That is the only file you need; the
 `-dev` and `-sources` jars are for development.
 
@@ -142,7 +144,7 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
   screen in game: Fabric has no mod list with a Config button of its own. Without Mod Menu the
   settings file and `/trmt reload` still work.
 
-**Requirements, 1.20.1 (alpha)**
+**Requirements, 1.20.1 (beta)**
 
 - Minecraft 1.20.1 with Forge 47 or newer, **or** Fabric Loader 0.14 or newer.
 - **[Cloth Config](https://github.com/shedaniel/cloth-config)** 11.0.99 or newer, on either loader, as on 1.16.5.
@@ -151,6 +153,19 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
   **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** to reach the settings screen.
 - A world from 1.16.5 opened on 1.20.1 keeps its wear: the game's own upgrade carries each chunk's record, and the
   first sweep heals it on from where it was.
+
+**Requirements, 1.21.1 (alpha)**
+
+- Minecraft 1.21.1 with NeoForge 21.1 or newer, Forge 52 or newer, **or** Fabric Loader 0.15.11 or newer, on Java 21,
+  which Minecraft 1.21.1 itself requires.
+- **[Cloth Config](https://github.com/shedaniel/cloth-config)** 15.0.140 or newer, on every loader, as on 1.16.5 and
+  1.20.1.
+- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.116.17 or newer, and
+  **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** to reach the settings screen.
+- **OptiFine** HD U J1 names Forge 52.0.16, and that is the Forge to run it on: on Forge 52.1 it stops a server the
+  moment a chest is filled, in OptiFine's own code.
+- A world from 1.20.1 opened on 1.21.1 keeps its wear, and heals on from where it was. A Golem of Ways keeps what it
+  carries and the upgrade fitted to it, its stacks put through the game's own item upgrade before they are read.
 
 Nothing else is required. Every integration listed under
 [Optional integrations](#optional-integrations) is behind a mod-loaded check and the whole mod
@@ -225,8 +240,9 @@ A ghost mirrors the block it is covering wherever anything but rendering can tel
 - mining hardness is the real block's, so nothing breaks early and snaps back;
 - Waila, or Hwyla on 1.12.2, names the real block and offers the right tool;
 - under **Angelica** on 1.7.10, **OptiFine** on 1.12.2, 1.16.5 Forge and 1.20.1 Forge, **Oculus** on 1.16.5 Forge,
-  **Iris** or **Canvas** on 1.16.5 Fabric, and **Oculus** with Embeddium on 1.20.1 Forge or **Iris** with Sodium, or
-  **OptiFabric**, on 1.20.1 Fabric, it inherits the covered block's shader material, so a
+  **Iris** or **Canvas** on 1.16.5 Fabric, **Oculus** with Embeddium on 1.20.1 Forge or **Iris** with Sodium, or
+  **OptiFabric**, on 1.20.1 Fabric, **Iris** with Sodium on 1.21.1 NeoForge and Fabric, and **OptiFine** on 1.21.1 Forge, it inherits the covered
+  block's shader material, so a
   worn granite road is still granite to your shader pack - and becomes the earth it has worn into once
   it is granite no longer;
 - it goes on scattering the covered block's ambient particles;
@@ -243,7 +259,9 @@ convenience for does exist in all of them, one step further in - the holder a bl
 id is left on for the shader mod's own vertex writer to read - and that is where the later editions
 say a ghost is something else. Oculus is a fork of Iris and kept its packages, so one seam answers
 for **Oculus on 1.16.5 Forge** and **Iris on 1.16.5 Fabric** alike - and on 1.20.1, where both keep that holder
-under Iris's newer package and are asked there.
+under Iris's newer package and are asked there. On **1.21.1**, where no Oculus is published, Iris 1.8 has moved that
+holder again and changed it: it takes Iris's own id for a block, so a ghost hands it the covered block's id from Iris's
+own map.
 
 **OptiFine is not of that family, and has a holder of its own.** It works out a block's shader id
 from the pack's `block.properties` as the block's model starts, and pushes it onto a stack the chunk's
@@ -841,13 +859,17 @@ and JourneyMap has asked for nothing.
 
 ### Every other map
 
-On **1.12.2 and 1.16.5** a block is asked its map color with the position in hand, so a worn square
+On **1.12.2 and every later edition** a block is asked its map color with the position in hand, so a worn square
 answers for itself: **the material it has worn into** - its family's map color, earth once a lawn
 has worn through or sunk, gravel as stone and end stone as sand, because the game's own answer for
 those two names the wrong material. That one answer serves Xaero's Minimap and anything else that
-reads the world.
+reads the world. On 1.20.1 and 1.21.1 three more maps have been opened over worn ground and draw it in its colors:
+**[Xaero's World Map](https://www.curseforge.com/minecraft/mc-mods/xaeros-world-map)** on every loader,
+**FTB Chunks** ([Forge and NeoForge](https://www.curseforge.com/minecraft/mc-mods/ftb-chunks-forge),
+[Fabric](https://www.curseforge.com/minecraft/mc-mods/ftb-chunks-fabric)) on 1.20.1 and on 1.21.1 NeoForge and Fabric,
+and **[VoxelMap Updated](https://modrinth.com/mod/voxelmap-updated)** on Fabric.
 
-Those two editions also **darken a worn square**, to one color. The palette such a map draws with
+Those editions also **darken a worn square**, to one color. The palette such a map draws with
 is sixty-four fixed entries, so there is no fraction to dim by - but an entry can be picked for being
 darker, and that is what `surfaces.mapWearDarkening` decides there: the nearest entry to the
 material's own color darkened by that much. Grass at `#7fb238` is drawn as `#392923`. A square that
@@ -871,7 +893,7 @@ its internals.
 and no worn square exists there: this mod paints them into each client's copy of the world and writes
 nothing into the save. Minimaps read the client's world, which is why they show the path.
 
-**On 1.12.2 and 1.16.5, `client.mapWearThroughTint` does nothing.** It withholds a fraction of a tint
+**On 1.12.2 and every later edition, `client.mapWearThroughTint` does nothing.** It withholds a fraction of a tint
 from a world-reading map, and those maps read a palette entry, which cannot be dimmed by a fraction.
 It is left in the settings file so a pack can move between versions and find its edits where it left
 them, and the mod names it, once, as it loads if you have changed it.
@@ -900,7 +922,8 @@ shows only on the worn ground that gives it off; ground that heals back to prist
 when it wears again, and nothing is lit until it does. There is a second provider for the Golem of Ways.
 
 The block itself already reports honestly without either - a ghost hands back the block it is
-covering, so any tooltip names the real block and the right tool. Toggle the extra lines under
+covering, so Waila, Hwyla, The One Probe, and Jade and WTHIT on 1.20.1 and 1.21.1 name the real block, and
+Waila, Hwyla, The One Probe and Jade offer its tool. Toggle the extra lines under
 **TRMT: Reimagined** in Waila's or Hwyla's own settings.
 
 One thing worth knowing if the lines do not appear: Hwyla has a `keybind` setting of its own that
@@ -1117,8 +1140,8 @@ line each for a critical fix, what the release does, where to get it, and the Di
 to quiet it.
 
 - **What is read.** One small file, `latest.properties`, from this repository, holding a line per
-  edition - 1.7.10, 1.12.2, 1.16.5 Forge, 1.16.5 Fabric, 1.20.1 Forge, 1.20.1 Fabric - of which each jar reads
-  only its own. Its
+  edition - 1.7.10, 1.12.2, 1.16.5 Forge, 1.16.5 Fabric, 1.20.1 Forge, 1.20.1 Fabric, 1.21.1 NeoForge, 1.21.1 Forge,
+  1.21.1 Fabric - of which each jar reads only its own. Its
   address is `https://raw.githubusercontent.com/Xeptix/TRMTR/master/latest.properties`.
 - **Only releases that change your jar.** Every edition takes the new number with every release, so the
   file also says, for each jar, the newest release that changed it. You are told only when one of those
@@ -1132,11 +1155,11 @@ to quiet it.
   mod's own: the file supplies version numbers, one of the three reasons, and a sentence held to fifty
   characters of plain text with no address in it.
 - **Required mods.** The file gives UniMixins on 1.7.10, MixinBooter on 1.12.2, and Cloth Config and
-  Fabric API on 1.16.5 and 1.20.1 a minimum and a recommended version. Whoever can update the game is told when
-  theirs is older, which version to get, and where to ask for help. The minimums are the oldest run in
+  Fabric API on 1.16.5, 1.20.1 and 1.21.1 a minimum and a recommended version. Whoever can update the game is told
+  when theirs is older, which version to get, and where to ask for help. The minimums are the oldest run in
   game with this release, up to five years back - UniMixins 0.1.11, MixinBooter 8.0, Cloth Config
-  4.11.26 on Forge and 4.14.54 on Fabric, Fabric API 0.29.4, and on 1.20.1 Cloth Config 11.0.99 and Fabric API
-  0.86.0 - and the recommended versions are those
+  4.11.26 on Forge and 4.14.54 on Fabric, Fabric API 0.29.4, on 1.20.1 Cloth Config 11.0.99 and Fabric API
+  0.86.0, and on 1.21.1 Cloth Config 15.0.140 and Fabric API 0.116.17 - and the recommended versions are those
   the mod is built against. This is the softer line above the
   loaders' own floors, and it can move without a new release of this mod.
 - **What is sent.** Nothing but the request itself, which GitHub sees as it would any page: no player
@@ -1196,19 +1219,19 @@ wear table and the config screen.
 
 | Mod | What it adds |
 |---|---|
-| **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5, 1.20.1) | the wear readout on the tooltip, and a golem provider |
-| **[The One Probe](https://github.com/McJtyMods/TheOneProbe)** (1.12.2, 1.16.5 Forge) | the same readout in its panel, for worn ground, reinforced and warded blocks, path light and the golem; `client.probeLines` turns it off, and the overlay's hide key hides it too |
+| **[Waila](https://www.curseforge.com/minecraft/mc-mods/waila)** (1.7.10) / **[Hwyla](https://github.com/TehNut-Mods/HWYLA)** (1.12.2) / **[Jade](https://github.com/Snownee/Jade)** or **[WTHIT](https://github.com/badasintended/wthit)** (1.16.5, 1.20.1, 1.21.1) | the wear readout on the tooltip, and a golem provider; on 1.20.1 and 1.21.1 a worn square is named for the block it covers, with that block's mod, as Waila names it on 1.7.10 |
+| **[The One Probe](https://github.com/McJtyMods/TheOneProbe)** (1.12.2, 1.16.5 Forge, 1.20.1 Forge, 1.21.1 NeoForge) | the same readout in its panel, for worn ground, reinforced and warded blocks, path light and the golem; `client.probeLines` turns it off, and the overlay's hide key hides it too |
 | **[JourneyMap](https://www.curseforge.com/minecraft/mc-mods/journeymap)** | per-position map coloring and the desire-path highlight, in every edition |
 | **[Xaero's Minimap](https://www.curseforge.com/minecraft/mc-mods/xaeros-minimap)** | the map told when a square changes, in every edition; worn ground drawn darker as it wears through its tint on 1.7.10, through its map color on the later editions |
-| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge, 1.20.1 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge, 1.20.1 Forge), **[Iris](https://github.com/IrisShaders/Iris)**, **[Canvas](https://github.com/vram-guild/canvas)** or **[OptiFabric](https://github.com/Chocohead/OptiFabric)** (1.16.5 Fabric), **Iris** or **OptiFabric** (1.20.1 Fabric) | worn ground inherits the covered block's shader material |
+| **[Angelica](https://github.com/GTNewHorizons/Angelica)** (1.7.10), **OptiFine** (1.12.2, 1.16.5 Forge, 1.20.1 Forge), **[Oculus](https://github.com/Asek3/Oculus)** (1.16.5 Forge, 1.20.1 Forge), **[Iris](https://github.com/IrisShaders/Iris)**, **[Canvas](https://github.com/vram-guild/canvas)** or **[OptiFabric](https://github.com/Chocohead/OptiFabric)** (1.16.5 Fabric), **Iris** or **OptiFabric** (1.20.1 Fabric), **Iris** with Sodium (1.21.1 NeoForge and Fabric) | worn ground inherits the covered block's shader material |
 | **[Chisel](https://github.com/Chisel-Team/Chisel)** | the liquid layer painted into worn textures and drawn through the carving's gaps (1.7.10, 1.12.2), and the layered-block shell lift (1.7.10) |
-| **[Rechiseled](https://github.com/SuperMartijn642/Rechiseled)**, **[Chisel Reborn](https://www.curseforge.com/minecraft/mc-mods/chisel-reborn)** and **[Chipped](https://github.com/terrarium-earth/Chipped)** (1.20.1) | their blocks wear with the ground they are made of, and appear in the Wear Table |
-| **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) / **[GregTech CEu Modern](https://github.com/GregTechCEu/GregTech-Modern)** (1.20.1 Forge) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
+| **[Rechiseled](https://github.com/SuperMartijn642/Rechiseled)**, **[Chisel Reborn](https://www.curseforge.com/minecraft/mc-mods/chisel-reborn)** and **[Chipped](https://github.com/terrarium-earth/Chipped)** (1.20.1, 1.21.1; Chisel Reborn and Chipped have no 1.21.1 Forge build) | their blocks wear with the ground they are made of, and appear in the Wear Table |
+| **[GregTech](https://github.com/GTNewHorizons/GT5-Unofficial)** (1.7.10) / **[GregTech CE](https://github.com/GregTechCEu/GregTech)** (1.12.2) / **[GregTech CEu Modern](https://github.com/GregTechCEu/GregTech-Modern)** (1.20.1 Forge, 1.21.1 NeoForge) | pack-tuned recipes, the compressed-block golem build, a Netherite Wayfarer where the pack has netherite, tiered material costs |
 | **[Amazing Trophies](https://github.com/GTNewHorizons/Amazing-Trophies)** | seven trophy definitions written into its own config folder |
 | **[BetterQuesting](https://github.com/Funwayguy/BetterQuesting)** | a chapter of up to seventeen quests, written additively into `DefaultQuests`, or merged into `DefaultQuests.json` on 1.12.2 |
-| **[FTB Quests](https://github.com/FTBTeam/FTB-Quests)** (1.20.1) | the same chapter, written as FTB Quests' own chapter file as the server starts; its rewards paid in vanilla stand-ins where the pack has not got GT New Horizons' loot bags or HarvestCraft's food |
+| **[FTB Quests](https://github.com/FTBTeam/FTB-Quests)** (1.20.1; 1.21.1 NeoForge and Fabric) | the same chapter, written as FTB Quests' own chapter file as the server starts; its rewards paid in vanilla stand-ins where the pack has not got GT New Horizons' loot bags or HarvestCraft's food |
 | **[Et Futurum Requiem](https://github.com/Roadhog360/Et-Futurum-Requiem)** | two registry names in default block lists, and nothing more |
-| **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5 and 1.20.1, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
+| **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5, 1.20.1 and 1.21.1, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
 
 `integration.gtnhEnhanced` flips on when GregTech is present and switches the mod to pack-tuned
 recipes; without it, plain recipes, a golem built from vanilla blocks, a Wayfarer that no longer
@@ -1312,6 +1335,9 @@ The settings file is deliberately the same file every edition reads, so a pack m
 Minecraft versions keeps its edits, including the few that only one version can act on; the mod names
 those in the log.
 
+A world carried up a Minecraft version keeps its wear: from 1.16.5 to 1.20.1, and from 1.20.1 to 1.21.1, where a Golem
+of Ways also keeps what it carries and the upgrade fitted to it. See [Install](#install).
+
 ## Removing the mod
 
 Delete the jar and every block is the block it always was. There are no eroded blocks in the save
@@ -1345,7 +1371,8 @@ There are sixty-six such names on 1.7.10 and **one** on 1.12.2, for the reason u
 ./gradlew build
 ```
 
-from `versions/1.7.10`, `versions/1.12.2`, `versions/1.16.5` or `versions/1.20.1`. Each edition is its own Gradle build;
+from `versions/1.7.10`, `versions/1.12.2`, `versions/1.16.5`, `versions/1.20.1` or `versions/1.21.1`. Each edition is
+its own Gradle build;
 there is no root build, because they cannot share one - see
 [`docs/BUILDING.md`](docs/BUILDING.md), which also covers what each needs.
 
@@ -1355,15 +1382,18 @@ Gradle 9.7.0, Forge 14.23.5.2847 and MixinBooter 11.13, and needs neither. Both 
 bytecode. **1.16.5** is three Gradle modules under Architectury Loom - `common`, `forge`, `fabric` - 
 and one `./gradlew build` produces both jars; it compiles to Java 8 bytecode as well, and needs
 network access for Cloth Config and the loaders' own repositories. **1.20.1** is laid out the same way, on
-Architectury Loom 1.17 and Gradle 9.7.0, and compiles to Java 17 bytecode, as Minecraft 1.20.1 requires.
+Architectury Loom 1.17 and Gradle 9.7.0, and compiles to Java 17 bytecode, as Minecraft 1.20.1 requires. **1.21.1**
+is four modules on the same Loom and Gradle - `common`, `neoforge`, `forge`, `fabric` - and one `./gradlew build`
+produces all three jars; it compiles to Java 21 bytecode, as Minecraft 1.21.1 requires, and needs NeoForge's own
+repository as well.
 
 On 1.7.10, run `./gradlew spotlessApply` before building, or the build fails on formatting; the other editions do
 not check it.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **541 tests on 1.7.10, 690 on 1.12.2, 757 on 1.16.5 and 784 on 1.20.1**,
-every one
+types in them and are unit tested - **542 tests on 1.7.10, 690 on 1.12.2, 761 on 1.16.5, 795 on 1.20.1 and 810 on
+1.21.1**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 
@@ -1372,7 +1402,8 @@ reads its own copy and the one in the edition it was carried from, failing the b
 difference and naming the files.
 
 The built jar is `build/libs/trmtr-<mc version>-<version>.jar`; on 1.16.5 and 1.20.1 there are two, one per
-loader, under `forge/build/libs` and `fabric/build/libs`.
+loader, under `forge/build/libs` and `fabric/build/libs`, and on 1.21.1 three, under `neoforge/build/libs`,
+`forge/build/libs` and `fabric/build/libs`.
 
 ## Licence
 

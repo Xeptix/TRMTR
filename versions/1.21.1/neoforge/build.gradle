@@ -1,0 +1,72 @@
+// The NeoForge jar, for NeoForge 21.1 on Minecraft 1.21.1 - new in this edition. Forge's successor, with its own
+// metadata file (neoforge.mods.toml) and its own event bus and registries.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    neoForge()
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-neoforge-refmap.json"
+    }
+    // The shared access widener, turned into NeoForge's access transformer for this jar (remapJar, below).
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+}
+
+configurations {
+    common
+    shadowBundle
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentNeoForge.extendsFrom common
+}
+
+dependencies {
+    neoForge "net.neoforged:neoforge:${rootProject.neoforge_version}"
+
+    // No MixinExtras carried here, unlike the Forge jar: NeoForge 21.1's own libraries hold it (mixinextras-neoforge
+    // 0.5.5, read from its userdev config, 0.9.226), so the common module's librarian hook finds it at run time.
+
+    // Cloth Config, which the settings screen is built on, at its 1.21.1 build for NeoForge, as the Forge module has
+    // Forge's.
+    modImplementation("me.shedaniel.cloth:cloth-config-neoforge:${rootProject.cloth_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    // The One Probe, compiled against and never carried: its lines are this module's (OneProbeTooltip), asked for
+    // through its message as 1.20.1's Forge jar asked, so a pack without it never touches them.
+    modCompileOnly "maven.modrinth:the-one-probe:${rootProject.top_neoforge_version}"
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowBundle project(path: ":common", configuration: "transformProductionNeoForge")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand version: project.version
+    }
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = "neoforge"
+    // The shared access widener, written into the jar as NeoForge's access transformer.
+    atAccessWideners.add(loom.accessWidenerPath.get().asFile.name)
+}

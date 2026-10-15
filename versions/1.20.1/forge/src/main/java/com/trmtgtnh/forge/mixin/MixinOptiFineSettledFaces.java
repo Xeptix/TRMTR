@@ -31,7 +31,7 @@ public abstract class MixinOptiFineSettledFaces {
         method = "*",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/optifine/util/BlockUtils;shouldSideBeRendered(Lnet/minecraft/block/BlockState;Lnet/minecraft/world/IBlockReader;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/Direction;Lnet/optifine/render/RenderEnv;)Z",
+            target = "Lnet/optifine/util/BlockUtils;shouldSideBeRendered(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;Lnet/optifine/render/RenderEnv;)Z",
             remap = false),
         require = 0,
         remap = false)

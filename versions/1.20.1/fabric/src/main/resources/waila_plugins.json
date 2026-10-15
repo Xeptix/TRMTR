@@ -1,7 +1,0 @@
-{
-  "trmtgtnh:wear": {
-    "initializer": "com.trmtgtnh.fabric.WthitTooltip",
-    "side": "client",
-    "required": []
-  }
-}

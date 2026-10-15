@@ -13,8 +13,9 @@ import net.minecraft.world.entity.player.Player;
  * machine's player usually has no connection, which is what this edition asked alone until 0.9.222 - in five places,
  * each its own copy - and a machine whose player is given a connection anyway passed as a person: it earned experience
  * for mending, which its mending enchantment then spent on the tool (spec WD59), and was told things. So the connection
- * is asked here, once, and the loader's own word as well: Forge hands over its {@code FakePlayer} test; Fabric has no
- * fake player of its own, and its mods' stand-ins are caught by the connection.
+ * is asked here, once, and the loader's own word as well: each loader that has a fake player of its own hands over its
+ * test - Forge's {@code FakePlayer}, NeoForge's, and Fabric API's (from 1.19.4; until 0.9.226 the Fabric jars handed
+ * nothing over, written as though Fabric had none).
  */
 public final class Machines {
 

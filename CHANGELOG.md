@@ -1,8 +1,61 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.225 is the same release on Minecraft 1.7.10, 1.12.2,
-1.16.5 and 1.20.1, and later releases will carry whatever editions exist then. A change in one edition
+One version number across every edition. 0.9.226 is the same release on Minecraft 1.7.10, 1.12.2,
+1.16.5, 1.20.1 and 1.21.1, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.226 - 2026-10-14
+
+**Minecraft 1.21.1, on NeoForge, Forge and Fabric, as an alpha.** The same mod as the other editions, held to the 1.7.10
+edition rule for rule, in three new jars: NeoForge 21.1 and Forge 52 with Cloth Config, and Fabric with Fabric API and
+Cloth Config. A world brought up from 1.20.1 keeps its wear, and a Golem of Ways what it carries and the upgrade fitted
+to it. It draws under Sodium with Iris and under Embeddium on NeoForge, under OptiFine on Forge, and under Sodium with
+Iris on Fabric, and under a shader pack worn ground keeps the covered block's shader material through Iris; Jade, WTHIT
+and The One Probe show each square's wear, JourneyMap, Xaero's Minimap and World Map, FTB Chunks and VoxelMap Updated
+draw it, the blocks Rechiseled adds on all three loaders, and Chisel Reborn and Chipped on NeoForge and Fabric, wear
+with the ground they are made of, and GregTech CEu Modern turns on `integration.gtnhEnhanced` on NeoForge. The quest
+chapter is written for FTB Quests on NeoForge and Fabric, its rewards paid in
+vanilla stand-ins. It is an alpha because it is the first build for this version.
+
+*Changes: 1.21.1.*
+
+**1.20.1 is a beta.** Its jars and store files carry `-beta` from this release.
+
+*Changes: 1.20.1.*
+
+**The stout upgrade doubles a golem's health** on 1.16.5 and 1.20.1, sixty to a hundred and twenty, as the guide says
+and 1.7.10 and 1.12.2 do; those editions carried the modifier as one point added. A golem already fitted is fitted
+again the next time it is asked.
+
+*Changes: 1.16.5 and 1.20.1.*
+
+**Jade and WTHIT name a worn square for the block it covers** on 1.20.1, with that block's mod, as Waila does on 1.7.10;
+they had named it "Worn Ground", from this mod. WTHIT shows each square's wear on Forge and Jade on Fabric, as each
+already did on the other loader.
+
+*Changes: 1.20.1.*
+
+**Under OptiFine, two worn windows side by side hide the face between them** on 1.16.5 and 1.20.1, as they do under
+every other renderer; it drew as a blue sheet. And on 1.20.1 a settled snow layer's step is kept under OptiFine again:
+the fix written for 1.16.5's OptiFine stood down under 1.20.1's.
+
+*Changes: 1.16.5 and 1.20.1.*
+
+**A machine no longer wears ground as a player would on 1.20.1 Fabric.** A Create deployer, a turtle or anything else
+acting through Fabric API's fake player is now treated as the machine it is, as on Forge. And the Fabric jar's start
+line names Minecraft 1.20.1; it said 1.16.5.
+
+*Changes: 1.20.1 Fabric.*
+
+**The log says when the culling hooks never ran** on 1.16.5 and 1.20.1, as 1.7.10's does: every hook that keeps a
+settled block's step face is bound without a requirement, so one that fails to bind would otherwise say nothing.
+
+*Changes: 1.16.5 and 1.20.1.*
+
+**The 1.7.10 quest chapter is written again whenever it changes**, not only when the version or a setting does: the
+book's stamp carries the chapter itself, as the other editions' do.
+
+*Changes: 1.7.10.*
 
 ## 0.9.225 - 2026-10-14
 

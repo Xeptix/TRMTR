@@ -34,7 +34,7 @@ import com.trmtgtnh.Trmt;
 public final class OptiFineFaces {
 
     /** The OptiFine this was written against, as its {@code net.optifine.Config.VERSION} says. */
-    public static final String WRITTEN_FOR = "OptiFine_1.16.5_HD_U_G8";
+    public static final String WRITTEN_FOR = "OptiFine_1.20.1_HD_U_I6";
 
     /** Whether the rule applies here - null until first asked. */
     private static volatile Boolean standing;
@@ -57,7 +57,15 @@ public final class OptiFineFaces {
             noteRan();
             return true;
         }
-        return optiFine(state, level, pos, face, env);
+        boolean drawn = optiFine(state, level, pos, face, env);
+        // Two windows side by side hide the face between them, as two panes of glass do (spec GF4) - the rule vanilla's
+        // face test and the Sodium family's are given, which OptiFine's own test never asks, so a road of worn
+        // waterstone drew every inner face as a blue sheet under OptiFine until 0.9.226.
+        if (on && drawn && com.trmtgtnh.client.model.GhostWindows.sharesPane(state, level, pos, face)) {
+            notePaneRan();
+            return false;
+        }
+        return drawn;
     }
 
     /** Whether the rule is applied under the OptiFine whose version this is. */
@@ -72,7 +80,7 @@ public final class OptiFineFaces {
             standing = held;
             if (held.booleanValue()) {
                 Trmt.LOG.info(
-                    "OptiFine {}: a settled snow layer's or carpet's step is kept in OptiFine's face test",
+                    "OptiFine {}: a settled snow layer's or carpet's step is kept, and the face two windows share hidden, in OptiFine's face test",
                     version);
             } else {
                 Trmt.LOG.info(
@@ -150,6 +158,14 @@ public final class OptiFineFaces {
     }
 
     /** Said once, the first time a step is kept - the only evidence the redirect bound and ran at all. */
+    private static volatile boolean paneSaid;
+
+    private static void notePaneRan() {
+        if (paneSaid) return;
+        paneSaid = true;
+        Trmt.LOG.info("Hiding the face two windows share in OptiFine's face test; the redirect is in place");
+    }
+
     private static void noteRan() {
         if (ranSaid) return;
         ranSaid = true;

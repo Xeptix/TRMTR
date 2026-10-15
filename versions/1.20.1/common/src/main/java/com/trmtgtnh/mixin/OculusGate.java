@@ -73,17 +73,30 @@ public final class OculusGate implements IMixinConfigPlugin {
     /** The mixin that needs the Sodium family. */
     private static final String GATED_SODIUM = "MixinSettledFacesSodium";
 
+    /**
+     * Jade's harvest-tool line, through which a worn square names the tool its covered block wants - named here for the
+     * same reason as {@link #HOLDER}. From 0.9.226 its mixin is the common module's, so a Fabric client without Jade
+     * was asked to apply it too and logged that the class could not be loaded on every start; refused here instead.
+     */
+    public static final String JADE_HARVEST = "snownee.jade.addon.harvest.HarvestToolProvider";
+
+    /** The mixin that needs Jade. */
+    private static final String GATED_JADE = "MixinJadeHarvestLine";
+
     private boolean present;
 
     private boolean optiFinePresent;
 
     private boolean sodiumPresent;
 
+    private boolean jadePresent;
+
     @Override
     public void onLoad(String mixinPackage) {
         present = there(HOLDER);
         optiFinePresent = there(OPTIFINE_SEAT);
         sodiumPresent = there(SODIUM_FACES);
+        jadePresent = there(JADE_HARVEST);
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material.
         org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
@@ -119,6 +132,7 @@ public final class OculusGate implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(GATED)) return present;
         if (mixinClassName.endsWith(GATED_OPTIFINE)) return optiFinePresent;
         if (mixinClassName.endsWith(GATED_SODIUM)) return sodiumPresent;
+        if (mixinClassName.endsWith(GATED_JADE)) return jadePresent;
         return true;
     }
 

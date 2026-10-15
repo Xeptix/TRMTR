@@ -1,0 +1,74 @@
+// The Fabric jar, for Fabric on Minecraft 1.21.1. Holds the entry point and the answers the common module cannot
+// reach for itself; everything that is the mod lives in common.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    fabric()
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-fabric-refmap.json"
+    }
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+}
+
+configurations {
+    common
+    shadowBundle
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    modApi("net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}") {
+        exclude group: "net.fabricmc", module: "fabric-loader"
+    }
+
+    // Mod Menu, compile only, the way a Fabric player reaches the settings screen; Cloth Config, required - as in 1.20.1,
+    // each at its 1.21.1 build. The tooltip plugins (WTHIT, Jade) are the common module's at this version.
+    modCompileOnly("com.terraformersmc:modmenu:${rootProject.modmenu_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+    modImplementation("me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowBundle project(path: ":common", configuration: "transformProductionFabric")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand version: project.version
+    }
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+    // The shared access widener, beside fabric.mod.json that names it: Fabric's loader looks for it in this mod's own
+    // resources, and a development run, which holds the common module apart, found none and would not start.
+    from(project(":common").file("src/main/resources/trmtgtnh.accesswidener"))
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+    // The widener arrives twice, once from this module (above) and once in the common jar; one copy is kept.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = "fabric"
+}

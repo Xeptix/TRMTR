@@ -66,6 +66,10 @@ public final class TrmtFabric implements ModInitializer {
         // forge: on Fabric too, at this version: this jar ships its own forge: tags for the vanilla materials
         // (data/forge/tags), so the settings' material names mean the same on both loaders.
         com.trmtgtnh.util.OreNames.namespace("forge");
+        // Fabric API's own word for a machine's player, which the shared module cannot name: a mod's stand-in that
+        // is given a connection anyway passes the connection test as a person (Machines; spec WD59). Fabric API has
+        // carried FakePlayer from 0.80 (1.19.4); until 0.9.226 this jar handed nothing over, believing it had none.
+        com.trmtgtnh.util.Machines.use(player -> player instanceof net.fabricmc.fabric.api.entity.FakePlayer);
 
         // Vanilla's bush class, which is what every plant that needs ground underneath it extends.
         // Forge answers this with its own IPlantable instead, so the two agree about vanilla and
@@ -173,7 +177,10 @@ public final class TrmtFabric implements ModInitializer {
                     .toFile(),
                 Trmt.MODID + ".cfg"));
 
-        Trmt.LOG.info("{} on Fabric, Minecraft 1.16.5", Trmt.NAME);
+        // The game version read from the game, so the line cannot go stale as the edition is carried: 1.20.1's Fabric
+        // line said 1.16.5, the edition it was carried from, until 0.9.226 (StartLineNamesItsGameTest).
+        Trmt.LOG.info("{} on Fabric, Minecraft {}", Trmt.NAME, net.minecraft.SharedConstants.getCurrentVersion()
+            .getName());
     }
 
     /**

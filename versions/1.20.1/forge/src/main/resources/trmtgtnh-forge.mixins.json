@@ -25,7 +25,6 @@
     "MixinBlockArrivals",
     "MixinChunkForgotten",
     "MixinGhostSustainsPlant",
-    "MixinJadeHarvestLine",
     "MixinLevelReplaced",
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",

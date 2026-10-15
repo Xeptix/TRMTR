@@ -1,0 +1,77 @@
+// The Forge jar, for Forge 52 on Minecraft 1.21.1. Outside Architectury's own 1.21.1 template, which offers Fabric and
+// NeoForge; built by its Loom all the same - the first spike's question.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    forge()
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "trmtgtnh-forge-refmap.json"
+    }
+    // The shared access widener, turned into Forge's access transformer for this jar and applied in the dev run.
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+    forge {
+        mixinConfig "trmtgtnh-common.mixins.json"
+        mixinConfig "trmtgtnh-forge.mixins.json"
+        convertAccessWideners = true
+        extraAccessWideners.add loom.accessWidenerPath.get().asFile.name
+    }
+}
+
+configurations {
+    common
+    shadowBundle
+    compileClasspath.extendsFrom common
+    // Not runtimeClasspath, unlike 1.20.1's Forge module: Forge 52's module layer refuses a package two modules
+    // export, and a dev run then held the common module twice - through Architectury's transformer (trmtr.dev) and
+    // folded into this module's own (generated_...) - so it stopped at start with "Modules trmtr.dev and generated_...
+    // export package com.trmtgtnh" (0.9.226, the first spike). The transformer's copy is the one a dev run needs.
+    developmentForge.extendsFrom common
+}
+
+dependencies {
+    forge "net.minecraftforge:forge:${rootProject.minecraft_version}-${rootProject.forge_version}"
+
+    // MixinExtras, carried inside the jar: Forge 52's libraries hold Mixin and not it (read from its userdev config,
+    // 0.9.226), as Forge 47's did, and the common module's librarian hook wraps an operation with it.
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${rootProject.mixinextras_version}"))
+    implementation(include("io.github.llamalad7:mixinextras-forge:${rootProject.mixinextras_version}"))
+
+    // Cloth Config, which the settings screen is built on, at its 1.21.1 build for Forge. The tooltip plugins are the
+    // common module's: at 1.21.1 only WTHIT is built for Forge, and it finds its plugin through waila_plugins.json.
+    modImplementation("me.shedaniel.cloth:cloth-config-forge:${rootProject.cloth_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowBundle project(path: ":common", configuration: "transformProductionForge")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("META-INF/mods.toml") {
+        expand version: project.version
+    }
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = "forge"
+}

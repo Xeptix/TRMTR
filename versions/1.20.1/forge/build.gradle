@@ -34,9 +34,9 @@ dependencies {
     compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${rootProject.mixinextras_version}"))
     implementation(include("io.github.llamalad7:mixinextras-forge:${rootProject.mixinextras_version}"))
 
-    // The block tooltips this mod writes a line into, compile only: optional integrations, named only in their own
-    // classes, which nothing loads unless the mod is installed. As in 1.16.5.
-    modCompileOnly "maven.modrinth:jade:${rootProject.jade_forge_version}"
+    // The One Probe, the block tooltip whose API is this loader's alone, compile only: an optional integration,
+    // named only in its own class, which nothing loads unless the mod is installed. Jade's and WTHIT's plugins are
+    // the common module's from 0.9.226.
     modCompileOnly "maven.modrinth:the-one-probe:${rootProject.top_version}"
 
     // Cloth Config, required: the settings screen is built on it, as in 1.16.5. See ConfigScreen.

@@ -95,6 +95,13 @@ public final class ShaderMaterial {
         BlockState claimed;
     }
 
+    /** How many claims landed over the session, for the harness to say (0.9.226). */
+    private static final java.util.concurrent.atomic.AtomicLong CLAIMS = new java.util.concurrent.atomic.AtomicLong();
+
+    public static long claimsLanded() {
+        return CLAIMS.get();
+    }
+
     private ShaderMaterial() {}
 
     /** Whether there is anything to say and anybody to say it to, under Oculus. */
@@ -190,6 +197,7 @@ public final class ShaderMaterial {
             set.invoke(seat.holder, claim, Short.valueOf(renderType.getShort(seat.holder)),
                 Byte.valueOf(lightValue.getByte(seat.holder)));
             seat.claimed = claim;
+            CLAIMS.incrementAndGet();
         } catch (Throwable awkward) {
             // One failure is enough: something has changed under us and asking again every face for
             // the rest of the session would be the expensive way to keep finding that out.

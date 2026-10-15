@@ -142,6 +142,14 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
     private static final String STOUT_NAME = "trmtgtnh.golem.stout";
 
     /**
+     * How the stout modifier applies: its amount, 1, times the base - the guide's "Stout doubles its health", sixty to a
+     * hundred and twenty. 1.7.10 and 1.12.2 write it as operation 1, and MULTIPLY_BASE is operation 1 here. This
+     * edition and 1.20.1 wrote ADDITION until 0.9.226, which is operation 0: one point of health, where the reference
+     * gives sixty (GolemStoutDoublesTest).
+     */
+    private static final net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation STOUT_OPERATION = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_BASE;
+
+    /**
      * Where the upgrade lives, which is one past the widest the storage ever gets.
      *
      * <p>
@@ -927,6 +935,12 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
             Attributes.MAX_HEALTH);
         if (health == null) return;
         net.minecraft.world.entity.ai.attributes.AttributeModifier fitted = health.getModifier(STOUT_ID);
+        // A golem fitted before 0.9.226 carries the modifier this edition wrote then, one point added: taken off, and
+        // fitted again below as it should be (see STOUT_OPERATION).
+        if (fitted != null && fitted.getOperation() != STOUT_OPERATION) {
+            health.removeModifier(fitted);
+            fitted = null;
+        }
         if (wanted == (fitted != null)) return;
 
         // How hurt it is, kept across the change rather than how much health it happens to have.
@@ -942,7 +956,7 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
                     STOUT_ID,
                     STOUT_NAME,
                     1.0D,
-                    net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+                    STOUT_OPERATION));
         } else {
             health.removeModifier(fitted);
         }

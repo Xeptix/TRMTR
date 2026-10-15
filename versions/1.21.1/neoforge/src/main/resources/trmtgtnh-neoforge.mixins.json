@@ -1,0 +1,50 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.neoforge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinChunkSerializer",
+    "MixinCrashReportSupport",
+    "MixinGhostFriction",
+    "MixinGhostMapColor",
+    "MixinItemStack",
+    "MixinRepairItemRecipe",
+    "MixinLootArrivals",
+    "MixinRecipeArrivals",
+    "MixinSnowRestsOnWornGround",
+    "MixinStairNeighbours",
+    "MixinWornCollision"
+  ],
+  "client": [
+    "MixinModelManagerBaked",
+    "MixinSpriteImages",
+    "MixinGhostSoilTagged",
+    "MixinSettledHit",
+    "MixinSettledOutline",
+    "MixinAirSwing",
+    "MixinOptiFineSettledFaces",
+    "MixinBlockArrivals",
+    "MixinChunkForgotten",
+    "MixinGhostSoilBush",
+    "MixinGhostSoilCactus",
+    "MixinGhostSoilMushroom",
+    "MixinGhostSoilSugarCane",
+    "MixinLevelReplaced",
+    "MixinBlockRenderDispatcher",
+    "MixinServerLightArrives",
+    "MixinSettleOnWornGround",
+    "MixinSettledFaces",
+    "MixinStitcher",
+    "MixinStitcherRegion",
+    "MixinSpriteLoader",
+    "SpriteResourceLoaderSources",
+    "StitcherHolderSize",
+    "MixinSunkLightVanilla",
+    "MixinWindowLight",
+    "MixinEntityLightLent"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

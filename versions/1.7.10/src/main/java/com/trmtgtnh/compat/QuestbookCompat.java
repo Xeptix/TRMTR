@@ -291,7 +291,20 @@ public final class QuestbookCompat {
      */
     private static String stamp() {
         return com.trmtgtnh.Tags.VERSION + lessons()
-            .stamp() + "/golems=" + TrmtConfig.golemEnabled + "/upgrades=" + TrmtConfig.golemUpgrades;
+            .stamp() + "/golems=" + TrmtConfig.golemEnabled + "/upgrades=" + TrmtConfig.golemUpgrades
+        // And what the chapter holds (0.9.226, as the ports since 0.9.225): a chapter changed within one version
+        // is written again. A 1.20.1 game kept the chapter from before the stand-in rewards until its stamp said so.
+            + "/chapter="
+            + chapterPrint();
+    }
+
+    /** Every quest of the chapter as this build writes it, hashed, so a changed chapter is written again. */
+    private static String chapterPrint() {
+        StringBuilder all = new StringBuilder();
+        for (Quest quest : build()) all.append(quest.definition());
+        return Integer.toHexString(
+            all.toString()
+                .hashCode());
     }
 
     private static int effectId(net.minecraft.enchantment.Enchantment enchantment) {
