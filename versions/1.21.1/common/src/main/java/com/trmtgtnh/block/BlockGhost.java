@@ -907,7 +907,9 @@ public class BlockGhost extends Block {
     /**
      * How slippery this square is: worn ice is ice to the client that moves its own player, as it is to the server that
      * holds the real ice. Until 0.9.222 it was 0.6 and the two disagreed about where a sliding player ended up. See
-     * {@link GhostFamily#slipperinessFor} (spec GF17). Forge's {@code IForgeBlock.getSlipperiness}.
+     * {@link GhostFamily#slipperinessFor} (spec GF17). Named as Forge's question was up to 1.16.5; Forge and NeoForge
+     * now ask {@code getFriction}, which each loader module's {@code MixinGhostFriction} hands to this (Forge's from
+     * 0.9.227), and Fabric's mixins ask it where the game reads a block's friction.
      */
     public float getSlipperiness(BlockState state, net.minecraft.world.level.LevelReader world, BlockPos pos,
         net.minecraft.world.entity.Entity entity) {
@@ -929,8 +931,9 @@ public class BlockGhost extends Block {
 
     /**
      * Lets the game spawn the hitting dust, the square's family held for its picture - false, so nothing here
-     * replaces the game's own placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19). Forge's
-     * {@code IForgeBlock.addHitEffects}; on Fabric MixinGhostDust holds at the same moment. The dust asks tint slot
+     * replaces the game's own placement, as the 1.7.10 edition's {@code addHitEffects} does (spec GF19). Handed to
+     * Forge and NeoForge as the ghost's client extensions (Forge's {@code GhostDustForge} from 0.9.227, NeoForge's
+     * client setup); on Fabric MixinGhostDust holds at the same moment. The dust asks tint slot
      * nought with the real world in hand, which answers the square's own color for every caller since 0.9.223; its
      * picture is the family's, side by side, through the hold (client.model.GhostDust).
      */
@@ -942,7 +945,7 @@ public class BlockGhost extends Block {
         return false;
     }
 
-    /** The breaking dust, the same way. Forge's {@code IForgeBlock.addDestroyEffects}. */
+    /** The breaking dust, the same way, through the same client extensions. */
     public boolean addDestroyEffects(BlockState state, Level world, BlockPos pos,
         net.minecraft.client.particle.ParticleEngine manager) {
         Client.holdDust(world, pos);

@@ -1,0 +1,6 @@
+{
+    "parent": "item/handheld",
+    "textures": {
+        "layer0": "trmtgtnh:item/chunk_tamper_silver"
+    }
+}

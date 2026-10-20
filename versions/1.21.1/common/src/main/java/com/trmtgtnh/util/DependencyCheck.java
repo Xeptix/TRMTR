@@ -98,6 +98,29 @@ public final class DependencyCheck {
         return out;
     }
 
+    /**
+     * What the file asks of one required mod for this edition, as {@code {minimum, recommended}} - the recommendation
+     * the minimum itself where the file gives none or a lower one - or null when the file gives no minimum for it, or
+     * none was read (0.9.227, /trmt version).
+     */
+    public static String[] floor(String body, String edition, String id) {
+        if (body == null || id == null) return null;
+        Properties read = new Properties();
+        try {
+            read.load(new StringReader(body));
+        } catch (IOException e) {
+            return null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        String base = REQUIRES + edition + "." + id;
+        String minimum = shaped(read.getProperty(base + ".minimum"));
+        if (minimum == null) return null;
+        String recommended = shaped(read.getProperty(base + ".recommended"));
+        if (recommended == null || compare(recommended, minimum) < 0) recommended = minimum;
+        return new String[] { minimum, recommended };
+    }
+
     /** A version from the file, trimmed, if it has the one shape allowed; otherwise null. */
     static String shaped(String said) {
         if (said == null) return null;

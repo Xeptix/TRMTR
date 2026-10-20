@@ -1352,20 +1352,33 @@ public final class TrmtConfig {
         // A key that existed a moment ago and does not now is what that looks like from here.
         Set<String> before = keysOnRecord();
 
+        // Read into a copy first, and into the live settings only once that copy is accepted (0.9.227, spec CF7). This
+        // parser empties what it holds before it reads, where Forge's merges over it, so a refused file had already
+        // replaced the settings in memory: the second /trmt reload of a truncated file then compared against the
+        // truncated set, passed, and wrote every missing setting back at its default.
+        ConfigFile fresh = new ConfigFile(config.getConfigFile());
         try {
-            config.load();
+            fresh.load();
         } catch (RuntimeException malformed) {
             poisoned = true;
             Trmt.error("Config file could not be parsed, keeping the settings already loaded", malformed);
             return false;
         }
 
-        Set<String> after = keysOnRecord();
+        Set<String> after = keysOnRecord(fresh);
         if (!before.isEmpty() && !after.containsAll(before)) {
             poisoned = true;
             Trmt.error(
                 "Config file is missing {} settings it had a moment ago, so it looks truncated. Keeping the settings already loaded and writing nothing back.",
                 Integer.valueOf(before.size() - countPresent(before, after)));
+            return false;
+        }
+
+        try {
+            config.load();
+        } catch (RuntimeException changedSince) {
+            poisoned = true;
+            Trmt.error("Config file could not be parsed, keeping the settings already loaded", changedSince);
             return false;
         }
 
@@ -1502,7 +1515,7 @@ public final class TrmtConfig {
             CATEGORY_INTEGRATION,
             "gtnhEnhanced",
             ModsPresent.has("gregtech") || ModsPresent.has("gtceu"),
-            "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map coloring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
+            "The pack personality switch. On, the mod tunes itself to the companion mods a GregTech pack ships: harder recipes, the compressed-block golem build, a Wayfarer built around a netherite chunk tamper where the pack can make one, tiered material costs, and the quest chapter written for BetterQuesting or FTB Quests. Off, all of that falls back to plain vanilla-Forge behaviour - plain recipes, a golem built from vanilla blocks only, a Wayfarer that no longer prefers netherite, and no quest chapter written, though a chapter an earlier launch wrote is left where it is. It is not a switch for every companion mod, whatever it once said. Trophies answer to integration.trophies and the chest finds to the loot settings, and neither asks this: neither changes what anything costs, so neither has a plainer version to fall back to, and turning this off removes no trophy and takes nothing out of any chest - loot.lootFinds is the switch that takes every find out. The map coloring and tooltip readouts, which change no gameplay, are not reached by it either. The default is decided the first time this file is written - on when GregTech is installed, off otherwise - and then kept, so a pack that ran once before GregTech was added keeps this off until it is turned on here.");
         gtnhEnhanced = enhanced.getBoolean();
         dimensionListIsWhitelist = config.getBoolean(
             "dimensionListIsWhitelist",

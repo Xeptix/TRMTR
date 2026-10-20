@@ -1,0 +1,79 @@
+// The NeoForge jar, for NeoForge on Minecraft 26.2 - its shadow jar, with the common module folded in.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    platformSetupLoomIde()
+    neoForge()
+}
+
+loom {
+    // The shared access widener, as at 1.21.1: applied to the game this module is compiled and run against, and written
+    // into the jar as NeoForge's access transformer (1.21.1 did that in remapJar, which is gone with the remapping; the
+    // no-remap Loom converts it on the shadow jar instead).
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+    neoForge {
+        convertAccessWideners(tasks.named("shadowJar"), "trmtgtnh.accesswidener")
+    }
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentNeoForge.extendsFrom common
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
+dependencies {
+    neoForge "net.neoforged:neoforge:${rootProject.neoforge_version}"
+
+    // No MixinExtras carried here, as at 1.21.1: NeoForge's own libraries hold it, so the common module's librarian
+    // hook finds it at run time.
+
+    // Cloth Config, which the settings screen is built on, at its 26.2 build for NeoForge. Compiled against and not
+    // carried at run time: on 26.x it is optional (decided), so a game without it must start, and the Config button
+    // builds the Cloth screen only where Cloth is loaded. Plain compileOnly: nothing is remapped at 26.1.
+    compileOnly("me.shedaniel.cloth:cloth-config-neoforge:${rootProject.cloth_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    // The One Probe, compiled against and never carried: its lines are this module's (OneProbeTooltip), asked for
+    // through its message as 1.20.1's Forge jar asked, so a pack without it never touches them.
+    compileOnly "maven.modrinth:the-one-probe:${rootProject.top_neoforge_version}"
+
+    common(project(path: ":common")) { transitive = false }
+    shadowBundle project(path: ":common", configuration: "transformProductionNeoForge")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand version: project.version
+    }
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+jar {
+    archiveClassifier = "dev"
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "neoforge"
+}
+
+assemble.dependsOn shadowJar

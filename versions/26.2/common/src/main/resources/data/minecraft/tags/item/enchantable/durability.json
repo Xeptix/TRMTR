@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "trmtgtnh:tamper",
+    "trmtgtnh:chunk_tamper",
+    "trmtgtnh:magic_tamper"
+  ]
+}

@@ -27,11 +27,21 @@ import net.minecraft.world.item.ItemStack;
  * So a stack in the old shape - it has {@code Count} - is put through the game's own fixer for stacks first, from
  * 1.20.1's data version to this one, exactly as the game would have put it through had it known where it was. What
  * this mod remembers in a stack's tag lands in its custom data on the way, which is where {@link StackData} reads it.
+ *
+ * <p>
+ * <strong>And a stack 1.12.2 wrote is older still</strong> (0.9.227): its wear is {@code Damage} at the stack's root,
+ * which 1.13 moved into the stack's tag, and its block variants are a number the flattening turned into ids. Fixed from
+ * 1.20.1's version, such a stack is taken for one already flattened, and the pickaxe a 1.12.2 golem carried comes back
+ * unworn - found carrying a worn world from 1.12.2 to 1.16.5, whose {@code Stacks} answers it the same way. So a stack
+ * with {@code Damage} at its root, which nothing from 1.13 on writes there, is fixed from 1.12.2's version instead.
  */
 public final class Stacks {
 
     /** 1.20.1's data version: the last before stacks took components. Every edition before this one writes it. */
     static final int BEFORE_COMPONENTS = 3465;
+
+    /** 1.12.2's data version: the last before the flattening, and the version every 1.12.2 save writes. */
+    static final int BEFORE_THE_FLATTENING = 1343;
 
     private Stacks() {}
 
@@ -77,13 +87,21 @@ public final class Stacks {
         return tag.contains("Count");
     }
 
+    /**
+     * Whether this compound holds a stack in 1.12.2's shape: its wear at the root, where 1.13 and after keep it in the
+     * stack's tag and never write one there.
+     */
+    static boolean beforeTheFlattening(CompoundTag tag) {
+        return tag.contains("Damage", Tag.TAG_ANY_NUMERIC);
+    }
+
     private static CompoundTag current(CompoundTag tag) {
         if (!old(tag)) return tag;
         Dynamic<Tag> fixed = DataFixers.getDataFixer()
             .update(
                 References.ITEM_STACK,
                 new Dynamic<Tag>(NbtOps.INSTANCE, tag),
-                BEFORE_COMPONENTS,
+                beforeTheFlattening(tag) ? BEFORE_THE_FLATTENING : BEFORE_COMPONENTS,
                 SharedConstants.getCurrentVersion()
                     .getDataVersion()
                     .getVersion());

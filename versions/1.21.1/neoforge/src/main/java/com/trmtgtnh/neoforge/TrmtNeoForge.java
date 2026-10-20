@@ -52,7 +52,12 @@ public final class TrmtNeoForge {
         // one had a NeoForge jar, so there is no older line it could share. Cloth's NeoForge jar calls itself
         // cloth_config, as its Forge jar does, so Forge's list of required mods is this jar's too.
         com.trmtgtnh.server.UpdateNotice
-            .edition("1.21.1-neoforge", !FMLEnvironment.production, com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE);
+            .edition(
+                "1.21.1-neoforge",
+                !FMLEnvironment.production,
+                // Cloth Config only on a client (0.9.227): this jar declares it side = CLIENT, so a dedicated server
+                // without it is a whole one, and /trmt version there said it was missing a mod this mod needs.
+                FMLEnvironment.dist.isClient() ? com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE : new String[0][]);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> ModList.get()
@@ -115,10 +120,19 @@ public final class TrmtNeoForge {
         // entry, and this constructor runs before any registry event has fired. See NeoForgeClientSetup.
 
         // Block ids moved - a world from another mod list opened, a server's numbering taken on, or either handed
-        // back. NeoForge posts it on the game's bus, as Forge 47 did. See ServerEvents.idsMoved. Marked for removal in
-        // NeoForge 21.1 and still posted there, which is what this version needs.
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
-            (net.neoforged.neoforge.registries.IdMappingEvent moved) -> com.trmtgtnh.server.ServerEvents.idsMoved());
+        // back. See ServerEvents.idsMoved. Heard as the block registry's bake callback, which NeoForge calls whenever a
+        // snapshot (a world's or a server's numbering) is applied to it - RegistryManager.applySnapshot freezes it
+        // again, and the freeze calls every bake callback (21.1.259's sources and its MappedRegistry patch). Until
+        // 0.9.227 this listened for IdMappingEvent, which NeoForge 21.1 posts only from GameData.freezeData, once at
+        // start: joining a server that numbers blocks differently never rebuilt the table (found by the second
+        // consistency pass; 26.1.2 had moved to the callback when its event went). The call as the registries freeze at
+        // start is let go, as the event's was not needed then either: the table is built as the server starts.
+        net.minecraft.core.registries.BuiltInRegistries.BLOCK.addCallback(
+            net.neoforged.neoforge.registries.callback.BakeCallback.class,
+            (net.neoforged.neoforge.registries.callback.BakeCallback<net.minecraft.world.level.block.Block>) moved -> {
+                if (net.neoforged.neoforge.internal.CommonModLoader.areRegistriesLoaded())
+                    com.trmtgtnh.server.ServerEvents.idsMoved();
+            });
 
         // The One Probe takes its API through a message sent while mods enqueue theirs, and only when it is installed,
         // as 1.20.1's Forge jar asked: OneProbeTooltip is the only class that names it, and nothing loads that class

@@ -368,7 +368,14 @@ public class GuiGolem extends GuiContainer {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     public void drawScreen(int mouseX, int mouseY, float partial) {
+        // The world dimmed behind it first (0.9.227): 1.7.10's GuiContainer does that itself, and from 1.12 a container
+        // screen must ask - this one did not, so the golem's panel sat over the bright world, as the screens part's
+        // photographs showed beside 1.7.10's and 1.21.1's (whose Screen asks for every screen).
+        drawDefaultBackground();
         super.drawScreen(mouseX, mouseY, partial);
+        // And the hovered slot's tooltip (0.9.227): 1.7.10's GuiContainer draws it inside its own drawScreen, and from
+        // 1.12 a container screen must ask - this one never did, so a stack in the golem's storage had no name on hover.
+        renderHoveredToolTip(mouseX, mouseY);
         // After everything else and in screen coordinates, which is where the box was placed.
         if (typing != null) {
             // The container's draw leaves the item lighting on for the stack under the cursor, and

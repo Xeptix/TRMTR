@@ -88,7 +88,7 @@ public final class SpawnGrants {
         if (!player.inventory.add(stack)) {
             player.drop(stack, false);
         }
-        Trmt.LOG.debug("Gave {} their starting {}", player.getName(), key);
+        Trmt.LOG.debug("Gave {} their starting {}", player.getGameProfile().getName(), key);
     }
 
     /**

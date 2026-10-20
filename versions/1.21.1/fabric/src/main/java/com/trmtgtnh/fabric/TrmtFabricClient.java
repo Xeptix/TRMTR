@@ -28,7 +28,7 @@ import com.trmtgtnh.client.texture.WearTextures;
  * harness.</strong> It opened a world named {@code spike} from the title screen, walked the player
  * across it for two minutes, put the world on peaceful, closed the pause screen under them, moved
  * the camera and took photographs - ungated, in the shipped jar, with only the absence of a save by
- * that name standing between a player and all of it. That is {@link FabricSpikeRun} now, which runs
+ * that name standing between a player and all of it. That is the test harness now, which runs
  * only when {@code -Dtrmt.spike} is set, and which this hands the tick to after the real work and
  * never before it.
  */
@@ -40,19 +40,10 @@ public final class TrmtFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        // A tamper's left-click, refused as a dig on this side, still sent to the server, which is where it acts: Fabric
-        // API 0.42 sends nothing once the click is answered. See FabricEvents.sendClickToServer.
-        FabricEvents.sendClickToServer = (pos, face) -> {
-            net.minecraft.client.multiplayer.ClientPacketListener connection = net.minecraft.client.Minecraft.getInstance()
-                .getConnection();
-            if (connection != null) {
-                connection.send(
-                    new net.minecraft.network.protocol.game.ServerboundPlayerActionPacket(
-                        net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK,
-                        pos,
-                        face));
-            }
-        };
+        // No relay of a tamper's left-click here (0.9.227, spec RL19): Fabric API at this version sends the dig itself when
+        // the attack callback's answer accepts it - read from its interaction module's jar - so the relay 1.16.5 needs
+        // (FabricEvents.sendClickToServer, for Fabric API 0.42, which sends nothing) sent every click twice. A stray
+        // single click on reinforced ground then armed the take-off and took a level at once.
         FabricClientChannel.open();
 
         // Before anything reloads resources, and that ordering is the whole of it. The pack

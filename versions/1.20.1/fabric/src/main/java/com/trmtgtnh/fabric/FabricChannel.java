@@ -72,7 +72,15 @@ public final class FabricChannel {
                 // gets to it. Both older editions wrap their handlers for the same reason; here the
                 // loader hands the work over instead, and the copy is what makes that safe.
                 final io.netty.buffer.ByteBuf held = buf.copy();
-                server.execute(() -> entry.accept(held, player));
+                // Released once read (0.9.227): a copy is the reader's own, counted by Netty, and was never handed back - a
+                // pooled buffer kept for every packet this mod received.
+                server.execute(() -> {
+                    try {
+                        entry.accept(held, player);
+                    } finally {
+                        held.release();
+                    }
+                });
             });
         }
 

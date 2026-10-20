@@ -28,7 +28,7 @@ import com.trmtgtnh.client.texture.WearTextures;
  * harness.</strong> It opened a world named {@code spike} from the title screen, walked the player
  * across it for two minutes, put the world on peaceful, closed the pause screen under them, moved
  * the camera and took photographs - ungated, in the shipped jar, with only the absence of a save by
- * that name standing between a player and all of it. That is {@link FabricSpikeRun} now, which runs
+ * that name standing between a player and all of it. That is the test harness now, which runs
  * only when {@code -Dtrmt.spike} is set, and which this hands the tick to after the real work and
  * never before it.
  */

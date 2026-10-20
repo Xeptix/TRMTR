@@ -1,0 +1,70 @@
+// The code that names Minecraft but no loader. Most of the mod belongs here, as in 1.21.1.
+
+architectury {
+    common(rootProject.enabled_platforms.split(","))
+}
+
+loom {
+    // The one access widener, shared, as at 1.21.1: the common code reaches what it widens, Fabric applies it as it
+    // is, and the Forge and NeoForge builds turn it into their access transformers.
+    accessWidenerPath = file("src/main/resources/trmtgtnh.accesswidener")
+}
+
+dependencies {
+    // Compiled against Fabric's loader so the common module can be annotated for both sides; the produced classes
+    // are loader-agnostic and are not shipped from here. Plain implementation: no remapping at 26.1.
+    implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+
+    // Cloth Config, compiled against so the one settings screen built on it lives here; optional on 26.x (decided):
+    // where it is not installed - every Forge game, and NeoForge or Fabric without it - this mod's own screen is shown.
+    compileOnly "me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_version}"
+
+    // The two block-tooltip mods whose API names no loader, compiled against their Fabric builds, as at 1.21.1.
+    compileOnly "maven.modrinth:wthit:${rootProject.wthit_fabric_version}"
+    compileOnly "maven.modrinth:jade:${rootProject.jade_fabric_version}"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+
+    // Several tests read the tree rather than running it, and Gradle cannot see that from a classpath, so the trees
+    // they read are inputs of this task - or a change to a loader module would leave the guard UP-TO-DATE and unrun.
+    // 1.21.1's, which this tree was made without until 0.9.227.
+    inputs.files(
+        fileTree(rootProject.projectDir) {
+            include 'common/src/main/**'
+            include 'neoforge/src/main/**'
+            include 'forge/src/main/**'
+            include 'fabric/src/main/**'
+        })
+        .withPropertyName('theSourceTheseTestsRead')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// Where the specification is, for the drift check: read from an untracked file at the repository root, so a tree
+// checked out alone still builds and the check skips. Resolved here, because a test runs in the module's directory.
+// 1.21.1's; this tree was made without it, and its five drift tests skipped themselves, green, until 0.9.227.
+def sibling = rootProject.file('sibling.properties')
+if (sibling.exists()) {
+    Properties held = new Properties()
+    sibling.withInputStream { held.load(it) }
+    String other = held.getProperty('otherEdition', '').trim()
+    if (!other.isEmpty()) {
+        String resolved = rootProject.file(other).absolutePath
+        tasks.named('test', Test) {
+            systemProperty 'trmt.other.edition', resolved
+        }
+    }
+    // And the first port, for the one table whose reference is 1.12.2's rather than 1.7.10's: the golem's held tool,
+    // which 1.7.10 draws in a renderer of its own (GolemToolIsHeldAsTheReferenceHoldsItTest).
+    String firstPort = held.getProperty('firstPort', '').trim()
+    if (!firstPort.isEmpty()) {
+        String resolved = rootProject.file(firstPort).absolutePath
+        tasks.named('test', Test) {
+            systemProperty 'trmt.first.port', resolved
+        }
+    }
+}

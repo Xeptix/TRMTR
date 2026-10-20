@@ -1,0 +1,21 @@
+pluginManagement {
+    repositories {
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://maven.architectury.dev/" }
+        maven { url = "https://maven.minecraftforge.net/" }
+        maven { url = "https://maven.neoforged.net/releases/" }
+        gradlePluginPortal()
+    }
+}
+
+// 26.1 runs on Java 25 and its build has to as well: the no-remap Loom refuses an older Gradle JVM, so say it first.
+if (JavaVersion.current().ordinal() + 1 < 25) {
+    throw new IllegalStateException("Run this build with Java 25 or newer (org.gradle.java.home in gradle.properties).")
+}
+
+rootProject.name = "trmtr-26.2"
+
+include("common")
+include("fabric")
+include("forge")
+include("neoforge")

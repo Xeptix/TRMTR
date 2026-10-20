@@ -12,6 +12,7 @@ import java.util.Set;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockGrass;
 import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.command.WrongUsageException;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -61,7 +62,11 @@ public class CommandTrmt extends CommandBase {
         "golem",
         "showcase",
         "demonstrate",
-        "mapcolor");
+        "mapcolor",
+        "version");
+
+    /** The one subcommand any player may run (0.9.227; Xep: "Everyone"): it reports and changes nothing. */
+    private static final String OPEN = "version";
 
     @Override
     public String getCommandName() {
@@ -70,7 +75,7 @@ public class CommandTrmt extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|version|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
     }
 
     @Override
@@ -78,11 +83,30 @@ public class CommandTrmt extends CommandBase {
         return 2;
     }
 
+    /**
+     * Any sender may reach the command, so that /trmt version is every player's (0.9.227); every other subcommand is
+     * held to {@link #getRequiredPermissionLevel} in {@link #processCommand}, before anything runs.
+     */
+    @Override
+    public boolean canCommandSenderUseCommand(ICommandSender sender) {
+        return true;
+    }
+
+    /** Whether this sender may run what these words ask: the open subcommand for anyone, the rest for operators. */
+    private boolean mayRun(ICommandSender sender, String[] args) {
+        if (args.length > 0 && OPEN.equals(args[0].toLowerCase(Locale.ROOT))) return true;
+        return sender.canCommandSenderUseCommand(getRequiredPermissionLevel(), getCommandName());
+    }
+
     @SuppressWarnings("rawtypes")
     @Override
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
-        if (args.length == 1) return getListOfStringsMatchingLastWord(args, SUBCOMMANDS.toArray(new String[0]));
-        return null;
+        if (args.length != 1) return null;
+        // A player who may not run the rest is offered only what they may.
+        String[] offered = sender.canCommandSenderUseCommand(getRequiredPermissionLevel(), getCommandName())
+            ? SUBCOMMANDS.toArray(new String[0])
+            : new String[] { OPEN };
+        return getListOfStringsMatchingLastWord(args, offered);
     }
 
     /**
@@ -103,6 +127,7 @@ public class CommandTrmt extends CommandBase {
      */
     @Override
     public void processCommand(ICommandSender sender, final String[] args) {
+        if (!mayRun(sender, args)) throw new CommandException("commands.generic.permission");
         if (Trmt.runningServer() != null && !Trmt.onServerThread()) {
             reply(
                 sender,
@@ -278,6 +303,10 @@ public class CommandTrmt extends CommandBase {
             showcase(sender, args);
         } else if ("demonstrate".equals(sub)) {
             demonstrate(sender, args);
+        } else if (OPEN.equals(sub)) {
+            for (String line : com.trmtgtnh.server.UpdateNotice.versionLines()) {
+                reply(sender, EnumChatFormatting.AQUA, line);
+            }
         } else {
             throw new WrongUsageException(getCommandUsage(sender));
         }

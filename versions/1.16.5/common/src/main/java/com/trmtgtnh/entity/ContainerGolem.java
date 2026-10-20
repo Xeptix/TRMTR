@@ -427,6 +427,31 @@ public class ContainerGolem extends AbstractContainerMenu {
     /** What the screen draws. Filled by {@link #updateProgressBar}, never read on the server. */
     private int heldTarget = HELD_NONE;
 
+    /** The orders' data slots, in the order they were added, so each can be sent when a viewer attaches. */
+    private final java.util.List<net.minecraft.world.inventory.DataSlot> orders = new java.util.ArrayList<net.minecraft.world.inventory.DataSlot>();
+
+    @Override
+    protected net.minecraft.world.inventory.DataSlot addDataSlot(net.minecraft.world.inventory.DataSlot slot) {
+        orders.add(slot);
+        return super.addDataSlot(slot);
+    }
+
+    /**
+     * Every order sent as the screen opens (0.9.227, spec GO48). At this version a data slot is sent only when it differs
+     * from the last value sent, and the last value starts at nought - so an order of exactly nought, which the first
+     * press of a minus gives, was never sent, and the held block's row read "hold a block" with its buttons greyed.
+     * 1.7.10 fills its last-sent values with a number no order can be and sends every one at open; 1.20.1 and after
+     * send everything themselves.
+     */
+    @Override
+    public void addSlotListener(net.minecraft.world.inventory.ContainerListener listener) {
+        super.addSlotListener(listener);
+        for (int index = 0; index < orders.size(); index++) {
+            listener.setContainerData(this, index, orders.get(index)
+                .get());
+        }
+    }
+
     private final int[] familyTargets = new int[SurfaceFamily.values().length];
 
     public int shownHeldTarget() {

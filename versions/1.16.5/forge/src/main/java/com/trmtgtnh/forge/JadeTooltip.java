@@ -12,6 +12,7 @@ import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.BlockGhost;
+import com.trmtgtnh.compat.CoveredNames;
 import com.trmtgtnh.compat.WailaCompat;
 import com.trmtgtnh.compat.WailaGolem;
 import com.trmtgtnh.entity.EntityGolemOfWays;
@@ -68,7 +69,68 @@ public final class JadeTooltip implements IWailaPlugin {
         registrar.registerComponentProvider(new Ground(false), TooltipPosition.BODY, BlockGhost.class);
         registrar.registerComponentProvider(new Ground(true), TooltipPosition.BODY, Block.class);
         registrar.registerComponentProvider(new Golem(), TooltipPosition.BODY, EntityGolemOfWays.class);
+        // A worn square named for the block it covers, and that block's mod (spec GF14; 0.9.227). Jade names it from
+        // the pick-block already for a block in its jade:pick tag, which the ghosts are in (data/jade/tags/blocks), and
+        // takes the mod from the block itself; WTHIT on Forge, which loads this plugin too, names it from the block.
+        // So both lines are put right here, after the mod's own: the name at the head, the mod at the tail.
+        registrar.registerComponentProvider(new Named(), TooltipPosition.HEAD, BlockGhost.class);
+        registrar.registerComponentProvider(new Named(), TooltipPosition.TAIL, BlockGhost.class);
         registrar.addConfig(TOGGLE, true);
+    }
+
+    /** The name and mod lines over a worn square, said for the block it covers. See CoveredNames. */
+    private static final class Named implements IComponentProvider {
+
+        @Override
+        public void appendHead(List<Component> tooltip, IDataAccessor accessor, IPluginConfig config) {
+            rename(tooltip, accessor);
+        }
+
+        @Override
+        public void appendTail(List<Component> tooltip, IDataAccessor accessor, IPluginConfig config) {
+            rename(tooltip, accessor);
+        }
+    }
+
+    /** Each tagged line over a ghost with the covered block's words in place of the stand-in's. */
+    @SuppressWarnings("unchecked")
+    static void rename(List<Component> tooltip, IDataAccessor accessor) {
+        if (!(tooltip instanceof mcp.mobius.waila.api.ITaggableList)) return;
+        net.minecraft.world.item.ItemStack covered = accessor.getStack();
+        if (covered == null || covered.isEmpty() || covered.getItem() instanceof net.minecraft.world.item.BlockItem
+            && ((net.minecraft.world.item.BlockItem) covered.getItem()).getBlock() instanceof BlockGhost) return;
+        mcp.mobius.waila.api.ITaggableList<Object, Component> tags = (mcp.mobius.waila.api.ITaggableList<Object, Component>) tooltip;
+        String standIn = accessor.getBlock()
+            .getName()
+            .getString();
+        for (java.util.Map.Entry<Object, Component> each : new ArrayList<java.util.Map.Entry<Object, Component>>(
+            tags.getTags()
+                .entrySet())) {
+            if (!(each.getKey() instanceof ResourceLocation) || each.getValue() == null) continue;
+            String tag = ((ResourceLocation) each.getKey()).getPath();
+            String was = each.getValue()
+                .getString();
+            String now = was;
+            if (CoveredNames.NAME_TAG.equals(tag)) {
+                now = CoveredNames.renamed(was, standIn, covered.getHoverName()
+                    .getString());
+            } else if (CoveredNames.MOD_TAG.equals(tag)) {
+                now = CoveredNames.renamed(was, Trmt.NAME, modOf(covered));
+            }
+            if (!now.equals(was)) tags.setTag(each.getKey(), new TextComponent(now));
+        }
+    }
+
+    /** The name of the mod a stack's item comes from, as Forge knows it. */
+    static String modOf(net.minecraft.world.item.ItemStack stack) {
+        ResourceLocation id = stack.getItem()
+            .getRegistryName();
+        if (id == null) return null;
+        return net.minecraftforge.fml.ModList.get()
+            .getModContainerById(id.getNamespace())
+            .map(container -> container.getModInfo()
+                .getDisplayName())
+            .orElse(id.getNamespace());
     }
 
     /** One of the two block providers; see the class note for why there are two. */

@@ -37,8 +37,8 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * <p>
  * <strong>This is also the one map that can show how worn a road is rather than merely that it is
  * worn.</strong> Vanilla's own map answer is a choice of sixty-four fixed palette entries, which is
- * why {@code GhostMapColor} settles for one darker entry per square and why four settings in this
- * edition's file say they do nothing. JourneyMap takes an ordinary RGB integer, so against it
+ * why {@code GhostMapColor} settles for one darker entry per square and why, on those maps,
+ * mapWearThroughTint does nothing. JourneyMap takes an ordinary RGB integer, so against it
  * {@code mapTracksWear}, {@code mapWearDarkening}, {@code desirePathHighlight} and
  * {@code desirePathRgb} all mean what they say.
  *

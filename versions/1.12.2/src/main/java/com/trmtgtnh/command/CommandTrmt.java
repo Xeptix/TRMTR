@@ -66,7 +66,11 @@ public class CommandTrmt extends CommandBase {
         "golem",
         "showcase",
         "demonstrate",
-        "mapcolor");
+        "mapcolor",
+        "version");
+
+    /** The one subcommand any player may run (0.9.227; Xep: "Everyone"): it reports and changes nothing. */
+    private static final String OPEN = "version";
 
     @Override
     public String getName() {
@@ -75,12 +79,27 @@ public class CommandTrmt extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|version|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
     }
 
     @Override
     public int getRequiredPermissionLevel() {
         return 2;
+    }
+
+    /**
+     * Any sender may reach the command, so that /trmt version is every player's (0.9.227), as 1.7.10's is; every other
+     * subcommand is held to {@link #getRequiredPermissionLevel} in {@link #execute}, before anything runs.
+     */
+    @Override
+    public boolean checkPermission(MinecraftServer server, ICommandSender sender) {
+        return true;
+    }
+
+    /** Whether this sender may run what these words ask: the open subcommand for anyone, the rest for operators. */
+    private boolean mayRun(ICommandSender sender, String[] args) {
+        if (args.length > 0 && OPEN.equals(args[0].toLowerCase(Locale.ROOT))) return true;
+        return sender.canUseCommand(getRequiredPermissionLevel(), getName());
     }
 
     /**
@@ -94,8 +113,12 @@ public class CommandTrmt extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args,
         BlockPos looking) {
-        if (args.length == 1) return getListOfStringsMatchingLastWord(args, SUBCOMMANDS);
-        return java.util.Collections.emptyList();
+        if (args.length != 1) return java.util.Collections.emptyList();
+        // A player who may not run the rest is offered only what they may.
+        return getListOfStringsMatchingLastWord(
+            args,
+            sender.canUseCommand(getRequiredPermissionLevel(), getName()) ? SUBCOMMANDS
+                : java.util.Collections.singletonList(OPEN));
     }
 
     /**
@@ -116,6 +139,7 @@ public class CommandTrmt extends CommandBase {
      */
     @Override
     public void execute(MinecraftServer server, ICommandSender sender, final String[] args) throws CommandException {
+        if (!mayRun(sender, args)) throw new CommandException("commands.generic.permission");
         if (Trmt.runningServer() != null && !Trmt.onServerThread()) {
             reply(
                 sender,
@@ -303,6 +327,10 @@ public class CommandTrmt extends CommandBase {
             showcase(sender, args);
         } else if ("demonstrate".equals(sub)) {
             demonstrate(sender, args);
+        } else if (OPEN.equals(sub)) {
+            for (String line : com.trmtgtnh.server.UpdateNotice.versionLines()) {
+                reply(sender, TextFormatting.AQUA, line);
+            }
         } else {
             throw new WrongUsageException(getUsage(sender));
         }

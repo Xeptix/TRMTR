@@ -178,9 +178,10 @@ public final class GhostQuads {
      * picture, so the two can never disagree about a square.
      */
     public static BlockState claimOf(short record, int origin, int rotation) {
-        SurfaceFamily appearance = ErosionState.familyOf(record);
-        TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
-        return com.trmtgtnh.client.render.ShaderMaterial.claimFor(origin, top == null ? null : appearance);
+        // From the block and the family its wear has reached, whether or not a wear picture exists (0.9.227, spec
+        // GF23): build stopped claiming earth for a square with no picture in 0.9.223, and this, the Fabric module's
+        // claim for Canvas and OptiFabric, went on doing it - a sand square with no picture lit as dirt there.
+        return com.trmtgtnh.client.render.ShaderMaterial.claimFor(origin, ErosionState.familyOf(record));
     }
 
     private static TextureAtlasSprite topOf(short record, SurfaceFamily appearance, int origin, int rotation) {

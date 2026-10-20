@@ -2683,13 +2683,15 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
         if (tag.contains("unstableSet")) {
             entityData.set(WATCH_UNSTABLE, Integer.valueOf(tag.getInt("unstableSet")));
         }
-        setUpgradeStack(tag.contains("upgrade") ? ItemStack.of(tag.getCompound("upgrade")) : null);
-        masonry = tag.contains("masonry") ? ItemStack.of(tag.getCompound("masonry")) : null;
+        // Every stack below is read through Stacks, which gives a stack in 1.12.2's shape the game's own upgrade: the
+        // game never looks inside this mod's compounds, so a 1.12.2 golem's worn pickaxe would come back unworn.
+        setUpgradeStack(tag.contains("upgrade") ? com.trmtgtnh.util.Stacks.of(tag.getCompound("upgrade")) : null);
+        masonry = tag.contains("masonry") ? com.trmtgtnh.util.Stacks.of(tag.getCompound("masonry")) : null;
         masonryOwed.clear();
         net.minecraft.nbt.ListTag owed = tag.getList("masonryOwed", 10);
         for (int i = 0; i < owed.size(); i++) {
             CompoundTag slot = owed.getCompound(i);
-            masonryOwed.add(slot.isEmpty() ? null : ItemStack.of(slot));
+            masonryOwed.add(slot.isEmpty() ? null : com.trmtgtnh.util.Stacks.of(slot));
         }
         masonrySulk = tag.getInt("masonrySulk");
 
@@ -2700,7 +2702,7 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
             int slot = entry.getByte("slot") & 0xFF;
             // A stack whose item is gone loads as EMPTY, which every reader takes for a full slot; a free one is
             // null here (0.9.222).
-            ItemStack loaded = ItemStack.of(entry);
+            ItemStack loaded = com.trmtgtnh.util.Stacks.of(entry);
             if (slot < inventory.length) inventory[slot] = loaded.isEmpty() ? null : loaded;
         }
         // Nothing about a fight or a stroke survives being put away and taken out again, so a

@@ -292,7 +292,9 @@ final class GolemStores {
      */
     private static boolean isTransit(BlockEntity tile) {
         return tile instanceof Hopper || tile instanceof DispenserBlockEntity
-            || tile instanceof FurnaceBlockEntity
+            // Every furnace, as 1.7.10's every furnace is (0.9.227, spec GO37): the smoker and the blast furnace are
+            // furnaces too, and a golem was putting its surplus into them.
+            || tile instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity
             || tile instanceof BrewingStandBlockEntity;
     }
 

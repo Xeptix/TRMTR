@@ -112,7 +112,11 @@ public final class Worlds {
      * because every caller is about to replace what is there and already holds what it is replacing.
      */
     public static void dropAsItem(Level level, BlockState state, int x, int y, int z) {
-        Block.dropResources(state, level, new BlockPos(x, y, z));
+        // With the block entity that stands there, as 1.7.10's dropBlockAsItem is asked while the tile entity stands
+        // (0.9.227): the three-argument form hands the loot a null block entity, and a leaf or plant that keeps its
+        // drops there - Forestry's leaves on 1.7.10, and their like here - dropped nothing, or the wrong thing.
+        BlockPos pos = new BlockPos(x, y, z);
+        Block.dropResources(state, level, pos, level.getBlockEntity(pos));
     }
 
     /**

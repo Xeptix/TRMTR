@@ -34,6 +34,26 @@ public final class ForgeClientSetup {
 
     @SubscribeEvent
     public static void client(FMLClientSetupEvent event) {
+        // On the game's own thread, after the parallel setup (0.9.227): the loader runs every mod's setup handler at
+        // once, and what this registers - the golem's screen, each tamper's picture rule, the ghosts' passes - goes into
+        // the game's plain maps, which another mod's handler may be writing at the same moment.
+        event.enqueueWork(ForgeClientSetup::onTheGamesThread);
+
+        // What draws a Golem of Ways - here, in the handler itself, and not in the work above. Forge 36 hands the
+        // registered factories to the entity renderers as they are built, which happens before the queued work runs, so
+        // a factory registered there was never used: the golem had no renderer and the game stopped the first time one
+        // came into view (0.9.227, caught by the smoke test on its first play of the first yard). RenderingRegistry
+        // keeps its factories in a concurrent map, which is why Forge asks for this call during setup itself. Both
+        // older editions need a factory class for this - 1.12.2 because the render manager is built after the proxy
+        // runs, 1.7.10 because it registers the renderer object itself - and that factory is Forge's own interface, so
+        // it could never live in the shared module. Here it is a method reference.
+        net.minecraftforge.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(
+            com.trmtgtnh.entity.ModEntities.golemType(),
+            com.trmtgtnh.client.render.RenderGolemOfWays::new);
+    }
+
+    /** What client setup does, run by {@link #client} on the game's own thread. */
+    private static void onTheGamesThread() {
         // Every pass a covered block might draw in, because one ghost stands in for all of them and
         // which pass a square wants is not known until the square is. The model hands back nothing
         // in the three that are not this square's; see GhostLayers, which both loaders share, and
@@ -59,14 +79,6 @@ public final class ForgeClientSetup {
             }
             return null;
         });
-
-        // What draws a Golem of Ways. Both older editions need a factory class for this - 1.12.2
-        // because the render manager is built after the proxy runs, 1.7.10 because it registers the
-        // renderer object itself - and that factory is Forge's own interface, so it could never
-        // live in the shared module. Here it is a method reference.
-        net.minecraftforge.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(
-            com.trmtgtnh.entity.ModEntities.golemType(),
-            com.trmtgtnh.client.render.RenderGolemOfWays::new);
 
         // And what screen its orders open on. Through the game's own class here, which Forge makes
         // public with an access transformer; Fabric's copy of this line goes through its API

@@ -143,6 +143,10 @@ public class GuiGuideBook extends Screen {
                 children.remove(each);
             }
         }
+        // And the focus let go (0.9.227): a click leaves its button focused, and the screen kept that focus on a button
+        // this has just taken away, so Enter or Space pressed it again - another page turned or jumped, where 1.7.10's
+        // book does nothing on those keys.
+        setFocused(null);
         int left = left();
         int top = top();
 

@@ -485,7 +485,9 @@ public final class TrmtNetwork {
         // Only what this player has actually been sent: the same rule every later update follows, so the
         // two cannot disagree about which chunks a client should hold. Walked over a square a chunk wider
         // than the one the server watches, because that square is not quite the one its setting names:
-        // the radius is held between three and twenty, and the square is centred where the player last
+        // the radius is held between three and thirty-two here - this version's own chunk map's limit, where
+        // 1.7.10's is twenty, and the number copied from it left chunks 22 to 32 out with no wear (0.9.227,
+        // spec PN40) - and the square is centred where the player last
         // moved a whole chunk rather than where they stand now, which can be a chunk behind. Walked from
         // the setting and the standing position, a ring of watched chunks was sent no wear at all -
         // after /trmt enable, a reload, or a player switching wear back on - and nothing sent it later,
@@ -497,7 +499,7 @@ public final class TrmtNetwork {
                 server.getPlayerList()
                     .getViewDistance(),
                 3,
-                20) + 1;
+                32) + 1;
 
         for (int dx = -range; dx <= range; dx++) {
             for (int dz = -range; dz <= range; dz++) {

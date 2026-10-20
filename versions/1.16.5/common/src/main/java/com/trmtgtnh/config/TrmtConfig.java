@@ -1351,20 +1351,33 @@ public final class TrmtConfig {
         // A key that existed a moment ago and does not now is what that looks like from here.
         Set<String> before = keysOnRecord();
 
+        // Read into a copy first, and into the live settings only once that copy is accepted (0.9.227, spec CF7). This
+        // parser empties what it holds before it reads, where Forge's merges over it, so a refused file had already
+        // replaced the settings in memory: the second /trmt reload of a truncated file then compared against the
+        // truncated set, passed, and wrote every missing setting back at its default.
+        ConfigFile fresh = new ConfigFile(config.getConfigFile());
         try {
-            config.load();
+            fresh.load();
         } catch (RuntimeException malformed) {
             poisoned = true;
             Trmt.error("Config file could not be parsed, keeping the settings already loaded", malformed);
             return false;
         }
 
-        Set<String> after = keysOnRecord();
+        Set<String> after = keysOnRecord(fresh);
         if (!before.isEmpty() && !after.containsAll(before)) {
             poisoned = true;
             Trmt.error(
                 "Config file is missing {} settings it had a moment ago, so it looks truncated. Keeping the settings already loaded and writing nothing back.",
                 Integer.valueOf(before.size() - countPresent(before, after)));
+            return false;
+        }
+
+        try {
+            config.load();
+        } catch (RuntimeException changedSince) {
+            poisoned = true;
+            Trmt.error("Config file could not be parsed, keeping the settings already loaded", changedSince);
             return false;
         }
 

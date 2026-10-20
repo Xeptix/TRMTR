@@ -72,9 +72,10 @@ public class ItemTamper extends Item implements TamperTool {
      *
      * <p>
      * A plain {@link Item} answers zero here, which is exactly what stops an enchanting table
-     * offering anything for one. With a number on it Unbreaking needs no further help: its type
-     * is {@code breakable}, which asks {@code isDamageable} rather than the item's class, and a
-     * tamper is damageable. Anything a mod supplies - a repair enchantment, an experience
+     * offering anything for one. From 1.21 that is not the whole of it: an enchantment fits only
+     * the items in its supported-items tag, and Unbreaking's and Mending's is
+     * {@code #minecraft:enchantable/durability}, which every tamper joins in this mod's data
+     * (0.9.227, spec TA5; TampersTakeUnbreakingTest). Anything a mod supplies - a repair enchantment, an experience
      * booster - then applies on whatever terms that mod set, which is the right way round for a
      * mod that depends on none of them.
      */

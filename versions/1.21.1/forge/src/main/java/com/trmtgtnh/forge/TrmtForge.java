@@ -49,10 +49,13 @@ public final class TrmtForge {
                 .orElse("unknown"));
         // This jar's line in the update check's version file, whether this is a development game - which
         // only the loader can say - and the mods this jar requires. See UpdateNotice.
+        // Cloth Config only on a client (0.9.227): these jars declare it side = CLIENT, so a dedicated server without
+        // it is a whole one, and /trmt version there said it was missing a mod this mod needs.
         com.trmtgtnh.server.UpdateNotice.edition(
             "1.21.1-forge",
             !net.minecraftforge.fml.loading.FMLEnvironment.production,
-            com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE);
+            net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient() ? com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE
+                : new String[0][]);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> net.minecraftforge.fml.ModList.get()

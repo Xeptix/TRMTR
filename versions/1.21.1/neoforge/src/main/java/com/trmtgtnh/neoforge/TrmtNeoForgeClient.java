@@ -24,7 +24,7 @@ import com.trmtgtnh.client.texture.WearTextures;
  * where it came from. Leaving is the half that must happen whatever else does.
  *
  * <p>
- * The harness is {@link NeoForgeSpikeRun}, which runs only when {@code -Dtrmt.spike} is set, and which this hands the
+ * The harness is a class of its own, which runs only when {@code -Dtrmt.spike} is set, and which this hands the
  * tick to after the real work and never before it.
  *
  * <p>

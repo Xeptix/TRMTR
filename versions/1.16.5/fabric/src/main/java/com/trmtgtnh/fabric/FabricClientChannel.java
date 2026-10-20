@@ -41,7 +41,15 @@ public final class FabricClientChannel {
                 // thread's and is released when this returns, and the work below waits for the
                 // client thread.
                 final io.netty.buffer.ByteBuf held = buf.copy();
-                client.execute(() -> entry.accept(held, null));
+                // Released once read (0.9.227): a copy is the reader's own, counted by Netty, and was never handed back - a
+                // pooled buffer kept for every packet this mod received.
+                client.execute(() -> {
+                    try {
+                        entry.accept(held, null);
+                    } finally {
+                        held.release();
+                    }
+                });
             });
         }
 

@@ -595,6 +595,11 @@ public final class ClientSide implements Client.Side {
      * chains with themselves.
      */
     public static void leaveWorld() {
+        // After everything the old server had already sent (0.9.227, spec PN77): every packet handler queues its
+        // work here, and each loader called this before the tick's drain, so a chunk's wear or the server's rules
+        // queued as the connection closed ran after the hand-back - painted into the next world at the same chunk,
+        // or held at the menu. 1.7.10 queues its hand-back behind them; draining first is the same order.
+        com.trmtgtnh.util.MainThread.drainClient();
         // Said again on the next visit: a server has no memory of this client between connections.
         announced = false;
         // The server forgot the modifier the moment this connection went; if this did not forget it

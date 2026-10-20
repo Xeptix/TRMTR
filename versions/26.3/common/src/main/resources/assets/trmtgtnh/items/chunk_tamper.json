@@ -1,0 +1,314 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "trmtgtnh:grade",
+    "scale": 1.0,
+    "entries": [
+      {
+        "threshold": 0.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_aluminium"
+        }
+      },
+      {
+        "threshold": 1.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_bluesteel"
+        }
+      },
+      {
+        "threshold": 2.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_brass"
+        }
+      },
+      {
+        "threshold": 3.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_bronze"
+        }
+      },
+      {
+        "threshold": 4.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_chrome"
+        }
+      },
+      {
+        "threshold": 5.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_cobalt"
+        }
+      },
+      {
+        "threshold": 6.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_copper"
+        }
+      },
+      {
+        "threshold": 7.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_cupronickel"
+        }
+      },
+      {
+        "threshold": 8.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_damascussteel"
+        }
+      },
+      {
+        "threshold": 9.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_darksteel"
+        }
+      },
+      {
+        "threshold": 10.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_diamond"
+        }
+      },
+      {
+        "threshold": 11.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_electrum"
+        }
+      },
+      {
+        "threshold": 12.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_gold"
+        }
+      },
+      {
+        "threshold": 13.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_hsse"
+        }
+      },
+      {
+        "threshold": 14.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_hssg"
+        }
+      },
+      {
+        "threshold": 15.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_hsss"
+        }
+      },
+      {
+        "threshold": 16.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_invar"
+        }
+      },
+      {
+        "threshold": 17.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_iridium"
+        }
+      },
+      {
+        "threshold": 18.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_iron"
+        }
+      },
+      {
+        "threshold": 19.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_kanthal"
+        }
+      },
+      {
+        "threshold": 20.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_lead"
+        }
+      },
+      {
+        "threshold": 21.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_manganese"
+        }
+      },
+      {
+        "threshold": 22.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_molybdenum"
+        }
+      },
+      {
+        "threshold": 23.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_netherite"
+        }
+      },
+      {
+        "threshold": 24.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_neutronium"
+        }
+      },
+      {
+        "threshold": 25.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_nichrome"
+        }
+      },
+      {
+        "threshold": 26.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_nickel"
+        }
+      },
+      {
+        "threshold": 27.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_osmium"
+        }
+      },
+      {
+        "threshold": 28.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_palladium"
+        }
+      },
+      {
+        "threshold": 29.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_platinum"
+        }
+      },
+      {
+        "threshold": 30.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_redsteel"
+        }
+      },
+      {
+        "threshold": 31.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_silver"
+        }
+      },
+      {
+        "threshold": 32.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_stainlesssteel"
+        }
+      },
+      {
+        "threshold": 33.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_steel"
+        }
+      },
+      {
+        "threshold": 34.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_tantalum"
+        }
+      },
+      {
+        "threshold": 35.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_tin"
+        }
+      },
+      {
+        "threshold": 36.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_titanium"
+        }
+      },
+      {
+        "threshold": 37.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_tungsten"
+        }
+      },
+      {
+        "threshold": 38.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_tungstencarbide"
+        }
+      },
+      {
+        "threshold": 39.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_tungstensteel"
+        }
+      },
+      {
+        "threshold": 40.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_vanadiumsteel"
+        }
+      },
+      {
+        "threshold": 41.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_wroughtiron"
+        }
+      },
+      {
+        "threshold": 42.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "trmtgtnh:item/chunk_tamper_zinc"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "trmtgtnh:item/chunk_tamper"
+    }
+  }
+}

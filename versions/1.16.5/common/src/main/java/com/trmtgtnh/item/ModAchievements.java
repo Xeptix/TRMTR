@@ -70,6 +70,23 @@ public final class ModAchievements {
     // ------------------------------------------------------------------
 
     /**
+     * The advancements that hang from nothing in 1.7.10 - Ground Underfoot, It Lives, the four books read and The Whole
+     * Shelf - where the award walk stops (0.9.227, spec BP34). The tab here hangs the golem and the books from the tamper
+     * and the book-read ones from Mk I, a picture decided for this version (BP32); walked through that picture, opening
+     * any guide also granted Ground Underfoot and Well Read, building a golem granted Ground Underfoot, and The Whole
+     * Shelf came after three books. 1.7.10's chain gives each of these alone.
+     */
+    private static final java.util.Set<String> ROOTS_IN_THE_REFERENCE = new java.util.HashSet<String>(
+        java.util.Arrays.asList(
+            "trmt_tamper",
+            "trmt_golem",
+            "trmt_read_mk1",
+            "trmt_read_mk2",
+            "trmt_read_commands",
+            "trmt_read_golem",
+            "trmt_library"));
+
+    /**
      * Marks one advancement earned, if the player is a real one on a real server.
      *
      * <p>
@@ -96,6 +113,8 @@ public final class ModAchievements {
             if (!Trmt.MODID.equals(at.getId()
                 .getNamespace())) break;
             chain.add(0, at);
+            if (ROOTS_IN_THE_REFERENCE.contains(at.getId()
+                .getPath())) break;
         }
         for (Advancement each : chain) {
             real.getAdvancements()

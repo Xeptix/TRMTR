@@ -97,7 +97,7 @@ public class PacketEditFamily implements Message {
                     // never believed about them.
                     if (TrmtConfig.familyEditorOperatorsOnly && !player.hasPermissions(2)) {
                         Trmt.LOG
-                            .warn("{} tried to change which blocks wear without permission; refused", player.getName());
+                            .warn("{} tried to change which blocks wear without permission; refused", player.getGameProfile().getName());
                         say(player, ChatFormatting.RED, "You are not allowed to change that on this server.");
                         return;
                     }
@@ -148,7 +148,7 @@ public class PacketEditFamily implements Message {
                     ConfigReload.fromGuiDeferred();
                     Trmt.LOG.info(
                         "{} set {} to {}",
-                        player.getName(),
+                        player.getGameProfile().getName(),
                         name,
                         message.action == ACTION_EXCLUDE ? "never wear" : family.key());
                 }

@@ -42,8 +42,8 @@ import com.trmtgtnh.util.UpdateCheck;
  *
  * <p>
  * A machine standing in for a player - a block breaker, a dispenser - is caught as {@link Notices}
- * catches it, by having no connection, because Forge's {@code FakePlayer} cannot be named in a module
- * both loaders share.
+ * catches it: {@code util/Machines} says so, from no connection or from the loader's own fake player, which
+ * each loader names for it.
  */
 public final class UpdateNotice {
 
@@ -142,6 +142,17 @@ public final class UpdateNotice {
         return out;
     }
 
+    /** What /trmt version says (0.9.227): this jar, the newest build for it, and its required mods (VersionReport). */
+    public static java.util.List<String> versionLines() {
+        return com.trmtgtnh.util.VersionReport.lines(
+            Trmt.NAME,
+            Trmt.version(),
+            edition == null ? "unknown" : edition,
+            UpdateCheck.last(),
+            UpdateCheck.lastBody(),
+            installed());
+    }
+
     /** Who has been told since they last joined, so an answer arriving late tells each of them once. */
     private static final Set<UUID> TOLD = new HashSet<UUID>();
 
@@ -161,6 +172,24 @@ public final class UpdateNotice {
         edition = key;
         development = inDevelopment;
         required = requires;
+        // The key names the game this jar was built for, held to the build by EditionKeysNameThisGameTest; the game it
+        // runs in is said beside it when the two differ (0.9.227). A key worked out from the running game instead would
+        // ask a hotfix version a loader lets the jar run on - 26.1.3 for a 26.1.2 jar - for a line no file holds, and
+        // that jar would never hear of an update again.
+        String running = runningGame();
+        if (running != null && !key.startsWith(running + "-")) {
+            Trmt.LOG.warn("Update check: this jar is for {} and runs in Minecraft {}; it reads {}'s line", key, running, key);
+        }
+    }
+
+    /** The version of the game this runs in, or null if it cannot be asked. */
+    static String runningGame() {
+        try {
+            return net.minecraft.SharedConstants.getCurrentVersion()
+                .getName();
+        } catch (Throwable notKnown) {
+            return null;
+        }
     }
 
     /** This jar's line in the version file, or null before a loader has said. */

@@ -173,23 +173,29 @@ public final class ConfigScreen {
 
         switch (setting.getType()) {
             case BOOLEAN:
-                return entries.startBooleanToggle(name, setting.getBoolean())
-                    .setDefaultValue(Boolean.parseBoolean(setting.getDefault()))
-                    .setTooltip(note)
-                    .setSaveConsumer(value -> setting.set(value.booleanValue()))
-                    .build();
+                // The restart note on every kind, not only the words (0.9.227, spec CF61): the one setting that
+                // needs a restart, perSurfaceTextures, is a switch, and was shown as one that takes effect at once.
+                return needsRestart(
+                    entries.startBooleanToggle(name, setting.getBoolean())
+                        .setDefaultValue(Boolean.parseBoolean(setting.getDefault()))
+                        .setTooltip(note)
+                        .setSaveConsumer(value -> setting.set(value.booleanValue())),
+                    setting)
+                        .build();
             case INTEGER: {
                 // The two counted settings slide rather than type (spec CF59) - within Cloth, by its
                 // own slider. A slider needs both ends, which both have.
                 if (ConfigLayout.slides(category, setting.getName()) && setting.isBounded()) {
                     int min = (int) setting.getMin();
                     int max = (int) setting.getMax();
-                    return entries
-                        .startIntSlider(name, clamp((int) number(setting.getString(), min), min, max), min, max)
-                        .setDefaultValue(clamp((int) number(setting.getDefault(), min), min, max))
-                        .setTooltip(note)
-                        .setSaveConsumer(value -> setting.set(value.intValue()))
-                        .build();
+                    return needsRestart(
+                        entries
+                            .startIntSlider(name, clamp((int) number(setting.getString(), min), min, max), min, max)
+                            .setDefaultValue(clamp((int) number(setting.getDefault(), min), min, max))
+                            .setTooltip(note)
+                            .setSaveConsumer(value -> setting.set(value.intValue())),
+                        setting)
+                            .build();
                 }
                 me.shedaniel.clothconfig2.impl.builders.IntFieldBuilder made = entries
                     .startIntField(name, (int) number(setting.getString(), 0D))
@@ -200,7 +206,7 @@ public final class ConfigScreen {
                     made.setMin((int) setting.getMin())
                         .setMax((int) setting.getMax());
                 }
-                return made.build();
+                return needsRestart(made, setting).build();
             }
             case DOUBLE: {
                 me.shedaniel.clothconfig2.impl.builders.DoubleFieldBuilder made = entries
@@ -212,7 +218,7 @@ public final class ConfigScreen {
                     made.setMin(setting.getMin())
                         .setMax(setting.getMax());
                 }
-                return made.build();
+                return needsRestart(made, setting).build();
             }
             default: {
                 // A setting that names its own valid values gets a chooser, not a text box.
@@ -317,8 +323,13 @@ public final class ConfigScreen {
         shown.addEntry(
             new ActionEntry(
                 new TextComponent(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.button")),
-                () -> Minecraft.getInstance()
-                    .setScreen(new GuiWearTable(parent))));
+                // Over the screen showing at the click - the settings screen itself - as 1.7.10's opens it over
+                // itself (0.9.227). Opened over the screen the settings came from, Back skipped the settings and
+                // threw away every edit on them not yet saved.
+                () -> {
+                    Minecraft at = Minecraft.getInstance();
+                    at.setScreen(new GuiWearTable(at.screen));
+                }));
     }
 
     /**

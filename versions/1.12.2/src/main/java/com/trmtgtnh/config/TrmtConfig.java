@@ -1356,20 +1356,33 @@ public final class TrmtConfig {
         // A key that existed a moment ago and does not now is what that looks like from here.
         Set<String> before = keysOnRecord();
 
+        // Read into a copy first, and into the live settings only once that copy is accepted (0.9.227, spec CF7). This
+        // parser empties what it holds before it reads, where Forge's merges over it, so a refused file had already
+        // replaced the settings in memory: the second /trmt reload of a truncated file then compared against the
+        // truncated set, passed, and wrote every missing setting back at its default.
+        ConfigFile fresh = new ConfigFile(config.getConfigFile());
         try {
-            config.load();
+            fresh.load();
         } catch (RuntimeException malformed) {
             poisoned = true;
             Trmt.error("Config file could not be parsed, keeping the settings already loaded", malformed);
             return false;
         }
 
-        Set<String> after = keysOnRecord();
+        Set<String> after = keysOnRecord(fresh);
         if (!before.isEmpty() && !after.containsAll(before)) {
             poisoned = true;
             Trmt.error(
                 "Config file is missing {} settings it had a moment ago, so it looks truncated. Keeping the settings already loaded and writing nothing back.",
                 Integer.valueOf(before.size() - countPresent(before, after)));
+            return false;
+        }
+
+        try {
+            config.load();
+        } catch (RuntimeException changedSince) {
+            poisoned = true;
+            Trmt.error("Config file could not be parsed, keeping the settings already loaded", changedSince);
             return false;
         }
 
@@ -1951,7 +1964,7 @@ public final class TrmtConfig {
             CATEGORY_HEALING,
             "mendingEnchantments",
             new String[] { "mending", "repair" },
-            "Name fragments that mark an enchantment as one that repairs a tool from experience. There is no Mending in 1.7.10 - it arrives two versions later - so this is matched against whatever the pack supplies under a name that reads like one, by name rather than by id because ids differ between installs. When a tamper carries one, experience earned mending ground repairs the tamper first at vanilla's rate of two durability per point, and only the remainder reaches the player.")
+            "Name fragments that mark an enchantment as one that repairs a tool from experience. Matched by name rather than by id, because ids differ between installs, and by fragment rather than by exact name because a pack may add mending of its own: vanilla's Mending, which exists at this version and does not on 1.7.10, is caught by the default 'mending' along with anything else named like it. When a tamper carries one, experience earned mending ground repairs the tamper first at vanilla's rate of two durability per point, and only the remainder reaches the player.")
             .getStringList();
         xpBoostEnchantments = config.get(
             CATEGORY_HEALING,

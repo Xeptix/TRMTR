@@ -1,0 +1,85 @@
+// The Forge jar, for Forge 64 on Minecraft 26.1.2 - its shadow jar, with the common module folded in. Outside
+// Architectury's template, as at 1.21.1; Loom's own tests build Forge at 26.1 and 26.2 under the no-remap plugin. If it
+// will not build or launch here, the fallback Xep chose is a ForgeGradle 7 module beside the others.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    platformSetupLoomIde()
+    forge()
+}
+
+loom {
+    // The shared access widener, turned into Forge's access transformer for this jar and applied in the dev run, as
+    // at 1.21.1.
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+    forge {
+        // Registered as Architectury's no-remap Forge does it - in the manifest it writes and in the dev run - with no
+        // refmap: nothing is remapped from 26.1, so the configs carry no "refmap" key.
+        mixinConfig "trmtgtnh-common.mixins.json"
+        mixinConfig "trmtgtnh-forge.mixins.json"
+        // Converted on the shadow jar, which is the one holding the common module's resources and so the widener - the
+        // plain jar holds this module's alone, and 1.21.1's conversion (convertAccessWideners = true) ran on it and
+        // stopped the build, "Could not find AW 'trmtgtnh.accesswidener' to convert into AT". NeoForge's module does
+        // the same.
+        convertAccessWideners(tasks.named("shadowJar"), "trmtgtnh.accesswidener")
+    }
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    // Not runtimeClasspath, as 1.21.1's Forge module found (0.9.226): Forge's module layer refuses a package two modules
+    // export, and a dev run then held the common module twice - its jar (trmtr.dev) and its classes folded into a
+    // generated module - and stopped at start with "Modules generated_... and trmtr.dev export package com.trmtgtnh".
+    developmentForge.extendsFrom common
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
+dependencies {
+    forge "net.minecraftforge:forge:${rootProject.forge_version}"
+
+    // MixinExtras is not carried inside the jar, unlike 1.21.1's: Forge 64's own userdev libraries hold mixinextras-forge
+    // 0.5.4 (read from its userdev config, 0.9.227), so the game has it at run time. That config also names
+    // mixinextras-common 0.5.4 as compile-only, which this Loom does not apply, so it is named here, at Forge's own
+    // version, for the shared and Forge mixins that wrap an operation.
+    compileOnly "io.github.llamalad7:mixinextras-common:0.5.4"
+
+    // WTHIT's Forge build, compiled against only, as at 1.21.1: the tooltip plugin is the common module's and WTHIT
+    // finds it through waila_plugins.json. Cloth Config has no Forge build at 26.1.2, so none is named here.
+    compileOnly "maven.modrinth:wthit:${rootProject.wthit_forge_version}"
+
+    common(project(path: ":common")) { transitive = false }
+    shadowBundle project(path: ":common", configuration: "transformProductionForge")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("META-INF/mods.toml") {
+        expand version: project.version
+    }
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+}
+
+jar {
+    archiveClassifier = "dev"
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "forge"
+}
+
+assemble.dependsOn shadowJar

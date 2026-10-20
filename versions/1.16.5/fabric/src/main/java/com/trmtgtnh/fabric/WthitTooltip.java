@@ -12,6 +12,7 @@ import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.BlockGhost;
+import com.trmtgtnh.compat.CoveredNames;
 import com.trmtgtnh.compat.WailaCompat;
 import com.trmtgtnh.compat.WailaGolem;
 import com.trmtgtnh.entity.EntityGolemOfWays;
@@ -67,7 +68,65 @@ public final class WthitTooltip implements IWailaPlugin {
         registrar.registerComponentProvider(new Ground(false), TooltipPosition.BODY, BlockGhost.class);
         registrar.registerComponentProvider(new Ground(true), TooltipPosition.BODY, Block.class);
         registrar.registerComponentProvider(new Golem(), TooltipPosition.BODY, EntityGolemOfWays.class);
+        // A worn square named for the block it covers, and that block's mod (spec GF14; 0.9.227). WTHIT writes its name
+        // line at priority 900 and its mod line at 1100, so the name is put right at the default and the mod after it.
+        registrar.addComponent(new Named(), TooltipPosition.HEAD, BlockGhost.class);
+        registrar.addComponent(new Named(), TooltipPosition.TAIL, BlockGhost.class, 1200);
         registrar.addConfig(TOGGLE, true);
+    }
+
+    /** The name and mod lines over a worn square, said for the block it covers. See CoveredNames. */
+    private static final class Named implements mcp.mobius.waila.api.IBlockComponentProvider {
+
+        @Override
+        public void appendHead(List<Component> tooltip, mcp.mobius.waila.api.IBlockAccessor accessor, IPluginConfig config) {
+            rename(tooltip, accessor);
+        }
+
+        @Override
+        public void appendTail(List<Component> tooltip, mcp.mobius.waila.api.IBlockAccessor accessor, IPluginConfig config) {
+            rename(tooltip, accessor);
+        }
+    }
+
+    /** Each tagged line over a ghost with the covered block's words in place of the stand-in's. */
+    @SuppressWarnings("unchecked")
+    static void rename(List<Component> tooltip, mcp.mobius.waila.api.IBlockAccessor accessor) {
+        if (!(tooltip instanceof mcp.mobius.waila.api.ITaggableList)) return;
+        net.minecraft.world.item.ItemStack covered = accessor.getStack();
+        if (covered == null || covered.isEmpty() || covered.getItem() instanceof net.minecraft.world.item.BlockItem
+            && ((net.minecraft.world.item.BlockItem) covered.getItem()).getBlock() instanceof BlockGhost) return;
+        mcp.mobius.waila.api.ITaggableList<Object, Component> tags = (mcp.mobius.waila.api.ITaggableList<Object, Component>) tooltip;
+        String standIn = accessor.getBlock()
+            .getName()
+            .getString();
+        for (java.util.Map.Entry<Object, Component> each : new ArrayList<java.util.Map.Entry<Object, Component>>(
+            tags.getTags()
+                .entrySet())) {
+            if (!(each.getKey() instanceof ResourceLocation) || each.getValue() == null) continue;
+            String tag = ((ResourceLocation) each.getKey()).getPath();
+            String was = each.getValue()
+                .getString();
+            String now = was;
+            if (CoveredNames.NAME_TAG.equals(tag)) {
+                now = CoveredNames.renamed(was, standIn, covered.getHoverName()
+                    .getString());
+            } else if (CoveredNames.MOD_TAG.equals(tag)) {
+                now = CoveredNames.renamed(was, Trmt.NAME, modOf(covered));
+            }
+            if (!now.equals(was)) tags.setTag(each.getKey(), new TextComponent(now));
+        }
+    }
+
+    /** The name of the mod a stack's item comes from, as Fabric Loader knows it. */
+    static String modOf(net.minecraft.world.item.ItemStack stack) {
+        String id = net.minecraft.core.Registry.ITEM.getKey(stack.getItem())
+            .getNamespace();
+        return net.fabricmc.loader.api.FabricLoader.getInstance()
+            .getModContainer(id)
+            .map(container -> container.getMetadata()
+                .getName())
+            .orElse(id);
     }
 
     /** One of the two block providers; see the class note for why there are two. */

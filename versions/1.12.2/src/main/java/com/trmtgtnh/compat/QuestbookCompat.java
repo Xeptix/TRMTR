@@ -190,7 +190,11 @@ public final class QuestbookCompat {
             try {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (line.contains(token)) return true;
+                    // Or the line's own name (0.9.227): on BetterQuesting 3.5's single file the merge renumbers every
+                    // quest and line as a plain integer, with no high word, so a world that has loaded the merged
+                    // chapter
+                    // never holds the token - and an operator was told at every start that the chapter was missing.
+                    if (line.contains(token) || line.contains(LINE_NAME)) return true;
                 }
             } finally {
                 reader.close();

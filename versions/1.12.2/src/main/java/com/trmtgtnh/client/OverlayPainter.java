@@ -427,7 +427,28 @@ public final class OverlayPainter {
     static boolean covered(net.minecraft.world.IBlockAccess world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
         IBlockState above = world.getBlockState(new BlockPos(x, y + 1, z));
+        if (above.getBlock() instanceof BlockGhost) return ghostCovers(x, y + 1, z);
         return above.isOpaqueCube();
+    }
+
+    /**
+     * Whether a ghost standing on the square above covers it as 1.7.10's ghost would (0.9.227, spec PT9 and PT24):
+     * there
+     * a ghost is an opaque cube unless it is sunk, clear or a window, so a block placed on a road and then worn itself
+     * still hid the road beneath. Here a ghost never answers opaque - it declares no occlusion, for its neighbours'
+     * sake
+     * - so the ground under a worn block stopped being covered: it sank into its dip under the block, or showed wear
+     * where 1.7.10 hides it. Asked of the square's own record and the block it stands in for: covered when the picture
+     * is not sunk and the block it stands in for is a whole opaque cube, which a clear block or a window is not.
+     */
+    private static boolean ghostCovers(int x, int y, int z) {
+        short record = ClientErosionCache.get()
+            .stateAt(x, y, z);
+        if (BlockGhost.drawnSink(record) > 0) return false;
+        int origin = ClientErosionCache.get()
+            .originAt(x, y, z);
+        IBlockState stood = origin < 0 ? null : Block.getStateById(origin);
+        return stood != null && stood.isOpaqueCube();
     }
 
     /** Puts one painted position back to what it was covering, and marks it undrawn. */

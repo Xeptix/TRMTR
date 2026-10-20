@@ -38,8 +38,8 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * <p>
  * <strong>This is also the one map that can show how worn a road is rather than merely that it is
  * worn.</strong> Vanilla's own map answer is a choice of sixty-four fixed palette entries, which is
- * why {@code GhostMapColor} settles for one darker entry per square and why four settings in this
- * edition's file say they do nothing. JourneyMap takes an ordinary RGB integer, so against it
+ * why {@code GhostMapColor} settles for one darker entry per square and why, on those maps,
+ * mapWearThroughTint does nothing. JourneyMap takes an ordinary RGB integer, so against it
  * {@code mapTracksWear}, {@code mapWearDarkening}, {@code desirePathHighlight} and
  * {@code desirePathRgb} all mean what they say.
  *
@@ -164,13 +164,16 @@ public final class JourneyMapColors {
         try {
             forgetAll.invoke(dataCache);
             remapNearby.invoke(null);
-            Trmt.LOG.debug("JourneyMap had put its own colors back on worn ground; this mod's are handed back and the ground around you mapped again");
+            Trmt.LOG.debug(
+                "JourneyMap had put its own colors back on worn ground; this mod's are handed back and the ground around you mapped again");
         } catch (Throwable awkward) {
             giveUpForgetting(awkward);
         }
     }
 
-    /** Whether JourneyMap's chunk records can be dropped: looked for once, quietly where JourneyMap is not installed. */
+    /**
+     * Whether JourneyMap's chunk records can be dropped: looked for once, quietly where JourneyMap is not installed.
+     */
     private static boolean lookForForgetting() {
         if (forgetGaveUp) return false;
         if (!forgetLooked) {

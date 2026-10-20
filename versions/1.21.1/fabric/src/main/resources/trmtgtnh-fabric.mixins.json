@@ -13,6 +13,7 @@
     "MixinCraftingResult",
     "MixinExplosion",
     "MixinGhostMapColor",
+    "MixinLegacyChunkEntities",
     "MixinStairNeighbours",
     "MixinItemStack",
     "MixinLivingEntity",

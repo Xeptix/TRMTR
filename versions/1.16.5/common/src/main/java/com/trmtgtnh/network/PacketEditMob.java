@@ -199,7 +199,7 @@ public class PacketEditMob implements Message {
                     if (TrmtConfig.familyEditorOperatorsOnly && !player.hasPermissions(2)) {
                         Trmt.LOG.warn(
                             "{} tried to change which entities wear the ground without permission; refused",
-                            player.getName());
+                            player.getGameProfile().getName());
                         tell(player, ChatFormatting.RED, "trmtgtnh.mobedit.refused");
                         return;
                     }
@@ -212,7 +212,7 @@ public class PacketEditMob implements Message {
                         String asked = printable(message.entity);
                         Trmt.LOG.warn(
                             "{} asked to change whether '{}' wears the ground, which is not a registered entity name; the list was left alone",
-                            player.getName(),
+                            player.getGameProfile().getName(),
                             asked);
                         tell(player, ChatFormatting.RED, "trmtgtnh.mobedit.unknown", asked);
                         return;
@@ -248,7 +248,7 @@ public class PacketEditMob implements Message {
 
                     Trmt.LOG.info(
                         "{} set {} to {} ({}); multipliers.mobs now reads: {}",
-                        player.getName(),
+                        player.getGameProfile().getName(),
                         name,
                         add ? "wear the ground" : "never wear the ground while loose",
                         outcome.changed ? "changed" : "unchanged",

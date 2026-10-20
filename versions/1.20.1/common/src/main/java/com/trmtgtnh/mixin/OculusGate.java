@@ -83,6 +83,12 @@ public final class OculusGate implements IMixinConfigPlugin {
     /** The mixin that needs Jade. */
     private static final String GATED_JADE = "MixinJadeHarvestLine";
 
+    /** WTHIT's harvest line, handed the covered block as Jade's is (0.9.227, spec GF9); its mixin needs WTHIT. */
+    public static final String WTHIT_HARVEST = "mcp.mobius.waila.plugin.harvest.provider.HarvestProvider";
+
+    /** The mixin that needs WTHIT. */
+    private static final String GATED_WTHIT = "MixinWthitHarvestLine";
+
     private boolean present;
 
     private boolean optiFinePresent;
@@ -91,12 +97,15 @@ public final class OculusGate implements IMixinConfigPlugin {
 
     private boolean jadePresent;
 
+    private boolean wthitPresent;
+
     @Override
     public void onLoad(String mixinPackage) {
         present = there(HOLDER);
         optiFinePresent = there(OPTIFINE_SEAT);
         sodiumPresent = there(SODIUM_FACES);
         jadePresent = there(JADE_HARVEST);
+        wthitPresent = there(WTHIT_HARVEST);
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material.
         org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
@@ -133,6 +142,7 @@ public final class OculusGate implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(GATED_OPTIFINE)) return optiFinePresent;
         if (mixinClassName.endsWith(GATED_SODIUM)) return sodiumPresent;
         if (mixinClassName.endsWith(GATED_JADE)) return jadePresent;
+        if (mixinClassName.endsWith(GATED_WTHIT)) return wthitPresent;
         return true;
     }
 

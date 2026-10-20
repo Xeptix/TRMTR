@@ -222,6 +222,13 @@ apply from: 'gradle/scripts/dependencies.gradle'
         if (project.hasProperty('only')) {
             task.systemProperty('trmt.spike.only', project.property('only').toString())
         }
+        // An older edition's walk world, by its folder in saves/, opened and read instead of a new one (0.9.227): the
+        // 1.7.10 world carried forward. FML asks before it loads a world saved by another version or with ids it must
+        // remap; nobody is at this window to answer, so its question is answered yes, as a player opening it would.
+        if (project.hasProperty('upgrade')) {
+            task.systemProperty('trmt.spike.upgrade', project.property('upgrade').toString())
+            task.systemProperty('fml.queryResult', 'confirm')
+        }
         // The size this run photographs at, so one comparison sheet never tiles two of them.
         //
         // A Prism instance takes its window from the launcher's instance.cfg, and a dev run has no

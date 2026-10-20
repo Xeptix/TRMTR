@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "com.trmtgtnh.mixin.OculusGate",
+  "mixins": [
+    "MixinChestBooksDrawAgain",
+    "MixinLibrarianDrawsAgain",
+    "MixinTableOffersUnlocks",
+    "MixinUnlocksAnswerTheirSwitch",
+    "MixinOculusBlockContext",
+    "MixinOptiFineShaderSeat",
+    "MixinPackRepository",
+    "RecipeMapMaker"
+  ],
+  "client": [
+    "MixinJadeHarvestLine",
+    "MixinWthitHarvestLine",
+    "MixinSettledFacesSodium",
+    "MixinGhostBlockLight",
+    "MixinGhostSkyLight",
+    "MixinGhostSkySources"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

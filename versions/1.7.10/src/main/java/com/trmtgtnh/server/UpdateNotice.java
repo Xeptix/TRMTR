@@ -135,6 +135,12 @@ public final class UpdateNotice {
         return out;
     }
 
+    /** What /trmt version says (0.9.227): this jar, the newest build for it, and its required mods (VersionReport). */
+    public static java.util.List<String> versionLines() {
+        return com.trmtgtnh.util.VersionReport
+            .lines(Trmt.NAME, Tags.VERSION, EDITION, UpdateCheck.last(), UpdateCheck.lastBody(), installed());
+    }
+
     /** Who has been told since they last joined, so an answer arriving late tells each of them once. */
     private static final Set<UUID> TOLD = new HashSet<UUID>();
 

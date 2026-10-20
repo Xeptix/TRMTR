@@ -1,0 +1,19 @@
+accessWidener	v1	official
+# The header has to be the first line of this file - a comment above it is not a comment, it is a bad
+# header, and the build says so clearly. So the explanation comes after it.
+#
+# In 1.20.1 this file was Fabric's alone. In 1.21.1 it is the shared module's, so the code both loaders
+# share may reach what it widens: Fabric applies it as it is, and the Forge and NeoForge builds turn it
+# into their access transformers. Every entry is still one member named in full.
+#
+# A block's own collision shape. MixinWornCollision hooks the state's question, which is what the game
+# asks, so PhysicalDecay - which works out what a worn square rests on - asks the block underneath past
+# that hook, as every older edition does. 1.21 made the block's method protected; widened here rather
+# than reached through a mixin invoker, because the shared module's tests run with no mixins applied and
+# WornFootingIsTheBlocksOwnTest asks it of real blocks.
+accessible	method	net/minecraft/world/level/block/state/BlockBehaviour	getCollisionShape	(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/shapes/CollisionContext;)Lnet/minecraft/world/phys/shapes/VoxelShape;
+#
+# From 26.1 the game is unobfuscated and this header names the official namespace, which is now the only one.
+# Two entries of 1.21.1's went with the game: ItemProperties.register (an item's picture is chosen by its
+# client item file in assets/trmtgtnh/items from 1.21.4) and Minecraft.itemColors (no item color set at 26.1;
+# ItemTints reads the item's own model instead).

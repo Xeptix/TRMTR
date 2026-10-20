@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "trmtgtnh",
+  "version": "${version}",
+  "name": "TRMT: Reimagined",
+  "description": "Ground wears into paths along the routes you actually walk, and grows back once you stop using them. Wear is server-side data painted on the client as ghost blocks; no block is ever written into the world.\n\nThis version by Xep. Based on The Roads More Travelled by milkucha (https://github.com/milkucha/trmt), Copyright (c) 2026 milkucha, licensed CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/) - see LICENSE_trmt for the full text and its disclaimer of warranties in Section 5. This is a modified work: carried to NeoForge, Forge and Fabric 26.1.2 by way of 1.7.10, 1.12.2, 1.16.5, 1.20.1 and 1.21.1 and re-architected so wear is server-side data painted client-side. Unofficial and non-commercial; not produced, endorsed or supported by milkucha. Full notice in LICENSE.md and ATTRIBUTION.md.",
+  "authors": [ "Xeptix" ],
+  "contact": {
+    "homepage": "https://github.com/Xeptix/TRMTR",
+    "sources": "https://github.com/Xeptix/TRMTR",
+    "issues": "https://github.com/Xeptix/TRMTR/issues"
+  },
+  "license": "CC-BY-NC-4.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": [ "com.trmtgtnh.fabric.TrmtFabric" ],
+    "client": [ "com.trmtgtnh.fabric.TrmtFabricClient" ],
+    "modmenu": [ "com.trmtgtnh.fabric.FabricModMenu" ],
+    "jade": [ "com.trmtgtnh.compat.JadeTooltip" ]
+  },
+  "mixins": [ "trmtgtnh-common.mixins.json", "trmtgtnh-fabric.mixins.json", "trmtgtnh-fabric-canvas.mixins.json" ],
+  "accessWidener": "trmtgtnh.accesswidener",
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "fabric-api": ">=0.155.3",
+    "minecraft": "26.1.2"
+  },
+  "recommends": {
+    "modmenu": "*"
+  },
+  "suggests": {
+    "cloth-config": "*"
+  }
+}

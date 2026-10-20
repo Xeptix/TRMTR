@@ -13,9 +13,10 @@ import com.trmtgtnh.block.BlockGhost;
  * How slippery a worn square is, asked by the name NeoForge gives the question (spec GF17).
  *
  * <p>
- * The shared ghost answers it as {@code getSlipperiness(state, world, pos, entity)}, which is Forge's name for the
- * per-square question and which the Forge jar's block calls, so worn ice is ice to everything that slides on it. NeoForge
- * renamed the question {@code getFriction}, with the same four arguments and the same answer - read from its
+ * The shared ghost answers it as {@code getSlipperiness(state, world, pos, entity)}, Forge's name for the per-square
+ * question up to 1.16.5. Forge itself has asked {@code getFriction} since, and the Forge jar has the same bridge as this
+ * one from 0.9.227, when it was found missing there. NeoForge asks it as {@code getFriction}, with the same four
+ * arguments and the same answer - read from its
  * {@code IBlockExtension} - and asks only that, so on NeoForge the ghost's own answer would never be heard and every
  * worn square would slide as the ghost's built-in 0.6. The shared module cannot name NeoForge, so this adds the
  * NeoForge-named method to the ghost, as an override of NeoForge's default, and hands the question straight to the

@@ -224,7 +224,7 @@ public final class MendPurse {
                         warnedUnpaid = true;
                         Trmt.LOG.warn(
                             "A mend for {} found its payment gone between check and take at {},{},{}; gesture stopped",
-                            owner == null ? "nobody" : owner.getName(),
+                            owner == null ? "nobody" : owner.getGameProfile().getName(),
                             Integer.valueOf(x),
                             Integer.valueOf(y),
                             Integer.valueOf(z));

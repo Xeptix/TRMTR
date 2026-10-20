@@ -8,6 +8,7 @@
     "MixinCrashReportSupport",
     "MixinGhostFriction",
     "MixinGhostMapColor",
+    "MixinLegacyChunkEntities",
     "MixinItemStack",
     "MixinRepairItemRecipe",
     "MixinLootArrivals",

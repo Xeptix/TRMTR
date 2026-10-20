@@ -35,6 +35,14 @@ public final class NeoForgeClientSetup {
 
     @SubscribeEvent
     public static void client(FMLClientSetupEvent event) {
+        // On the game's own thread, after the parallel setup (0.9.227): the loader runs every mod's setup handler at
+        // once, and what this registers - the golem's screen, each tamper's picture rule, the ghosts' passes - goes into
+        // the game's plain maps, which another mod's handler may be writing at the same moment.
+        event.enqueueWork(NeoForgeClientSetup::onTheGamesThread);
+    }
+
+    /** What client setup does, run by {@link #client} on the game's own thread. */
+    private static void onTheGamesThread() {
         // Every pass a covered block might draw in, because one ghost stands in for all of them and which pass a
         // square wants is not known until the square is. The model hands back nothing in the three that are not this
         // square's; see GhostLayers, which every loader shares, and TrmtFabricClient, which acts on the same answer the

@@ -38,11 +38,46 @@ public final class Translate {
 
     private Translate() {}
 
+    /** The jar's own English lines, read the first time a table lacks one. */
+    private static volatile java.util.Map<String, String> own;
+
+    /** This mod's line for a key from the jar's own en_us.json, or the key itself where it has none. */
+    static String ownEnglish(String key) {
+        java.util.Map<String, String> lines = own;
+        if (lines == null) {
+            lines = new java.util.HashMap<String, String>();
+            try (java.io.InputStream in = Translate.class.getResourceAsStream("/assets/trmtgtnh/lang/en_us.json")) {
+                if (in != null) {
+                    // The instance parser, which every Gson these games ship has; the static one is newer.
+                    @SuppressWarnings("deprecation")
+                    com.google.gson.JsonObject read = new com.google.gson.JsonParser()
+                        .parse(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))
+                        .getAsJsonObject();
+                    for (java.util.Map.Entry<String, com.google.gson.JsonElement> each : read.entrySet()) {
+                        if (each.getValue()
+                            .isJsonPrimitive()) lines.put(each.getKey(), each.getValue()
+                                .getAsString());
+                    }
+                }
+            } catch (java.io.IOException | RuntimeException unreadable) {
+                Trmt.LOG.debug("Could not read this mod's own English lines", unreadable);
+            }
+            own = lines;
+        }
+        String line = lines.get(key);
+        return line == null ? key : line;
+    }
+
     /** One key, with the arguments it takes. */
     public static String get(String key, Object... args) {
         if (key == null) return "";
         String pattern = Language.getInstance()
             .getOrDefault(key);
+        // A table that hands the key back has not got this mod's lines: on a 1.16.5 Fabric dedicated server, whose
+        // Fabric API loads no mod's language there, every line the server builds went out as its bare key -
+        // "trmtgtnh.reinforce.now" with no numbers (0.9.227). The jar's own English is read once and asked instead,
+        // which is what the older editions' server-side translation gives a server with no other language.
+        if (key.equals(pattern)) pattern = ownEnglish(key);
         if (args == null || args.length == 0) return pattern;
         try {
             return String.format(Locale.ROOT, pattern, args);

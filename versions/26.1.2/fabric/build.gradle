@@ -1,0 +1,77 @@
+// The Fabric jar, for Fabric Loader on Minecraft 26.1.2 - its shadow jar, with the common module folded in.
+
+plugins {
+    id "com.gradleup.shadow"
+}
+
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+loom {
+    // The shared access widener, as at 1.21.1: this module's own code compiles against what it widens.
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
+dependencies {
+    implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+
+    // Mod Menu, compile only, the way a Fabric player reaches the settings screen, as at 1.21.1. Cloth Config is
+    // compiled against and no longer required (decided for 26.x): 1.21.1 put it on the run-time classpath as a required
+    // mod; here it is the player's to install. Plain configurations: there is no remapping at 26.1.
+    compileOnly("com.terraformersmc:modmenu:${rootProject.modmenu_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+    compileOnly("me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_version}") {
+        exclude group: "net.fabricmc"
+        exclude group: "net.fabricmc.fabric-api"
+    }
+
+    common(project(path: ":common")) { transitive = false }
+    shadowBundle project(path: ":common", configuration: "transformProductionFabric")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand version: project.version
+    }
+    from(rootProject.projectDir) {
+        include 'LICENSE.md'
+        include 'LICENSE_trmt'
+        include 'ATTRIBUTION.md'
+    }
+    // The shared access widener, beside fabric.mod.json that names it, as at 1.21.1: Fabric's loader looks for it in
+    // this mod's own resources, and a development run, which holds the common module apart, would find none.
+    from(project(":common").file("src/main/resources/trmtgtnh.accesswidener"))
+}
+
+jar {
+    archiveClassifier = "dev"
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "fabric"
+    // The widener arrives twice, once from this module (above) and once in the common jar; one copy is kept.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+assemble.dependsOn shadowJar

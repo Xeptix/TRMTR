@@ -175,6 +175,13 @@ public class GuiTamper extends Screen {
 
     @Override
     public void init() {
+        // Cleared first (0.9.227): the mode button lays the screen out again by calling this, and Screen
+        // clears its widgets only on the way in. Uncleared, every cycle of the mode left the old buttons under
+        // the new ones, still taking clicks first - the family chooser's click relabelled a hidden button
+        // while the drawn one kept its old family, so "Wear as" could set a family other than the one shown,
+        // and leaving reinforce mode left the Wayfarer's level button there to be pressed. 1.7.10's screen
+        // clears its list at the top of initGui; GuiGolem clears its own the same way.
+        clearWidgets();
         int midX = width / 2;
         int top = topAnchor();
 

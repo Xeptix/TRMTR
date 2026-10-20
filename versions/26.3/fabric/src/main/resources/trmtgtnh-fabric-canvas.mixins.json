@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.trmtgtnh.fabric.mixin.canvas",
+  "plugin": "com.trmtgtnh.fabric.mixin.canvas.CanvasGate",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MixinCanvasSettles",
+    "MixinCanvasSunkLight",
+    "MixinJmxFaceVersion"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

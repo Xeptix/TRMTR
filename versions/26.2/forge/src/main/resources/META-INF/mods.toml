@@ -1,0 +1,37 @@
+modLoader = "javafml"
+loaderVersion = "[64,)"
+license = "CC BY-NC 4.0"
+issueTrackerURL = "https://github.com/Xeptix/TRMTR/issues"
+
+[[mods]]
+modId = "trmtgtnh"
+version = "${version}"
+displayName = "TRMT: Reimagined"
+displayURL = "https://github.com/Xeptix/TRMTR"
+authors = "Xeptix"
+credits = "This version by Xep. Based on The Roads More Travelled by milkucha (https://github.com/milkucha/trmt), Copyright (c) 2026 milkucha, licensed CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/) - see LICENSE_trmt for the full text and its disclaimer of warranties in Section 5. This is a modified work: carried to NeoForge, Forge and Fabric 26.2 by way of 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1 and 26.1.2 and re-architected so wear is server-side data painted client-side. Unofficial and non-commercial; not produced, endorsed or supported by milkucha. Full notice in LICENSE.md and ATTRIBUTION.md."
+description = '''
+Ground wears into paths along the routes you actually walk, and grows back once you stop using them.
+
+Wear is kept as server-side data and painted on your client as ghost blocks. No block is ever written
+into the world, so this can be switched off for one player, disabled across a server, or deleted
+outright without a square of terrain having changed.
+'''
+
+[[dependencies.trmtgtnh]]
+    modId = "forge"
+    mandatory = true
+    versionRange = "[64,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.trmtgtnh]]
+    modId = "minecraft"
+    mandatory = true
+    versionRange = "[26.2,26.3)"
+    ordering = "NONE"
+    side = "BOTH"
+
+# No Cloth Config. 1.21.1's Forge jar required it on a client, for the settings screen; Cloth has no Forge build for
+# 26.2, and from 26.x it is optional on every jar (decided), so nothing here names it and the Config button opens
+# whatever ConfigScreens answers.

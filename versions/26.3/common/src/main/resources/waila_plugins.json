@@ -1,0 +1,7 @@
+{
+  "trmtgtnh:wear": {
+    "initializer": "com.trmtgtnh.compat.WthitTooltip",
+    "side": "client",
+    "required": []
+  }
+}

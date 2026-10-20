@@ -98,7 +98,7 @@ public final class WthitTooltip implements IWailaPlugin {
         }
     }
 
-    /** The golem, which answers for itself: whose it is, and why it is standing still. */
+    /** A worn square's name and mod lines, written as the block it stands in for's (spec GF14). */
     private static final class Named implements IBlockComponentProvider {
 
         @Override

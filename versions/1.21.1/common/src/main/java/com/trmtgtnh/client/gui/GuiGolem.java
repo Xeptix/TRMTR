@@ -381,6 +381,9 @@ public class GuiGolem extends AbstractContainerScreen<ContainerGolem> {
     @Override
     public void render(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partial) {
         super.render(graphics, mouseX, mouseY, partial);
+        // And the hovered slot's tooltip (0.9.227): 1.7.10's GuiContainer draws it inside its own drawScreen, and from
+        // 1.12 a container screen must ask - this one never did, so a stack in the golem's storage had no name on hover.
+        renderTooltip(graphics, mouseX, mouseY);
         // After everything else and in screen coordinates, which is where the box was placed.
         if (typing != null) {
             // Three lines gone, and they were a workaround rather than a drawing. The other

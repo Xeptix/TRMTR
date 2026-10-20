@@ -1,0 +1,101 @@
+// Root build for the 26.1.2 edition, carried from 1.21.1 (0.9.227, docs/goals/0.9.227-goal.txt step 4).
+//
+// Minecraft is unobfuscated from 26.1: the game ships with Mojang's own names, so there is no mappings line at all and
+// no remapping - Architectury's no-remap Loom, as Architectury API's own 26.1 branch builds. Parchment, the mod*
+// configurations and remapJar are gone with the obfuscation; each loader's jar is its shadow jar. Forge sits outside
+// Architectury's template, as it did at 1.21.1, and Loom's own tests build it at 26.1 and 26.2; the fallback, decided
+// by Xep, is a Forge module built with ForgeGradle 7 beside the others, sharing the common code.
+
+plugins {
+    id "architectury-plugin" version "3.5.170"
+    id "dev.architectury.loom-no-remap" version "1.17.493" apply false
+    // Each loader's jar carries the common module's classes inside it, folded in by Shadow.
+    id "com.gradleup.shadow" version "9.6.1" apply false
+}
+
+architectury {
+    minecraft = project.minecraft_version
+}
+
+subprojects {
+    apply plugin: "dev.architectury.loom-no-remap"
+
+    loom {
+        // The verification harness is off in a plain run and has to be asked for, as in every edition.
+        runs {
+            configureEach {
+                if (project.hasProperty("spike")) property("trmt.spike", "true")
+                if (project.hasProperty("walk")) property("trmt.spike.walk", "true")
+                if (project.hasProperty("shots")) property("trmt.spike.shots", "true")
+                if (project.hasProperty("only")) property("trmt.spike.only", project.property("only").toString())
+                // The wear chain's older world, opened through the game's own upgrade (tools/wear_chain.py in the
+                // 1.7.10 tree). Carried with 1.21.1's tree before 1.21.1 had it, so the first 26.1.2 link ran the whole
+                // walk instead and found nothing carried (0.9.227).
+                if (project.hasProperty("upgrade")) property("trmt.spike.upgrade", project.property("upgrade").toString())
+                if (project.hasProperty("window") && name.toLowerCase().contains("client")) {
+                    def size = project.property("window").toString().split("x")
+                    programArgs("--width", size[0], "--height", size[1])
+                }
+                if (project.hasProperty("memory")) {
+                    vmArgs("-Xmx" + project.property("memory") + "m", "-Xms512m")
+                }
+            }
+        }
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    }
+}
+
+allprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
+    apply plugin: "maven-publish"
+
+    base {
+        archivesName = "trmtr-${rootProject.minecraft_version}"
+    }
+    // A VERSION in the environment overrides gradle.properties, as in every other edition.
+    version = System.getenv("VERSION") ?: rootProject.mod_version
+    group = rootProject.mod_group
+
+    repositories {
+        // Each narrowed to the group it is there for, as in 1.21.1.
+        maven {
+            url = "https://maven.shedaniel.me/"
+            content { includeGroup "me.shedaniel.cloth" }
+        }
+        maven {
+            url = "https://maven.terraformersmc.com/releases"
+            content { includeGroup "com.terraformersmc" }
+        }
+        // Modrinth's own Maven, for the tooltip mods this edition writes lines into - an official source.
+        maven {
+            url = "https://api.modrinth.com/maven"
+            content { includeGroup "maven.modrinth" }
+        }
+        // NeoForge's own Maven, unnarrowed: the loader's parts come from groups well outside its own.
+        maven { url = "https://maven.neoforged.net/releases/" }
+    }
+
+    // The portable core is Java 8 source, byte for byte with 1.7.10's; the rest of this edition is Java 25, the
+    // version 26.1 runs on.
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release = 25
+        options.compilerArgs += ["-Xmaxerrs", "100000"]
+    }
+
+    java {
+        withSourcesJar()
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
+    }
+
+    tasks.withType(JavaExec).configureEach {
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+}

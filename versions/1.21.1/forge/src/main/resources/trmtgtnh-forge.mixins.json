@@ -6,7 +6,9 @@
   "mixins": [
     "MixinChunkSerializer",
     "MixinCrashReportSupport",
+    "MixinGhostFriction",
     "MixinGhostMapColor",
+    "MixinLegacyChunkEntities",
     "MixinItemStack",
     "MixinRepairItemRecipe",
     "MixinLootArrivals",

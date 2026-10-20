@@ -81,6 +81,17 @@ public final class UpdateCheck {
      */
     public static final String ADDRESS = "https://raw.githubusercontent.com/Xeptix/TRMTR/master/latest.properties";
 
+    /**
+     * Where a jar from 0.9.227 reads the file when {@link #ADDRESS} does not answer: the copy attached to the newest
+     * full release (Xep chose it, 2026-10-15), a different GitHub service from the raw one, so one outage no longer
+     * silences every jar. Read only after the first address fails, and only when no test address is set.
+     *
+     * <p>
+     * <strong>Permanent</strong>, as {@link #ADDRESS} is: every jar that carries it asks it for as long as it is
+     * played.
+     */
+    public static final String FALLBACK = "https://github.com/Xeptix/TRMTR/releases/latest/download/latest.properties";
+
     /** The two project pages the notice links to. In the jar, so the file can never send anybody elsewhere. */
     public static final String CURSEFORGE = "https://www.curseforge.com/minecraft/mc-mods/trmt-reimagined";
 
@@ -104,8 +115,12 @@ public final class UpdateCheck {
     /** How long the connection, and then the read, may each take. */
     static final int TIMEOUT_MS = 5000;
 
-    /** How much of an answer is read at most. The real file is a few hundred bytes. */
-    static final int LONGEST_ANSWER = 4096;
+    /**
+     * How much of an answer is read at most: 16384 bytes from 0.9.227, 4096 before. The file grew with the 26.x
+     * editions, and puts every line a jar with the old limit reads in its first part, so those jars read what they
+     * always did (latest_file.py, SHORT_READERS; old_readers.py proves it against every released jar).
+     */
+    static final int LONGEST_ANSWER = 16384;
 
     /**
      * How long an answer is trusted before an eligible join asks again, and how often a running server reads the file
@@ -378,7 +393,7 @@ public final class UpdateCheck {
         String mine = parse(running) == null && testing ? leading(running) : running;
         String body;
         try {
-            body = fetch(address);
+            body = fetchOrFallBack(address);
             lastBody = body;
         } catch (IOException e) {
             return new Answer(null, mine, "could not read " + where(address) + " (" + e + ")", now);
@@ -516,6 +531,34 @@ public final class UpdateCheck {
         if (p == null || !BY_STAGE) return edition;
         int least = Math.min(p.stage, p.estage);
         return least < STAGES.length ? edition + "." + STAGES[least] : edition;
+    }
+
+    /**
+     * The file from {@code address}, or - when that is {@link #ADDRESS} and it does not answer - from
+     * {@link #FALLBACK}. A test address is read alone. Throws what the first address threw when both fail, with the
+     * fallback's failure added to it.
+     */
+    static String fetchOrFallBack(String address) throws IOException {
+        return fetchOrFallBack(address, ADDRESS, FALLBACK);
+    }
+
+    /** {@link #fetchOrFallBack(String)} with the two addresses given, so a test can try it with files. */
+    static String fetchOrFallBack(String address, String primary, String fallback) throws IOException {
+        try {
+            return fetch(address);
+        } catch (IOException first) {
+            if (!primary.equals(address)) throw first;
+            try {
+                return fetch(fallback);
+            } catch (IOException second) {
+                throw new IOException(first + "; and " + where(fallback) + ": " + second);
+            } catch (RuntimeException second) {
+                throw new IOException(first + "; and " + where(fallback) + ": " + second);
+            }
+        } catch (RuntimeException first) {
+            if (!primary.equals(address)) throw first;
+            return fetch(fallback);
+        }
     }
 
     /** The answer's text, at most {@link #LONGEST_ANSWER} bytes of it. */

@@ -1,8 +1,103 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.226 is the same release on Minecraft 1.7.10, 1.12.2,
-1.16.5, 1.20.1 and 1.21.1, and later releases will carry whatever editions exist then. A change in one edition
+One version number across every edition. 0.9.227 is the same release on Minecraft 1.7.10, 1.12.2,
+1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.227 - 2026-10-20
+
+**Minecraft 26.1.2, 26.2 and 26.3, on NeoForge, Forge and Fabric, as alphas.** The same mod as the other editions,
+held to the 1.7.10 edition rule for rule, in nine new jars. Cloth Config is optional on all of them: without it the mod
+shows a settings screen of its own, laid out as Cloth's is. A world brought up from the game before keeps its wear, and
+a Golem of Ways what it carries and the upgrade fitted to it. It draws under Sodium with Iris on 26.1.2 and 26.2
+NeoForge and on every Fabric jar; Jade, WTHIT and The One Probe show each square's wear where each has a build, The One
+Probe on Fabric too from 26.2; and JourneyMap and Xaero's Minimap draw it. They are alphas because they are the first
+builds for these versions.
+
+*Changes: 26.1.2, 26.2 and 26.3.*
+
+**1.20.1 is a release and 1.21.1 a beta.** Their jars and store files carry no stage and `-beta` from this release.
+
+*Changes: 1.20.1 and 1.21.1.*
+
+**A world from before 1.18 keeps its golems when opened in 1.20.1 or 1.21.1.** Minecraft's own 1.18 chunk upgrade
+drops a chunk's whole list of creatures when one of them is a mod's, so a Golem of Ways - and everything beside it -
+was lost the first time a newer game opened the world. The list is kept and put back, each vanilla creature upgraded by
+the game itself. And a golem's tools from 1.12.2 keep their wear in 1.16.5 and later, read through the game's own
+upgrade of a stored item.
+
+*Changes: 1.16.5, 1.20.1 and 1.21.1.*
+
+**On 1.21.1 NeoForge a client works out worn ground under its server's block numbering.** Joining a server with a
+different list of mods left the client reading wear under its own numbers, so it could wear and draw the wrong modded
+ground.
+
+*Changes: 1.21.1 NeoForge.*
+
+**On 1.20.1 and 1.21.1 Forge, worn ice slides and a worn square's dust is the ground's own**, as on every other loader;
+Forge from 1.20.1 asks a block's friction and dust under names this mod did not answer.
+
+*Changes: 1.20.1 Forge and 1.21.1 Forge.*
+
+**`/trmt version`, for any player.** This jar's build, the newest build for it as the server last found, and each
+required mod's version against what it needs. Every other `/trmt` command stays an operator's, and the Commands guide
+says so.
+
+*Changes: every edition.*
+
+**The update check reads further, and has a second address.** From this release a jar reads the whole version file
+and, when the usual address does not answer, the file attached to the newest release on GitHub. The file now keeps every
+line an older jar reads in the part it reads, so every jar released so far still hears of updates. A player of a beta
+or alpha edition is now told when a required mod is too old, as a release edition's is.
+
+*Changes: every edition.*
+
+**The tooltip mods' settings name this mod's switch "Worn ground"**, where they showed a raw key.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1 and 1.21.1.*
+
+**On 1.16.5, Jade and WTHIT name a worn square for the block it covers**, with that block's mod, as Waila does on
+1.7.10. And on 1.20.1 and 1.21.1 WTHIT's harvest line names the covered block's tool.
+
+*Changes: 1.16.5, 1.20.1 and 1.21.1.*
+
+**The tamper screen no longer stacks a new set of buttons each time its mode is cycled**, so "Wear as" sets the family
+shown and the Wayfarer's level button works in every mode. Back from the Wear Table returns to the settings screen with
+its edits, and the one setting that needs a restart says so.
+
+*Changes: 1.16.5, 1.20.1 and 1.21.1.*
+
+**Wear reaches every chunk a player can see**, out to 32; it stopped at 21 after `/trmt enable`, a reload or wear
+switched back on. And leaving a world no longer applies the old server's last wear to the next one.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1 and 1.21.1.*
+
+**The advancements come in 1.7.10's order**: reading a guide or building a golem no longer awards Ground Underfoot,
+and The Whole Shelf needs all four books. On 1.21.1 the tampers take Unbreaking and Mending.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1 and 1.21.1.*
+
+**A worn block on worn ground covers it again**, the guide books are held as books, the golem's screen dims the world
+behind it and names the stack under the pointer, and the golem keeps its surplus out of smokers, blast furnaces and the
+crafter.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1 and 1.21.1.*
+
+**Smaller fixes.** 1.20.1's jars name 1.20.1's resource pack format; 1.20.1 and 1.21.1 Fabric send a tamper's
+left-click once, where a stray click on reinforced ground took a level; a 1.16.5 Fabric dedicated server sends this
+mod's lines in words; `/trmt golem` and the server log name players and items in words; a second `/trmt reload` of a
+damaged settings file no longer resets what it could not read; `/trmt version` on a Forge server no longer asks for
+Cloth Config; `/trmt demonstrate` clears to the world's top on 1.20.1 and 1.21.1; and 1.12.2 no longer reports its
+quest chapter missing after loading it.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1 and 1.21.1.*
+
+**The test rig** carries one worn world from 1.12.2 to 26.3, every square, golem and tamper read back at each step, on
+every loader of each newer game, and plays four new areas in every edition: a multiplayer walk, every setting saved and read back, wear healed over thirty
+days against the engine's own arithmetic, and the golem and every screen photographed. And every jar released so far is
+kept and asked to read each new version file before a release goes out.
+
+*Changes: no edition - the test rig.*
 
 ## 0.9.226 - 2026-10-14
 

@@ -61,7 +61,17 @@ public final class CommandTrmt {
         "golem",
         "showcase",
         "demonstrate",
-        "mapcolor");
+        "mapcolor",
+        "version");
+
+    /** The one subcommand any player may run (0.9.227; Xep: "Everyone"): it reports and changes nothing. */
+    private static final String OPEN = "version";
+
+    /** Whether this sender may run what these words ask: the open subcommand for anyone, the rest for operators. */
+    static boolean mayRun(CommandSourceStack sender, String[] args) {
+        if (args.length > 0 && OPEN.equals(args[0].toLowerCase(Locale.ROOT))) return true;
+        return sender.hasPermission(2);
+    }
 
     /**
      * The whole of what this command accepts, in one line.
@@ -71,7 +81,7 @@ public final class CommandTrmt {
      * command is mistyped; there is no such method here, so the string is the string and the
      * refusals below carry it themselves.
      */
-    private static final String USAGE = "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+    private static final String USAGE = "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|version|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
 
     private CommandTrmt() {}
 
@@ -102,14 +112,18 @@ public final class CommandTrmt {
         com.trmtgtnh.server.CommandTrmtNotice.register(dispatcher);
         dispatcher.register(
             net.minecraft.commands.Commands.literal("trmt")
-                .requires(source -> source.hasPermission(2))
+                // Open to every sender, so that /trmt version is every player's (0.9.227), as on 1.7.10; every other
+                // subcommand is held to operators in run(), before anything runs.
                 .executes(context -> run(context.getSource(), new String[0]))
                 .then(
                     net.minecraft.commands.Commands
                         .argument("args", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
                         .suggests(
-                            (context, builder) -> net.minecraft.commands.SharedSuggestionProvider
-                                .suggest(SUBCOMMANDS, builder))
+                            (context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                                // A player who may not run the rest is offered only what they may.
+                                context.getSource()
+                                    .hasPermission(2) ? SUBCOMMANDS : java.util.Collections.singletonList(OPEN),
+                                builder))
                         .executes(
                             context -> run(
                                 context.getSource(),
@@ -136,6 +150,7 @@ public final class CommandTrmt {
      */
     public static int run(final CommandSourceStack sender, final String[] args)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (!mayRun(sender, args)) throw refuse("You do not have permission to use this command.");
         if (Trmt.runningServer() != null && !Trmt.onServerThread()) {
             reply(
                 sender,
@@ -304,6 +319,10 @@ public final class CommandTrmt {
             showcase(sender, args);
         } else if ("demonstrate".equals(sub)) {
             demonstrate(sender, args);
+        } else if (OPEN.equals(sub)) {
+            for (String line : com.trmtgtnh.server.UpdateNotice.versionLines()) {
+                reply(sender, ChatFormatting.AQUA, line);
+            }
         } else {
             throw refuse(USAGE);
         }
@@ -570,7 +589,8 @@ public final class CommandTrmt {
         reply(
             sender,
             tool >= 0 ? ChatFormatting.GRAY : ChatFormatting.RED,
-            tool >= 0 ? "  tamper: " + tamper.getDisplayName()
+            tool >= 0 ? "  tamper: " + tamper.getHoverName()
+                .getString()
                 : "  tamper: none. It cannot lay what it eats without one, so it does not eat.");
 
         if (ordered && tool >= 0) {
@@ -589,7 +609,8 @@ public final class CommandTrmt {
             ChatFormatting.GRAY,
             "  mouth: " + (golem.masonryInMouth() == null ? "empty"
                 : "chewing " + golem.masonryInMouth()
-                    .getDisplayName())
+                    .getHoverName()
+                    .getString())
                 + ", holding "
                 + golem.masonryReady()
                 + " mouthful(s) ready to lay");
@@ -616,7 +637,8 @@ public final class CommandTrmt {
         reply(
             sender,
             ChatFormatting.AQUA,
-            "In your hand: " + held.getHoverName() + "  (" + name + ", meta " + held.getDamageValue() + ")");
+            "In your hand: " + held.getHoverName()
+                .getString() + "  (" + name + ", meta " + held.getDamageValue() + ")");
 
         String fluid = com.trmtgtnh.server.ReinforceCost.fluidNameOf(held);
         if (fluid == null) {

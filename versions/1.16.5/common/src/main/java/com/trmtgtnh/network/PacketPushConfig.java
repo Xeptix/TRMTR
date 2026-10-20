@@ -159,7 +159,7 @@ public class PacketPushConfig implements Message {
                     if (!player.hasPermissions(2)) {
                         Trmt.LOG.warn(
                             "{} offered a config push without permission; refused",
-                            player.getName());
+                            player.getGameProfile().getName());
                         say(player, ChatFormatting.RED, "You are not allowed to change this server's settings.");
                         return;
                     }
@@ -219,7 +219,7 @@ public class PacketPushConfig implements Message {
                     }
                     Trmt.LOG.info(
                         "{} pushed {} settings to the server, {} refused",
-                        player.getName(),
+                        player.getGameProfile().getName(),
                         Integer.valueOf(applied),
                         Integer.valueOf(refused));
                     say(

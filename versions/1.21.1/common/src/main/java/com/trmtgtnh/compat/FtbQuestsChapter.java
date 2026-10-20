@@ -307,6 +307,9 @@ public final class FtbQuestsChapter {
     static String item(Stack stack) {
         String id = stack.id;
         if ("minecraft:grass".equals(id)) id = "minecraft:grass_block";
+        // The plant, under this version's own name for it (0.9.227): 1.7.10's tallgrass of metadata one, which
+        // "And Forgets" shows; written as the block, it showed the grass block quest 1 shows.
+        if ("minecraft:tallgrass".equals(id)) id = "minecraft:short_grass";
         if ("minecraft:skull".equals(id)) id = stack.damage == 3 ? "minecraft:player_head" : "minecraft:skeleton_skull";
         ResourceLocation name = ResourceLocation.tryParse(id);
         if (name == null || !BuiltInRegistries.ITEM.containsKey(name)) return null;

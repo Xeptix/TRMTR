@@ -542,7 +542,7 @@ public final class QuestbookCompat {
             .rewardChoice("harvestcraft:toastItem", "harvestcraft:friedeggItem", "harvestcraft:butterItem");
         quests.add(wear);
 
-        Quest heal = quest(2, "And Forgets", 48, 96).icon(stack("minecraft:grass", 1, 0))
+        Quest heal = quest(2, "And Forgets", 48, 96).icon(stack("minecraft:tallgrass", 1, 1))
             .after(wear)
             .describe(
                 "Stop walking somewhere and it comes back on its own. Slowly - a stage takes tens of in-game days - but it does.\n\n[note]Point Waila at a worn block to see how far along it is and how long it has left. That readout is the fastest way to understand the whole mod.[/note]")
