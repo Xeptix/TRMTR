@@ -20,10 +20,17 @@ switchable per server, and invisible in a world opened without it.
 | ![Any block, in any pack: wear is generated from each block's own pixels, so modded ground wears in its own colors](docs/images/04-any-block-any-pack.png) | ![Ruts you walk down into: later stages hollow out, down to half a block](docs/images/06-ruts.png) |
 | ![Stop walking it and it comes back: recovery follows the world's clock](docs/images/07-grows-back.png) | ![Every number is yours: the mod's own settings screen in every edition](docs/images/13-settings.png) |
 
-**Minecraft 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3**, on Forge, on Fabric for 1.16.5 and every
-version after it, and on NeoForge for 1.21.1, 26.1.2, 26.2 and 26.3 - 26.1.2, 26.2 and 26.3 as betas. It brings a
-settings screen of its own to every edition, so Cloth Config is optional everywhere. The 1.7.10 edition is built
-against GT: New Horizons 2.8.4. [Install](#install) says which jar to take and what it needs.
+| Minecraft | Loaders | |
+|---|---|---|
+| 1.7.10 | Forge | release, built against GT: New Horizons 2.8.4 |
+| 1.12.2 | Forge | release |
+| 1.16.5 | Forge, Fabric | release |
+| 1.20.1 | Forge, Fabric | release |
+| 1.21.1 | NeoForge, Forge, Fabric | release |
+| 26.1.2, 26.2, 26.3 | NeoForge, Forge, Fabric | beta |
+
+Every edition has a settings screen of its own, so Cloth Config is optional everywhere. [Install](#install) says which
+jar to take and what it needs.
 
 One mod, one version number, eight editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
