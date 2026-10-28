@@ -1,74 +1,30 @@
 package com.trmtgtnh.util;
 
-import java.lang.reflect.Field;
-
 import net.minecraft.world.level.Explosion;
 
-import com.trmtgtnh.Trmt;
-
 /**
- * How big an explosion is, which 1.12.2 no longer says.
+ * How big an explosion is - the other edition's {@code explosion.explosionSize}, a public field there.
  *
  * <p>
- * The other edition reads {@code explosion.explosionSize}, a public field. Here the same number is a
- * private final with no getter - the event hands over the explosion, its position and its list of
- * doomed blocks, but not the one figure that says how strong it was, and that figure is the whole of
- * whether a reinforced block survives it and how far the scouring reaches.
+ * Asked through an accessor of this mod's own (0.9.228; Xep: "Own accessor"): at 1.20.1 {@code Explosion} keeps its
+ * strength in {@code private final float radius} with no getter, so each loader module mixes {@link ExplosionRadius}
+ * into the class ({@code MixinExplosionRadius}), reading the field by its name. Until 0.9.228 every port from 1.12.2
+ * found the class's only {@code float} field by reflection, which answered for whatever float the class held and
+ * warned when it found none or two; the field is named now, and the build checks the name against this version's
+ * jar. The figure is the whole of whether a reinforced block survives a blast and how far the scouring reaches, and a
+ * blast that cannot be measured spares nothing.
  *
  * <p>
- * Found by its type rather than its name, as this edition finds the model manager: {@code Explosion}
- * has exactly one {@code float} field, so the lookup needs no mapping table, survives obfuscation, and
- * asks nothing of the build. An access transformer would have worked too, and would have made the jar
- * one that edits a vanilla class's access to load; for one number read once per explosion, reflection
- * costs less than that.
- *
- * <p>
- * Refuses loudly rather than quietly, because the quiet failure is the bug the other edition shipped
- * with for as long as reinforcement existed: a blast that cannot be measured spares nothing, and a
- * block reinforced three times goes up with the crater. If the lookup ever finds no field, or more than
- * one, that is said once in the log in so many words.
+ * In the loader modules, not in common, because at 1.20.1 a common mixin may name no vanilla member
+ * ({@code CommonMixinsNeedNoRefmapTest}); the 1.21.1 edition asks the game's own {@code radius()}.
  */
 public final class ExplosionSize {
 
-    private static final Field SIZE = find();
-
-    private static boolean warned;
-
     private ExplosionSize() {}
 
-    private static Field find() {
-        Field found = null;
-        for (Field field : Explosion.class.getDeclaredFields()) {
-            if (field.getType() != float.class) continue;
-            if (found != null) {
-                Trmt.LOG.warn(
-                    "Explosion has more than one float field ({} and {}); blast strength cannot be read, so reinforced blocks will not be spared",
-                    found.getName(),
-                    field.getName());
-                return null;
-            }
-            found = field;
-        }
-        if (found == null) {
-            Trmt.LOG.warn(
-                "Explosion has no float field; blast strength cannot be read, so reinforced blocks will not be spared");
-            return null;
-        }
-        found.setAccessible(true);
-        return found;
-    }
-
-    /** The explosion's strength, or -1 when it cannot be read. */
+    /** The explosion's strength, or -1 for none. */
     public static float of(Explosion explosion) {
-        if (explosion == null || SIZE == null) return -1f;
-        try {
-            return SIZE.getFloat(explosion);
-        } catch (IllegalAccessException refused) {
-            if (!warned) {
-                warned = true;
-                Trmt.LOG.warn("Could not read an explosion's strength; reinforced blocks will not be spared", refused);
-            }
-            return -1f;
-        }
+        if (explosion == null) return -1f;
+        return ((ExplosionRadius) explosion).trmt$radius();
     }
 }

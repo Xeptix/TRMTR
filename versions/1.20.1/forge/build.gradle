@@ -39,7 +39,8 @@ dependencies {
     // the common module's from 0.9.226.
     modCompileOnly "maven.modrinth:the-one-probe:${rootProject.top_version}"
 
-    // Cloth Config, required: the settings screen is built on it, as in 1.16.5. See ConfigScreen.
+    // Cloth Config, whose screen is the other of this mod's two - optional from 0.9.228 (decided), and kept on the
+    // development run so the rig can photograph both screens. See ConfigScreens.
     modImplementation("me.shedaniel.cloth:cloth-config-forge:${rootProject.cloth_version}") {
         exclude group: "net.fabricmc"
         exclude group: "net.fabricmc.fabric-api"

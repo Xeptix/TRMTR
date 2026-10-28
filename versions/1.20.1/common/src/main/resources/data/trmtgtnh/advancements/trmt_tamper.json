@@ -1,4 +1,20 @@
 {
+    "conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements"
+            ]
+        }
+    ],
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements"
+            ]
+        }
+    ],
     "display": {
         "icon": {
             "item": "trmtgtnh:tamper"

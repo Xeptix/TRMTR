@@ -328,7 +328,7 @@ public final class WearPatterns {
      * Shared by readIcon and headerWidth, so that what a sprite is built from and what it is priced from
      * cannot drift apart again.
      */
-    static ResourceLocation blockTextureFile(String iconName) {
+    public static ResourceLocation blockTextureFile(String iconName) {
         ResourceLocation named = new ResourceLocation(VanillaNames.current(iconName));
         String path = named.getPath();
         // "block", not "blocks": the folder was renamed at 1.13, along with three of the textures in

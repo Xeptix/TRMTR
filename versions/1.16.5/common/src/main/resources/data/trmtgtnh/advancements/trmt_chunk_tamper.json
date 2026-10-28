@@ -1,4 +1,10 @@
 {
+    "conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": ["achievements"]
+        }
+    ],
     "parent": "trmtgtnh:trmt_tamper",
     "display": {
         "icon": {

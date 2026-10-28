@@ -37,4 +37,28 @@ public final class EntityNames {
         }
         return Collections.unmodifiableList(names);
     }
+
+    /**
+     * Every registered mob's name, as {@code namespace:path}, in name order (0.9.228): what the settings screen's Add
+     * mob offers, what a mob list line is checked against, and what a server names as unknown at its start.
+     *
+     * <p>
+     * A type at this version says nothing of the class it makes, and nothing can be made without a world, so a mob is
+     * told by what every living thing must have: its default attributes, which vanilla holds for every living type and
+     * Forge and Fabric each hold for a mod's ({@code DefaultAttributes.hasSupplier} asks both on Forge). The two living
+     * things that are not mobs - the player and the armor stand - are left out. A mod's living thing that is neither a
+     * mob nor either of those would be offered too; none is known.
+     */
+    public static List<String> mobs() {
+        List<String> names = new ArrayList<String>();
+        for (net.minecraft.world.entity.EntityType<?> type : Registry.ENTITY_TYPE) {
+            if (type == net.minecraft.world.entity.EntityType.PLAYER
+                || type == net.minecraft.world.entity.EntityType.ARMOR_STAND) continue;
+            if (!net.minecraft.world.entity.ai.attributes.DefaultAttributes.hasSupplier(type)) continue;
+            ResourceLocation known = Registry.ENTITY_TYPE.getKey(type);
+            if (known != null) names.add(known.toString());
+        }
+        Collections.sort(names);
+        return Collections.unmodifiableList(names);
+    }
 }

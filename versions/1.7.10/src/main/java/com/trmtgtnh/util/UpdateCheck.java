@@ -123,6 +123,11 @@ public final class UpdateCheck {
     static final int LONGEST_ANSWER = 16384;
 
     /**
+     * The shape of an edition's key, as its own file is named by it: {@code latest-1.21.1-neoforge.properties}.
+     */
+    static final Pattern EDITION = Pattern.compile("[0-9a-z.+-]{1,40}");
+
+    /**
      * How long an answer is trusted before an eligible join asks again, and how often a running server reads the file
      * again and tells everyone online who can update: eight hours, three times a day (0.9.221; Xep, 2026-10-09: "make
      * the text post on a 8h schedule, so 3 times a day if the server stays running that long"). A day until then.
@@ -274,6 +279,12 @@ public final class UpdateCheck {
          */
         public final String says;
 
+        /**
+         * The edition key whose line answered - the running game's, or the build's behind it (0.9.228) - or null when
+         * no line did. What a jar hands {@code DependencyCheck} and {@code VersionReport}, so they read the same line.
+         */
+        public final String edition;
+
         Answer(String newer, String running, String said, long at) {
             this(newer, running, said, at, false);
         }
@@ -288,6 +299,12 @@ public final class UpdateCheck {
 
         Answer(String newer, String running, String said, long at, boolean bad, String critical, String reason,
             String says) {
+            this(newer, running, said, at, bad, critical, reason, says, null);
+        }
+
+        Answer(String newer, String running, String said, long at, boolean bad, String critical, String reason,
+            String says, String edition) {
+            this.edition = edition;
             this.says = says;
             this.newer = newer;
             this.running = running;
@@ -296,6 +313,11 @@ public final class UpdateCheck {
             this.bad = bad;
             this.critical = critical;
             this.reason = reason;
+        }
+
+        /** This answer, as the line of {@code key} gave it. */
+        Answer from(String key) {
+            return new Answer(newer, running, said, at, bad, critical, reason, says, key);
         }
     }
 
@@ -346,6 +368,17 @@ public final class UpdateCheck {
      */
     public static void start(final String edition, final String running, final String releases,
         final Map<?, ?> properties, final Runnable then) {
+        start(new String[] { edition }, running, releases, properties, then);
+    }
+
+    /**
+     * {@link #start(String, String, String, Map, Runnable)} with the edition keys in the order they are asked (0.9.228;
+     * Xep, 2026-10-20: the edition key from the running game): the running game's first, then the build's own, so a
+     * jar on a game version the file does not name yet - a hotfix out after the release - still reads its build's
+     * line rather than falling silent. The first key whose line the file holds answers.
+     */
+    public static void start(final String[] editions, final String running, final String releases,
+        final Map<?, ?> properties, final Runnable then) {
         final boolean every = everyRelease(releases, properties);
         if (!ASKING.compareAndSet(false, true)) return;
         final String test = testAddress(properties);
@@ -354,7 +387,7 @@ public final class UpdateCheck {
             @Override
             public void run() {
                 try {
-                    last = ask(test != null ? test : ADDRESS, edition, running, test != null, every);
+                    last = ask(test != null ? test : ADDRESS, editions, running, test != null, every);
                 } finally {
                     ASKING.set(false);
                 }
@@ -386,29 +419,79 @@ public final class UpdateCheck {
         return ask(address, edition, running, testing, false);
     }
 
-    /** One whole check, on whatever thread calls it. Never throws. */
+    /** One whole check of one edition key, on whatever thread calls it. Never throws. */
     static Answer ask(String address, String edition, String running, boolean testing, boolean every) {
+        return ask(address, new String[] { edition }, running, testing, every);
+    }
+
+    /**
+     * One whole check, on whatever thread calls it, the edition keys asked in order - each its own file, else the
+     * whole one - until one's line answers (0.9.228). Never throws.
+     */
+    static Answer ask(String address, String[] editions, String running, boolean testing, boolean every) {
         long now = System.currentTimeMillis();
         String early = earlyOf(running);
         String mine = parse(running) == null && testing ? leading(running) : running;
-        String body;
-        try {
-            body = fetchOrFallBack(address);
-            lastBody = body;
-        } catch (IOException e) {
-            return new Answer(null, mine, "could not read " + where(address) + " (" + e + ")", now);
-        } catch (RuntimeException e) {
-            return new Answer(null, mine, "could not read " + where(address) + " (" + e + ")", now);
+        String[] keys = keysOf(editions);
+        if (keys.length == 0) return new Answer(null, mine, "no edition to ask for", now);
+        String edition = null;
+        String body = null;
+        String line = null;
+        String newest = null;
+        for (String key : keys) {
+            try {
+                body = fetchFor(address, key);
+                lastBody = body;
+            } catch (IOException e) {
+                return new Answer(null, mine, "could not read " + where(address) + " (" + e + ")", now);
+            } catch (RuntimeException e) {
+                return new Answer(null, mine, "could not read " + where(address) + " (" + e + ")", now);
+            }
+            if (mine == null || parse(mine) == null) {
+                String said = "this is a development build (" + running + "), which is never told";
+                return new Answer(null, mine, said, now);
+            }
+            // A pre-release reads its own stage's line, which holds the newest build at that stage or a more
+            // stable one; a file with no such line yet is read at the edition's own, the newest release.
+            line = lineFor(key, mine);
+            newest = newestFor(body, line);
+            if (newest == null && !line.equals(key)) newest = newestFor(body, line = key);
+            if (newest != null) {
+                edition = key;
+                break;
+            }
         }
-        if (mine == null || parse(mine) == null) {
-            return new Answer(null, mine, "this is a development build (" + running + "), which is never told", now);
+        if (newest == null) {
+            return new Answer(null, mine, "no line for " + joined(keys) + " in " + where(address), now);
         }
-        // A pre-release reads its own stage's line, which holds the newest build at that stage or a more
-        // stable one; a file with no such line yet is read at the edition's own, the newest release.
-        String line = lineFor(edition, mine);
-        String newest = newestFor(body, line);
-        if (newest == null && !line.equals(edition)) newest = newestFor(body, line = edition);
-        if (newest == null) return new Answer(null, mine, "no line for " + edition + " in " + where(address), now);
+        return judge(edition, body, line, newest, mine, early, every, now).from(edition);
+    }
+
+    /** The keys to ask, in order: each once, and none blank or null. */
+    static String[] keysOf(String[] editions) {
+        java.util.List<String> keys = new java.util.ArrayList<String>();
+        if (editions != null) {
+            for (String each : editions) {
+                if (each != null && !each.trim()
+                    .isEmpty() && !keys.contains(each.trim())) keys.add(each.trim());
+            }
+        }
+        return keys.toArray(new String[0]);
+    }
+
+    /** The keys asked, as the log says them: {@code 26.1.3-neoforge or 26.1.2-neoforge}. */
+    private static String joined(String[] keys) {
+        StringBuilder said = new StringBuilder();
+        for (String each : keys) {
+            if (said.length() > 0) said.append(" or ");
+            said.append(each);
+        }
+        return said.toString();
+    }
+
+    /** What the line {@code newest} of {@code edition} means for this jar, once a key has answered. */
+    private static Answer judge(String edition, String body, String line, String newest, String mine, String early,
+        boolean every, long now) {
         if (!trusted(newest)) {
             return new Answer(null, mine, "the line for " + line + " is not a version, so nothing is shown", now);
         }
@@ -531,6 +614,57 @@ public final class UpdateCheck {
         if (p == null || !BY_STAGE) return edition;
         int least = Math.min(p.stage, p.estage);
         return least < STAGES.length ? edition + "." + STAGES[least] : edition;
+    }
+
+    /**
+     * The file this jar reads (from 0.9.228): its own edition's, {@code latest-<edition>.properties} beside
+     * {@link #ADDRESS} and then beside {@link #FALLBACK}, and the whole file - as every jar before 0.9.228 reads it -
+     * when neither answers or the one that does holds no line of this edition's. The release tools write each
+     * edition's file from the whole one, so they always agree; an edition's own file is small and no other edition's
+     * lines can crowd it (Xep, 2026-10-20: "we should be able to mark everything as needed and not overflow older
+     * jars"). A test address is read alone, as before.
+     */
+    static String fetchFor(String address, String edition) throws IOException {
+        return fetchFor(address, edition, ADDRESS, FALLBACK);
+    }
+
+    /** {@link #fetchFor(String, String)} with the two addresses given, so a test can try it with files. */
+    static String fetchFor(String address, String edition, String primary, String fallback) throws IOException {
+        if (primary.equals(address) && edition != null
+            && EDITION.matcher(edition)
+                .matches()) {
+            String own = editionAddress(primary, edition);
+            try {
+                String body = fetchOrFallBack(own, own, editionAddress(fallback, edition));
+                if (holds(body, edition)) return body;
+            } catch (IOException notThereYet) {
+                // Not published yet, or not reachable: the whole file, below.
+            } catch (RuntimeException notThereYet) {
+                // The same.
+            }
+        }
+        return fetchOrFallBack(address, primary, fallback);
+    }
+
+    /** An edition's own file, beside the whole one at the same address: its last part replaced. */
+    static String editionAddress(String whole, String edition) {
+        return whole.substring(0, whole.lastIndexOf('/') + 1) + "latest-" + edition + ".properties";
+    }
+
+    /** Whether a file holds a line of this edition's: its own, or one of its stages'. */
+    static boolean holds(String body, String edition) {
+        Properties read = new Properties();
+        try {
+            read.load(new StringReader(body == null ? "" : body));
+        } catch (IOException e) {
+            return false;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        for (String key : read.stringPropertyNames()) {
+            if (key.equals(edition) || key.startsWith(edition + ".")) return true;
+        }
+        return false;
     }
 
     /**

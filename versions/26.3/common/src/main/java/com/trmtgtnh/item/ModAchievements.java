@@ -32,12 +32,77 @@ import com.trmtgtnh.config.TrmtConfig;
  *
  * <p>
  * The other edition refuses to register an achievement for a feature the config has switched off, so
- * that nothing unreachable sits on the page. A JSON file cannot be registered conditionally, so all
- * sixteen are always there and the refusal moved here instead: a switch that is off means the grant
- * never happens. The page shows one more unearned line than it used to; nothing can be earned that
- * the switches have closed.
+ * that nothing unreachable sits on the page - nothing at all with general.achievements off. From 0.9.228
+ * the files load on the same conditions (spec BP30, BP33; Xep: "Match 1.7.10"): each names the switches
+ * that must all be on for it under every loader's own key - NeoForge's {@code neoforge:conditions},
+ * Forge's {@code forge:condition}, Fabric's {@code fabric:load_conditions} - as one condition,
+ * {@code trmtgtnh:settings}, which each loader's module registers and every one answers by
+ * {@link #loads}. Read as the data loads, at a server's start and on /reload; a world's earned ones stay
+ * in its save either way. Until 0.9.228 every file loaded whatever the switches said and only the grant
+ * was refused, so the tab stood with nothing to earn, or with lines nobody could earn.
  */
 public final class ModAchievements {
+
+    /** The condition's name, under this mod's namespace: {@code trmtgtnh:settings}. */
+    public static final String SETTINGS_CONDITION = "settings";
+
+    /**
+     * Each file's switches, which must all be on for it to load: the 1.7.10 edition's registration rules
+     * ({@code ModAchievements.java:54-56}, {@code :74-76}, {@code :118-125}, {@code :136-148}). Every file asks
+     * general.achievements; a mode and its book ask the mode's switch as well, the golem asks golem.enabled and All
+     * Ways golem.upgrades too; the books read and the shelf ask nothing more, whatever the golem switches say. A child
+     * names its parent's switches too, or vanilla drops it with a warning when its parent is filtered.
+     */
+    public static final java.util.Map<String, java.util.List<String>> SWITCHES = switches();
+
+    private static java.util.Map<String, java.util.List<String>> switches() {
+        java.util.Map<String, java.util.List<String>> out = new java.util.LinkedHashMap<String, java.util.List<String>>();
+        String on = "achievements";
+        for (String file : new String[] { "trmt_tamper", "trmt_chunk_tamper", "trmt_wayfarer", "trmt_read_mk1",
+            "trmt_read_mk2", "trmt_read_commands", "trmt_read_golem", "trmt_library" }) {
+            out.put(file, java.util.Collections.singletonList(on));
+        }
+        out.put("trmt_reinforcing", java.util.Arrays.asList(on, "reinforceEnabled"));
+        out.put("trmt_book_reinforce", java.util.Arrays.asList(on, "reinforceEnabled"));
+        out.put("trmt_lighting", java.util.Arrays.asList(on, "lightEnabled"));
+        out.put("trmt_book_light", java.util.Arrays.asList(on, "lightEnabled"));
+        out.put("trmt_warding", java.util.Arrays.asList(on, "wardEnabled"));
+        out.put("trmt_book_ward", java.util.Arrays.asList(on, "wardEnabled"));
+        out.put("trmt_golem", java.util.Arrays.asList(on, "golemEnabled"));
+        out.put("trmt_omni", java.util.Arrays.asList(on, "golemEnabled", "golemUpgrades"));
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * Whether one switch a file names is on: general.achievements, and each feature's enabled, by the field's name. The
+     * enchantments behind the three modes are data here and always registered, so 1.7.10's "the enchantment holds an
+     * id" is always so and is not asked. A name this does not know is off, so a misspelt file hides itself rather
+     * than showing what it should not; the files are held to {@link #SWITCHES} by a test.
+     */
+    public static boolean switchedOn(String setting) {
+        if ("achievements".equals(setting)) return TrmtConfig.achievements;
+        if ("reinforceEnabled".equals(setting)) return TrmtConfig.reinforceEnabled;
+        if ("lightEnabled".equals(setting)) return TrmtConfig.lightEnabled;
+        if ("wardEnabled".equals(setting)) return TrmtConfig.wardEnabled;
+        if ("golemEnabled".equals(setting)) return TrmtConfig.golemEnabled;
+        if ("golemUpgrades".equals(setting)) return TrmtConfig.golemUpgrades;
+        return false;
+    }
+
+    /** Whether an advancement naming these switches loads: every one of them on. Every loader's condition asks this. */
+    public static boolean loads(java.util.List<String> settings) {
+        if (settings == null) return true;
+        for (String each : settings) {
+            if (!switchedOn(each)) return false;
+        }
+        return true;
+    }
+
+    /** Whether this file of this mod's loads, by its own switches; a file the table does not know always does. */
+    public static boolean loads(String file) {
+        java.util.List<String> settings = SWITCHES.get(file);
+        return settings == null || loads(settings);
+    }
 
     /** The one criterion every one of these files declares, and the only way any of them is met. */
     private static final String CRITERION = "trmt";
@@ -98,7 +163,8 @@ public final class ModAchievements {
     private static void award(Player player, Identifier which) {
         if (which == null || !(player instanceof ServerPlayer)) return;
         // The switch the 1.7.10 edition asks before it registers anything: off, nothing is awarded (0.9.222, spec
-        // BP30). The tab itself still loads at this version, as a data file does.
+        // BP30). From 0.9.228 the files load on it too (see SWITCHES), and this still refuses a grant between a switch
+        // turned off and the /reload that drops the files.
         if (!com.trmtgtnh.config.TrmtConfig.achievements) return;
         ServerPlayer real = (ServerPlayer) player;
         // The player's server field is private from 1.21.6; its level's server is the same one.

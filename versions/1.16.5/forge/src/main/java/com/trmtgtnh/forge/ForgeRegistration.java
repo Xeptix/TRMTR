@@ -52,6 +52,16 @@ public final class ForgeRegistration {
      * The two draughts. Their own event, for the same reason blocks and items have their own: Forge
      * refuses a registration made during the wrong one.
      */
+    /**
+     * The advancements' load condition, {@code trmtgtnh:settings} (0.9.228; see SettingsCondition). In the recipe
+     * serializers' event, where Forge registers its own conditions, so it is there before any data is read.
+     */
+    @SubscribeEvent
+    public static void conditions(RegistryEvent.Register<net.minecraft.world.item.crafting.RecipeSerializer<?>> event) {
+        net.minecraftforge.common.crafting.CraftingHelper.register(SettingsCondition.Serializer.INSTANCE);
+        Trmt.LOG.info("Registered the advancements' load condition {} with Forge", SettingsCondition.ID);
+    }
+
     @SubscribeEvent
     public static void effects(RegistryEvent.Register<MobEffect> event) {
         ModPotions.register(

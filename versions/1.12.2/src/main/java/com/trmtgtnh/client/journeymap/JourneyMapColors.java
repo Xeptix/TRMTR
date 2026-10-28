@@ -44,10 +44,9 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * {@code desirePathRgb} all mean what they say.
  *
  * <p>
- * All of it is reflection, because JourneyMap is a soft dependency and not on the compile path. If it
- * is absent, or its internals have moved, every method here fails quietly and the ordinary
- * family-generic fallback carries other map mods. Nothing the game needs depends on any of this
- * working.
+ * All of it is reflection, because JourneyMap is a soft dependency and not on the compile path. If it is absent, or
+ * its internals have moved, every method here fails quietly and the ordinary family-generic fallback carries other
+ * map mods. Nothing the game needs depends on any of this working.
  *
  * <p>
  * <strong>The names are this version's and were read out of the jar rather than carried.</strong>
@@ -65,12 +64,11 @@ public final class JourneyMapColors {
     private static volatile boolean installed;
 
     /**
-     * JourneyMap's lookup and setter, and this mod's proxy, kept from the install so the proxy can be handed over again
-     * (0.9.224, spec CO18): JourneyMap 6 puts its own handler back on the stand-in's record after this mod's - played
-     * on
-     * the 1.12.2 instance, it held its own before any change of dimension - as the version 1.7.10 was written against
-     * did on every color reload and change of dimension. So the 1.7.10 edition's answer is carried: handed over again
-     * every hundred ticks, which is a lookup and a set a state.
+     * JourneyMap's lookup and setter, and this mod's proxy, kept from the install so the proxy can be handed over
+     * again (0.9.224, spec CO18): JourneyMap 6 puts its own handler back on the stand-in's record after this mod's -
+     * played on the 1.12.2 instance, it held its own before any change of dimension - as the version 1.7.10 was
+     * written against did on every color reload and change of dimension. So the 1.7.10 edition's answer is carried:
+     * handed over again every hundred ticks, which is a lookup and a set a state.
      */
     private static volatile Method recordFor;
 
@@ -206,15 +204,13 @@ public final class JourneyMapColors {
 
     /**
      * Says once, in the log, that the desire-path highlight is genuinely being applied - the 1.7.10 edition's line,
-     * word
-     * for word (0.9.222, spec CO22).
+     * word for word (0.9.222, spec CO22).
      *
      * <p>
-     * Six things have to be true before one pixel of it exists - JourneyMap installed, its internals where this looks
-     * for them, the proxy still on the ghost's {@code BlockMD}, JourneyMap actually calling it, the setting above
-     * nought,
-     * and the square worn at all - and five of the six fail silently. This is the line that says all of them held. Both
-     * colors are printed, so it also proves the blend ran rather than passing its input through.
+     * Six things have to be true before one pixel of it exists - JourneyMap installed, its internals where this
+     * looks for them, the proxy still on the ghost's {@code BlockMD}, JourneyMap actually calling it, the setting
+     * above nought, and the square worn at all - and five of the six fail silently. This is the line that says all
+     * of them held. Both colors are printed, so it also proves the blend ran rather than passing its input through.
      */
     private static void announceOnce(BlockPos at, int base, int result) {
         if (answered || TrmtConfig.desirePathHighlight <= 0f) return;
@@ -227,15 +223,13 @@ public final class JourneyMapColors {
     }
 
     /**
-     * Says once, in the log, when the highlight is on and nothing has come of it - the 1.7.10 edition's warning, word
-     * for
-     * word (0.9.222, spec CO22).
+     * Says once, in the log, when the highlight is on and nothing has come of it - the 1.7.10 edition's warning,
+     * word for word (0.9.222, spec CO22).
      *
      * <p>
      * A feature that never ran has to say so unprompted rather than waiting to be asked. Held until this client
-     * actually
-     * holds worn ground, because complaining on a fresh world - where there is simply nothing to highlight yet - would
-     * train everybody to ignore the line, which is worse than having no line.
+     * actually holds worn ground, because complaining on a fresh world - where there is simply nothing to highlight
+     * yet - would train everybody to ignore the line, which is worse than having no line.
      */
     private static void watchdog() {
         if (TrmtConfig.desirePathHighlight <= 0f || answered || warned) {
@@ -361,9 +355,9 @@ public final class JourneyMapColors {
                 // Fall through to the family's answer rather than letting a map tile fail.
             }
 
-            // Anything else JourneyMap asks that wants a color - a palette export, say - gets the family's map color,
-            // as
-            // the 1.7.10 edition's handler answers it (0.9.222, spec CO21). Non-color methods fall through to null.
+            // Anything else JourneyMap asks that wants a color - a palette export, say - gets the family's map
+            // color, as the 1.7.10 edition's handler answers it (0.9.222, spec CO21). Non-color methods fall
+            // through to null.
             Class<?> returns = method.getReturnType();
             if (returns == Integer.class || returns == int.class) {
                 return Integer.valueOf(otherwise(args, clientWorld()));
@@ -528,6 +522,15 @@ public final class JourneyMapColors {
         return highlightBy(darkenBy(blendToward(baseRgb, towardRgb, worn), worn), worn);
     }
 
+    /**
+     * A worn square's map color darkened for how used it is, as the map draws it before the path color pulls it: the
+     * public seam the settings screen's color preview draws through (0.9.228, spec M10.6), as the 1.7.10 edition's
+     * {@code GhostRendering.mapColorFor(worn, baseRgb)} is - this edition draws the path color on JourneyMap alone.
+     */
+    public static int mapColorFor(float worn, int baseRgb) {
+        return darkenBy(baseRgb, worn);
+    }
+
     private static int darkenBy(int rgb, float worn) {
         float depth = TrmtConfig.mapWearDarkening;
         float keep = 1f - Math.min(Math.max(worn, 0f), 1f) * Math.min(Math.max(depth, 0f), 0.9f);
@@ -543,26 +546,13 @@ public final class JourneyMapColors {
     }
 
     private static int blendToward(int from, int to, float amount) {
-        float mix = amount < 0f ? 0f : (amount > 1f ? 1f : amount);
-        if (mix <= 0f) return from;
-        int result = 0;
-        for (int channel = 0; channel < 3; channel++) {
-            int shift = 16 - channel * 8;
-            int start = (from >>> shift) & 0xFF;
-            int end = (to >>> shift) & 0xFF;
-            int value = Math.round(start + (end - start) * mix);
-            if (value < 0) value = 0;
-            if (value > 255) value = 255;
-            result |= value << shift;
-        }
-        return result;
+        // The one arithmetic for the path color, shared with the settings screen's preview (0.9.228, spec M10.6).
+        return com.trmtgtnh.client.settings.ColorMath.mix(from, to, amount);
     }
 
     private static int highlightBy(int rgb, float worn) {
-        float strength = TrmtConfig.desirePathHighlight;
-        if (strength <= 0f) return rgb;
-        float clamped = worn < 0f ? 0f : (worn > 1f ? 1f : worn);
-        if (clamped <= 0f) return rgb;
-        return blendToward(rgb, TrmtConfig.desirePathRgb, (float) Math.sqrt(clamped) * Math.min(strength, 1f));
+        // The color picker's preview draws through the same call (0.9.228, spec M10.6), so the two cannot drift.
+        return com.trmtgtnh.client.settings.ColorMath
+            .highlight(rgb, TrmtConfig.desirePathRgb, TrmtConfig.desirePathHighlight, worn);
     }
 }

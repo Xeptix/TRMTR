@@ -783,8 +783,9 @@ public class CommandTrmt extends CommandBase {
      * directly, which is where 1.12.2 keeps the answer.
      */
     private static boolean opaqueAt(World world, int x, int y, int z) {
-        return world.getBlockState(new BlockPos(x, y, z))
-            .isOpaqueCube();
+        IBlockState state = world.getBlockState(new BlockPos(x, y, z));
+        // Or a full drift the settings make solid (0.9.228), as at every other question of cover.
+        return state.isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(state);
     }
 
     /**

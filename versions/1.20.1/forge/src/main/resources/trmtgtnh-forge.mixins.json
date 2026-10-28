@@ -14,7 +14,9 @@
     "MixinRecipeArrivals",
     "MixinSnowRestsOnWornGround",
     "MixinStairNeighbours",
-    "MixinWornCollision"
+    "MixinWornCollision",
+    "MixinPlayerArrives",
+    "MixinExplosionRadius"
   ],
   "client": [
     "MixinModelManagerBaked",

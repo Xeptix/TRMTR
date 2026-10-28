@@ -886,8 +886,29 @@ public final class GhostRendering {
     private static int topLayer(SurfaceFamily appearance, int layer, int x, int y, int z) {
         FamilySettings settings = TrmtConfig.family(appearance);
         if (settings == null || TrmtConfig.wearCarriesWithDepth <= 0f) return counted(layer, settings);
+        return topLayerOf(appearance, layer, Trmt.proxy.erosionStateAt(x, y, z));
+    }
 
-        short state = Trmt.proxy.erosionStateAt(x, y, z);
+    /**
+     * The picture a step of a surface's wear chain has its top drawn with, as {@link #topLayer} places it on the
+     * ground:
+     * the step's own appearance, gradation and depth, read from the chain rather than from a world. A settings screen
+     * slider's track wears grass through these, up to the chain's last step before the ground sinks (0.9.228; Xep:
+     * "degrading to fully worn (top layer only) grass as you slide"). -1 for a step the chain does not have.
+     */
+    public static int chainPicture(SurfaceFamily base, int index) {
+        SurfaceFamily appearance = ErosionChain.familyAt(base, index);
+        if (appearance == null) return -1;
+        int layer = ErosionChain.stageAt(base, index);
+        FamilySettings settings = TrmtConfig.family(appearance);
+        if (settings == null || TrmtConfig.wearCarriesWithDepth <= 0f) return counted(layer, settings);
+        return topLayerOf(appearance, layer, ErosionState.pack(appearance, layer, ErosionChain.sinkAt(base, index)));
+    }
+
+    /** {@link #topLayer} with the record already read, so a picture can be placed with no world to read it from. */
+    private static int topLayerOf(SurfaceFamily appearance, int layer, short state) {
+        FamilySettings settings = TrmtConfig.family(appearance);
+        if (settings == null || TrmtConfig.wearCarriesWithDepth <= 0f) return counted(layer, settings);
         if (state == ErosionState.NONE) return counted(layer, settings);
 
         // The top of the counted space, which is not the family's stage count. What is drawn is a

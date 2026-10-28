@@ -263,7 +263,8 @@ public final class ConfigFile {
                 + broken.getMessage()
                 + "). It has been renamed to "
                 + aside.getName()
-                + " and a new config file will be generated, as Forge does.";
+                + " and a new config file will be generated, as Forge does. "
+                + com.trmtgtnh.util.MobWear.keptIn(aside.getName());
         }
     }
 
@@ -443,9 +444,28 @@ public final class ConfigFile {
     // Asking for a setting
     // ------------------------------------------------------------------
 
+    /**
+     * A switch: {@code true} or {@code false} in any case, spaces aside, answers itself; anything else - {@code yes},
+     * {@code 1}, {@code on} - answers the default and is written back as it (0.9.228, CF12; Xep: "Match 1.7.10"). That
+     * is Forge's own reader in 1.7.10, which sets a switch that is not a boolean back to its default and saves the
+     * file with it; until then this one read anything but {@code true} as off and kept it, so {@code yes} turned a
+     * switch that ships on off. The shape {@link #getInt}'s refusal of a word already has.
+     */
     public boolean getBoolean(String name, String category, boolean def, String comment) {
         Setting setting = ask(category, name, 'B', def ? "true" : "false", comment);
-        return "true".equalsIgnoreCase(setting.value.trim());
+        Boolean spelled = spelled(setting.value);
+        if (spelled != null) return spelled.booleanValue();
+        setting.value = def ? "true" : "false";
+        changed = true;
+        return def;
+    }
+
+    /** A switch's word read as 1.7.10's Forge reads it: true or false in any case, spaces aside, else null. */
+    static Boolean spelled(String value) {
+        String word = value == null ? "" : value.trim();
+        if ("true".equalsIgnoreCase(word)) return Boolean.TRUE;
+        if ("false".equalsIgnoreCase(word)) return Boolean.FALSE;
+        return null;
     }
 
     public int getInt(String name, String category, int def, int min, int max, String comment) {
@@ -477,7 +497,9 @@ public final class ConfigFile {
             changed = true;
         }
         setting.range = "[range: " + min + " ~ " + max + ", default: " + def + "]";
-        setting.bound(min, max);
+        // The bounds as each float's own decimal (0.9.228): handed over as floats they were widened to doubles, and the
+        // settings screens read them back for the range they show - explosion reach's 0.1 as 0.10000000149011612.
+        setting.bound(Double.parseDouble(Float.toString(min)), Double.parseDouble(Float.toString(max)));
         // Held to the range, as Forge's getInt and getFloat return it - the file keeps what was typed. Forge's other
         // bounded getter, get(..., min, max), does not, and this file's had followed that one until 0.9.222, so a
         // hand-typed stages=40 built a forty-layer run where the 1.7.10 edition reads sixteen (spec CF10).
@@ -995,8 +1017,15 @@ public final class ConfigFile {
             return value;
         }
 
+        /**
+         * The switch as the screens read it, by the file's own rule (0.9.228, CF12): true or false in any case answer
+         * themselves, and anything else answers this setting's own default - which the file's reader has already
+         * written back by the time any screen asks.
+         */
         public boolean getBoolean() {
-            return "true".equalsIgnoreCase(value.trim());
+            Boolean spelled = spelled(value);
+            if (spelled != null) return spelled.booleanValue();
+            return Boolean.TRUE.equals(spelled(def));
         }
 
         public String[] getStringList() {

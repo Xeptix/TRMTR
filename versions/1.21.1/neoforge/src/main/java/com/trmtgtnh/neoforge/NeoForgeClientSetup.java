@@ -26,12 +26,28 @@ import com.trmtgtnh.Trmt;
  * the golem's screen ({@link #screens}), because NeoForge keeps vanilla's {@code MenuScreens.register} private, and the
  * ghost's dust ({@link #extensions}), because NeoForge asks a block's client extensions for it rather than the block.
  */
-// No bus named: FML 4 ignores it and sends each listener to the mod's bus or the game's by its event's type
-// (IModBusEvent or not), where Forge took the bus from this annotation.
-@EventBusSubscriber(modid = Trmt.MODID, value = Dist.CLIENT)
+// The mod's bus named (0.9.228, step 9; Xep: "Fix the code too"): FML 4.0.40 (NeoForge 21.1.181) and later ignore
+// it and send each listener to the mod's bus or the game's by its event's type, but every FML before reads it and
+// takes the game's bus when none is named - where a mod-bus event is refused, the mod's subscribers are not
+// registered, and NeoForge 21.1.68 to 21.1.180 never got as far as a world. Every listener here is the mod's bus's,
+// so naming it is right on both; a class with listeners for both buses has to be two classes (see #keys). The
+// attribute is deprecated for removal in the later FML 4.0 builds, hence the suppression. NeoForgeBusesTest.
+@SuppressWarnings("removal")
+@EventBusSubscriber(modid = Trmt.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public final class NeoForgeClientSetup {
 
     private NeoForgeClientSetup() {}
+
+    /**
+     * The settings key, unbound until a player binds it (0.9.228). Here among the mod's bus's listeners rather than in
+     * TrmtNeoForgeClient, whose others are the game's bus's: an FML before 4.0.40 registers a class on the one bus its
+     * annotation names, and refused this listener there with "IModBusEvent events are not allowed on the common
+     * NeoForge bus", which left the whole mod unregistered on NeoForge 21.1.68 to 21.1.180.
+     */
+    @SubscribeEvent
+    public static void keys(net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent event) {
+        event.register(com.trmtgtnh.client.gui.SettingsAccess.key());
+    }
 
     @SubscribeEvent
     public static void client(FMLClientSetupEvent event) {

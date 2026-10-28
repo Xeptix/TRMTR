@@ -8,7 +8,7 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraftforge.fml.client.IModGuiFactory;
 
 /**
- * Hooks the config screen into Forge's mod list, so the per-client toggle is two clicks from the
+ * Hooks the settings screen into Forge's mod list, so the per-client toggle is two clicks from the
  * main menu rather than a file edit.
  *
  * <p>
@@ -27,9 +27,14 @@ public class TrmtGuiFactory implements IModGuiFactory {
         return true;
     }
 
+    /**
+     * The screen Config opens: the mod's own, or Forge's where {@code client.settingsScreen} says {@code other}
+     * (0.9.228, {@link ConfigScreens}). Forge asks this at every press of Config, so a change to the setting takes at
+     * the next press without a restart.
+     */
     @Override
     public GuiScreen createConfigGui(GuiScreen parentScreen) {
-        return new TrmtConfigGui(parentScreen);
+        return ConfigScreens.open(parentScreen);
     }
 
     /**

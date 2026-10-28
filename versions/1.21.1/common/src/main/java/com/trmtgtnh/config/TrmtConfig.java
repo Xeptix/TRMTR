@@ -326,6 +326,36 @@ public final class TrmtConfig {
     public static boolean erodeFromPlayers = true;
     public static boolean erodeFromLeashedMobs = true;
 
+    /**
+     * Which loose mobs wear the ground (0.9.228; Xep's four switches, docs/goals/0.9.228-decisions.md, "Which mobs wear
+     * the ground"): every monster, every other mob, villagers, and the curated mobs list, each at its own multiplier.
+     * Named as the settings are, so the harness's settings round trip holds each field to the file. The rules are
+     * {@link com.trmtgtnh.util.MobWear}'s; {@link #mobSwitches} is these seven as it reads them, rebuilt on every read.
+     */
+    public static boolean fromHostileMobs = true;
+    public static boolean fromPassiveMobs = true;
+    public static boolean fromVillagers = true;
+    public static boolean fromCustom = true;
+    public static float multiplierHostile = com.trmtgtnh.util.MobWear.HOSTILE_DEFAULT;
+    public static float multiplierPassive = com.trmtgtnh.util.MobWear.PASSIVE_DEFAULT;
+    public static float multiplierVillager = com.trmtgtnh.util.MobWear.VILLAGER_DEFAULT;
+    public static com.trmtgtnh.util.MobWear.Switches mobSwitches = com.trmtgtnh.util.MobWear.Switches.fresh();
+
+    /** The per-chunk caps (0.9.228; Xep: "Movers per chunk"), each off until switched on, and eight once it is. */
+    public static boolean capPlayers = false;
+    public static int playersPerChunk = com.trmtgtnh.util.MobWear.CAP_DEFAULT;
+    public static boolean capHostileMobs = false;
+    public static int hostilePerChunk = com.trmtgtnh.util.MobWear.CAP_DEFAULT;
+    public static boolean capPassiveMobs = false;
+    public static int passivePerChunk = com.trmtgtnh.util.MobWear.CAP_DEFAULT;
+    public static boolean capVillagers = false;
+    public static int villagersPerChunk = com.trmtgtnh.util.MobWear.CAP_DEFAULT;
+    public static boolean capCustom = false;
+    public static int customPerChunk = com.trmtgtnh.util.MobWear.CAP_DEFAULT;
+
+    /** The mobs list as the file holds it, line for line - what a server's start checks for names nothing answers to. */
+    public static String[] mobLines = new String[0];
+
     // ------------------------------------------------------------------
     // Draughts
     // ------------------------------------------------------------------
@@ -373,6 +403,13 @@ public final class TrmtConfig {
 
     /** In-game days for an untrodden track through snow to fill back in. 0 never fades. */
     public static float snowCoverFadeDays = 1.0f;
+
+    /**
+     * Whether snow eight layers deep shelters the ground under it as a solid block would (0.9.228; Xep: "Match, with a
+     * setting"). Off, the default, a full drift is snow like any other, as in 1.7.10, where a snow layer is never an
+     * opaque cube at any depth. Read on the server only; see {@code Worlds.isOpaque}.
+     */
+    public static boolean fullSnowDriftsSolid = false;
 
     public static boolean wetHealingEnabled = true;
 
@@ -466,12 +503,12 @@ public final class TrmtConfig {
     public static boolean explosionWear = true;
 
     /** How hard the ground is scoured at the very middle of a blast. */
-    public static float explosionStrength = 140.0f;
+    public static float explosionStrength = 168.0f;
 
     /** How far from a blast the scouring can reach, whatever the charge claims. */
     public static float explosionMaxRadius = 64.0f;
 
-    /** How far the scouring reaches compared with the blast's own radius. */
+    /** How far the scouring reaches past the blast's own radius, as a multiple of it. */
     public static float explosionReach = 2.0f;
 
     /** The blast size the strength figure is quoted against. Vanilla TNT. */
@@ -870,6 +907,24 @@ public final class TrmtConfig {
      */
     public static boolean questbookNotice = true;
 
+    // -- Via Romana (0.9.228; Xep's decision of 2026-10-20, docs/goals/0.9.228-decisions.md in the 1.7.10 tree) -----
+    // Each name is its own across every category, as the settings round trip compares by name. See compat.viaromana.
+
+    /**
+     * From which gradation of its run a worn square counts as a Via Romana road block; nought, the default, is the
+     * gradation at which the square is drawn as bare path ("once it shows as path"). See RoadRules.roadGradation.
+     */
+    public static int viaRomanaRoadGradation = 0;
+
+    /** Whether a Via Romana fast trip wears the road it goes along, as if walked. Off by default, as decided. */
+    public static boolean viaRomanaTripWear = false;
+
+    /** How much a fast trip wears each square of its road, as a multiple of one ordinary player step. */
+    public static double viaRomanaTripSteps = 1.0d;
+
+    /** How fast a square on a charted Via Romana road heals against the ordinary speed: 0.5, half; nought, never. */
+    public static double viaRomanaRoadHealing = 0.5d;
+
     /**
      * How long, in real seconds, a broken block's record is held in case the same block comes back.
      *
@@ -971,14 +1026,10 @@ public final class TrmtConfig {
     public static float wearCarriesWithDepth = 0.9f;
 
     /**
-     * Which mobs wear the ground, and how hard, by entity name.
-     *
-     * <p>
-     * Villagers only, out of the box. They are the one crowd that walks the same short route
-     * between the same few doors day after day, which is exactly how a real path gets made;
-     * almost everything else in a pack this size wanders, and a wandering herd carving roads
-     * across a continent is not a feature. Anything here is in addition to players and to
-     * anything on a lead.
+     * The curated mobs list, by entity name: each line's own number, which replaces its group's while fromCustom is
+     * on, and a nought that keeps its mob off the ground always (0.9.228). Empty in a new config; an upgraded one keeps
+     * the player's own lines, the villager line moved onto fromVillagers. Filed under the registry names a 1.7.10
+     * spelling stands for as well ({@link #named}).
      */
     public static Map<String, Float> mobMultipliers = Collections.emptyMap();
 
@@ -1103,6 +1154,22 @@ public final class TrmtConfig {
      * player (TrmtNetwork.probeLinesFor).
      */
     public static boolean probeLines = true;
+
+    /** The settings screen that opens: this mod's own. */
+    public static final String SCREEN_OWN = "own";
+
+    /** The settings screen that opens: Cloth Config's, where it is installed. */
+    public static final String SCREEN_OTHER = "other";
+
+    /**
+     * Client only: which settings screen opens (0.9.228; Xep: "Our own" by default, and the other screen a setting
+     * away, shown on both). Read by ConfigScreens.open at every opening, so a change saved on either screen takes
+     * effect at the next.
+     */
+    public static String settingsScreen = SCREEN_OWN;
+
+    /** Client only: the small button for these settings on the game's Options screen (0.9.228; on by default). */
+    public static boolean optionsButton = true;
 
     /**
      * Set for the session when a server has ruts you can walk down into.
@@ -1421,6 +1488,11 @@ public final class TrmtConfig {
         if (keys.contains(CATEGORY_CLIENT + '.' + DESIRE_PATH_COLOR_WAS)) {
             keys.add(CATEGORY_CLIENT + ".desirePathColor");
         }
+        // And a file from before 0.9.228, which the read after the reload upgrades (carryMobWear): the settings it adds
+        // to multipliers are on record as they will be, or every older file put back by hand would read as truncated.
+        if (!keys.isEmpty() && !keys.contains(CATEGORY_MULTIPLIERS + ".fromCustom")) {
+            for (String added : MOB_WEAR_KEYS) keys.add(CATEGORY_MULTIPLIERS + '.' + added);
+        }
         return keys;
     }
 
@@ -1444,6 +1516,10 @@ public final class TrmtConfig {
             Trmt.LOG.warn("Not applying settings: the config file failed to read, fix it and use /trmt reload");
             return;
         }
+        // A file from before 0.9.228 is read into the four mob switches first, before anything is declared: declaring
+        // writes defaults, so only now does what the settings hold say what the file held, and the defaults are a new
+        // config's, which would wear every mob in an upgraded world. See carryMobWear.
+        carryMobWear(config);
         readGeneral();
         readSurfaces();
         readMultipliers();
@@ -1823,6 +1899,124 @@ public final class TrmtConfig {
         return DEMO_CONTAINER;
     }
 
+    /** A cap's switch, off in a new config, said as every cap's is with its own kind and number named. */
+    private static boolean readCap(String name, String number, String kind) {
+        return config.getBoolean(
+            name,
+            CATEGORY_MULTIPLIERS,
+            false,
+            "At most " + number + " " + kind + " wear the ground in one chunk at a time; the rest walk without wearing it.");
+    }
+
+    /** A cap's number, eight in a new config, from 1 to 256. */
+    private static int readCapNumber(String name, String cap, String kind) {
+        return config.getInt(
+            name,
+            CATEGORY_MULTIPLIERS,
+            com.trmtgtnh.util.MobWear.CAP_DEFAULT,
+            1,
+            256,
+            "How many " + kind + " may wear the ground in one chunk at a time, while " + cap + " is on.");
+    }
+
+    /**
+     * Every name this edition reads as a villager, in the old list's two spellings: the line every older config shipped
+     * with, {@code Villager}, which the old-name reading files under {@code minecraft:villager}, and that name itself.
+     */
+    static final java.util.List<String> VILLAGER_NAMES = java.util.Arrays.asList("Villager", "minecraft:villager");
+
+    /** The other mob this edition's villager group holds: the wandering trader, which no list before 0.9.228 counted. */
+    static final String WANDERING_TRADER = "minecraft:wandering_trader";
+
+    /** The settings 0.9.228 added to multipliers, which a file from before it lacks without being truncated. */
+    static final String[] MOB_WEAR_KEYS = { "fromHostileMobs", "fromPassiveMobs", "fromVillagers", "fromCustom",
+        "hostile", "passive", "villager", "capPlayers", "playersPerChunk", "capHostileMobs", "hostilePerChunk",
+        "capPassiveMobs", "passivePerChunk", "capVillagers", "villagersPerChunk", "capCustom", "customPerChunk" };
+
+    /** The list every config held before 0.9.228 that never wrote one: its shipped default. */
+    static final String[] MOBS_WAS = { "Villager" };
+
+    /**
+     * Reads a config from before 0.9.228 into the four switches that wear exactly as it did (Xep: "Villagers moved
+     * over", "Groups on at its number"), the shape of {@link #carryDesirePathColor}: asked of the settings as the file
+     * left them, before anything is declared - a file that holds settings and whose multipliers heading lacks
+     * fromCustom was written before 0.9.228 - so each new setting is declared over the upgraded value rather than the
+     * default. The defaults stay a new config's,
+     * so the screen's reset gives all four on and the list empty. The list goes through
+     * {@link com.trmtgtnh.util.MobWear#upgrade} and is
+     * written back into mobs; a second read finds fromCustom and changes nothing.
+     *
+     * <p>
+     * A file holding nothing - a missing one, an empty one, or a broken one, which {@link ConfigFile#open} has already
+     * set aside as .errored, so that everything starts fresh - is a new config: all four on and the list empty, the
+     * old list staying in the .errored copy. A file whose multipliers heading never named the list read it at its old
+     * default, Villager, and is upgraded from that. Once read and saved the settings hold fromCustom, so a reload, the
+     * screens' Done and every later start change nothing.
+     */
+    static void carryMobWear(ConfigFile from) {
+        if (from == null || from.getCategoryNames()
+            .isEmpty()) return;
+        if (from.hasCategory(CATEGORY_MULTIPLIERS) && from.getCategory(CATEGORY_MULTIPLIERS)
+            .containsKey("fromCustom")) return;
+        Category multipliers = from.getCategory(CATEGORY_MULTIPLIERS);
+        Setting held = multipliers.get("mobs");
+        String[] old = held == null ? MOBS_WAS.clone() : held.getStringList();
+        // A bare registry name - minecraft:villager - moves as Villager does: the shared rules read such a line by its
+        // whole text, as the reader files it.
+        java.util.List<String> others = java.util.Collections.singletonList(spelledInList(old, WANDERING_TRADER));
+        com.trmtgtnh.util.MobWear.Upgraded upgraded = com.trmtgtnh.util.MobWear.upgrade(old, VILLAGER_NAMES, others);
+        com.trmtgtnh.util.MobWear.Switches to = upgraded.switches;
+        put(multipliers, "fromHostileMobs", Boolean.toString(to.hostile), ConfigFile.Type.BOOLEAN);
+        put(multipliers, "fromPassiveMobs", Boolean.toString(to.passive), ConfigFile.Type.BOOLEAN);
+        put(multipliers, "fromVillagers", Boolean.toString(to.villagers), ConfigFile.Type.BOOLEAN);
+        put(multipliers, "fromCustom", Boolean.toString(to.custom), ConfigFile.Type.BOOLEAN);
+        put(multipliers, "hostile", Float.toString(to.hostileMultiplier), ConfigFile.Type.DOUBLE);
+        put(multipliers, "passive", Float.toString(to.passiveMultiplier), ConfigFile.Type.DOUBLE);
+        put(multipliers, "villager", Float.toString(to.villagerMultiplier), ConfigFile.Type.DOUBLE);
+        if (held != null && held.isList()) {
+            held.set(upgraded.list);
+        } else {
+            Setting list = new Setting("mobs", "", ConfigFile.Type.STRING);
+            list.set(upgraded.list);
+            multipliers.put("mobs", list);
+        }
+        Trmt.LOG.info(
+            "Settings from before 0.9.228: loose mobs wear as they did - monsters {}, other mobs {}, villagers {} at {}, and the mobs list's {} line(s) kept",
+            to.hostile ? "on at " + to.hostileMultiplier : "off",
+            to.passive ? "on at " + to.passiveMultiplier : "off",
+            to.villagers ? "on" : "off",
+            Float.valueOf(to.villagerMultiplier),
+            Integer.valueOf(upgraded.list.length));
+    }
+
+    /** A value put in under a name the file does not hold yet, which the declaration after it then keeps. */
+    private static void put(Category into, String name, String value, ConfigFile.Type type) {
+        if (into.containsKey(name)) {
+            into.get(name)
+                .set(value);
+        } else {
+            into.put(name, new Setting(name, value, type));
+        }
+    }
+
+    /**
+     * The spelling a list uses for a mob, where a line names it by a 1.7.10-style name the old-name reading files under
+     * it ({@code wandering_trader} for {@code minecraft:wandering_trader}), so the upgrade sees that line as the one
+     * naming it; the registry name itself where no line does.
+     */
+    static String spelledInList(String[] lines, String registryName) {
+        if (lines != null) {
+            for (String line : lines) {
+                com.trmtgtnh.util.MobEntries.Entry entry = com.trmtgtnh.util.MobEntries.parse(line);
+                if (entry == null || entry.badWeight) continue;
+                if (entry.name.equalsIgnoreCase(registryName)) return registryName;
+                if (com.trmtgtnh.util.OldNames.mobs(entry.name)
+                    .contains(registryName)) return entry.name;
+            }
+        }
+        return registryName;
+    }
+
     private static void readMultipliers() {
         erodeFromPlayers = config
             .getBoolean("fromPlayers", CATEGORY_MULTIPLIERS, true, "Whether players walking causes wear.");
@@ -1830,14 +2024,34 @@ public final class TrmtConfig {
             "fromLeashedMobs",
             CATEGORY_MULTIPLIERS,
             true,
-            "Whether mobs you are leading on a lead cause wear. A loose mob wears only if the mobs list names it, which out of the box is villagers alone, so a wandering herd does not carve roads across the world.");
+            "Whether mobs you are leading on a lead cause wear, whatever the mob, at the leashed multiplier. A loose mob is decided by the four switches below and the mobs list instead.");
+        fromHostileMobs = config.getBoolean(
+            "fromHostileMobs",
+            CATEGORY_MULTIPLIERS,
+            true,
+            "Monsters wear the ground: every hostile mob, bosses included, at the hostile multiplier. A mob the mobs list names counts at its own number instead while fromCustom is on, and a mob named at 0 never wears.");
+        fromPassiveMobs = config.getBoolean(
+            "fromPassiveMobs",
+            CATEGORY_MULTIPLIERS,
+            true,
+            "Every other mob wears the ground - animals, iron and snow golems, water and ambient mobs - at the passive multiplier, except villagers, which fromVillagers decides. A mob the mobs list names counts at its own number instead while fromCustom is on, and a mob named at 0 never wears.");
+        fromVillagers = config.getBoolean(
+            "fromVillagers",
+            CATEGORY_MULTIPLIERS,
+            true,
+            "Villagers wear the ground (wandering traders too, where the game has them), at the villager multiplier. A mob the mobs list names counts at its own number instead while fromCustom is on, and a mob named at 0 never wears.");
+        fromCustom = config.getBoolean(
+            "fromCustom",
+            CATEGORY_MULTIPLIERS,
+            true,
+            "The mobs list counts: each mob it names wears at the number beside it, in place of its group's. Off, the list's numbers are ignored - but a mob named at 0 still never wears, so the magic tamper's stop button always holds.");
         multiplierPlayer = readFloat(
             CATEGORY_MULTIPLIERS,
             "player",
             0.5f,
             0f,
             100f,
-            "Wear added when a player steps onto a new block, and the unit every other figure in this category is a multiple of rather than an alternative to. A mount, a lead or a named mob multiplies this number instead of replacing it, so halving it to soften the tracks players leave halves villagers and led animals by exactly as much; to quieten one kind of mover on its own, move that mover's own line. It is also what one crossing costs on the wear table, which is why the figures there shift when this does. Nought is a real setting and it means never: the step is abandoned before the ground is ever looked at, so nothing that walks wears anything at all, whatever the mob list and the lead switch say. That is not the same as turning players off, which is fromPlayers above, and it leaves explosions alone, because a blast is scoured by its own strength rather than by this.");
+            "Wear added when a player steps onto a new block, and the unit every other figure in this category is a multiple of rather than an alternative to. A mount, a lead, a mob's group or a named mob multiplies this number instead of replacing it, so halving it to soften the tracks players leave halves villagers and led animals by exactly as much; to quieten one kind of mover on its own, move that mover's own line. It is also what one crossing costs on the wear table, which is why the figures there shift when this does. Nought is a real setting and it means never: the step is abandoned before the ground is ever looked at, so nothing that walks wears anything at all, whatever the mob switches, the mob list and the lead switch say. That is not the same as turning players off, which is fromPlayers above, and it leaves explosions alone, because a blast is scoured by its own strength rather than by this.");
         multiplierMounted = readFloat(
             CATEGORY_MULTIPLIERS,
             "mounted",
@@ -1852,13 +2066,46 @@ public final class TrmtConfig {
             0f,
             100f,
             "Extra multiplier for an animal being led on a lead. Above 1 because a herd walked the same way every day is how a drove road gets worn in, and a lead is the clearest sign in the game that an animal is going somewhere rather than wandering.");
-        mobMultipliers = parseMobs(
-            config.get(
-                CATEGORY_MULTIPLIERS,
-                "mobs",
-                new String[] { "Villager" },
-                "Which mobs wear the ground, on top of players and anything on a lead. One entity name per line, as the game names it - minecraft:villager, or a modded mob by its mod's name for it - or as the 1.7.10 edition names it - Villager, Zombie, Pig - which is read as the mob it became, every kind of it where later versions split one. Add ':' and a number to make one wear harder or softer than the rest, e.g. 'Villager:1.5'. A line of '*' means every mob, which in a pack this size is a lot of mobs. 'Zombie:0' keeps zombies off the ground while they walk loose, even under a '*' line, because a named line outranks the wildcard; it is what the magic tamper's stop button writes. A mob on a lead still wears while fromLeashedMobs is on, because that counts anything being led. Baby villagers are villagers and are covered by the same line.")
-                .getStringList());
+        multiplierHostile = readFloat(
+            CATEGORY_MULTIPLIERS,
+            "hostile",
+            com.trmtgtnh.util.MobWear.HOSTILE_DEFAULT,
+            0f,
+            100f,
+            "How hard a monster's step wears the ground, against a player's 1.0.");
+        multiplierPassive = readFloat(
+            CATEGORY_MULTIPLIERS,
+            "passive",
+            com.trmtgtnh.util.MobWear.PASSIVE_DEFAULT,
+            0f,
+            100f,
+            "How hard a passive mob's step wears the ground, against a player's 1.0.");
+        multiplierVillager = readFloat(
+            CATEGORY_MULTIPLIERS,
+            "villager",
+            com.trmtgtnh.util.MobWear.VILLAGER_DEFAULT,
+            0f,
+            100f,
+            "How hard a villager's step wears the ground, against a player's 1.0.");
+        mobLines = config.get(
+            CATEGORY_MULTIPLIERS,
+            "mobs",
+            new String[0],
+            "Mobs counted by name, each at its own number: one name per line, as the game names it - minecraft:villager, or a modded mob by its mod's name for it - or as the 1.7.10 edition names it - Villager, Zombie, Pig - which is read as the mob it became, every kind of it where later versions split one, with ':' and a number for how hard it wears against a player's 1.0 - 'Zombie:2', 'Pig:0.5'; a bare name counts 1.0. A mob named here counts at its number in place of its group's while fromCustom is on. 'Zombie:0' keeps zombies off the ground always, whatever the switches say; it is what the magic tamper's stop button writes. A line of '*' counts every mob no line names whose group is switched off. A mob on a lead still wears while fromLeashedMobs is on, because that counts anything being led.")
+            .getStringList();
+        mobMultipliers = parseMobs(mobLines);
+        mobSwitches = new com.trmtgtnh.util.MobWear.Switches(fromHostileMobs, fromPassiveMobs, fromVillagers, fromCustom,
+            multiplierHostile, multiplierPassive, multiplierVillager);
+        capPlayers = readCap("capPlayers", "playersPerChunk", "players");
+        playersPerChunk = readCapNumber("playersPerChunk", "capPlayers", "players");
+        capHostileMobs = readCap("capHostileMobs", "hostilePerChunk", "monsters");
+        hostilePerChunk = readCapNumber("hostilePerChunk", "capHostileMobs", "monsters");
+        capPassiveMobs = readCap("capPassiveMobs", "passivePerChunk", "passive mobs");
+        passivePerChunk = readCapNumber("passivePerChunk", "capPassiveMobs", "passive mobs");
+        capVillagers = readCap("capVillagers", "villagersPerChunk", "villagers");
+        villagersPerChunk = readCapNumber("villagersPerChunk", "capVillagers", "villagers");
+        capCustom = readCap("capCustom", "customPerChunk", "mobs the mobs list names");
+        customPerChunk = readCapNumber("customPerChunk", "capCustom", "mobs the mobs list names");
         bonemealRadius = config.getInt(
             "bonemealRadius",
             ConfigFile.CATEGORY_GENERAL,
@@ -1914,27 +2161,27 @@ public final class TrmtConfig {
             CATEGORY_EXPLOSIONS,
             true,
             "Whether an explosion scours the ground around it as well as blowing a hole in it. What a blast does not destroy outright it still scours, and a crater with clean grass up to its lip reads as a hole somebody cut rather than as something that went off.");
-        explosionStrength = config.getFloat(
+        explosionStrength = forgeFloat(
             "explosionStrength",
             CATEGORY_EXPLOSIONS,
-            140.0f,
+            168.0f,
             0f,
             1000f,
-            "How hard the ground is scoured at the very middle of a blast, in the same units a footstep uses, falling away to nothing at the edge. The middle is not where you see it: a charge destroys the ground directly beneath it, so what this number really sets is how worn the crater lip is. At the default a stick of dynamite leaves its lip about a third worn and fades out four or five blocks past that.");
-        explosionMaxRadius = config.getFloat(
+            "How hard the ground is scoured at the very middle of a blast, in the same units a footstep uses, falling away to nothing at the edge. Quoted against a stick of dynamite; a creeper's blast is three quarters of it. The ground is scoured once the blast has taken its blocks, so the crater's own floor is worn hardest, its walls and lip less, and the ground around it less again. At the default a creeper's crater leaves its lip about two thirds as worn as its middle and the ground worn four to five blocks past the lip, fading gradually as it goes and ragged at the edge.");
+        explosionMaxRadius = forgeFloat(
             "explosionMaxRadius",
             CATEGORY_EXPLOSIONS,
             64.0f,
             1f,
             256f,
             "How far from a blast the scouring may reach, whatever radius the charge itself claims. A ceiling rather than a setting: the radius arrives from whatever set the explosion off, and a mod handing over a very large one would otherwise have the server walk a great many positions inside a single tick. See explosionMaxPositions, which bounds the work rather than the distance and is the one that will actually bite first on a very large charge.");
-        explosionReach = config.getFloat(
+        explosionReach = forgeFloat(
             "explosionReach",
             CATEGORY_EXPLOSIONS,
             2.0f,
             0.1f,
             8f,
-            "How far the scouring reaches compared with the blast's own radius. Above 1 because the ground a charge scours is wider than the hole it digs. It also decides how much of the wear the survivors get: the fall-off is measured from the middle, and the middle is inside the crater, so a short reach means the only ground left standing is the ground the fall-off had already faded out on.");
+            "How far the scouring reaches past the blast's own radius, as a multiple of that radius: at the default of 2 a creeper's blast, radius 3, scours out to nine blocks from its middle and a stick of dynamite to twelve. It also decides how much of the wear the ground around the crater gets: the fall-off runs in a straight line from the middle to nothing at the reach, so a short reach leaves the ground just past the crater's lip where the fall-off has already faded.");
         explosionMaxPositions = config.getInt(
             "explosionMaxPositions",
             CATEGORY_EXPLOSIONS,
@@ -2203,7 +2450,7 @@ public final class TrmtConfig {
             CATEGORY_GOLEM,
             true,
             "Whether a golem defends the ground it keeps. With a tamper in its storage it hits back at whatever hits it and steps in front of a player or a villager a monster has gone for - monsters only, never a player, a villager, a pet or another golem, and never a creeper or a ghast, one of which it would blow up its own road over and the other of which it cannot reach. It never goes looking: those two things are the whole of it. Without a tamper it runs from monsters instead, creepers included, which is the same emptiness that stops it working at all. Off, none of this happens and a golem does nothing but its round.");
-        golemAttackDamage = config.getFloat(
+        golemAttackDamage = forgeFloat(
             "attackDamage",
             CATEGORY_GOLEM,
             4.0f,
@@ -2369,6 +2616,7 @@ public final class TrmtConfig {
             CATEGORY_INTEGRATION,
             ModsPresent.has("amazingtrophies"),
             "Whether trophy definitions are written into config/amazingtrophies/trophies/trmtgtnh for Amazing Trophies to pick up - seven of them, one each for the Wayfarer, each of the three unlock enchantments bound into a book, standing a golem up, the All Ways upgrade, and reading every guide book. Fewer where a pack has no part for one: a trophy whose advancement does not exist, because its feature is switched off, its item never registered or its enchantment found no free id, is left out rather than written unearnable. Inside that mod's own folder because that is the only place it looks, in a subfolder of this mod's own so nothing written here can collide with the pack's; it reads the whole tree and ignores anything that is not a .json. While trophies are being written the folder carries a fingerprint of what was written and is rewritten whenever that changes, so the list cannot go stale. The GTNH enhancements above are not asked, so a pack with them off still gets every trophy. Requires the advancements above, since every trophy is earned by earning one, and Amazing Trophies to be installed; on without either, nothing is written. Turning this off, or the advancements, stops the writing and takes nothing back: a folder an earlier launch wrote stays where it is and Amazing Trophies goes on reading it, trophies whose advancements no longer exist included, so delete that folder as well to take them away. The default is decided the first time this file is written - on when Amazing Trophies is installed - and then kept, so a pack that ran once before Amazing Trophies was added has this set false and writes nothing until it is turned on here.");
+        readViaRomana(config);
         graceSeconds = config.getInt(
             "blockBreakGraceSeconds",
             ConfigFile.CATEGORY_GENERAL,
@@ -2622,6 +2870,11 @@ public final class TrmtConfig {
             0.0f,
             365.0f,
             "How many untouched in-game days it takes for a half-trodden track through snow to fill back in, as if it had been snowed over. At the default of one day a route crossed a few times and then left alone is gone by morning, which is the same argument the ground's own partial decay makes: only sustained use should leave a mark. Set to 0 and a half-trodden layer waits for ever, so a single crossing a year would eventually break through. None of this is written to the save - the game lays and melts snow on its own schedule, so a half-trodden layer is a fact with a lifetime measured in minutes, and a layer met again after a reload is met fresh.");
+        fullSnowDriftsSolid = config.getBoolean(
+            "fullSnowDriftsSolid",
+            CATEGORY_WEATHER,
+            false,
+            "Whether snow eight layers deep counts as solid ground over whatever it lies on. Off, the default, a full drift is snow like any other: with snowCovers on it is trodden away a layer at a time before the ground beneath it wears, a tamper wears the ground under it, the golem works it, and wear already there is drawn as worn. On, a drift eight layers deep shelters the ground under it completely - nothing wears it, no tamper or golem works it, and wear already under it is hidden until the drift thins - which is how the 1.16.5 and later editions treated full drifts before 0.9.228. One to seven layers are never solid either way. For a pack that relied on full drifts leaving the ground alone.");
         wetHealingEnabled = config.getBoolean(
             "wetHealingEnabled",
             CATEGORY_WEATHER,
@@ -2867,6 +3120,30 @@ public final class TrmtConfig {
         client.remove(DESIRE_PATH_COLOR_WAS);
     }
 
+    /**
+     * The Via Romana support's four settings (0.9.228; Xep's decision of 2026-10-20, "Via Romana"), under integration
+     * with the other mods' switches. Each does nothing without Via Romana, and each comment says so first.
+     */
+    static void readViaRomana(ConfigFile config) {
+        // Each default on the line that names its setting, so a guard can point at it.
+        viaRomanaRoadGradation = config.getInt("viaRomanaRoadGradation", CATEGORY_INTEGRATION, 0,
+            0,
+            256,
+            "Via Romana only, and does nothing without it. From which gradation of its wear a worn square counts as a road block to Via Romana, so that a desire path walked into the world can be charted and its signs linked like a built road. Counted along the square's own run from untouched to as worn as it gets, the first visible wear being 1. 0, the default, is the gradation at which the square is drawn as bare path: the first after its face's own run, where turf has worn through to the earth beneath it and the ground drops its first pixel - the seventeenth for grass at the shipped settings - or the last a square can reach, where its run never sinks or a wear ceiling stops it short. A number past the run is never reached, so nothing worn counts. A worn square over a block Via Romana already counts as road, such as a dirt path or a cobbled road, counts as that block whatever this says. Via Romana asks this as a player charts, on that player's own machine, so on a server it is each player's own copy of this setting that decides what their charting counts.");
+        viaRomanaTripWear = config.getBoolean("viaRomanaTripWear", CATEGORY_INTEGRATION, false,
+            "Via Romana only, and does nothing without it. Whether a fast trip along a charted road wears that road as if it had been walked. Once the traveller lands, each square of the road between the node they left and the node they reached is given integration.viaRomanaTripSteps of one ordinary player step (multipliers.player), through the same step a footstep takes, and the squares either side of it what a step bleeds onto them (multipliers.bleedSide). The road is the one with the fewest nodes between the two. Squares in chunks nobody has loaded are not loaded for it and wear nothing, and a trip that never lands, to a destination Via Romana calls unsafe, wears nothing. Off by default.");
+        viaRomanaTripSteps = config.get(CATEGORY_INTEGRATION, "viaRomanaTripSteps", 1.0d,
+            "Via Romana only, and does nothing without it or with integration.viaRomanaTripWear off. How much a fast trip wears each square of the road it goes along, as a multiple of one ordinary player step: 1.0, the default, is one step, as though the traveller had walked the road once; 2.0 is two; 0 wears nothing.",
+            0.0d,
+            64.0d)
+            .getDouble();
+        viaRomanaRoadHealing = config.get(CATEGORY_INTEGRATION, "viaRomanaRoadHealing", 0.5d,
+            "Via Romana only, and does nothing without it. How fast a worn square on a charted Via Romana road heals, against the speed it would heal at anywhere else: 0.5, the default, is half speed, so a linked road nobody uses still fades back to grass in the end, only twice as slowly; 0 is never, and the square is held against time as a pinned square is; 1 heals it as any other ground. A square is on the road when it lies on the straight line between two joined nodes of a charted path, or on the square either side of that line, within two blocks of its height.",
+            0.0d,
+            1.0d)
+            .getDouble();
+    }
+
     private static void readClient() {
         Setting show = config.get(
             CATEGORY_CLIENT,
@@ -2883,6 +3160,20 @@ public final class TrmtConfig {
             "Client only. Whether The One Probe shows this mod's lines - how worn a square is, its reinforcement, ward and path light, and what a Golem of Ways is doing. Hwyla and Jade have a switch of their own for these lines; The One Probe has none, so this is it. Told to the server as you join, and again whenever it changes, since the probe's lines are written there.");
         probe.setLanguageKey("trmtgtnh.config.probeLines");
         probeLines = probe.getBoolean();
+        // Which settings screen opens, and the Options screen's button for it (0.9.228): the same two settings, with the
+        // same words, in every edition, each name its own across every category - the settings round trip compares by
+        // name.
+        settingsScreen = config.getString(
+            "settingsScreen",
+            CATEGORY_CLIENT,
+            SCREEN_OWN,
+            "Which settings screen opens: own, this mod's own; other, Forge's built-in screen (1.7.10, 1.12.2) or Cloth Config's where it is installed (the newer editions; without it, this mod's own opens). Shown on both screens, so either can switch to the other. The button at the top right of either screen switches between them and remembers the choice here.",
+            new String[] { SCREEN_OWN, SCREEN_OTHER });
+        optionsButton = config.getBoolean(
+            "optionsButton",
+            CATEGORY_CLIENT,
+            true,
+            "A small button for these settings on the game's Options screen, beside its top row. Off hides it; /trmt config and the key still open them.");
 
         Setting distance = config.get(
             CATEGORY_CLIENT,
@@ -3014,7 +3305,7 @@ public final class TrmtConfig {
             "The path light: an enchantment that lets a tamper make ground glow without placing a light source in it. The glow is drawn rather than lit, so nothing about it changes what spawns or what the world thinks the brightness is.");
         config.setCategoryComment(
             CATEGORY_INTEGRATION,
-            "What this mod writes for other mods that are here, and never links against. Quest chapters and trophy definitions are generated as those mods' own data files, which is why they need nothing on the compile path and cost nothing at all when the mod they are for is absent.");
+            "What this mod writes for other mods that are here, and never links against. Quest chapters and trophy definitions are generated as those mods' own data files, which is why they need nothing on the compile path and cost nothing at all when the mod they are for is absent. The viaRomana settings are how worn ground and Via Romana's charted roads work together where Via Romana is installed: Via Romana is asked by name and never linked either, and without it they do nothing.");
         config.setCategoryComment(
             CATEGORY_SPAWN_ITEMS,
             "Items handed to a player the first time they arrive in a world. Every one is off, and stays off: a mod that puts things in somebody's inventory uninvited is one they will remember for the wrong reason.");
@@ -3087,8 +3378,91 @@ public final class TrmtConfig {
     }
 
     private static float readFloat(String category, String name, float def, float min, float max, String comment) {
-        return (float) config.get(category, name, def, comment, min, max)
-            .getDouble();
+        // Each figure as the float's own decimal (0.9.228): handed over as floats they were widened to doubles, and a
+        // default of 0.2 was written into the file and onto the screen as 0.20000000298023224 (found by Xep in GT New
+        // Horizons, where 1.7.10's Forge getter does the same). A file already holding the long figure reads the same
+        // number: the value is read, not rewritten.
+        return declareFloat(config, category, name, def, min, max, comment);
+    }
+
+    /**
+     * A float setting, declared to the file with its default and bounds as the float's own decimal (0.9.228).
+     *
+     * <p>
+     * The file takes them as doubles, and a float handed over as one is widened first: a default of 0.2 was written
+     * into the file, and shown as the default on both settings screens, as 0.20000000298023224. A file already holding
+     * that long figure reads the same number it always did, and is tidied to the float's own decimal ({@link #tidy}).
+     */
+    static float declareFloat(ConfigFile in, String category, String name, float def, float min, float max,
+        String comment) {
+        FLOATS.add(category + "." + name);
+        Setting declared = in.get(category, name, decimal(def), comment, decimal(min), decimal(max));
+        float read = (float) declared.getDouble();
+        tidy(declared, read);
+        return read;
+    }
+
+    /**
+     * The file's own float reader, {@code ConfigFile.getFloat} - which already writes the default and records the bounds
+     * as the float's own decimal - with the setting named a float (spec M20.3) and a long figure tidied (M20.4).
+     */
+    static float forgeFloat(ConfigFile in, String name, String category, float def, float min, float max,
+        String comment) {
+        FLOATS.add(category + "." + name);
+        float read = in.getFloat(name, category, def, min, max, comment);
+        Setting declared = in.getCategory(category)
+            .get(name);
+        if (declared != null) tidy(declared, read);
+        return read;
+    }
+
+    private static float forgeFloat(String name, String category, float def, float min, float max, String comment) {
+        return forgeFloat(config, name, category, def, min, max, comment);
+    }
+
+    /**
+     * A float the file holds as a long figure, written back as its own decimal (0.9.228, spec M20.4; Xep, answering the
+     * spec's open question 4: yes). A file written before 0.9.228 holds a float widened to a double -
+     * {@code 0.10000000149011612} - and every screen and every reader of the file showed that noise. Where the text
+     * names the same float as the number read, but is not that float's own decimal, the setting is set to the decimal,
+     * so the next save writes {@code 0.1}. The number the game uses is identical, the round trip being exact; a text
+     * that is a different float, or already as short as the float, is left exactly as it was written. The 1.7.10
+     * edition's rule, over this edition's file.
+     *
+     * @return whether the setting was tidied
+     */
+    static boolean tidy(Setting declared, float read) {
+        if (declared == null || declared.isList()) return false;
+        String text = declared.getString();
+        double written;
+        try {
+            written = Double.parseDouble(text.trim());
+        } catch (RuntimeException unreadable) {
+            return false;
+        }
+        if ((float) written != read) return false;
+        double own = decimal(read);
+        if (written == own) return false;
+        declared.set(own);
+        return true;
+    }
+
+    /**
+     * Every setting declared as a float, as {@code category.key}, filled as they are declared (spec M20.3): through
+     * {@link #readFloat}, {@link #declareFloat} - which {@code FamilySettings}' float reads go through - and
+     * {@link #forgeFloat}. The file holds every float as a double, so this list, not the file, says which are floats;
+     * the settings screen asks {@link #isFloat} to show the float's own decimal.
+     */
+    public static final Set<String> FLOATS = java.util.Collections.synchronizedSet(new java.util.TreeSet<String>());
+
+    /** Whether a setting is a float, so its field shows the float's own decimal (spec M20.2). */
+    public static boolean isFloat(String category, String key) {
+        return FLOATS.contains(category + "." + key);
+    }
+
+    /** A float as the double its own decimal names: 0.2F is 0.2, not 0.20000000298023224. */
+    public static double decimal(float value) {
+        return Double.parseDouble(Float.toString(value));
     }
 
     public static void save() {
@@ -3287,7 +3661,9 @@ public final class TrmtConfig {
         // is the only sign that something like 'Villager:1,5' is not doing what it looks like.
         for (String raw : entries) {
             MobEntries.Entry entry = MobEntries.parse(raw);
-            if (entry != null && entry.badWeight) {
+            // A registry name's own colon is not a number gone wrong: minecraft:villager is a name at one, as the
+            // game names a mob here and as the settings screen's Add mob writes it, and is not complained about.
+            if (entry != null && entry.badWeight && !com.trmtgtnh.util.MobNames.registryName(entry.name)) {
                 Trmt.LOG.warn("Bad multiplier in mob entry '{}', treating the whole line as a name", raw);
             }
         }
@@ -3320,16 +3696,6 @@ public final class TrmtConfig {
             }
         }
         return Collections.unmodifiableMap(filed);
-    }
-
-    /**
-     * How hard this mob wears the ground while it walks loose, or 0 if it is not one of the
-     * configured ones. A line naming the mob outranks '*', nought included, so a mob named at nought
-     * stays out under a wildcard. A mob on a lead never gets this far: the lead weighs it first.
-     */
-    public static float mobMultiplier(String entityName) {
-        if (entityName == null) return 0f;
-        return MobEntries.lookup(mobMultipliers, entityName);
     }
 
     /** Guards a rate against zero or nonsense, which would otherwise divide the world away. */

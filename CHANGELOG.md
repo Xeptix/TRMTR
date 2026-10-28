@@ -1,8 +1,188 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.227 is the same release on Minecraft 1.7.10, 1.12.2,
+One version number across every edition. 0.9.228 is the same release on Minecraft 1.7.10, 1.12.2,
 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 0.9.228 - 2026-10-27
+
+**1.21.1 is a release, and 26.1.2, 26.2 and 26.3 are betas.** The 1.21.1 jars and store files carry no stage from this
+release, and the nine 26.x ones `-beta` where they carried `-alpha`. 1.20.1 stays a release.
+
+*Changes: 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**A settings screen of this mod's own in every edition, and Cloth Config optional everywhere.** Every jar opens its own
+screen by default: tabs and sub-tabs, a search, sliders drawn as wearing ground, number fields that show their range
+and refuse what is out of it, dropdowns for every chooser with a line on each choice and a picture where one helps,
+undo and reset, and the presets saying what they change. Block, item, mob, fluid and dimension lists are edited with
+pickers that show each one's picture - a fluid in its own color, a dimension by its ground - and a name nothing in the
+game answers to is shown red, with the reason, as a warning only. A long hover shows the rest while Shift is held. A color opens a picker whose preview uses the game's own color math. A setting the server's
+rules hold reads "set by this server". Each hover ends with one line giving its range and default, and a decimal reads
+as written (0.2, where it showed 0.20000000298023224); long figures already in a settings file are tidied on its next
+save. A button on the screen switches to the other one - Forge's own on 1.7.10 and 1.12.2, Cloth's where Cloth Config
+is installed - and back, and the choice is remembered; both list every category. The screen opens from a small button
+just right of the Options screen's top row (`client.optionsButton`, on), from a key (unbound until you set one), with
+`/trmt config`, and from the mod list. No jar requires Cloth Config any more. On 1.7.10 the settings file and Forge's
+own screen list each page in the order the settings were written, as every other edition does.
+
+*Changes: every edition.*
+
+**Which creatures wear the ground, by group.** Four switches under `multipliers` - `fromHostileMobs`,
+`fromPassiveMobs`, `fromVillagers` and `fromCustom`, the mobs list - each group with its own multiplier (0.25, 0.25 and
+1.0 of a player's step), and a cap per chunk for players and for each group, off until set, at 8 once on. A mob the
+list names counts at its own number in place of its group's, and a mob named at 0 never wears, whatever the switches
+say. A settings file from an earlier release is read into the switches so the ground wears exactly as it did; a new
+file, or a reset to default, has all four on and the list empty. A mob carrying a player does not wear by itself - the
+rider's mounted step is what counts - and the Golem of Ways never wears the ground, on a lead or loose. The magic
+tamper's add button says when the line it writes counts only once `fromCustom` is on, and a settings file set aside as
+broken is reported with where the old mob list is kept.
+
+*Changes: every edition.*
+
+**Blast wear reaches further, and the crater is worn.** A blast now wears the ground 2 to 5 blocks past the blocks it
+destroys, falling off along a curve with a ragged edge, and the ground it lays bare - the crater's floor and walls - is
+worn too, hardest at the middle. The blast's own destruction is unchanged. `explosionStrength` defaults to 168 in a new
+settings file; a file that already holds 140 keeps it. Every edition reads a blast's strength through its own game's
+accessor, and 1.7.10, which read it doubled, reads it as the others do.
+
+*Changes: every edition.*
+
+**The square a player arrives on is not worn by arriving.** Joining a world, a teleport or a change of dimension put the
+player's first step down on the square they appeared on, so a player who logged out on a path wore it again each visit.
+The arrival ends at the first step off that square, or after 2 seconds, so a jump on the spot later still counts.
+
+*Changes: every edition.*
+
+**Deep snow, as on 1.7.10.** A full snow drift no longer shelters the ground beneath it from wear on 1.16.5 and later, as
+it never did on 1.7.10 and 1.12.2. `weather.fullSnowDriftsSolid` (off) makes a full drift shelter it in every edition.
+
+*Changes: every edition.*
+
+**A snow layer or a carpet on a worn stair keeps the stair from settling**, where it could sink into it.
+
+*Changes: every edition.*
+
+**The harder Golem guide asks for dirt where Extra Utilities' compressed cobblestone is missing**, where the recipe lost
+its earth and came out cheaper than the plain one.
+
+*Changes: every edition.*
+
+**A newer client on an older server is told so**, in one line in the chat, as an older client already was.
+
+*Changes: every edition.*
+
+**The update check asks for this game's own file first**, read from the game that is running, with the whole file
+behind it. A version file may mark a fix critical from the build that carried it, so a jar that already has the fix is
+not told of it again.
+
+*Changes: every edition.*
+
+**The snapshot tool opens its screen only when asked**, not after every capture or apply, and says "up to half a
+minute" where some editions said "a moment".
+
+*Changes: every edition.*
+
+**`fluid:` payments pay on Forge from 1.21.1.** Forge from 1.21.1 answers no fluid for any item through the call this
+mod asked, so every `fluid:` repair or reinforcement entry paid nothing on those jars. It now asks the item itself, and
+Forge's own bucket wrapper for a bucket.
+
+*Changes: 1.21.1 Forge, 26.1.2 Forge, 26.2 Forge and 26.3 Forge.*
+
+**On 1.21.1 Forge before 52.0.20 this mod's recipes are made.** Those Forge builds - the one OptiFine for 1.21.1 needs
+among them - ship no `c:` material tags, which this jar waited for before building any recipe, so no tamper, guide or
+draught could be crafted there. It now reads Forge's own `forge:` tags where the `c:` ones are missing.
+
+*Changes: 1.21.1 Forge.*
+
+**On Fabric a `fluid:` payment reads Fabric's fluid storage**, so a mod's tank or bucket that holds a bucket's worth
+pays, as on Forge, where only a vanilla bucket paid.
+
+*Changes: 1.16.5 Fabric, 1.20.1 Fabric, 1.21.1 Fabric, 26.1.2 Fabric, 26.2 Fabric and 26.3 Fabric.*
+
+**On 1.7.10 a water bottle no longer pays a bucket of water.** Forge 1.7.10 registers it as holding 1000 mB, so a
+`fluid:` payment took one bottle for a bucket; a container whose empty form is a glass bottle now pays nothing, as in
+every other edition.
+
+*Changes: 1.7.10.*
+
+**Older loaders start the game.** The 1.16.5, 1.20.1 and 1.21.1 Fabric jars crashed at startup on the Fabric Loader
+builds before 0.19.5 whose bundled MixinExtras could not read how this mod's jar was compiled - 0.17.2 to 0.19.4 among
+those played, and 0.16.3 too on 1.16.5 - and so did 26.1.2 NeoForge on NeoForge before 26.1.2.114. 1.21.1 NeoForge
+never reached a world on NeoForge 21.1.68 to 21.1.180. Each was this mod's own fault, and is fixed in the jar. Each
+jar's declared loader range is now the oldest build it was played on: Forge 36.0.42 on 1.16.5, 47.0.34 on 1.20.1 and
+52.0.0 on 1.21.1; NeoForge 21.1.1, 26.1.2.71, 26.2.0.57 and 26.3.0.76; Fabric Loader 0.11.1, 0.14.22, 0.16.1, 0.19.1
+and 0.19.4 from 1.16.5 to 26.2, and 0.19.5 on 26.3. The oldest Fabric API each Fabric jar takes is the oldest played:
+0.30.0 on 1.16.5, which the Options screen's button needs, 0.86.0 on 1.20.1, 0.102.0 on 1.21.1, 0.145.4 on 26.1.2,
+0.152.1 on 26.2 and 0.160.5 on 26.3.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**The 26.x Fabric jars warn of an old Fabric API**, as every other Fabric jar does. Fabric API answers to `fabric-api`
+alone on these games, and the jars asked for it as `fabric`, so they never found it.
+
+*Changes: 26.1.2 Fabric, 26.2 Fabric and 26.3 Fabric.*
+
+**Advancements follow the switches.** With achievements off, or the golem or its upgrades turned off, the advancements
+for them are not loaded, as 1.7.10 leaves them off its page, rather than standing with nothing to earn.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**A switch written as anything but true or false reads as its default**, and the file is written back with it, where it
+read as off.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**On NeoForge a plant asks the block a worn square covers whether it can grow there**, as on Forge and Fabric.
+
+*Changes: 1.21.1 NeoForge, 26.1.2 NeoForge, 26.2 NeoForge and 26.3 NeoForge.*
+
+**An invisible Golem of Ways draws faint, as on 1.7.10**, where it drew solid.
+
+*Changes: 1.16.5, 1.20.1 and 1.21.1.*
+
+**The wear editor's look picker draws a whole face below sixteen pixels**, smaller, where it drew a corner of it.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**On 1.21.1 a book trade from a data pack never offers this mod's enchantments while they are switched off**, on
+whichever villager rolls it, as the librarian's own trades already did.
+
+*Changes: 1.21.1.*
+
+**On 26.3 this mod's recipes reach a recipe viewer on Fabric**, and `/recipe` offers them again.
+
+*Changes: 26.3.*
+
+**Snow and carpet over a rut settle under every renderer on 26.x**, lowered in the block's model.
+
+*Changes: 26.1.2, 26.2 and 26.3.*
+
+**On 26.x Fabric, sunk ground under Fabric's own renderer is lit by its height**, where a sunk top drew nearly black.
+
+*Changes: 26.1.2 Fabric, 26.2 Fabric and 26.3 Fabric.*
+
+**A crater's walls draw at the brightness every other renderer gives them** under
+Canvas on 1.16.5 and 1.20.1, and under Fabric's own renderer and NeoForge's on 26.3. Those renderers took a worn square
+as open to light when they shaded the corners beside it, so the walls of a crater drew at about half the brightness of
+the same pit's walls under any other renderer.
+
+*Changes: 1.16.5 Fabric, 1.20.1 Fabric, 26.3 Fabric and 26.3 NeoForge.*
+
+**On 1.7.10, worn ground keeps its own block when the server resends part of a chunk** - after an explosion, or any
+sixty-odd changes in one chunk. Worn grass could come back as another mod's block: in a pack with Chisel, the rim of a
+crater turned into Chisel's pink valentines blocks. A worn square is drawn with blocks of this mod's numbered above
+255, and the game kept their high bits under the grass the server sent.
+
+*Changes: 1.7.10.*
+
+**Via Romana**: where it is installed, a worn path becomes a road it can chart once its squares draw as bare path
+(`integration.viaRomanaRoadGradation`, the server's value deciding on a server), a charted road heals at half speed
+(`viaRomanaRoadHealing`, 0 never), and a fast trip may wear the road it travels by one step a square
+(`viaRomanaTripWear`, off). A worn cobbled road still counts as a road. Via Romana charts a road from the squares around
+it, so a walked path charts once about two squares of its width show as path; its own quality threshold is the setting
+for narrower ones.
+
+*Changes: 1.20.1 and 1.21.1.*
 
 ## 0.9.227 - 2026-10-20
 

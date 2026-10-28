@@ -49,13 +49,12 @@ public final class TrmtForge {
                 .orElse("unknown"));
         // This jar's line in the update check's version file, whether this is a development game - which
         // only the loader can say - and the mods this jar requires. See UpdateNotice.
-        // Cloth Config only on a client (0.9.227): these jars declare it side = CLIENT, so a dedicated server without
-        // it is a whole one, and /trmt version there said it was missing a mod this mod needs.
+        // None from 0.9.228: Cloth Config, the one mod this jar named, is optional (decided) - its screen where it is
+        // installed and chosen, this mod's own otherwise.
         com.trmtgtnh.server.UpdateNotice.edition(
             "1.20.1-forge",
             !net.minecraftforge.fml.loading.FMLEnvironment.production,
-            net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient() ? com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE
-                : new String[0][]);
+            new String[0][]);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> net.minecraftforge.fml.ModList.get()
@@ -101,6 +100,10 @@ public final class TrmtForge {
         // this loader can answer something the other cannot. See Fluids.
         ForgeFluids.use();
 
+        // What an advancement file of this mod needs on to load, asked as data loads (0.9.228, BP30, BP33): see
+        // ModAchievements.SWITCHES.
+        ForgeConditions.register();
+
         // On a client, and as early as there is one. The pack repository takes its sources when it
         // is built and the resource manager is assembled from whatever was offered then, so a pack
         // wired any later is a pack the manager never heard of - and every wear sprite the atlas asks
@@ -140,14 +143,16 @@ public final class TrmtForge {
 
         // Where the mod list's Config button goes. Forge's own GuiConfig is gone at this version and
         // this is what replaced the factory that used to point at it - one line rather than
-        // TrmtGuiFactory's forty-four, because the screen itself is shared and says the rest.
+        // TrmtGuiFactory's forty-four. Through ConfigScreens from 0.9.228, which opens this mod's own
+        // screen or Cloth's (where Cloth is installed and client.settingsScreen asks for it), rather than
+        // straight to the Cloth screen, which this jar no longer requires.
         DistExecutor.unsafeRunWhenOn(
             Dist.CLIENT,
             () -> () -> net.minecraftforge.fml.ModLoadingContext.get()
                 .registerExtensionPoint(
                     net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
                     () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory(
-                        (client, parent) -> com.trmtgtnh.client.gui.ConfigScreen.build(parent))));
+                        (client, parent) -> com.trmtgtnh.client.gui.ConfigScreens.open(parent))));
 
         // The game version read from the game, so the line cannot go stale as the edition is carried (see TrmtFabric).
         Trmt.LOG.info("{} on Forge, Minecraft {}", Trmt.NAME, net.minecraft.SharedConstants.getCurrentVersion()

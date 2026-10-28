@@ -55,6 +55,20 @@ public final class Fluids {
          * @param one a stack of exactly one, which this may modify
          */
         ItemStack drained(ItemStack one);
+
+        /**
+         * Which way the last question was answered, for the harness's log (0.9.228, spec RL13): on Fabric the transfer
+         * API or the bucket's own field, which a game is the only place to tell apart.
+         */
+        default String answeredBy() {
+            return "the loader's fluid handler";
+        }
+    }
+
+    /** Which way the last fluid question was answered, or null where no loader has said how to ask. */
+    public static String answeredBy() {
+        Side at = side;
+        return at == null ? null : at.answeredBy();
     }
 
     /** What one bucket holds, which both loaders agree on and neither names the same way. */

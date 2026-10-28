@@ -192,9 +192,28 @@ public final class ClientSide implements Client.Side {
     }
 
     /**
-     * The server's answer about the snapshot sides: the screen, opened on it, or - when it is already
-     * open - refreshed in place, so pressing a button does not blink the screen (spec CF81; 1.7.10
+     * Whether this client asked the server for the snapshot screen and has not yet had the answer (0.9.228, CF79,
+     * CF81). Set by the tool's modifier gesture, taken by the answer that opens the screen, and dropped on leaving a
+     * world, so an answer that never came cannot make a later gesture open it.
+     */
+    private static boolean snapshotScreenAsked;
+
+    @Override
+    public void askedForSnapshotScreen() {
+        snapshotScreenAsked = true;
+    }
+
+    /**
+     * The server's answer about the snapshot sides: the screen, opened on it - only when this client asked for it - or,
+     * when it is already open, refreshed in place, so pressing a button does not blink the screen (spec CF81; 1.7.10
      * {@code ClientProxy.openSnapshotScreen}).
+     *
+     * <p>
+     * <strong>A gesture's answer opens no screen</strong> (0.9.228; Xep: the gestures "no longer open its screen; only
+     * holding the modifier does"). Every store and every put-back the tool does is answered with the sides as they now
+     * stand, the same packet the modifier's request is answered with; until 0.9.228 each of those answers opened the
+     * screen, so storing a snapshot by a sneaking click threw a screen up over the world. Only an asked answer opens it
+     * now; an unasked one with no screen open is dropped. No change on the wire: the server answers as before.
      */
     @Override
     public void openSnapshotScreen(int flags) {
@@ -203,7 +222,15 @@ public final class ClientSide implements Client.Side {
             ((com.trmtgtnh.client.gui.GuiSnapshot) client.screen).update(flags);
             return;
         }
+        if (!snapshotScreenAsked) return;
+        snapshotScreenAsked = false;
         client.setScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
+    }
+
+    /** See OlderServerNotice: said once a visit, on the thread the rules are applied on (0.9.228). */
+    @Override
+    public void considerServerBuild(boolean sent, int protocol, String build) {
+        OlderServerNotice.considered(net.minecraft.client.Minecraft.getInstance(), sent, protocol, build);
     }
 
     /**
@@ -602,6 +629,8 @@ public final class ClientSide implements Client.Side {
         com.trmtgtnh.util.MainThread.drainClient();
         // Said again on the next visit: a server has no memory of this client between connections.
         announced = false;
+        // A snapshot screen asked for and never answered opens nothing in the next world (0.9.228).
+        snapshotScreenAsked = false;
         // The server forgot the modifier the moment this connection went; if this did not forget it
         // too, a client that left with the key down would never send the transition again, and the
         // next server would be told the key was held only when it was finally let go.
@@ -620,6 +649,8 @@ public final class ClientSide implements Client.Side {
         InspectionCache.clear();
         int[] underServer = ServerRules.chainAppearances();
         ServerRules.release();
+        // And the older server's line, said once a visit (0.9.228), dropped where the server's rules are.
+        OlderServerNotice.left();
         // The table a server named is the server's answer to what erodes, and a client that kept it
         // would meet the next world holding the last one's list. Released before the read, so the
         // rebuild below publishes this client's own table rather than the visit's again.

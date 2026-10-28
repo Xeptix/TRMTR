@@ -136,8 +136,21 @@ public class GhostModelFabric extends WrapperBlockStateModel {
      * coordinates, with no array and no stride to read, so there is nothing for that path to step around.
      *
      * <p>
-     * Ambient occlusion as the renderer decides and vanilla's shading: what 1.21.1's ghost model said
-     * ({@code useAmbientOcclusion} true), as Fabric encodes a vanilla part that asks for it.
+     * Ambient occlusion as the renderer decides: what 1.21.1's ghost model said ({@code useAmbientOcclusion} true).
+     *
+     * <p>
+     * <strong>And Indigo's enhanced shading, not vanilla's (0.9.228)</strong>, which is what 1.21.1's quads had: they
+     * went out under the renderer's default material, whose shade mode is ENHANCED (the enum's first value, in
+     * renderer-api-v1 3.4.1 as in 14.1.4), and Indigo's HYBRID mode, its default, lights an enhanced quad by
+     * {@code calcEnhanced}. That blends a face below its block's top between the light above the block and the light
+     * inside it, by how far it sits below - a sunk top lit by its height, as the reference's MixinSunkLight and Forge's
+     * MixinSunkLightVanilla light it. The 26.1 carry gave every quad ShadeMode.VANILLA, as Fabric encodes a vanilla
+     * part, and Indigo lights a VANILLA quad by {@code calcFastVanilla}: a face below its block's top from inside the
+     * block alone, every corner shaded by the ground beside it at its own height - read from fabric-renderer-indigo
+     * 8.1.5, 9.1.4 and 9.1.24 (AoCalculator.compute, AltModelBlockRendererImpl.transform). So a sunk square walled by
+     * unsunk ground drew nearly black: the dark squares Xep found in the blast crater on 26.1.2 and 26.2 Fabric, whose
+     * cells the blast part's light census found as bright as the open air above them. Faces flush with the block's
+     * edge are lit alike either way.
      */
     private static void emit(QuadEmitter context, List<BakedQuad> quads, Direction cull, Predicate<Direction> cullTest) {
         if (cull != null && cullTest.test(cull)) return;
@@ -145,7 +158,7 @@ public class GhostModelFabric extends WrapperBlockStateModel {
             context.cullFace(cull);
             context.fromBakedQuad(quad);
             context.ambientOcclusion(TriState.DEFAULT);
-            context.shadeMode(ShadeMode.VANILLA);
+            context.shadeMode(ShadeMode.ENHANCED);
             context.emit();
         }
     }

@@ -1,4 +1,29 @@
 {
+    "neoforge:conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "reinforceEnabled"
+            ]
+        }
+    ],
+    "forge:condition": {
+        "type": "trmtgtnh:settings",
+        "settings": [
+            "achievements",
+            "reinforceEnabled"
+        ]
+    },
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "reinforceEnabled"
+            ]
+        }
+    ],
     "parent": "trmtgtnh:trmt_chunk_tamper",
     "display": {
         "icon": {

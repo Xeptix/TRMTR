@@ -1,4 +1,29 @@
 {
+    "neoforge:conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "lightEnabled"
+            ]
+        }
+    ],
+    "forge:condition": {
+        "type": "trmtgtnh:settings",
+        "settings": [
+            "achievements",
+            "lightEnabled"
+        ]
+    },
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "lightEnabled"
+            ]
+        }
+    ],
     "parent": "trmtgtnh:trmt_lighting",
     "display": {
         "icon": {

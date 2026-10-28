@@ -62,7 +62,7 @@ final class WearSlider extends AbstractSliderButton {
 
     @Override
     public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
-        WornPathArt.wornBar(graphics, getX(), getY(), getWidth(), getHeight(), value);
+        WornPathArt.wornBar(graphics, getX(), getY(), getWidth(), getHeight(), value, com.trmtgtnh.client.settings.Slider.LEAST_STAGES);
         graphics.outline(getX(), getY(), getWidth(), getHeight(), isHoveredOrFocused() ? 0xFFFFFFFF : 0xFF000000);
         graphics.blitSprite(
             RenderPipelines.GUI_TEXTURED,

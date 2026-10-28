@@ -86,6 +86,12 @@ public final class PhysicalDecay {
      */
     public static double groundDropUnder(World world, int x, int y, int z) {
         if (world == null || y <= 0) return 0.0D;
+        // A covered stair never settles (0.9.228; Xep: "Covered stair never settles"). A worn stair is drawn and
+        // stood on as the stair it covers and is never hollowed, so snow or a carpet on one has nothing to come down
+        // into - and the two sides must give the same nought: the client draws it whole, and the server's collision
+        // depth for a stair would otherwise lower the carpet's box into a step nobody sees sunk. Asked of the block
+        // itself, which is the real stair here and the stair stand-in on a client, both of them stairs.
+        if (SurfaceShape.of(world.getBlock(x, y - 1, z)) == SurfaceShape.STAIR) return 0.0D;
         if (world.isRemote) return Trmt.proxy.settledDropUnder(x, y - 1, z);
         return sinkAt(world, x, y - 1, z) / 16.0D;
     }

@@ -98,4 +98,33 @@ public final class SunkLighting {
         int sky = Math.max(packed >>> 16, cell >>> 16);
         return block | (sky << 16);
     }
+
+    /**
+     * Whether a renderer should take a cell as closed to light in a face's corner average (0.9.228; Xep, 2026-10-26,
+     * of the full pass's blast photographs: "26.3 Fabric / Vanilla dev, 26.3 NeoForge / Vanilla dev ... The craters
+     * look darker (more shadows) than the other versions"): a ghost that holds no light at all, sky or block. A whole
+     * ghost stops light as the block it stands in for did, so its cell holds none; and it says it occludes nothing, so
+     * that its neighbours' faces are not culled against a dip. From 26.3 Indigo and NeoForge's enhanced lighter ask
+     * {@code BlockState.isLightPermeable()} - {@code !solidRender || lightDampening == 0} - where 26.2's asked
+     * {@code !isViewBlocking(level, pos) || lightDampening == 0}, which a whole ghost answered no to. Every ghost is
+     * permeable by the new question, so each crater wall and each floor beside one had a nought in its corners' light,
+     * and drew at about seven tenths of 26.3 Forge's, whose vanilla lighter takes a neighbour with no light as missing.
+     * A sunk ghost lets light in and a glowing one holds its own, and both stay permeable. The same rule Canvas is
+     * given in 1.16.5 and 1.20.1 (MixinCanvasGhostClosed), for the same nought.
+     */
+    public static boolean closedToLight(boolean ghost, int packedLight) {
+        return ghost && packedLight == 0;
+    }
+
+    /**
+     * {@code isLightPermeable()}'s answer for the state at {@code pos}, with a ghost holding no light there closed - see
+     * {@link #closedToLight}. Anything else, and anything not permeable already, is answered as asked.
+     */
+    public static boolean lightPermeable(boolean permeable, BlockState state, BlockAndTintGetter level, BlockPos pos) {
+        if (!permeable || level == null || pos == null || !(state.getBlock() instanceof com.trmtgtnh.block.BlockGhost)) {
+            return permeable;
+        }
+        int light = LightCoordsUtil.getLightCoords(LightCoordsUtil.BrightnessGetter.DEFAULT, level, state, pos);
+        return !closedToLight(true, light);
+    }
 }

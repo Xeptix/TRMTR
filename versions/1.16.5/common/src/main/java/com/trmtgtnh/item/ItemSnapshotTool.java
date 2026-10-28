@@ -101,8 +101,13 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
      * screen opens on that answer; a player without permission is told so and gets no screen. Opened
      * here at once, as it was until 0.9.223, it showed every side empty and no undo until something
      * else brought an answer, and opened for anybody at all. 1.7.10: {@code ClientProxy.requestSnapshotScreen}.
+     *
+     * <p>
+     * And the client notes that it asked (0.9.228, CF79, CF81): the answer to this is the one that opens the screen,
+     * and the answers every store and put-back are given open nothing (ClientSide.openSnapshotScreen).
      */
     private static void requestScreen() {
+        com.trmtgtnh.Client.askedForSnapshotScreen();
         TrmtNetwork.sendSnapshotAction(com.trmtgtnh.network.PacketSnapshotAction.REQUEST);
     }
 

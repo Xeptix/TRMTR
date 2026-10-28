@@ -391,7 +391,7 @@ public final class OverlayPainter {
     private static boolean covered(WorldClient world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
         Block above = world.getBlock(x, y + 1, z);
-        return above != null && above.isOpaqueCube();
+        return above != null && (above.isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(world, x, y + 1, z));
     }
 
     /** Said once a session, because the interesting thing is that it happened at all. */

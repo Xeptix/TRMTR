@@ -124,6 +124,35 @@ public final class TrmtForgeClient {
             left = true;
             ClientSide.tick();
         }
+
+        // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
+        com.trmtgtnh.client.gui.SettingsAccess.tick(client);
+    }
+
+    /** The settings key, unbound until a player binds it (0.9.228). Each event names its own bus from Forge 64. */
+    @SubscribeEvent
+    public static void keys(net.minecraftforge.client.event.RegisterKeyMappingsEvent event) {
+        event.register(com.trmtgtnh.client.gui.SettingsAccess.key());
+    }
+
+    /** {@code /trmt config}, on the client: never sent, and the server's own /trmt answers everything else (0.9.228). */
+    @SubscribeEvent
+    public static void commands(net.minecraftforge.client.event.RegisterClientCommandsEvent event) {
+        event.getDispatcher()
+            .register(
+                net.minecraft.commands.Commands.literal(com.trmtgtnh.client.gui.SettingsAccess.ROOT)
+                    .then(
+                        net.minecraft.commands.Commands.literal(com.trmtgtnh.client.gui.SettingsAccess.CONFIG)
+                            .executes(context -> com.trmtgtnh.client.gui.SettingsAccess.askedByCommand())));
+    }
+
+    /**
+     * What this mod adds to a screen once it has laid itself out (0.9.228, ConfigScreens.afterInit): the small settings
+     * button on the game's Options screen, and the way back to the own screen on Cloth Config's.
+     */
+    @SubscribeEvent
+    public static void screens(net.minecraftforge.client.event.ScreenEvent.Init.Post event) {
+        com.trmtgtnh.client.gui.ConfigScreens.afterInit(event.getScreen(), event.getListenersList(), event::addListener);
     }
 
     /** A chunk arriving in the client's world, which Forge announces once its blocks are in (spec PT18). */

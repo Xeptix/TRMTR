@@ -116,6 +116,14 @@ public final class ModLoot {
         CATEGORIES.put("bonusChest", BuiltInLootTables.SPAWN_BONUS_CHEST.identifier());
     }
 
+    /**
+     * The chest categories by the 1.7.10 edition's names, in order: what the settings screen's picker offers for
+     * {@code loot.wayfarerCategories} (0.9.228), as that edition's picker offers its chest categories.
+     */
+    public static List<String> categories() {
+        return new java.util.ArrayList<String>(CATEGORIES.keySet());
+    }
+
     private static final Identifier DUNGEON = BuiltInLootTables.SIMPLE_DUNGEON.identifier();
     private static final Identifier MINESHAFT = BuiltInLootTables.ABANDONED_MINESHAFT.identifier();
     private static final Identifier SMITH = BuiltInLootTables.VILLAGE_TOOLSMITH.identifier();

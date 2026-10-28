@@ -17,7 +17,11 @@ import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
- * The in-game settings screen.
+ * Forge's settings screen, for this mod: since 0.9.228 the other of two, opened where {@code client.settingsScreen}
+ * says {@code other} ({@link ConfigScreens}); the mod's own, {@link WornPathScreen}, opens by default. Its one
+ * addition is the way back (spec M14.3): an icon button at its top right, "TRMT's screen", which writes the choice and
+ * opens the own screen over the same parent. On this top screen only - a category's own page is Forge's plain screen,
+ * and its way back is Done, then the button.
  *
  * <p>
  * The client category comes first because it is the only part a player on someone else's
@@ -50,6 +54,10 @@ public class TrmtConfigGui extends GuiConfig {
     /** High enough not to collide with the ids Forge's own screen hands out. */
     private static final int ID_PUSH = 9021;
     private static final int ID_WEAR = 9022;
+    private static final int ID_BACK = 9023;
+
+    /** The way back's button: 20 by 20 at the top right, clear of Forge's title (spec 3.1). */
+    private GuiIconButton back;
 
     /**
      * Offers these settings to the server.
@@ -65,6 +73,13 @@ public class TrmtConfigGui extends GuiConfig {
     @Override
     public void initGui() {
         super.initGui();
+        // The way back to the mod's own screen (spec M14.3), whether or not a world is open.
+        // Where nothing of this screen's own stands (0.9.228): its buttons, and any text field a pack's mod gave it.
+        int[] spot = ConfigScreens.wayBackSpot(widgetsOn(this), width, height);
+        if (spot != null) {
+            back = new GuiIconButton(ID_BACK, spot[0], spot[1], "toggle");
+            buttonList.add(back);
+        }
         if (net.minecraft.client.Minecraft.getMinecraft().world == null) return;
 
         // Forge sizes its scrolling list to end at height - 32, which is exactly where a button
@@ -116,11 +131,46 @@ public class TrmtConfigGui extends GuiConfig {
         return font.trimStringToWidth(text, Math.max(0, room - 8)) + "...";
     }
 
+    /**
+     * Everything a screen holds where a button could clash with it, as {x, y, width, height}: its visible buttons, and
+     * every text field it keeps in a field of its own, by type, up through the classes it extends - GT New Horizons'
+     * search field included, which no list of the screen's buttons holds.
+     */
+    static List<int[]> widgetsOn(TrmtConfigGui screen) {
+        List<int[]> out = new ArrayList<int[]>();
+        for (Object each : screen.buttonList) {
+            net.minecraft.client.gui.GuiButton button = (net.minecraft.client.gui.GuiButton) each;
+            if (button.visible) out.add(new int[] { button.x, button.y, button.width, button.height });
+        }
+        for (Class<?> type = screen.getClass(); type != null; type = type.getSuperclass()) {
+            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                if (!net.minecraft.client.gui.GuiTextField.class.isAssignableFrom(field.getType())) continue;
+                try {
+                    field.setAccessible(true);
+                    net.minecraft.client.gui.GuiTextField text = (net.minecraft.client.gui.GuiTextField) field
+                        .get(screen);
+                    if (text != null && text.getVisible()) {
+                        out.add(new int[] { text.x, text.y, text.width, text.height });
+                    }
+                } catch (ReflectiveOperationException | RuntimeException unread) {
+                    // A field that cannot be read is passed over; the rest still place the button.
+                }
+            }
+        }
+        return out;
+    }
+
     /** How much taller the button row makes the furniture at the bottom of the screen. */
     private static final int PUSH_ROW = 24;
 
     @Override
     protected void actionPerformed(net.minecraft.client.gui.GuiButton button) {
+        if (button.id == ID_BACK) {
+            // Forge's screen saves its entries on Done only, so edits made here are left unsaved, as Escape leaves.
+            net.minecraft.client.Minecraft.getMinecraft()
+                .displayGuiScreen(ConfigScreens.switchTo(true, parentScreen));
+            return;
+        }
         if (button.id == ID_WEAR) {
             net.minecraft.client.Minecraft.getMinecraft()
                 .displayGuiScreen(new GuiWearTable(this));
@@ -130,57 +180,25 @@ public class TrmtConfigGui extends GuiConfig {
             super.actionPerformed(button);
             return;
         }
-        com.trmtgtnh.network.TrmtNetwork.pushConfig(settingsAsLines());
+        com.trmtgtnh.network.TrmtNetwork.pushConfig(ConfigWords.asLines());
     }
 
-    /**
-     * Every simple setting, as category, key and value.
-     *
-     * <p>
-     * Lists go as well, joined on a control character, and the reason is written where they are
-     * joined. What never goes is decided by {@link com.trmtgtnh.network.PacketPushConfig#travels}:
-     * this client's own heading, the quality chooser and the one quality figure filed under surfaces, the
-     * presets' bookkeeping, and the enchantment and potion ids.
-     */
-    private static java.util.List<String> settingsAsLines() {
-        java.util.List<String> lines = new ArrayList<String>();
-        // The real settings, not the copy the screen is editing. What is offered to somebody else's
-        // machine should come from the mod's own file rather than from a projection of it made for a
-        // menu - and by the time this button can be pressed, the copy may hold edits nobody has
-        // pressed Done on yet.
-        com.trmtgtnh.config.ConfigFile config = TrmtConfig.raw();
-        if (config == null) return lines;
-        for (String name : config.getCategoryNames()) {
-            com.trmtgtnh.config.ConfigFile.Category category = config.getCategory(name);
-            for (com.trmtgtnh.config.ConfigFile.Setting property : category.getValues()
-                .values()) {
-                if (property == null || property.getName() == null) continue;
-                if (!com.trmtgtnh.network.PacketPushConfig.travels(name, property.getName())) continue;
-                // Lists go too, joined on a control character no config value can
-                // contain. They used to be skipped here and refused at the far end,
-                // which made the one setting somebody most wants to hand a server -
-                // which blocks count as what - the one setting that silently would not go.
-                String value = property.isList() ? join(property.getStringList()) : property.getString();
-                String line = name + "\t" + property.getName() + "\t" + value;
-                // Dropped whole rather than cut short. The block lists detection writes run
-                // to thousands of characters, and half of one applied to a server's config
-                // would be worse than none of it - and pointless besides, since that server's
-                // own detection writes its own.
-                if (com.trmtgtnh.network.PacketPushConfig.fits(line)) lines.add(line);
-            }
+    /** The way back's hover: its name, then what it does (spec M14.3). */
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partial) {
+        super.drawScreen(mouseX, mouseY, partial);
+        if (back != null && back.under(mouseX, mouseY)) {
+            List<String> lines = new ArrayList<String>();
+            lines.add(
+                net.minecraft.util.text.TextFormatting.GOLD + net.minecraft.client.resources.I18n
+                    .format(com.trmtgtnh.client.settings.SettingsKeys.TOGGLE_BACK));
+            lines.addAll(
+                mc.fontRenderer.listFormattedStringToWidth(
+                    net.minecraft.client.resources.I18n
+                        .format(com.trmtgtnh.client.settings.SettingsKeys.TOGGLE_BACK_TIP),
+                    Math.min(260, width - 16)));
+            drawHoveringText(lines, mouseX, mouseY);
         }
-        return lines;
-    }
-
-    /** A list as one line, on a separator no config value can contain. */
-    private static String join(String[] values) {
-        if (values == null || values.length == 0) return "";
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < values.length; i++) {
-            if (i > 0) out.append('\u001f');
-            out.append(values[i] == null ? "" : values[i]);
-        }
-        return out.toString();
     }
 
     private static List<IConfigElement> categories() {
@@ -192,6 +210,20 @@ public class TrmtConfigGui extends GuiConfig {
         if (config == null) return elements;
         showIconsOnBlockLists(config);
         slideTheCountedSettings(config);
+        // The multipliers in the own screen's order (0.9.228, ConfigLayout.MULTIPLIERS_ORDER), not the alphabet's.
+        ConfigCategory multipliers = config.getCategory(TrmtConfig.CATEGORY_MULTIPLIERS);
+        multipliers.setPropertyOrder(ConfigLayout.ordered(TrmtConfig.CATEGORY_MULTIPLIERS, multipliers.keySet()));
+        // After the sliders, which keep sliding: every row's hover says its range once (0.9.228, TrmtConfigEntries).
+        for (String name : config.getCategoryNames()) {
+            TrmtConfigEntries.hoverEverySetting(
+                config.getCategory(name)
+                    .getOrderedValues());
+            // Each heading's button named as the own screen's tab is (0.9.228; Xep, 2026-10-25, "Use the tab names"):
+            // Forge labels a category by its language key and falls back to the file's own lower-case name.
+            String key = ConfigLayout.headingKey(name);
+            if (key != null) config.getCategory(name)
+                .setLanguageKey(key);
+        }
 
         // Presets above even the client settings: it is the shortest way to a whole opinion, and
         // somebody who wants one should not have to walk past nine families to find it.
@@ -212,13 +244,33 @@ public class TrmtConfigGui extends GuiConfig {
             elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_REINFORCE)));
         }
         // Named by hand, like everything above it, because this list is written out rather than
-        // walked - which is why six categories that exist in the file have never appeared on this
-        // screen at all. A category left out of here is a category only a text editor can reach.
+        // walked - which is why six categories that were in the file did not appear on this screen
+        // until 0.9.228. A category left out of here is a category only a text editor can reach.
         if (config.hasCategory(TrmtConfig.CATEGORY_POTIONS)) {
             elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_POTIONS)));
         }
         if (config.hasCategory(TrmtConfig.CATEGORY_WEATHER)) {
             elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_WEATHER)));
+        }
+        // The six the file alone held until 0.9.228, after the rest as on the own screen's tabs (Xep, answering the
+        // spec's open question 3: "If there are settings missing then yeah we should add all categories there too").
+        if (config.hasCategory(TrmtConfig.CATEGORY_GOLEM)) {
+            elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_GOLEM)));
+        }
+        if (config.hasCategory(TrmtConfig.CATEGORY_LOOT)) {
+            elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_LOOT)));
+        }
+        if (config.hasCategory(TrmtConfig.CATEGORY_WARD)) {
+            elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_WARD)));
+        }
+        if (config.hasCategory(TrmtConfig.CATEGORY_LIGHT)) {
+            elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_LIGHT)));
+        }
+        if (config.hasCategory(TrmtConfig.CATEGORY_INTEGRATION)) {
+            elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_INTEGRATION)));
+        }
+        if (config.hasCategory(TrmtConfig.CATEGORY_SPAWN_ITEMS)) {
+            elements.add(new ConfigElement(config.getCategory(TrmtConfig.CATEGORY_SPAWN_ITEMS)));
         }
 
         for (SurfaceFamily family : SurfaceFamily.values()) {

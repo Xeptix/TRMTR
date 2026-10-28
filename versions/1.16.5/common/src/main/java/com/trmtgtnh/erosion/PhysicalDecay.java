@@ -284,6 +284,12 @@ public final class PhysicalDecay {
      */
     public static double groundDropUnder(Level world, int x, int y, int z) {
         if (world == null || y <= com.trmtgtnh.util.Heights.bottom(world)) return 0.0D;
+        // A covered stair never settles (0.9.228; Xep: "Covered stair never settles"). A worn stair is drawn and stood
+        // on as the stair it covers and is never hollowed, so snow or a carpet on one has nothing to come down into -
+        // and the two sides must give the same nought: the client draws it whole (Settling.dropOver), and sinkAt's
+        // partial-shape depth for a stair would otherwise lower the carpet's box into a step nobody sees sunk. Asked of
+        // the real block, which on the server is the stair itself; a client holds a ghost there, which Settling reads.
+        if (SurfaceShape.of(com.trmtgtnh.util.Worlds.stateAt(world, x, y - 1, z)) == SurfaceShape.STAIR) return 0.0D;
         if (world.isClientSide()) return Client.settledDropUnder(x, y - 1, z);
         return sinkAt(world, x, y - 1, z) / 16.0D;
     }

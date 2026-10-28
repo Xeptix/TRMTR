@@ -35,9 +35,15 @@ import com.trmtgtnh.item.ModPotions;
  * names belong to the common module, which is where both loaders read them from. Handing each block
  * over as it arrives keeps one list of what exists rather than two that have to agree.
  */
-// No bus named: FML 4 ignores it and sends each listener to the mod's bus or the game's by its event's type
-// (IModBusEvent or not), where Forge took the bus from this annotation.
-@EventBusSubscriber(modid = Trmt.MODID)
+// The mod's bus named (0.9.228, step 9; Xep: "Fix the code too"): FML 4.0.40 (NeoForge 21.1.181) and later ignore
+// it and send each listener to the mod's bus or the game's by its event's type, but every FML before reads it and
+// takes the game's bus when none is named - where a mod-bus event is refused, the mod's subscribers are not
+// registered, and NeoForge 21.1.68 to 21.1.180 never got as far as a world. Every listener here is the mod's bus's,
+// so naming it is right on both; a class with listeners for both buses has to be two classes (see
+// NeoForgeClientSetup.keys). The attribute is deprecated for removal in the later FML 4.0 builds, hence the
+// suppression. NeoForgeBusesTest.
+@SuppressWarnings("removal")
+@EventBusSubscriber(modid = Trmt.MODID, bus = EventBusSubscriber.Bus.MOD)
 public final class NeoForgeRegistration {
 
     private NeoForgeRegistration() {}
@@ -50,6 +56,15 @@ public final class NeoForgeRegistration {
      * came back through here too while the rendering spike had a placeable ghost; see
      * {@code ModBlocks.register} for what became of it.
      */
+    /**
+     * The {@code trmtgtnh:settings} condition every advancement file names, put into the loader's condition registry
+     * (0.9.228, BP30, BP33): see {@code NeoForgeConditions}.
+     */
+    @SubscribeEvent
+    public static void conditions(RegisterEvent event) {
+        NeoForgeConditions.register(event);
+    }
+
     @SubscribeEvent
     public static void blocks(RegisterEvent event) {
         event.register(Registries.BLOCK, (RegisterEvent.RegisterHelper<Block> helper) -> {

@@ -7,8 +7,10 @@
   "target": "@env(DEFAULT)",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
+    "ExplosionRadius",
     "MixinChestBooksDrawAgain",
-    "MixinLibrarianBooks"
+    "MixinLibrarianBooks",
+    "MixinPlayerArrives"
   ],
   "client": [
     "MixinBlockArrivals",

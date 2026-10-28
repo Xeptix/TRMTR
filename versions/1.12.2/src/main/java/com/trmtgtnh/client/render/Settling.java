@@ -13,6 +13,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.BlockGhost;
 import com.trmtgtnh.erosion.PhysicalDecay;
+import com.trmtgtnh.surface.SurfaceShape;
 
 /**
  * Snow and carpet drawn down with the ground that has worn away underneath them.
@@ -65,6 +66,21 @@ public final class Settling {
         int origin = Trmt.proxy.ghostOriginAt(below.getX(), below.getY(), below.getZ());
         short record = Trmt.proxy.ghostRecordAt(world, below.getX(), below.getY(), below.getZ());
         int outline = BlockGhost.outlineAt(world, below, origin);
+        return dropOf(record, origin, outline);
+    }
+
+    /**
+     * The drop itself, from the square's record, the block it stands in for and its outline.
+     *
+     * <p>
+     * A covered stair never settles (0.9.228; Xep: "Covered stair never settles"): a worn stair is drawn and stood on
+     * as the stair it covers and is never hollowed, so snow or a carpet on one has nothing to come down into - and the
+     * server's PhysicalDecay.groundDropUnder answers nought for it too, so the two sides give the same nought. Until
+     * then the stand-in's height treated a stair as a partial shape and lowered what rested on it by its sink, where
+     * 1.7.10 draws it whole.
+     */
+    public static double dropOf(short record, int origin, int outline) {
+        if (BlockGhost.coveredShape(origin) == SurfaceShape.STAIR) return 0.0D;
         double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
         return drop > 0.0D ? drop : 0.0D;
     }

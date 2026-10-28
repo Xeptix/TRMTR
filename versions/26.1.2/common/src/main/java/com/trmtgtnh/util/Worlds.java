@@ -156,13 +156,25 @@ public final class Worlds {
      * says yes to that. So on this edition ground under a snow layer never wore and the snow never took a step,
      * ground under a carpet or a slab never wore, and the painter left worn ground undrawn beneath all four, where
      * the other two editions wear it and draw it. Found by the second yard's bench photographs.
+     *
+     * <p>
+     * And a snow layer is never one, at any depth (0.9.228, spec SC3; Xep: "Match, with a setting"): the 1.7.10
+     * edition's {@code BlockSnow.isOpaqueCube()} answers false for every layer, so natural wear, the tamper, the golem,
+     * the painter, wear drops and the showcase all let snow through there - and every one of them asks here. This
+     * version's full drift answers {@code isSolidRender} yes, its shape a whole column at eight layers, so until 0.9.228
+     * the ground under one never wore. Only {@code weather.fullSnowDriftsSolid} makes eight layers solid again, for a
+     * pack that relied on it; one to seven never are.
      */
     public static boolean isOpaque(BlockGetter access, int x, int y, int z) {
         BlockPos pos = new BlockPos(x, y, z);
+        BlockState state = access.getBlockState(pos);
+        if (com.trmtgtnh.erosion.SnowCover.isSnowLayer(state)) {
+            return com.trmtgtnh.config.TrmtConfig.fullSnowDriftsSolid && com.trmtgtnh.erosion.SnowCover.layers(state) == 8
+                && state.isSolidRender();
+        }
         // From 1.21.2 a state answers this for itself, asked of no position: the game stopped letting a block's place
         // decide it, so the answer 1.21.1 got from the same state at any position is the one it gives.
-        return access.getBlockState(pos)
-            .isSolidRender();
+        return state.isSolidRender();
     }
 
     /**

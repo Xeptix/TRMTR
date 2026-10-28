@@ -25,12 +25,14 @@
     ]
   },
   "depends": {
-    "fabricloader": ">=0.14.0",
-    "fabric": "*",
-    "minecraft": "1.16.5",
-    "cloth-config2": ">=4.14.54"
+    "fabricloader": ">=0.11.1",
+    "fabric": ">=0.30.0",
+    "minecraft": "1.16.5"
   },
   "recommends": {
     "modmenu": "*"
+  },
+  "suggests": {
+    "cloth-config2": ">=4.10.11"
   }
 }

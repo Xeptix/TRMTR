@@ -243,19 +243,8 @@ final class GhostLogic {
      * out the same whichever order they are applied in.
      */
     public static int blendToward(int from, int to, float amount) {
-        float mix = amount < 0f ? 0f : (amount > 1f ? 1f : amount);
-        if (mix <= 0f) return from;
-        int result = 0;
-        for (int channel = 0; channel < 3; channel++) {
-            int shift = 16 - channel * 8;
-            int start = (from >>> shift) & 0xFF;
-            int end = (to >>> shift) & 0xFF;
-            int value = Math.round(start + (end - start) * mix);
-            if (value < 0) value = 0;
-            if (value > 255) value = 255;
-            result |= value << shift;
-        }
-        return result;
+        // The one arithmetic for the path color, shared with the settings screen's preview (0.9.228, spec M10.6).
+        return com.trmtgtnh.client.settings.ColorMath.mix(from, to, amount);
     }
 
     /**
@@ -293,11 +282,9 @@ final class GhostLogic {
      * nobody has touched comes back untouched whatever this is set to.
      */
     public static int highlightBy(int rgb, float worn) {
-        float strength = TrmtConfig.desirePathHighlight;
-        if (strength <= 0f) return rgb;
-        float clamped = worn < 0f ? 0f : (worn > 1f ? 1f : worn);
-        if (clamped <= 0f) return rgb;
-        return blendToward(rgb, TrmtConfig.desirePathRgb, (float) Math.sqrt(clamped) * Math.min(strength, 1f));
+        // The color picker's preview draws through the same call (0.9.228, spec M10.6), so the two cannot drift.
+        return com.trmtgtnh.client.settings.ColorMath
+            .highlight(rgb, TrmtConfig.desirePathRgb, TrmtConfig.desirePathHighlight, worn);
     }
 
     /**

@@ -33,7 +33,6 @@
     "MixinLevelReplaced",
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",
-    "MixinSettleOnWornGround",
     "MixinSettledFaces",
     "MixinStitcher",
     "MixinStitcherRegion",

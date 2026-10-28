@@ -164,6 +164,32 @@ public class PacketServerRules implements Message {
 
     private int tamperReach = -1;
 
+    /** Guards the server tail, the ninth and last (0.9.228). */
+    static final int SERVER_FORMAT = 1;
+
+    /**
+     * The server's protocol and its build's name, from the server tail (0.9.228; Xep: "A newer client on an older
+     * server - Add it, every edition"), or -1 and null where a server sent none - every server before 0.9.228, whose
+     * rules end after the switches. A 0.9.227 client stops reading before it; a newer client finding none tells its
+     * player the server runs an older build ({@code client/OlderServerNotice}). The protocol does not move for it:
+     * the wire's geometry is unchanged, and every frame tolerates bytes a reader leaves unread.
+     */
+    private int serverProtocol = -1;
+
+    private String serverBuild;
+
+    /** Guards the road tail, the eighth (0.9.228). */
+    private static final int ROAD_FORMAT = 1;
+
+    /**
+     * The server's Via Romana road gradation (integration.viaRomanaRoadGradation), or -1 where the server sent none
+     * - an older server, or an edition with no such setting, which writes 255 (0.9.228; Xep: "Send the server's
+     * value"). Via Romana charts roads on the client, so without it the client's own setting decided on a server.
+     */
+    int roadGradation = -1;
+
+    private boolean hasServerTail;
+
     public PacketServerRules() {}
 
     /** Captures the server's current rules. */
@@ -223,6 +249,10 @@ public class PacketServerRules implements Message {
         packet.settle = com.trmtgtnh.config.TrmtConfig.settleOnWornGround ? 1 : 0;
         packet.tamperSteps = com.trmtgtnh.config.TrmtConfig.chunkTamperMaxSteps;
         packet.tamperReach = com.trmtgtnh.config.TrmtConfig.chunkTamperMaxReach;
+        packet.serverProtocol = TrmtNetwork.PROTOCOL;
+        packet.serverBuild = com.trmtgtnh.Trmt.version();
+        packet.roadGradation = -1;
+        packet.hasServerTail = true;
         return packet;
     }
 
@@ -353,6 +383,28 @@ public class PacketServerRules implements Message {
         settle = buf.readUnsignedByte() != 0 ? 1 : 0;
         tamperSteps = buf.readUnsignedByte();
         tamperReach = buf.readUnsignedByte();
+
+        // The server tail (0.9.228): the server's protocol and its build's name, written as the decay mode is. A
+        // server from before it stops at the line above, and the client takes it for 0.9.227 or older.
+        if (buf.readableBytes() < 6) return;
+        int serverFormat = buf.readUnsignedByte();
+        if (serverFormat < SERVER_FORMAT) return;
+        int protocol = buf.readInt();
+        int buildLength = buf.readUnsignedByte();
+        StringBuilder build = new StringBuilder(buildLength);
+        for (int i = 0; i < buildLength && buf.readableBytes() > 0; i++) {
+            build.append((char) buf.readByte());
+        }
+        serverProtocol = protocol;
+        serverBuild = build.toString();
+
+        // The road tail (0.9.228): a format byte and the server's road gradation, 255 for none.
+        if (buf.readableBytes() < 2) return;
+        int roadFormat = buf.readUnsignedByte();
+        if (roadFormat < ROAD_FORMAT) return;
+        int road = buf.readUnsignedByte();
+        roadGradation = road == 255 ? -1 : road;
+        hasServerTail = true;
     }
 
     @Override
@@ -423,6 +475,21 @@ public class PacketServerRules implements Message {
         buf.writeByte(settle > 0 ? 1 : 0);
         buf.writeByte(Math.max(0, Math.min(255, tamperSteps)));
         buf.writeByte(Math.max(0, Math.min(255, tamperReach)));
+
+        // After the switches, last, so a 0.9.227 reader returns before it (0.9.228): see serverBuild.
+        if (!hasServerTail) return;
+        buf.writeByte(SERVER_FORMAT);
+        buf.writeInt(serverProtocol);
+        String build = serverBuild == null ? "" : serverBuild;
+        if (build.length() > com.trmtgtnh.util.OlderServer.LONGEST_NAME)
+            build = build.substring(0, com.trmtgtnh.util.OlderServer.LONGEST_NAME);
+        buf.writeByte(build.length());
+        for (int i = 0; i < build.length(); i++) {
+            buf.writeByte(build.charAt(i));
+        }
+
+        buf.writeByte(ROAD_FORMAT);
+        buf.writeByte(roadGradation < 0 ? 255 : Math.min(254, roadGradation));
     }
 
     /** The server's pricing as the Wear Table wants it, or null when this server sent none. */
@@ -508,6 +575,8 @@ public class PacketServerRules implements Message {
                             message.tamperReach));
                     // After the rules, so a table that arrives lands on the geometry it belongs to.
                     Client.considerServerTable(message.hasTable, message.tableFingerprint);
+                    // And after the rules are applied, whether this server is older than this client (0.9.228).
+                    Client.considerServerBuild(message.hasServerTail, message.serverProtocol, message.serverBuild);
                 }
             });
             return;

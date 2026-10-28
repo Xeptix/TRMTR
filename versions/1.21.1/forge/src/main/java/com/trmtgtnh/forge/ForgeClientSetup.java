@@ -99,6 +99,16 @@ public final class ForgeClientSetup {
                 .getItemColors());
 
         Trmt.LOG.info("Registered the golem's renderer and screen, and the tampers' grade property, with Forge");
+        // A fluid's still texture, for the settings screen's picture of a fluid with no bucket (0.9.228, spec 3.3):
+        // Forge 52's client fluid type extensions name it, on the block atlas.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTextures(
+            fluid -> net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid)
+                .getStillTexture());
+        // And its color, which the game's renderer multiplies that texture by (0.9.228): the same extensions' tint.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTints(
+            fluid -> net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid)
+                .getTintColor());
+
     }
 
     /**
@@ -111,6 +121,15 @@ public final class ForgeClientSetup {
      * its own registry - because what color worn grass is has nothing to do with which loader is
      * asking.
      */
+    /**
+     * The settings key, unbound until a player binds it (0.9.228; SettingsAccess). Here rather than beside the command
+     * in TrmtForgeClient: Forge 52 posts this on each mod's own bus, which that class does not listen on.
+     */
+    @SubscribeEvent
+    public static void keys(net.minecraftforge.client.event.RegisterKeyMappingsEvent event) {
+        event.register(com.trmtgtnh.client.gui.SettingsAccess.key());
+    }
+
     @SubscribeEvent
     public static void colors(net.minecraftforge.client.event.RegisterColorHandlersEvent.Block event) {
         event.getBlockColors()

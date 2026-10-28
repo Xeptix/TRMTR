@@ -1,4 +1,10 @@
 {
+    "conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": ["achievements", "reinforceEnabled"]
+        }
+    ],
     "parent": "trmtgtnh:trmt_reinforcing",
     "display": {
         "icon": {

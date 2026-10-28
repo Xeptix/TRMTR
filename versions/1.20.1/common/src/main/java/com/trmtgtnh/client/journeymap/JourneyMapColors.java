@@ -511,7 +511,13 @@ public final class JourneyMapColors {
         return highlightBy(darkenBy(blendToward(baseRgb, towardRgb, worn), worn), worn);
     }
 
-    private static int darkenBy(int rgb, float worn) {
+    /**
+     * A worn square's color darkened for how used it is, by {@code surfaces.mapWearDarkening}: the step a map takes
+     * after the material and before the path color. Public for the settings screen's color preview (0.9.228, spec
+     * M10.3), which draws its strip through the very calls a map makes, as the 1.7.10 edition's draws through
+     * {@code GhostRendering.mapColorFor}.
+     */
+    public static int darkenBy(int rgb, float worn) {
         float depth = TrmtConfig.mapWearDarkening;
         float keep = 1f - Math.min(Math.max(worn, 0f), 1f) * Math.min(Math.max(depth, 0f), 0.9f);
         int result = 0;
@@ -526,26 +532,13 @@ public final class JourneyMapColors {
     }
 
     private static int blendToward(int from, int to, float amount) {
-        float mix = amount < 0f ? 0f : (amount > 1f ? 1f : amount);
-        if (mix <= 0f) return from;
-        int result = 0;
-        for (int channel = 0; channel < 3; channel++) {
-            int shift = 16 - channel * 8;
-            int start = (from >>> shift) & 0xFF;
-            int end = (to >>> shift) & 0xFF;
-            int value = Math.round(start + (end - start) * mix);
-            if (value < 0) value = 0;
-            if (value > 255) value = 255;
-            result |= value << shift;
-        }
-        return result;
+        // The one arithmetic for the path color, shared with the settings screen's preview (0.9.228, spec M10.6).
+        return com.trmtgtnh.client.settings.ColorMath.mix(from, to, amount);
     }
 
     private static int highlightBy(int rgb, float worn) {
-        float strength = TrmtConfig.desirePathHighlight;
-        if (strength <= 0f) return rgb;
-        float clamped = worn < 0f ? 0f : (worn > 1f ? 1f : worn);
-        if (clamped <= 0f) return rgb;
-        return blendToward(rgb, TrmtConfig.desirePathRgb, (float) Math.sqrt(clamped) * Math.min(strength, 1f));
+        // The color picker's preview draws through the same call (0.9.228, spec M10.6), so the two cannot drift.
+        return com.trmtgtnh.client.settings.ColorMath
+            .highlight(rgb, TrmtConfig.desirePathRgb, TrmtConfig.desirePathHighlight, worn);
     }
 }

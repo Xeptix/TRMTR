@@ -30,8 +30,9 @@ config = "trmtgtnh-neoforge.mixins.json"
 [[dependencies.trmtgtnh]]
     modId = "neoforge"
     type = "required"
-    # The NeoForge line built for this game, as 1.21.1's jar asked for NeoForge 21.1 (gradle.properties: 26.3.0.94).
-    versionRange = "[26.3,)"
+    # The oldest NeoForge played with this jar, 0.9.228's floors (docs/DEPENDENCY-FLOORS.md in the 1.7.10 tree);
+    # built against 26.3.0.94 (gradle.properties). DeclaredFloorsAreTheFoundOnesTest holds it.
+    versionRange = "[26.3.0.0-beta,)"
     ordering = "NONE"
     side = "BOTH"
 

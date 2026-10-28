@@ -167,6 +167,29 @@ public class PacketServerRules implements IMessage {
 
     private int tamperReach = -1;
 
+    /** Guards the server tail, the seventh (0.9.228). */
+    private static final int SERVER_FORMAT = 1;
+
+    /**
+     * The server's own protocol and build, or -1 and null where an older server sent no server tail (0.9.228; Xep:
+     * "Add it, every edition"). Written after the switches, the last tail an older client reads, so a 0.9.227 client
+     * leaves it unread; and read by a newer client to tell its player, once a visit, that this server runs an older
+     * build (ServerBuild.older). The protocol is not moved for it: the wire's geometry did not change.
+     */
+    private int serverProtocol = -1;
+
+    private String serverBuild;
+
+    /** Guards the road tail, the eighth (0.9.228). */
+    private static final int ROAD_FORMAT = 1;
+
+    /**
+     * The server's Via Romana road gradation (integration.viaRomanaRoadGradation), or -1 where the server sent none
+     * - an older server, or an edition with no such setting, which writes 255 (0.9.228; Xep: "Send the server's
+     * value"). Via Romana charts roads on the client, so without it the client's own setting decided on a server.
+     */
+    int roadGradation = -1;
+
     public PacketServerRules() {}
 
     /** Captures the server's current rules. */
@@ -226,6 +249,9 @@ public class PacketServerRules implements IMessage {
         packet.settle = com.trmtgtnh.config.TrmtConfig.settleOnWornGround ? 1 : 0;
         packet.tamperSteps = com.trmtgtnh.config.TrmtConfig.chunkTamperMaxSteps;
         packet.tamperReach = com.trmtgtnh.config.TrmtConfig.chunkTamperMaxReach;
+        packet.serverProtocol = TrmtNetwork.PROTOCOL;
+        packet.serverBuild = com.trmtgtnh.Tags.VERSION;
+        packet.roadGradation = -1;
         return packet;
     }
 
@@ -355,6 +381,27 @@ public class PacketServerRules implements IMessage {
         settle = buf.readUnsignedByte() != 0 ? 1 : 0;
         tamperSteps = buf.readUnsignedByte();
         tamperReach = buf.readUnsignedByte();
+
+        // The server tail (0.9.228): a format byte, the server's protocol, and its build's name written as the decay
+        // mode is - a length byte, then its characters. Read only when all of the fixed part is there; the name is
+        // read guarded, so a tail cut short keeps what was read of it.
+        if (buf.readableBytes() < 6) return;
+        int serverFormat = buf.readUnsignedByte();
+        if (serverFormat < SERVER_FORMAT) return;
+        serverProtocol = buf.readInt();
+        int nameLength = buf.readUnsignedByte();
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; i < nameLength && buf.readableBytes() > 0; i++) {
+            name.append((char) buf.readByte());
+        }
+        serverBuild = name.toString();
+
+        // The road tail (0.9.228): a format byte and the server's road gradation, 255 for none.
+        if (buf.readableBytes() < 2) return;
+        int roadFormat = buf.readUnsignedByte();
+        if (roadFormat < ROAD_FORMAT) return;
+        int road = buf.readUnsignedByte();
+        roadGradation = road == 255 ? -1 : road;
     }
 
     @Override
@@ -425,7 +472,23 @@ public class PacketServerRules implements IMessage {
         buf.writeByte(settle > 0 ? 1 : 0);
         buf.writeByte(Math.max(0, Math.min(255, tamperSteps)));
         buf.writeByte(Math.max(0, Math.min(255, tamperReach)));
+
+        buf.writeByte(SERVER_FORMAT);
+        buf.writeInt(serverProtocol);
+        String build = serverBuild == null ? "" : serverBuild;
+        // As long as the update check reads a build's name, which is longer than any this project makes.
+        int buildLength = Math.min(build.length(), SERVER_BUILD_LONGEST);
+        buf.writeByte(buildLength);
+        for (int i = 0; i < buildLength; i++) {
+            buf.writeByte(build.charAt(i));
+        }
+
+        buf.writeByte(ROAD_FORMAT);
+        buf.writeByte(roadGradation < 0 ? 255 : Math.min(254, roadGradation));
     }
+
+    /** The longest server build name written: UpdateCheck's own limit on a build's name, 48. */
+    static final int SERVER_BUILD_LONGEST = 48;
 
     /** The server's pricing as the Wear Table wants it, or null when this server sent none. */
     private com.trmtgtnh.erosion.WearMath.Pricing pricing() {
@@ -510,6 +573,9 @@ public class PacketServerRules implements IMessage {
                             message.tamperReach));
                     // After the rules, so a table that arrives lands on the geometry it belongs to.
                     Trmt.proxy.considerServerTable(message.hasTable, message.tableFingerprint);
+                    // And after them, whether this server runs an older build, said once a visit (0.9.228).
+                    Trmt.proxy
+                        .considerServerBuild(message.serverBuild != null, message.serverProtocol, message.serverBuild);
                 }
             });
             return null;

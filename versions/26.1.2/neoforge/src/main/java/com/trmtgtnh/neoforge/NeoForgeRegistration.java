@@ -70,6 +70,18 @@ public final class NeoForgeRegistration {
         });
     }
 
+    /**
+     * The condition each advancement file loads on, {@code trmtgtnh:settings} (0.9.228, spec BP30, BP33): see
+     * {@link NeoForgeAdvancementSettings}. Its own registry's turn, as every other here.
+     */
+    @SubscribeEvent
+    public static void conditions(RegisterEvent event) {
+        event.register(
+            net.neoforged.neoforge.registries.NeoForgeRegistries.Keys.CONDITION_CODECS,
+            Identifier.fromNamespaceAndPath(Trmt.MODID, com.trmtgtnh.item.ModAchievements.SETTINGS_CONDITION),
+            () -> NeoForgeAdvancementSettings.CODEC);
+    }
+
     @SubscribeEvent
     public static void items(RegisterEvent event) {
         event.register(Registries.ITEM, (RegisterEvent.RegisterHelper<Item> helper) -> items(helper));

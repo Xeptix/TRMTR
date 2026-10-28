@@ -79,6 +79,13 @@ public final class FabricEvents {
             .register((handler, sender, server) -> ServerEvents.playerJoined(handler.player));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ServerEvents.playerLeft(handler.player));
 
+        // A player put into another dimension: the first square they are seen on there is not counted (0.9.228; Xep:
+        // "Skip that first square"; see ErosionEngine.arrived). The one way of moving a player that this version's
+        // server does without ServerGamePacketListenerImpl.teleport, MixinPlayerArrives's seam - ServerPlayer's
+        // changeDimension never calls it (read in this jar). Fabric has no teleport event at any version.
+        net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD
+            .register((player, from, to) -> com.trmtgtnh.erosion.ErosionEngine.get().arrived(player));
+
         // AFTER rather than BEFORE: the state is handed over as it was, and a break that something
         // else cancels should take no wear with it.
         PlayerBlockBreakEvents.AFTER

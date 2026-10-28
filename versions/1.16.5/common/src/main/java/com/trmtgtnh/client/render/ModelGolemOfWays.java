@@ -257,15 +257,20 @@ public class ModelGolemOfWays extends net.minecraft.client.model.EntityModel<Ent
     public void renderToBuffer(com.mojang.blaze3d.vertex.PoseStack pose,
         com.mojang.blaze3d.vertex.VertexConsumer into, int light, int overlay, float red, float green,
         float blue, float alpha) {
-        head.render(pose, into, light, overlay);
-        body.render(pose, into, light, overlay);
-        legLeft.render(pose, into, light, overlay);
-        legRight.render(pose, into, light, overlay);
-        armRight.render(pose, into, light, overlay);
-        armLeft.render(pose, into, light, overlay);
+        // The tint is passed on to every part, the mantle and the crown too (0.9.228; Xep: "Faint"). It is how an
+        // invisible golem a player may see - a spectator, or a player on its team - is drawn faint: the base renderer
+        // hands an alpha of 0.15 here and picks the translucent render type for it, as 1.7.10's
+        // RendererLivingEntity.renderModel draws such a mob at 0.15. Drawn through the four-argument render, each
+        // part went out white at full alpha whatever it was handed, and that golem was drawn solid.
+        head.render(pose, into, light, overlay, red, green, blue, alpha);
+        body.render(pose, into, light, overlay, red, green, blue, alpha);
+        legLeft.render(pose, into, light, overlay, red, green, blue, alpha);
+        legRight.render(pose, into, light, overlay, red, green, blue, alpha);
+        armRight.render(pose, into, light, overlay, red, green, blue, alpha);
+        armLeft.render(pose, into, light, overlay, red, green, blue, alpha);
 
-        if (fitted != GolemUpgrade.NONE) mantle.render(pose, into, light, overlay);
-        if (fitted.carriesTheSet()) crown.render(pose, into, light, overlay);
+        if (fitted != GolemUpgrade.NONE) mantle.render(pose, into, light, overlay, red, green, blue, alpha);
+        if (fitted.carriesTheSet()) crown.render(pose, into, light, overlay, red, green, blue, alpha);
     }
 
     /**

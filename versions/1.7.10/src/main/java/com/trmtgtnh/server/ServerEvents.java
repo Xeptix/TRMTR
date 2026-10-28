@@ -32,6 +32,7 @@ import com.trmtgtnh.network.TrmtNetwork;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.util.MainThread;
+import com.trmtgtnh.util.MobWear;
 
 import cpw.mods.fml.common.eventhandler.EventPriority;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -55,6 +56,9 @@ public final class ServerEvents {
 
     private int sampleCounter;
 
+    /** The per-chunk caps' counts, one set per server (0.9.228). */
+    private MobWear.Caps caps = new MobWear.Caps();
+
     private ServerEvents() {}
 
     public static ServerEvents get() {
@@ -72,25 +76,52 @@ public final class ServerEvents {
         if (!dueThisTick()) return;
 
         float multiplier = ErosionEngine.multiplierFor(event.player);
-        if (multiplier > 0f) ErosionEngine.get()
+        if (multiplier > 0f && admitted(event.player)) ErosionEngine.get()
             .onMoverTick(event.player, multiplier);
     }
 
     @SubscribeEvent
     public void onLivingUpdate(LivingEvent.LivingUpdateEvent event) {
-        // The lead switch and the mob list are two ways in, and multiplierFor asks each of them
-        // properly. Returning here on the lead switch alone shut the list off with it, so villagers
-        // stopped wearing paths the moment led animals were told not to. Skipped only when neither
-        // could answer, which keeps this event costing nothing on a pack that uses neither.
-        if (!TrmtConfig.erodeFromLeashedMobs && TrmtConfig.mobMultipliers.isEmpty()) return;
+        // The lead switch, the mob list and the three groups are each a way in, and multiplierFor asks each of them
+        // properly. Returning here on the lead switch alone shut the list off with it, so villagers stopped wearing
+        // paths the moment led animals were told not to. Skipped only when none could answer, which keeps this event
+        // costing nothing on a pack that uses none of them.
+        MobWear.Switches groups = TrmtConfig.mobSwitches;
+        if (!TrmtConfig.erodeFromLeashedMobs && TrmtConfig.mobMultipliers.isEmpty()
+            && !groups.hostile
+            && !groups.passive
+            && !groups.villagers) return;
         EntityLivingBase entity = event.entityLiving;
         if (entity == null || entity.worldObj == null || entity.worldObj.isRemote) return;
         if (entity instanceof net.minecraft.entity.player.EntityPlayer) return; // handled above
         if (!dueThisTick()) return;
 
         float multiplier = ErosionEngine.multiplierFor(entity);
-        if (multiplier > 0f) ErosionEngine.get()
+        if (multiplier > 0f && admitted(entity)) ErosionEngine.get()
             .onMoverTick(entity, multiplier);
+    }
+
+    /**
+     * Whether this mover may wear the ground this round, under its kind's per-chunk cap (0.9.228; Xep: "Movers per
+     * chunk"): asked only of a mover with a weight above nought, on each sampled tick - the round, every mover asked
+     * on the same tick - in the chunk it stands in. A kind whose cap is off is always let through. Not asked of a
+     * fall, which is one landing rather than a crowd.
+     */
+    private boolean admitted(EntityLivingBase mover) {
+        int kind = ErosionEngine.capKindOf(mover);
+        return caps.admit(
+            sampleCounter,
+            MobWear.Caps.chunk(
+                mover.worldObj.provider.dimensionId,
+                MathHelper.floor_double(mover.posX) >> 4,
+                MathHelper.floor_double(mover.posZ) >> 4),
+            kind,
+            TrmtConfig.capFor(kind));
+    }
+
+    /** The server stopped: its caps' counts go with it. */
+    public void serverStopped() {
+        caps = new MobWear.Caps();
     }
 
     /**
@@ -377,28 +408,18 @@ public final class ServerEvents {
         // spared block is neither destroyed nor counted as ground about to be.
         spareReinforced(world, event);
         if (!TrmtConfig.enabled || !TrmtConfig.explosionWear) return;
-        // Gathered here because this event is the one moment the list exists: Forge fires it
-        // from doExplosionA, with every affected block still standing and about to be taken by
-        // doExplosionB. Scouring ground that is air a moment later spends a chunk's entry
-        // budget on positions nobody will ever see.
-        java.util.Set<Long> doomed = new java.util.HashSet<Long>();
-        java.util.List<?> affected = event.getAffectedBlocks();
-        if (affected != null) {
-            for (Object entry : affected) {
-                if (!(entry instanceof net.minecraft.world.ChunkPosition)) continue;
-                net.minecraft.world.ChunkPosition at = (net.minecraft.world.ChunkPosition) entry;
-                doomed.add(Long.valueOf(ErosionEngine.packPosition(at.chunkPosX, at.chunkPosY, at.chunkPosZ)));
-            }
-        }
-
+        // Remembered, not scoured: Forge fires this from doExplosionA, with every affected block
+        // still standing and about to be taken by doExplosionB, and ground scoured now is ground
+        // under a block that is gone a moment later - sheltered by it, so the crater's floor and
+        // walls came out unworn. The engine scours it at the end of this tick, once the blocks
+        // have gone (0.9.228; ErosionEngine.blastLater).
         ErosionEngine.get()
-            .blast(
+            .blastLater(
                 world,
                 event.explosion.explosionX,
                 event.explosion.explosionY,
                 event.explosion.explosionZ,
-                event.explosion.explosionSize,
-                doomed);
+                com.trmtgtnh.util.ExplosionSize.inDetonate(event.explosion));
     }
 
     /** Whether a spared block has been reported yet, so the log says it once a session. */
@@ -426,7 +447,7 @@ public final class ServerEvents {
         if (!TrmtConfig.reinforceEnabled || event.explosion == null) return;
         java.util.List<?> affected = event.getAffectedBlocks();
         if (affected == null || affected.isEmpty()) return;
-        float size = event.explosion.explosionSize;
+        float size = com.trmtgtnh.util.ExplosionSize.inDetonate(event.explosion);
         int spared = 0;
         for (java.util.Iterator<?> it = affected.iterator(); it.hasNext();) {
             Object entry = it.next();

@@ -5,6 +5,7 @@ import java.util.Map;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
 import com.trmtgtnh.config.TrmtConfig;
@@ -71,6 +72,29 @@ public final class SnowCover {
         } catch (RuntimeException awkwardBlock) {
             return false;
         }
+    }
+
+    /**
+     * Whether the block at this position is a full drift that the settings make solid ground (0.9.228).
+     *
+     * <p>
+     * Asked beside {@code isOpaqueCube()} at every question of cover - natural wear, the tamper, the golem, the
+     * painter, wear drops and the showcase - with the position of the block above the ground. A snow layer is never an
+     * opaque cube in this edition, at eight layers as at one, so on its own that test lets every drift through; that
+     * is the rule, and with {@code weather.fullSnowDriftsSolid} off, the default, this answers false and changes
+     * nothing. On, a drift of eight layers answers as a solid block would, which is how the 1.16.5 and later editions
+     * treated one before 0.9.228 - so a pack setting it gets the same world in every edition. Seven layers or fewer
+     * never shelter. Read on the server only: the painter asks it too, but under a full drift the ground's top face is
+     * hidden by the drift itself, so a client's own copy of the setting changes nothing that can be seen.
+     */
+    public static boolean shelters(IBlockAccess world, int x, int y, int z) {
+        if (!TrmtConfig.fullSnowDriftsSolid || world == null || y < 0 || y > 255) return false;
+        return isSnowLayer(world.getBlock(x, y, z)) && fullDrift(world.getBlockMetadata(x, y, z));
+    }
+
+    /** Whether a snow layer's metadata is eight layers: the low three bits count the layers above the first. */
+    static boolean fullDrift(int meta) {
+        return (meta & 7) == 7;
     }
 
     /** Whether snow is lying on the square at this position. */

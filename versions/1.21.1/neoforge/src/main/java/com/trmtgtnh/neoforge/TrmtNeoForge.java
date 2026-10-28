@@ -49,15 +49,13 @@ public final class TrmtNeoForge {
                 .toString());
         // This jar's line in the update check's version file, whether this is a development game - which only the
         // loader can say - and the mods this jar requires. See UpdateNotice. A line of its own: no edition before this
-        // one had a NeoForge jar, so there is no older line it could share. Cloth's NeoForge jar calls itself
-        // cloth_config, as its Forge jar does, so Forge's list of required mods is this jar's too.
+        // one had a NeoForge jar, so there is no older line it could share. None required from 0.9.228: Cloth Config,
+        // the one mod this jar named, is optional (decided) - its screen where it is installed, this mod's own otherwise.
         com.trmtgtnh.server.UpdateNotice
             .edition(
                 "1.21.1-neoforge",
                 !FMLEnvironment.production,
-                // Cloth Config only on a client (0.9.227): this jar declares it side = CLIENT, so a dedicated server
-                // without it is a whole one, and /trmt version there said it was missing a mod this mod needs.
-                FMLEnvironment.dist.isClient() ? com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE : new String[0][]);
+                new String[0][]);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> ModList.get()

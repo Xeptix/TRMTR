@@ -58,7 +58,7 @@ public final class ExtraRecipes {
     private ExtraRecipes() {}
 
     /** What this mod wants added, built once when the recipes are first asked for. */
-    private static Map<Identifier, Recipe<?>> ours;
+    private static volatile Map<Identifier, Recipe<?>> ours;
 
     /**
      * A {@code RecipeManager} that can be asked to take this mod's recipes again.
@@ -231,33 +231,118 @@ public final class ExtraRecipes {
      * with it.
      */
     private static Map<Identifier, Recipe<?>> build(HolderLookup.Provider registries) {
-        ours = new LinkedHashMap<Identifier, Recipe<?>>();
+        // Filled, then published whole (0.9.228): a reload builds on its background thread from 26.3, and the
+        // suggestions below read the last build on the server's, so nobody reads a map while it is filled.
+        Map<Identifier, Recipe<?>> built = new LinkedHashMap<Identifier, Recipe<?>>();
         try {
-            ModRecipes.register((id, recipe) -> ours.put(id, recipe), registries);
+            ModRecipes.register((id, recipe) -> built.put(id, recipe), registries);
         } catch (RuntimeException awkward) {
             // One bad recipe must not cost a world its whole recipe book. Whatever was collected
             // before the throw is kept, and the rest is named.
             Trmt.error("Stopped building this mod's recipes part way through", awkward);
         }
-        return ours;
+        ours = built;
+        return built;
+    }
+
+    /** The ids of this mod's recipes as last built, read only: empty before the first build. */
+    public static java.util.Set<Identifier> builtIds() {
+        Map<Identifier, Recipe<?>> built = ours;
+        return built == null ? java.util.Collections.<Identifier>emptySet()
+            : java.util.Collections.unmodifiableSet(built.keySet());
     }
 
     /**
-     * A recipe map of these holders, by type and by key, as 26.2's {@code RecipeMap.create(Iterable)} made it - the
-     * same two builders, filled in the same order. 26.3's {@code create} takes the registry's lookup instead, so the
-     * map's own constructor is reached through {@link com.trmtgtnh.mixin.RecipeMapMaker}.
+     * What {@code /recipe} suggests for a recipe argument, with this mod's own recipes in it - or null to leave the
+     * game's answer as it is (0.9.228; Xep: "Add a small hook").
+     *
+     * <p>
+     * From 26.3 a recipe argument is completed from the recipe registry ({@code CommandSourceStack
+     * .suggestRegistryElements}, five arguments, asking {@code getLookup}), which holds a pack's files and not what this
+     * mod adds to the manager; 26.2's answered from the manager. So the ids this mod last built that the server's
+     * manager holds are added to the very builder the game filled, and the two come back as one answer, a name the
+     * game suggested too counted once. Only for the recipe registry, and only where elements are asked for. A client
+     * asks the server for these, so single player and multiplayer are answered alike; a lost hook costs a suggestion,
+     * never a recipe.
+     */
+    public static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestions(
+        net.minecraft.resources.ResourceKey<?> registry, net.minecraft.commands.SharedSuggestionProvider.ElementSuggestionType type,
+        com.mojang.brigadier.suggestion.SuggestionsBuilder builder, net.minecraft.server.MinecraftServer server) {
+        if (!net.minecraft.core.registries.Registries.RECIPE.equals(registry) || builder == null || server == null) return null;
+        if (type != null && !type.shouldSuggestElements()) return null;
+        RecipeManager manager = server.getRecipeManager();
+        List<Identifier> held = new ArrayList<Identifier>();
+        for (Identifier id : builtIds()) {
+            if (manager.byKey(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, id))
+                .isPresent()) held.add(id);
+        }
+        if (held.isEmpty()) return null;
+        return net.minecraft.commands.SharedSuggestionProvider.suggestResource(held.stream(), builder);
+    }
+
+    /**
+     * A recipe map of these holders, by type and by key, made by the game's own {@code RecipeMap.create} (0.9.228).
+     *
+     * <p>
+     * 26.3's {@code create} takes the recipe registry's lookup, where 26.2's took the holders. It reads only the
+     * lookup's elements, and makes each holder from an element's key and value (read from 26.3), so it is handed a
+     * lookup over the holders in hand ({@link Held}). Until 0.9.228 the map's private constructor was reached instead
+     * (RecipeMapMaker), which skipped every mixin a mod puts on {@code create}: Fabric API attaches its index of
+     * recipes by synchronized serializer there and reads it with no null check, so a Fabric server whose client asked
+     * for a synchronized serializer - a recipe viewer's request - threw inside the sync after this mod's recipes were
+     * added. The same two builders, filled in the same order, as before.
      */
     public static net.minecraft.world.item.crafting.RecipeMap mapOf(java.util.Collection<RecipeHolder<?>> all) {
-        com.google.common.collect.ImmutableMultimap.Builder<net.minecraft.world.item.crafting.RecipeType<?>, RecipeHolder<?>> byType =
-            com.google.common.collect.ImmutableMultimap.builder();
-        com.google.common.collect.ImmutableMap.Builder<net.minecraft.resources.ResourceKey<Recipe<?>>, RecipeHolder<?>> byKey =
-            com.google.common.collect.ImmutableMap.builder();
-        for (RecipeHolder<?> each : all) {
-            byType.put(each.value()
-                .getType(), each);
-            byKey.put(each.id(), each);
+        return net.minecraft.world.item.crafting.RecipeMap.create(new Held(all));
+    }
+
+    /**
+     * The holders in hand as a recipe registry's lookup, which is what 26.3's {@code RecipeMap.create} is handed: their
+     * elements, in order, and nothing else - no element is found by key and there are no tags.
+     */
+    private static final class Held implements HolderLookup<Recipe<?>> {
+
+        private final List<net.minecraft.core.Holder.Reference<Recipe<?>>> elements;
+
+        Held(java.util.Collection<RecipeHolder<?>> all) {
+            elements = new ArrayList<net.minecraft.core.Holder.Reference<Recipe<?>>>(all.size());
+            for (RecipeHolder<?> each : all) elements.add(new Element(this, each.id(), each.value()));
         }
-        return com.trmtgtnh.mixin.RecipeMapMaker.trmt$make(byType.build(), byKey.build());
+
+        @Override
+        public java.util.stream.Stream<net.minecraft.core.Holder.Reference<Recipe<?>>> listElements() {
+            return elements.stream();
+        }
+
+        @Override
+        public java.util.stream.Stream<net.minecraft.core.HolderSet.Named<Recipe<?>>> listTags() {
+            return java.util.stream.Stream.empty();
+        }
+
+        @Override
+        public java.util.Optional<net.minecraft.core.Holder.Reference<Recipe<?>>> get(
+            net.minecraft.resources.ResourceKey<Recipe<?>> key) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<net.minecraft.core.HolderSet.Named<Recipe<?>>> get(
+            net.minecraft.tags.TagKey<Recipe<?>> tag) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
+     * One holder's recipe as a stand-alone registry element, bound to its value as it is made. The game's own
+     * {@code Holder.Reference} constructor, protected, reached by a subclass - where a stand-alone reference made by
+     * {@code createStandAlone} would need its protected {@code bindValue} reached as well.
+     */
+    private static final class Element extends net.minecraft.core.Holder.Reference<Recipe<?>> {
+
+        Element(net.minecraft.core.HolderOwner<Recipe<?>> owner, net.minecraft.resources.ResourceKey<Recipe<?>> key,
+            Recipe<?> value) {
+            super(net.minecraft.core.Holder.Reference.Type.STAND_ALONE, owner, key, value);
+        }
     }
 
     /**

@@ -31,10 +31,12 @@ import com.trmtgtnh.config.TrmtConfig;
  *
  * <p>
  * The other edition refuses to register an achievement for a feature the config has switched off, so
- * that nothing unreachable sits on the page. A JSON file cannot be registered conditionally, so all
- * sixteen are always there and the refusal moved here instead: a switch that is off means the grant
- * never happens. The page shows one more unearned line than it used to; nothing can be earned that
- * the switches have closed.
+ * that nothing unreachable sits on the page. From 0.9.228 the files do the same (BP30, BP33; Xep: "Match
+ * 1.7.10"): each names the switches it needs in a {@code trmtgtnh:settings} condition, which Forge asks
+ * as it loads the file and skips the file when one is off ({@link AdvancementSettings}) - so with
+ * achievements off there is no tab, and with them on nothing shows that the pack cannot reach. Until
+ * then this edition said a JSON file could not be registered conditionally, which its own Forge
+ * contradicts, and the refusal lived only in the grant below, which still stands.
  */
 public final class ModAchievements {
 
@@ -55,6 +57,79 @@ public final class ModAchievements {
     public static final ResourceLocation LIBRARY = id("trmt_library");
 
     private ModAchievements() {}
+
+    // ------------------------------------------------------------------
+    // Which files load (0.9.228)
+    // ------------------------------------------------------------------
+
+    /**
+     * The switches each file loads on beyond general.achievements, which every one of them needs - 1.7.10's rule for
+     * registering the achievement it stands for: a mode and its book with that mode's switch, the golem with the
+     * golem's, All Ways with the upgrades' as well; the tools, the guides read and the shelf with achievements alone,
+     * whatever the golem switches say, as 1.7.10 makes one for every guide that exists. A child names its parent's
+     * switches too, because vanilla drops a child whose parent was not loaded, with a warning.
+     */
+    private static final java.util.Map<String, String[]> SWITCHES = new java.util.LinkedHashMap<String, String[]>();
+
+    static {
+        for (String always : new String[] { "trmt_tamper", "trmt_chunk_tamper", "trmt_wayfarer", "trmt_read_mk1",
+            "trmt_read_mk2", "trmt_read_commands", "trmt_read_golem", "trmt_library" }) {
+            SWITCHES.put(always, new String[0]);
+        }
+        SWITCHES.put("trmt_reinforcing", new String[] { "reinforceEnabled" });
+        SWITCHES.put("trmt_book_reinforce", new String[] { "reinforceEnabled" });
+        SWITCHES.put("trmt_lighting", new String[] { "lightEnabled" });
+        SWITCHES.put("trmt_book_light", new String[] { "lightEnabled" });
+        SWITCHES.put("trmt_warding", new String[] { "wardEnabled" });
+        SWITCHES.put("trmt_book_ward", new String[] { "wardEnabled" });
+        SWITCHES.put("trmt_golem", new String[] { "golemEnabled" });
+        SWITCHES.put("trmt_omni", new String[] { "golemEnabled", "golemUpgrades" });
+    }
+
+    /** Every switch a file may name, achievements first. */
+    static final String[] KNOWN = { "achievements", "reinforceEnabled", "lightEnabled", "wardEnabled", "golemEnabled",
+        "golemUpgrades" };
+
+    /** The switches one file must find on, achievements first; null for a file this mod does not ship. */
+    public static java.util.List<String> switchesFor(String file) {
+        String[] own = SWITCHES.get(file);
+        if (own == null) return null;
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        out.add("achievements");
+        out.addAll(java.util.Arrays.asList(own));
+        return out;
+    }
+
+    /** Whether one of this mod's advancement files loads, as the switches stand: the rule every condition asks. */
+    public static boolean loads(String file) {
+        java.util.List<String> needed = switchesFor(file);
+        return needed != null && allOn(needed);
+    }
+
+    /** Whether every one of these switches is on. */
+    public static boolean allOn(java.util.Collection<String> settings) {
+        for (String setting : settings) {
+            if (!on(setting)) return false;
+        }
+        return true;
+    }
+
+    /** Whether a file may name this switch. */
+    static boolean known(String setting) {
+        return java.util.Arrays.asList(KNOWN)
+            .contains(setting);
+    }
+
+    /** One switch, by the name a file gives it. */
+    static boolean on(String setting) {
+        if ("achievements".equals(setting)) return TrmtConfig.achievements;
+        if ("reinforceEnabled".equals(setting)) return TrmtConfig.reinforceEnabled;
+        if ("lightEnabled".equals(setting)) return TrmtConfig.lightEnabled;
+        if ("wardEnabled".equals(setting)) return TrmtConfig.wardEnabled;
+        if ("golemEnabled".equals(setting)) return TrmtConfig.golemEnabled;
+        if ("golemUpgrades".equals(setting)) return TrmtConfig.golemUpgrades;
+        return false;
+    }
 
     private static ResourceLocation id(String name) {
         return new ResourceLocation(Trmt.MODID, name);

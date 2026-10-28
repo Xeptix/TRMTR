@@ -47,6 +47,15 @@ public final class ForgeRegistration {
      * came back through here too while the rendering spike had a placeable ghost; see
      * {@code ModBlocks.register} for what became of it.
      */
+    /**
+     * The {@code trmtgtnh:settings} condition every advancement file names, put into the loader's condition registry
+     * (0.9.228, BP30, BP33): see {@code ForgeConditions}.
+     */
+    @SubscribeEvent
+    public static void conditions(RegisterEvent event) {
+        ForgeConditions.register(event);
+    }
+
     @SubscribeEvent
     public static void blocks(RegisterEvent event) {
         event.register(Registries.BLOCK, (RegisterEvent.RegisterHelper<Block> helper) -> {

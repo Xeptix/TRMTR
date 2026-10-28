@@ -45,6 +45,24 @@ subprojects {
         }
     }
 
+    // Every @Redirect's `at` written as one annotation, never as a list of one (0.9.228, step 9; Xep, told the Fabric
+    // jars crashed at startup on every Fabric Loader before 0.19.5: "if we can do the mixins in a way where it
+    // satisfies old and new, that would be the most ideal"). Fabric's Mixin from 0.17.4 - which Fabric Loader 0.19.5
+    // brings - declares Redirect.at as At[] where every Mixin before it declared one At, so javac compiling against it
+    // writes each @Redirect's `at` as an array. The MixinExtras older loaders bundle (0.5.0 to 0.5.4, Fabric Loader 0.17
+    // to 0.19.4) read that value as one annotation in FactoryRedirectWrapperMixinTransformer, and the game dies before
+    // its window with "ArrayList cannot be cast to AnnotationNode" - here on LivingEntity, the first class one of these
+    // redirects meets. Compiled against 0.17.3, the last whose Redirect.at is one At, the value is one annotation, which
+    // every reader takes: every Mixin asks for it as a list and wraps a single one (InjectionInfo), and MixinExtras 0.5.5
+    // does the same. Only what javac and the annotation processor see is moved; the game runs on whatever Mixin its
+    // loader brings. RedirectAtIsOneAnnotationTest reads every module's classes for it.
+    configurations.configureEach {
+        def named = name.toLowerCase()
+        if (named.endsWith("compileclasspath") || named.contains("annotationprocessor")) {
+            resolutionStrategy.force "net.fabricmc:sponge-mixin:0.17.3+mixin.0.8.7"
+        }
+    }
+
     dependencies {
         minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
         mappings loom.layered() {
@@ -112,5 +130,13 @@ allprojects {
         javaLauncher = javaToolchains.launcherFor {
             languageVersion = JavaLanguageVersion.of(21)
         }
+    }
+}
+
+// RedirectAtIsOneAnnotationTest reads the classes of every module, not common's alone, so the loader modules are
+// compiled before common's tests run - or the guard would read an empty folder and pass.
+project(":common") {
+    tasks.named("test") {
+        dependsOn(rootProject.subprojects.findAll { it.name != "common" }.collect { it.path + ":classes" })
     }
 }

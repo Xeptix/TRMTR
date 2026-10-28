@@ -64,6 +64,12 @@ public final class Client {
 
         void considerServerTable(boolean sent, long fingerprint);
 
+        /**
+         * A server's rules said which build it runs, or said nothing of it (0.9.228): a newer client tells its player
+         * once a visit that the server runs an older build.
+         */
+        void considerServerBuild(boolean sent, int protocol, String build);
+
         void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm);
 
         // ---- screens and readouts ----
@@ -72,6 +78,12 @@ public final class Client {
             int recoverySeconds, int chainIndex, int chainLength, int reinforce, int ward);
 
         void openSnapshotScreen(int flags);
+
+        /**
+         * This client has asked for the snapshot screen, so the answer to it may open it (0.9.228, CF79, CF81): a
+         * gesture with the tool is answered the same way and opens nothing.
+         */
+        void askedForSnapshotScreen();
 
         /**
          * Opens one of the guide books, by its place in {@code GuideBook}.
@@ -263,6 +275,11 @@ public final class Client {
         if (at != null) at.considerServerTable(sent, fingerprint);
     }
 
+    public static void considerServerBuild(boolean sent, int protocol, String build) {
+        Side at = reaching();
+        if (at != null) at.considerServerBuild(sent, protocol, build);
+    }
+
     public static void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm) {
         Side at = reaching();
         if (at != null) at.installServerTable(fingerprint, holdsSwitch, bytes, keysCarryForm);
@@ -285,6 +302,11 @@ public final class Client {
                 reinforce,
                 ward);
         }
+    }
+
+    public static void askedForSnapshotScreen() {
+        Side at = reaching();
+        if (at != null) at.askedForSnapshotScreen();
     }
 
     public static void openSnapshotScreen(int flags) {

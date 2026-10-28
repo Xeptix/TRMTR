@@ -1,39 +1,36 @@
 package com.trmtgtnh.client.gui;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import net.minecraft.entity.EntityList;
-import net.minecraft.init.Items;
-import net.minecraft.item.ItemMonsterPlacer;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.item.ItemStack;
-
 import net.minecraftforge.fml.client.config.GuiEditArray;
 import net.minecraftforge.fml.client.config.GuiEditArrayEntries;
 import net.minecraftforge.fml.client.config.IConfigElement;
 
 /**
- * A row in Forge's array editor that shows the named mob's spawn egg beside its name.
+ * A row in Forge's array editor that shows the mob its line names beside the line.
  *
  * <p>
- * The same idea as {@link BlockIconArrayEntry} and for the same reason: a list of entity names is
- * a list of strings you cannot check by looking at. A spawn egg is the cheapest honest picture of
- * a mob there is - it is an ordinary item, so it goes through the drawing this already does for
- * blocks, with none of the cost or the risk of rendering a live entity inside a config screen
- * that may have no world behind it.
+ * The same idea as {@link BlockIconArrayEntry} and for the same reason: a list of entity names is a list of strings you
+ * cannot check by looking at. From 0.9.228 it draws what the own screen's mob list page draws ({@link MobPicture}): the
+ * mob itself, drawn small, where there is a world to make one in; else its spawn egg; else this mod's own generic egg -
+ * so a mob a mod registered without an egg, which most of a large pack's are, no longer shows its name alone. A name
+ * nothing answers to shows nothing.
  *
  * <p>
- * Mobs a mod registered without claiming a global id have no egg, and show their name alone.
- * That is the same answer this gives for a name nothing recognises, which is a little
- * unsatisfying and still better than a missing-texture square.
+ * Forge's screen keeps its text rows, as the decisions have it: the number stays part of the line here
+ * ({@code Villager:1.5}), and the own screen is where each row has a field of its own for it. A row Forge's editor adds
+ * is made with this class as well at this version - its {@code addNewEntry} asks the setting's array entry class - and
+ * its picture follows its text from the next frame ({@link RowPicture}), so a mob typed into a new row shows at once.
  */
 public class MobIconArrayEntry extends GuiEditArrayEntries.StringEntry {
 
-    private static final Map<String, ItemStack> RESOLVED = new HashMap<String, ItemStack>();
+    /** The mob the row's line names, worked out again whenever the line changes. */
+    private final RowPicture<MobPicture.Resolved> picture = new RowPicture<MobPicture.Resolved>(
+        new RowPicture.Resolve<MobPicture.Resolved>() {
 
-    private String lastText;
-    private ItemStack icon;
+            @Override
+            public MobPicture.Resolved of(String text) {
+                return MobPicture.resolve(nameOf(text));
+            }
+        });
 
     public MobIconArrayEntry(GuiEditArray owningScreen, GuiEditArrayEntries owningEntryList,
         IConfigElement configElement, Object value) {
@@ -46,59 +43,13 @@ public class MobIconArrayEntry extends GuiEditArrayEntries.StringEntry {
         super.drawEntry(slotIndex, x, y, listWidth, slotHeight, mouseX, mouseY, isSelected, partialTicks);
 
         String text = this.textFieldValue.getText();
-        if (lastText == null || !lastText.equals(text)) {
-            lastText = text;
-            icon = resolve(text);
-        }
-        if (icon == null) return;
-        BlockIconArrayEntry.drawIcon(lastText.trim(), icon, listWidth / 4 - 18, y);
+        MobPicture.Resolved resolved = picture.of(text);
+        if (!resolved.known()) return;
+        MobPicture.draw(nameOf(text), resolved, listWidth / 4 - 18, y);
     }
 
-    /** Turns one config line into a spawn egg, or null when there is nothing to show. */
-    private static ItemStack resolve(String raw) {
-        if (raw == null) return null;
-        String entry = raw.trim();
-        if (entry.isEmpty()) return null;
-
-        // The line may carry a multiplier after a colon; the name is what identifies the mob.
-        int colon = entry.lastIndexOf(':');
-        if (colon > 0) entry = entry.substring(0, colon)
-            .trim();
-        if (entry.isEmpty() || "*".equals(entry)) return null;
-
-        if (RESOLVED.containsKey(entry)) return RESOLVED.get(entry);
-        if (RESOLVED.size() > 256) RESOLVED.clear();
-
-        ItemStack stack = build(entry);
-        RESOLVED.put(entry, stack);
-        return stack;
-    }
-
-    private static ItemStack build(String name) {
-        try {
-            // One walk of the entity registry rather than three map lookups, and it answers
-            // both questions at once: the old-style name this mod matches on, and the key
-            // an egg is stamped with. Names are matched without regard to case where they
-            // are used, so the picture does not insist on it either.
-            for (net.minecraftforge.fml.common.registry.EntityEntry known
-                : net.minecraftforge.fml.common.registry.ForgeRegistries.ENTITIES) {
-                if (known.getName() == null || !known.getName()
-                    .equalsIgnoreCase(name)) {
-                    continue;
-                }
-                ResourceLocation key = known.getRegistryName();
-                // Mobs registered without an egg show their name alone, which is the same
-                // answer this gives for a name nothing recognises.
-                if (key == null || !EntityList.ENTITY_EGGS.containsKey(key)) return null;
-                // The mob is in the egg's data now rather than in its damage value, which
-                // is the whole of what changed about spawn eggs between the two versions.
-                ItemStack egg = new ItemStack(Items.SPAWN_EGG);
-                ItemMonsterPlacer.applyEntityIdToItemStack(egg, key);
-                return egg;
-            }
-            return null;
-        } catch (Throwable awkwardEntity) {
-            return null;
-        }
+    /** The name a line names its mob by: the line without its multiplier. */
+    static String nameOf(String line) {
+        return MobRows.nameOf(line);
     }
 }

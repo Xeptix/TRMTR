@@ -93,10 +93,13 @@ public final class WearRestitch {
             return;
         }
         if (restitchIn <= 0) {
+            // The 1.7.10 edition's words, in every edition (0.9.228, spec WP67; Xep: "one wording in every edition - up
+            // to half a minute"): a rebuild of the wear pictures on a large pack takes that long, and "a moment" told a
+            // player their game had hung.
             tell(
                 net.minecraft.ChatFormatting.GRAY + "[TRMT] "
                     + restitchWanted
-                    + " Rebuilding them now - the game will stop responding for a moment.");
+                    + " Rebuilding them now - the game will stop responding for up to half a minute.");
             restitchIn = RESTITCH_DELAY;
             return;
         }

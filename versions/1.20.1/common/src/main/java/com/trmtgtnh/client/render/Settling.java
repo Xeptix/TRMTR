@@ -79,6 +79,22 @@ public final class Settling {
         int origin = com.trmtgtnh.Client.ghostOriginAt(below.getX(), below.getY(), below.getZ());
         short record = com.trmtgtnh.Client.ghostRecordAt(level, below.getX(), below.getY(), below.getZ());
         int outline = BlockGhost.outlineAt(level, below, origin);
+        return dropOver(record, origin, outline);
+    }
+
+    /**
+     * The drop over one ghost, from its record, the block it stands in for and its outline: {@link #dropFor}'s
+     * arithmetic, apart from the world so it can be asked of a record alone.
+     *
+     * <p>
+     * <strong>A covered stair never settles</strong> (0.9.228; Xep: "Covered stair never settles"). A worn stair is
+     * drawn and stood on as the stair it covers and is never hollowed (CS18, CS19), so snow or a carpet resting on one
+     * has nothing to come down into - its picture and its box stay at the stair's own top. Asked of the stair the ghost
+     * stands in for, because a client holds the ghost and not the stair; the server's
+     * {@code PhysicalDecay.groundDropUnder} asks the same of the real block, and the two sides give the same nought.
+     */
+    public static double dropOver(short record, int origin, int outline) {
+        if (BlockGhost.coveredStair(origin) != null) return 0.0D;
         double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
         return drop > 0.0D ? drop : 0.0D;
     }

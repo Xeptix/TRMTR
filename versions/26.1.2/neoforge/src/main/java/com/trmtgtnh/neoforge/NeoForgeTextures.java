@@ -12,6 +12,7 @@ import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.TextureAtlasStitchedEvent;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.client.render.SettledModel;
 import com.trmtgtnh.client.texture.WearTextures;
 
 /**
@@ -60,6 +61,28 @@ public final class NeoForgeTextures {
             replaced++;
         }
         Trmt.LOG.info("Put the ghost model in place of {} baked variant(s)", Integer.valueOf(replaced));
+    }
+
+    /**
+     * Wraps the baked model of every block that rests on the ground - snow and carpet - so it is drawn down with the
+     * ground worn away under it, asked with the view it is meshed in (0.9.228; see SettledModel). Every state of such a
+     * block, whatever the settling switch says now, because the models stay baked while a server's rules change it.
+     */
+    @SubscribeEvent
+    public static void settleModels(ModelEvent.ModifyBakingResult event) {
+        SettledModel.forget();
+        SettledModel.useMover(SettledModelNeoForge::move);
+        int wrapped = 0;
+        java.util.Map<BlockState, BlockStateModel> models = event.getBakingResult()
+            .blockStateModels();
+        for (BlockState each : new java.util.ArrayList<BlockState>(models.keySet())) {
+            if (!SettledModel.wraps(each)) continue;
+            BlockStateModel baked = models.get(each);
+            if (baked == null || baked instanceof SettledModelNeoForge) continue;
+            models.put(each, new SettledModelNeoForge(baked));
+            wrapped++;
+        }
+        Trmt.LOG.info("Wrapped {} baked model(s) of blocks that settle onto worn ground", Integer.valueOf(wrapped));
     }
 
     /** Resolves the planned names into the atlas's own sprites, now that there are some. */

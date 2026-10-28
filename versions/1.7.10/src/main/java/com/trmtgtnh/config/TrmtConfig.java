@@ -18,6 +18,7 @@ import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.erosion.PhysicalDecay;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.util.MobEntries;
+import com.trmtgtnh.util.MobWear;
 
 import cpw.mods.fml.client.event.ConfigChangedEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -323,6 +324,84 @@ public final class TrmtConfig {
     public static boolean erodeFromPlayers = true;
     public static boolean erodeFromLeashedMobs = true;
 
+    /**
+     * Which loose mobs wear the ground (0.9.228; Xep, 2026-10-20, docs/goals/0.9.228-decisions.md, "Which mobs wear
+     * the
+     * ground"): every monster, every other mob, villagers, and the mobs the curated list names, each with its own
+     * switch.
+     * A new config, or one reset to its defaults, has all four on; a config from before 0.9.228 is read into them so it
+     * wears exactly as it did ({@link #mobWearUpgrade}). Named as the settings are, so the harness's settings round
+     * trip
+     * can hold each field to its setting.
+     */
+    public static boolean fromHostileMobs = true;
+
+    public static boolean fromPassiveMobs = true;
+
+    public static boolean fromVillagers = true;
+
+    public static boolean fromCustom = true;
+
+    /** Each group's multiplier of a player's step. */
+    public static float multiplierHostile = MobWear.HOSTILE_DEFAULT;
+
+    public static float multiplierPassive = MobWear.PASSIVE_DEFAULT;
+
+    public static float multiplierVillager = MobWear.VILLAGER_DEFAULT;
+
+    /**
+     * The four switches and the three multipliers as one, rebuilt whole on every read, so the engine reads one
+     * consistent set however a reload lands.
+     */
+    public static volatile MobWear.Switches mobSwitches = MobWear.Switches.fresh();
+
+    /**
+     * The per-chunk caps (Xep: "Movers per chunk"), each a switch, off in a new config, and a number, 8: at most so
+     * many
+     * movers of a kind wear the ground in one chunk at a time.
+     */
+    public static boolean capPlayers = false;
+
+    public static int playersPerChunk = MobWear.CAP_DEFAULT;
+
+    public static boolean capHostileMobs = false;
+
+    public static int hostilePerChunk = MobWear.CAP_DEFAULT;
+
+    public static boolean capPassiveMobs = false;
+
+    public static int passivePerChunk = MobWear.CAP_DEFAULT;
+
+    public static boolean capVillagers = false;
+
+    public static int villagersPerChunk = MobWear.CAP_DEFAULT;
+
+    public static boolean capCustom = false;
+
+    public static int customPerChunk = MobWear.CAP_DEFAULT;
+
+    /**
+     * How many movers of a cap's kind ({@link MobWear#PLAYERS} and the rest) may wear the ground in one chunk at a
+     * time,
+     * or nought where that cap is off.
+     */
+    public static int capFor(int kind) {
+        switch (kind) {
+            case MobWear.PLAYERS:
+                return capPlayers ? playersPerChunk : 0;
+            case MobWear.HOSTILE:
+                return capHostileMobs ? hostilePerChunk : 0;
+            case MobWear.PASSIVE:
+                return capPassiveMobs ? passivePerChunk : 0;
+            case MobWear.VILLAGERS:
+                return capVillagers ? villagersPerChunk : 0;
+            case MobWear.CUSTOM:
+                return capCustom ? customPerChunk : 0;
+            default:
+                return 0;
+        }
+    }
+
     // ------------------------------------------------------------------
     // Draughts
     // ------------------------------------------------------------------
@@ -370,6 +449,13 @@ public final class TrmtConfig {
 
     /** In-game days for an untrodden track through snow to fill back in. 0 never fades. */
     public static float snowCoverFadeDays = 1.0f;
+
+    /**
+     * Whether snow eight layers deep shelters the ground under it as a solid block would (0.9.228). Off, the default, a
+     * full drift is snow like any other, which is this edition's own rule and always was: a snow layer is never an
+     * opaque cube here, at any depth. Read on the server only; see {@code SnowCover.shelters}.
+     */
+    public static boolean fullSnowDriftsSolid = false;
 
     public static boolean wetHealingEnabled = true;
 
@@ -463,12 +549,12 @@ public final class TrmtConfig {
     public static boolean explosionWear = true;
 
     /** How hard the ground is scoured at the very middle of a blast. */
-    public static float explosionStrength = 140.0f;
+    public static float explosionStrength = 168.0f;
 
     /** How far from a blast the scouring can reach, whatever the charge claims. */
     public static float explosionMaxRadius = 64.0f;
 
-    /** How far the scouring reaches compared with the blast's own radius. */
+    /** How far the scouring reaches past the blast's own radius, as a multiple of it. */
     public static float explosionReach = 2.0f;
 
     /** The blast size the strength figure is quoted against. Vanilla TNT. */
@@ -936,14 +1022,10 @@ public final class TrmtConfig {
     public static float wearCarriesWithDepth = 0.9f;
 
     /**
-     * Which mobs wear the ground, and how hard, by entity name.
-     *
-     * <p>
-     * Villagers only, out of the box. They are the one crowd that walks the same short route
-     * between the same few doors day after day, which is exactly how a real path gets made;
-     * almost everything else in a pack this size wanders, and a wandering herd carving roads
-     * across a continent is not a feature. Anything here is in addition to players and to
-     * anything on a lead.
+     * The curated mob list, {@code multipliers.mobs}, by entity name: each line's number counts in place of its mob's
+     * group's while {@link #fromCustom} is on, and a nought always keeps its mob off the ground (0.9.228). Empty in a
+     * new config, where the three group switches do the work; until 0.9.228 it was villagers only, and an upgraded
+     * config keeps its lines, the villager line moved to {@link #fromVillagers}.
      */
     public static Map<String, Float> mobMultipliers = Collections.emptyMap();
 
@@ -1060,6 +1142,21 @@ public final class TrmtConfig {
 
     /** Client only. When false you see plain terrain; nobody else is affected. */
     public static boolean showErosion = true;
+
+    /** The settings screen that opens: this mod's own. */
+    public static final String SCREEN_OWN = "own";
+
+    /** The settings screen that opens: Forge's built-in one, which every 1.7.10 game has. */
+    public static final String SCREEN_OTHER = "other";
+
+    /**
+     * Client only: which settings screen opens (0.9.228; Xep: "Our own" by default, and the other screen a setting
+     * away, shown on both so either can switch to the other). Read by {@code ConfigScreens}, at every press of Config.
+     */
+    public static String settingsScreen = SCREEN_OWN;
+
+    /** Client only: the small button for these settings on the game's Options screen (0.9.228; on by default). */
+    public static boolean optionsButton = true;
 
     /**
      * Set for the session when a server has ruts you can walk down into.
@@ -1221,9 +1318,28 @@ public final class TrmtConfig {
                 .getParentFile();
     }
 
+    /** The files Forge has set aside beside this one as broken, by name. */
+    private static java.util.Set<String> setAside(File file) {
+        java.util.Set<String> names = new java.util.HashSet<String>();
+        File folder = file.getAbsoluteFile()
+            .getParentFile();
+        String[] all = folder == null ? null : folder.list();
+        if (all == null) return names;
+        for (String name : all) {
+            if (name.startsWith(file.getName() + "_") && name.endsWith(".errored")) names.add(name);
+        }
+        return names;
+    }
+
     public static void load(File file) {
         loadedFrom = file;
-        config = new Configuration(file);
+        java.util.Set<String> asideBefore = setAside(file);
+        config = new OrderedConfiguration(file);
+        // Forge sets a file it cannot read aside as <name>_<time>.errored and starts afresh, saying so itself; this
+        // says where the player's own mob list now is (0.9.228), as every port's ConfigFile.open does.
+        for (String aside : setAside(file)) {
+            if (!asideBefore.contains(aside)) Trmt.error("{}", com.trmtgtnh.util.MobWear.keptIn(aside));
+        }
         config.load();
         read();
         save();
@@ -1311,9 +1427,12 @@ public final class TrmtConfig {
             Trmt.LOG.warn("Not applying settings: the config file failed to read, fix it and use /trmt reload");
             return;
         }
+        // Asked before anything is declared, because declaring writes defaults: only now does what the settings hold
+        // say what the file held. See mobWearUpgrade.
+        MobWear.Upgraded mobsBefore = mobWearUpgrade(config);
         readGeneral();
         readSurfaces();
-        readMultipliers();
+        readMultipliers(mobsBefore);
         readPotions();
         readWeather();
         readHealing();
@@ -1330,6 +1449,10 @@ public final class TrmtConfig {
         // Before the server's own numbers are put back, so that a host owning the geometry has
         // the last word over any rung a visitor has chosen for themselves.
         Presets.applyAll(config);
+        // Every heading in the order its settings are declared, as every port lists them (0.9.228; Xep: "Declared
+        // order everywhere"), after the last declaration and before anything is shown or saved; the multipliers page
+        // keeps the order it sets itself.
+        if (config instanceof OrderedConfiguration) ((OrderedConfiguration) config).applyOrder(CATEGORY_MULTIPLIERS);
         // Last, after every reader that gives a setting its comment. Forge does not read comments
         // back out of a file, so a setting loaded from disk has none until the code declares it again -
         // and the audit ran at the end of the client heading, before the family headings and the
@@ -1684,21 +1807,21 @@ public final class TrmtConfig {
         return DEMO_CONTAINER;
     }
 
-    private static void readMultipliers() {
+    private static void readMultipliers(MobWear.Upgraded mobsBefore) {
         erodeFromPlayers = config
             .getBoolean("fromPlayers", CATEGORY_MULTIPLIERS, true, "Whether players walking causes wear.");
         erodeFromLeashedMobs = config.getBoolean(
             "fromLeashedMobs",
             CATEGORY_MULTIPLIERS,
             true,
-            "Whether mobs you are leading on a lead cause wear. A loose mob wears only if the mobs list names it, which out of the box is villagers alone, so a wandering herd does not carve roads across the world.");
+            "Whether mobs you are leading on a lead cause wear, whatever the mob, at the leashed multiplier. A loose mob is decided by the four switches below and the mobs list instead.");
         multiplierPlayer = readFloat(
             CATEGORY_MULTIPLIERS,
             "player",
             0.5f,
             0f,
             100f,
-            "Wear added when a player steps onto a new block, and the unit every other figure in this category is a multiple of rather than an alternative to. A mount, a lead or a named mob multiplies this number instead of replacing it, so halving it to soften the tracks players leave halves villagers and led animals by exactly as much; to quieten one kind of mover on its own, move that mover's own line. It is also what one crossing costs on the wear table, which is why the figures there shift when this does. Nought is a real setting and it means never: the step is abandoned before the ground is ever looked at, so nothing that walks wears anything at all, whatever the mob list and the lead switch say. That is not the same as turning players off, which is fromPlayers above, and it leaves explosions alone, because a blast is scoured by its own strength rather than by this.");
+            "Wear added when a player steps onto a new block, and the unit every other figure in this category is a multiple of rather than an alternative to. A mount, a lead, a mob's group or a named mob multiplies this number instead of replacing it, so halving it to soften the tracks players leave halves villagers and led animals by exactly as much; to quieten one kind of mover on its own, move that mover's own line. It is also what one crossing costs on the wear table, which is why the figures there shift when this does. Nought is a real setting and it means never: the step is abandoned before the ground is ever looked at, so nothing that walks wears anything at all, whatever the mob switches, the mob list and the lead switch say. That is not the same as turning players off, which is fromPlayers above, and it leaves explosions alone, because a blast is scoured by its own strength rather than by this.");
         multiplierMounted = readFloat(
             CATEGORY_MULTIPLIERS,
             "mounted",
@@ -1713,13 +1836,7 @@ public final class TrmtConfig {
             0f,
             100f,
             "Extra multiplier for an animal being led on a lead. Above 1 because a herd walked the same way every day is how a drove road gets worn in, and a lead is the clearest sign in the game that an animal is going somewhere rather than wandering.");
-        mobMultipliers = parseMobs(
-            config.get(
-                CATEGORY_MULTIPLIERS,
-                "mobs",
-                new String[] { "Villager" },
-                "Which mobs wear the ground, on top of players and anything on a lead. One entity name per line, as the game names it - Villager, Zombie, Pig. Add ':' and a number to make one wear harder or softer than the rest, e.g. 'Villager:1.5'. A line of '*' means every mob, which in a pack this size is a lot of mobs. 'Zombie:0' keeps zombies off the ground while they walk loose, even under a '*' line, because a named line outranks the wildcard; it is what the magic tamper's stop button writes. A mob on a lead still wears while fromLeashedMobs is on, because that counts anything being led. Baby villagers are villagers and are covered by the same line.")
-                .getStringList());
+        readMobWear(config, mobsBefore);
         bonemealRadius = config.getInt(
             "bonemealRadius",
             Configuration.CATEGORY_GENERAL,
@@ -1775,27 +1892,27 @@ public final class TrmtConfig {
             CATEGORY_EXPLOSIONS,
             true,
             "Whether an explosion scours the ground around it as well as blowing a hole in it. What a blast does not destroy outright it still scours, and a crater with clean grass up to its lip reads as a hole somebody cut rather than as something that went off.");
-        explosionStrength = config.getFloat(
+        explosionStrength = forgeFloat(
             "explosionStrength",
             CATEGORY_EXPLOSIONS,
-            140.0f,
+            168.0f,
             0f,
             1000f,
-            "How hard the ground is scoured at the very middle of a blast, in the same units a footstep uses, falling away to nothing at the edge. The middle is not where you see it: a charge destroys the ground directly beneath it, so what this number really sets is how worn the crater lip is. At the default a stick of dynamite leaves its lip about a third worn and fades out four or five blocks past that.");
-        explosionMaxRadius = config.getFloat(
+            "How hard the ground is scoured at the very middle of a blast, in the same units a footstep uses, falling away to nothing at the edge. Quoted against a stick of dynamite; a creeper's blast is three quarters of it. The ground is scoured once the blast has taken its blocks, so the crater's own floor is worn hardest, its walls and lip less, and the ground around it less again. At the default a creeper's crater leaves its lip about two thirds as worn as its middle and the ground worn four to five blocks past the lip, fading gradually as it goes and ragged at the edge.");
+        explosionMaxRadius = forgeFloat(
             "explosionMaxRadius",
             CATEGORY_EXPLOSIONS,
             64.0f,
             1f,
             256f,
             "How far from a blast the scouring may reach, whatever radius the charge itself claims. A ceiling rather than a setting: the radius arrives from whatever set the explosion off, and a mod handing over a very large one would otherwise have the server walk a great many positions inside a single tick. See explosionMaxPositions, which bounds the work rather than the distance and is the one that will actually bite first on a very large charge.");
-        explosionReach = config.getFloat(
+        explosionReach = forgeFloat(
             "explosionReach",
             CATEGORY_EXPLOSIONS,
             2.0f,
             0.1f,
             8f,
-            "How far the scouring reaches compared with the blast's own radius. Above 1 because the ground a charge scours is wider than the hole it digs. It also decides how much of the wear the survivors get: the fall-off is measured from the middle, and the middle is inside the crater, so a short reach means the only ground left standing is the ground the fall-off had already faded out on.");
+            "How far the scouring reaches past the blast's own radius, as a multiple of that radius: at the default of 2 a creeper's blast, radius 3, scours out to nine blocks from its middle and a stick of dynamite to twelve. It also decides how much of the wear the ground around the crater gets: the fall-off runs in a straight line from the middle to nothing at the reach, so a short reach leaves the ground just past the crater's lip where the fall-off has already faded.");
         explosionMaxPositions = config.getInt(
             "explosionMaxPositions",
             CATEGORY_EXPLOSIONS,
@@ -2064,7 +2181,7 @@ public final class TrmtConfig {
             CATEGORY_GOLEM,
             true,
             "Whether a golem defends the ground it keeps. With a tamper in its storage it hits back at whatever hits it and steps in front of a player or a villager a monster has gone for - monsters only, never a player, a villager, a pet or another golem, and never a creeper or a ghast, one of which it would blow up its own road over and the other of which it cannot reach. It never goes looking: those two things are the whole of it. Without a tamper it runs from monsters instead, creepers included, which is the same emptiness that stops it working at all. Off, none of this happens and a golem does nothing but its round.");
-        golemAttackDamage = config.getFloat(
+        golemAttackDamage = forgeFloat(
             "attackDamage",
             CATEGORY_GOLEM,
             4.0f,
@@ -2483,6 +2600,11 @@ public final class TrmtConfig {
             0.0f,
             365.0f,
             "How many untouched in-game days it takes for a half-trodden track through snow to fill back in, as if it had been snowed over. At the default of one day a route crossed a few times and then left alone is gone by morning, which is the same argument the ground's own partial decay makes: only sustained use should leave a mark. Set to 0 and a half-trodden layer waits for ever, so a single crossing a year would eventually break through. None of this is written to the save - the game lays and melts snow on its own schedule, so a half-trodden layer is a fact with a lifetime measured in minutes, and a layer met again after a reload is met fresh.");
+        fullSnowDriftsSolid = config.getBoolean(
+            "fullSnowDriftsSolid",
+            CATEGORY_WEATHER,
+            false,
+            "Whether snow eight layers deep counts as solid ground over whatever it lies on. Off, the default, a full drift is snow like any other: with snowCovers on it is trodden away a layer at a time before the ground beneath it wears, a tamper wears the ground under it, the golem works it, and wear already there is drawn as worn. On, a drift eight layers deep shelters the ground under it completely - nothing wears it, no tamper or golem works it, and wear already under it is hidden until the drift thins - which is how the 1.16.5 and later editions treated full drifts before 0.9.228. One to seven layers are never solid either way. For a pack that relied on full drifts leaving the ground alone.");
         wetHealingEnabled = config.getBoolean(
             "wetHealingEnabled",
             CATEGORY_WEATHER,
@@ -2551,7 +2673,7 @@ public final class TrmtConfig {
             "leaves",
             CATEGORY_TRAMPLING,
             false,
-            "Wear away the leaf block a route crosses on top of - a way over a canopy, or a bridge of leaves - until it breaks and whatever is standing on it falls, from however high the leaf was. The leaf counted is the one underfoot, since nothing stands inside a leaf, and only the one under the middle of whoever is walking. A floor or a roof of leaves that anyone moves about on goes far sooner than a route across one, because every step from one leaf to the next counts. Anything laid on the leaf - a slab, a carpet - takes the traffic and the leaf keeps no tally; a plant counted as vegetation hanging into the space above it does not, so what the vegetation heading counts decides this too. Snow lying on it is trodden through first when weather.snowCovers is on, as on ground; with that off, snow two layers deep or more shelters the leaf for as long as it lies. The tally, its figures and its fading are those of trampling.vegetation: thirty-two to forty-eight crossings on foot at the shipped speeds, recovery for a leaf crossed less than about twice an in-game day, and no fading with healing.enabled off, with healing.wearDecayPerDay at 0, or while healing.pauseWhenEmpty holds the clock on an empty server. A leaf carrying a reinforcement or a spawn ward is never trampled, which is the way to keep a leaf bridge standing. Creatures count as they do for ground, and a mount under its rider; a multipliers.mobs line of '*' takes in spiders on a canopy and ocelots in a jungle, and general.retriggerCooldown slows one loitering on the same few leaves without stopping it. A broken leaf lets the leaves around it decay exactly as breaking it by hand would. Leaves anybody placed never decay, but a tree holds its leaves only within four leaves of its trunk, and giant jungle trees and big oaks grow canopy beyond that which stands only because nothing has disturbed it - so a route over one can let a good deal more of the canopy around it go than the route itself, and leaves a structure was generated with and no trunk holds can go the whole way. Vines hanging from a broken leaf or clinging to its side come down with it and leave nothing behind. No claim or protection mod is asked, for the reason given under trampling.vegetation. This destroys real blocks and is NOT undone by removing the mod, which is why it ships off.");
+            "Wear away the leaf block a route crosses on top of - a way over a canopy, or a bridge of leaves - until it breaks and whatever is standing on it falls, from however high the leaf was. The leaf counted is the one underfoot, since nothing stands inside a leaf, and only the one under the middle of whoever is walking. A floor or a roof of leaves that anyone moves about on goes far sooner than a route across one, because every step from one leaf to the next counts. Anything laid on the leaf - a slab, a carpet - takes the traffic and the leaf keeps no tally; a plant counted as vegetation hanging into the space above it does not, so what the vegetation heading counts decides this too. Snow lying on it is trodden through first when weather.snowCovers is on, as on ground; with that off, snow two layers deep or more shelters the leaf for as long as it lies. The tally, its figures and its fading are those of trampling.vegetation: thirty-two to forty-eight crossings on foot at the shipped speeds, recovery for a leaf crossed less than about twice an in-game day, and no fading with healing.enabled off, with healing.wearDecayPerDay at 0, or while healing.pauseWhenEmpty holds the clock on an empty server. A leaf carrying a reinforcement or a spawn ward is never trampled, which is the way to keep a leaf bridge standing. Creatures count as they do for ground, and a mount under its rider; the mob switches, on in a new config, take in spiders on a canopy and ocelots in a jungle, and general.retriggerCooldown slows one loitering on the same few leaves without stopping it. A broken leaf lets the leaves around it decay exactly as breaking it by hand would. Leaves anybody placed never decay, but a tree holds its leaves only within four leaves of its trunk, and giant jungle trees and big oaks grow canopy beyond that which stands only because nothing has disturbed it - so a route over one can let a good deal more of the canopy around it go than the route itself, and leaves a structure was generated with and no trunk holds can go the whole way. Vines hanging from a broken leaf or clinging to its side come down with it and leave nothing behind. No claim or protection mod is asked, for the reason given under trampling.vegetation. This destroys real blocks and is NOT undone by removing the mod, which is why it ships off.");
         vegetationDropChance = readFloat(
             CATEGORY_TRAMPLING,
             "vegetationDropChance",
@@ -2718,6 +2840,7 @@ public final class TrmtConfig {
             true,
             "Does nothing in this edition, and left in the file so a pack can move between versions: there is no The One Probe for 1.7.10. What follows is what it means on 1.12.2 and 1.16.5. Client only. Whether The One Probe shows this mod's lines - how worn a square is, its reinforcement, ward and path light, and what a Golem of Ways is doing. Hwyla and Jade have a switch of their own for these lines; The One Probe has none, so this is it. Told to the server as you join, and again whenever it changes, since the probe's lines are written there.")
             .setLanguageKey("trmtgtnh.config.probeLines");
+        readScreenChoice(config);
 
         Property distance = config.get(
             CATEGORY_CLIENT,
@@ -2921,9 +3044,114 @@ public final class TrmtConfig {
             .isEmpty();
     }
 
+    /**
+     * The two settings that decide how the settings are reached (0.9.228), declared here, word for word as every
+     * edition
+     * declares them: this edition is the one the others copy. Apart from {@link #readClient} so a test can declare them
+     * on a file of its own.
+     */
+    static void readScreenChoice(Configuration from) {
+        settingsScreen = from.getString(
+            "settingsScreen",
+            CATEGORY_CLIENT,
+            SCREEN_OWN,
+            "Which settings screen opens: own, this mod's own; other, Forge's built-in screen (1.7.10, 1.12.2) or Cloth Config's where it is installed (the newer editions; without it, this mod's own opens). Shown on both screens, so either can switch to the other. The button at the top right of either screen switches between them and remembers the choice here.",
+            new String[] { SCREEN_OWN, SCREEN_OTHER });
+        optionsButton = from.getBoolean(
+            "optionsButton",
+            CATEGORY_CLIENT,
+            true,
+            "A small button for these settings on the game's Options screen, beside its top row. Off hides it; /trmt config and the key still open them.");
+    }
+
     private static float readFloat(String category, String name, float def, float min, float max, String comment) {
-        return (float) config.get(category, name, def, comment, min, max)
-            .getDouble();
+        return declareFloat(config, category, name, def, min, max, comment);
+    }
+
+    /**
+     * A float setting, declared to the file with its default and bounds as the float's own decimal (0.9.228).
+     *
+     * <p>
+     * Forge takes them as doubles, and a float handed over as one is widened first: a default of 0.2 was written into
+     * the file, and shown as the default on both settings screens, as 0.20000000298023224. A file already holding that
+     * long figure reads the same number it always did - only what is declared changes.
+     */
+    static float declareFloat(Configuration in, String category, String name, float def, float min, float max,
+        String comment) {
+        FLOATS.add(category + "." + name);
+        Property declared = in.get(category, name, decimal(def), comment, decimal(min), decimal(max));
+        float read = (float) declared.getDouble();
+        tidy(declared, read);
+        return read;
+    }
+
+    /**
+     * A float the file holds as a long figure, written back as its own decimal (0.9.228, spec M20.4; Xep, answering the
+     * spec's open question 4: yes). A file written before 0.9.228 holds a float widened to a double -
+     * {@code 0.10000000149011612} - and every screen and every reader of the file showed that noise. Where the text
+     * names the same float as the number read, but is not that float's own decimal, the setting is set to the decimal,
+     * so the next save writes {@code 0.1}. The number the game uses is identical, the round trip being exact; a text
+     * that is a different float, or already as short as the float, is left exactly as it was written.
+     *
+     * @return whether the setting was tidied
+     */
+    static boolean tidy(Property declared, float read) {
+        if (declared == null || declared.isList()) return false;
+        String text = declared.getString();
+        double written;
+        try {
+            written = Double.parseDouble(text.trim());
+        } catch (RuntimeException unreadable) {
+            return false;
+        }
+        if ((float) written != read) return false;
+        double own = decimal(read);
+        if (written == own) return false;
+        declared.set(own);
+        return true;
+    }
+
+    /**
+     * Every setting declared as a float, as {@code category.key}, filled as they are declared (spec M20.3): through
+     * {@link #readFloat}, {@link #declareFloat} - which {@code FamilySettings}' float reads and the mob numbers go
+     * through - and {@link #forgeFloat}. The settings screen asks {@link #isFloat} to show the float's own decimal.
+     */
+    public static final Set<String> FLOATS = java.util.Collections.synchronizedSet(new TreeSet<String>());
+
+    /** Whether a setting is a float, so its field shows the float's own decimal (spec M20.2). */
+    public static boolean isFloat(String category, String key) {
+        return FLOATS.contains(category + "." + key);
+    }
+
+    /** A float as the double its own decimal names: 0.2F is 0.2, not 0.20000000298023224. */
+    static double decimal(float value) {
+        return Double.parseDouble(Float.toString(value));
+    }
+
+    /**
+     * Forge's own float reader, with the bounds it records put right (0.9.228).
+     *
+     * <p>
+     * {@code Configuration.getFloat} writes the default as the float's own decimal already, but records the bounds
+     * widened - 0.1 as 0.10000000149011612 - and the settings screens read the bounds back for the range they show. The
+     * value is read exactly as Forge reads it, so nothing about the file or the number changes.
+     */
+    private static float forgeFloat(String name, String category, float def, float min, float max, String comment) {
+        return forgeFloat(config, name, category, def, min, max, comment);
+    }
+
+    static float forgeFloat(Configuration in, String name, String category, float def, float min, float max,
+        String comment) {
+        FLOATS.add(category + "." + name);
+        float read = in.getFloat(name, category, def, min, max, comment);
+        Property declared = in.getCategory(category)
+            .get(name);
+        if (declared != null) {
+            declared.setMinValue(decimal(min));
+            declared.setMaxValue(decimal(max));
+            tidy(declared, read);
+        }
+        return read;
     }
 
     public static void save() {
@@ -3135,14 +3363,206 @@ public final class TrmtConfig {
         return MobEntries.table(entries);
     }
 
+    // ------------------------------------------------------------------
+    // Which mobs wear the ground (0.9.228)
+    // ------------------------------------------------------------------
+
     /**
-     * How hard this mob wears the ground while it walks loose, or 0 if it is not one of the
-     * configured ones. A line naming the mob outranks '*', nought included, so a mob named at nought
-     * stays out under a wildcard. A mob on a lead never gets this far: the lead weighs it first.
+     * The multipliers heading's settings in the order both screens show them and the file writes them (spec 1): the
+     * switches, the player's own numbers, the groups' numbers, the curated list, then each cap's switch and number.
+     * Settings of the heading not named here - bleedFront and bleedSide - follow them, as Forge places them.
      */
-    public static float mobMultiplier(String entityName) {
-        if (entityName == null) return 0f;
-        return MobEntries.lookup(mobMultipliers, entityName);
+    public static final List<String> MULTIPLIERS_ORDER = Collections.unmodifiableList(
+        java.util.Arrays.asList(
+            "fromPlayers",
+            "fromLeashedMobs",
+            "fromHostileMobs",
+            "fromPassiveMobs",
+            "fromVillagers",
+            "fromCustom",
+            "player",
+            "mounted",
+            "leashed",
+            "hostile",
+            "passive",
+            "villager",
+            "mobs",
+            "capPlayers",
+            "playersPerChunk",
+            "capHostileMobs",
+            "hostilePerChunk",
+            "capPassiveMobs",
+            "passivePerChunk",
+            "capVillagers",
+            "villagersPerChunk",
+            "capCustom",
+            "customPerChunk"));
+
+    /**
+     * What {@code multipliers.mobs} held in every config written before 0.9.228 that did not name it: the default it
+     * was
+     * declared with, which the file would have been given on its next save.
+     */
+    static final String[] MOBS_BEFORE_0_9_228 = { "Villager" };
+
+    /**
+     * Every name this edition reads as a villager - the one 1.7.10's entity registry gives it - for the upgrade to take
+     * out of an old list and make {@code fromVillagers}.
+     */
+    static final List<String> VILLAGER_NAMES = Collections.singletonList("Villager");
+
+    /** The other mobs this edition's villager group holds: none before 1.14's wandering trader. */
+    static final List<String> OTHER_VILLAGERS = Collections.emptyList();
+
+    /**
+     * A config from before 0.9.228, read as the four switches and the list that wear exactly as it did - or null for a
+     * config that needs no upgrade (Xep: "Villagers moved over"; a '*' line "Groups on at its number").
+     *
+     * <p>
+     * Asked of the settings as the file left them, before anything is declared, and so before any of this release's
+     * settings could have been written with its default: a file that holds settings and whose multipliers heading lacks
+     * {@code fromCustom} was written before 0.9.228. A file holding nothing - a new one, or the fresh file Forge
+     * writes in place of one it could not parse, renamed {@code .errored} - is a new config, fresh. Once read and saved
+     * the settings hold {@code fromCustom}, so a reload, the screens' Done and every later start change nothing. The
+     * old list is read as the file has it, or as its old default where the file never named it.
+     */
+    static MobWear.Upgraded mobWearUpgrade(Configuration from) {
+        if (from == null || from.getCategoryNames()
+            .isEmpty()) return null;
+        ConfigCategory multipliers = from.hasCategory(CATEGORY_MULTIPLIERS) ? from.getCategory(CATEGORY_MULTIPLIERS)
+            : null;
+        if (multipliers != null && multipliers.containsKey("fromCustom")) return null;
+        Property mobs = multipliers == null ? null : multipliers.get("mobs");
+        String[] old = mobs != null && mobs.isList() ? mobs.getStringList() : MOBS_BEFORE_0_9_228.clone();
+        MobWear.Upgraded upgraded = MobWear.upgrade(old, VILLAGER_NAMES, OTHER_VILLAGERS);
+        Trmt.LOG.info(
+            "Settings from before 0.9.228: loose mobs wear as they did - monsters {}, other mobs {}, villagers {} at {}, and the mobs list's {} line(s) kept",
+            upgraded.switches.hostile ? "on at " + upgraded.switches.hostileMultiplier : "off",
+            upgraded.switches.passive ? "on at " + upgraded.switches.passiveMultiplier : "off",
+            upgraded.switches.villagers ? "on" : "off",
+            Float.valueOf(upgraded.switches.villagerMultiplier),
+            Integer.valueOf(upgraded.list.length));
+        return upgraded;
+    }
+
+    /**
+     * Declares the loose-mob settings and reads them (0.9.228, spec 1 and 2), word for word as every edition declares
+     * them. A new config's values are their defaults - all four switches on, the groups at 0.25, 0.25 and 1.0, the
+     * list empty, every cap off at 8 - and so are the values reset gives on either screen. An upgraded config gets the
+     * values {@code upgraded} holds instead, set over the defaults just declared, with its list written back without
+     * the lines it moved; the defaults stay the fresh ones. Apart from {@link #readMultipliers} so a test can read a
+     * file of its own through it.
+     */
+    static void readMobWear(Configuration from, MobWear.Upgraded upgraded) {
+        // The page's order on both screens, and the file's (spec 1): Forge keeps a heading's settings in the order
+        // given, and those it was never given after them.
+        from.getCategory(CATEGORY_MULTIPLIERS)
+            .setPropertyOrder(new ArrayList<String>(MULTIPLIERS_ORDER));
+        MobWear.Switches was = upgraded == null ? null : upgraded.switches;
+        fromHostileMobs = mobSwitch(
+            from,
+            "fromHostileMobs",
+            was == null ? null : Boolean.valueOf(was.hostile),
+            "Monsters wear the ground: every hostile mob, bosses included, at the hostile multiplier. A mob the mobs list names counts at its own number instead while fromCustom is on, and a mob named at 0 never wears.");
+        fromPassiveMobs = mobSwitch(
+            from,
+            "fromPassiveMobs",
+            was == null ? null : Boolean.valueOf(was.passive),
+            "Every other mob wears the ground - animals, iron and snow golems, water and ambient mobs - at the passive multiplier, except villagers, which fromVillagers decides. A mob the mobs list names counts at its own number instead while fromCustom is on, and a mob named at 0 never wears.");
+        fromVillagers = mobSwitch(
+            from,
+            "fromVillagers",
+            was == null ? null : Boolean.valueOf(was.villagers),
+            "Villagers wear the ground (wandering traders too, where the game has them), at the villager multiplier. A mob the mobs list names counts at its own number instead while fromCustom is on, and a mob named at 0 never wears.");
+        fromCustom = mobSwitch(
+            from,
+            "fromCustom",
+            was == null ? null : Boolean.valueOf(was.custom),
+            "The mobs list counts: each mob it names wears at the number beside it, in place of its group's. Off, the list's numbers are ignored - but a mob named at 0 still never wears, so the magic tamper's stop button always holds.");
+        multiplierHostile = mobNumber(
+            from,
+            "hostile",
+            MobWear.HOSTILE_DEFAULT,
+            was == null ? null : Float.valueOf(was.hostileMultiplier),
+            "How hard a monster's step wears the ground, against a player's 1.0.");
+        multiplierPassive = mobNumber(
+            from,
+            "passive",
+            MobWear.PASSIVE_DEFAULT,
+            was == null ? null : Float.valueOf(was.passiveMultiplier),
+            "How hard a passive mob's step wears the ground, against a player's 1.0.");
+        multiplierVillager = mobNumber(
+            from,
+            "villager",
+            MobWear.VILLAGER_DEFAULT,
+            was == null ? null : Float.valueOf(was.villagerMultiplier),
+            "How hard a villager's step wears the ground, against a player's 1.0.");
+        Property mobs = from.get(
+            CATEGORY_MULTIPLIERS,
+            "mobs",
+            new String[0],
+            "Mobs counted by name, each at its own number: one name per line, as the game names it - Villager, Zombie, Pig, with ':' and a number for how hard it wears against a player's 1.0 - 'Zombie:2', 'Pig:0.5'; a bare name counts 1.0. A mob named here counts at its number in place of its group's while fromCustom is on. 'Zombie:0' keeps zombies off the ground always, whatever the switches say; it is what the magic tamper's stop button writes. A line of '*' counts every mob no line names whose group is switched off. A mob on a lead still wears while fromLeashedMobs is on, because that counts anything being led.");
+        if (upgraded != null) mobs.set(upgraded.list);
+        mobMultipliers = parseMobs(mobs.getStringList());
+        mobSwitches = new MobWear.Switches(
+            fromHostileMobs,
+            fromPassiveMobs,
+            fromVillagers,
+            fromCustom,
+            multiplierHostile,
+            multiplierPassive,
+            multiplierVillager);
+
+        capPlayers = capSwitch(from, "capPlayers", "players", "playersPerChunk");
+        playersPerChunk = capNumber(from, "playersPerChunk", "players", "capPlayers");
+        capHostileMobs = capSwitch(from, "capHostileMobs", "monsters", "hostilePerChunk");
+        hostilePerChunk = capNumber(from, "hostilePerChunk", "monsters", "capHostileMobs");
+        capPassiveMobs = capSwitch(from, "capPassiveMobs", "passive mobs", "passivePerChunk");
+        passivePerChunk = capNumber(from, "passivePerChunk", "passive mobs", "capPassiveMobs");
+        capVillagers = capSwitch(from, "capVillagers", "villagers", "villagersPerChunk");
+        villagersPerChunk = capNumber(from, "villagersPerChunk", "villagers", "capVillagers");
+        capCustom = capSwitch(from, "capCustom", "mobs the mobs list names", "customPerChunk");
+        customPerChunk = capNumber(from, "customPerChunk", "mobs the mobs list names", "capCustom");
+    }
+
+    /** One of the four loose-mob switches: on in a new config, or the upgraded value where there is one. */
+    private static boolean mobSwitch(Configuration from, String name, Boolean upgraded, String comment) {
+        Property setting = from.get(CATEGORY_MULTIPLIERS, name, true, comment);
+        if (upgraded != null) setting.set(upgraded.booleanValue());
+        return setting.getBoolean();
+    }
+
+    /** One group's multiplier, 0 to 100, its default the float's own decimal (see {@link #declareFloat}). */
+    private static float mobNumber(Configuration from, String name, float def, Float upgraded, String comment) {
+        float read = declareFloat(from, CATEGORY_MULTIPLIERS, name, def, 0f, 100f, comment);
+        if (upgraded == null) return read;
+        Property setting = from.getCategory(CATEGORY_MULTIPLIERS)
+            .get(name);
+        setting.set(decimal(upgraded.floatValue()));
+        return (float) setting.getDouble();
+    }
+
+    /** A cap's switch, off in a new config. */
+    private static boolean capSwitch(Configuration from, String name, String kind, String number) {
+        return from.getBoolean(
+            name,
+            CATEGORY_MULTIPLIERS,
+            false,
+            "At most " + number
+                + " "
+                + kind
+                + " wear the ground in one chunk at a time; the rest walk without wearing it.");
+    }
+
+    /** A cap's number, 8 in a new config, 1 to 256. */
+    private static int capNumber(Configuration from, String name, String kind, String switchName) {
+        return from.getInt(
+            name,
+            CATEGORY_MULTIPLIERS,
+            MobWear.CAP_DEFAULT,
+            1,
+            256,
+            "How many " + kind + " may wear the ground in one chunk at a time, while " + switchName + " is on.");
     }
 
     /** Guards a rate against zero or nonsense, which would otherwise divide the world away. */

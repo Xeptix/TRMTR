@@ -1,4 +1,29 @@
 {
+    "neoforge:conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "wardEnabled"
+            ]
+        }
+    ],
+    "forge:condition": {
+        "type": "trmtgtnh:settings",
+        "settings": [
+            "achievements",
+            "wardEnabled"
+        ]
+    },
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "wardEnabled"
+            ]
+        }
+    ],
     "parent": "trmtgtnh:trmt_warding",
     "display": {
         "icon": {

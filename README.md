@@ -14,14 +14,13 @@ cosmetic blocks over its own copy of the terrain, so the mod is removable, switc
 switchable per server, and invisible in a world opened without it.
 
 Minecraft 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, on Forge, on Fabric for 1.16.5 and every
-version after it, and on NeoForge for 1.21.1, 26.1.2, 26.2 and 26.3 - 1.21.1 as a beta, and 26.1.2, 26.2 and 26.3 as
-alphas, the first builds for those versions. It runs on a plain loader with nothing else installed, except that 1.16.5,
-1.20.1 and 1.21.1 want Cloth Config for their settings screen. The 1.7.10 edition is built against GT: New Horizons
-2.8.4.
+version after it, and on NeoForge for 1.21.1, 26.1.2, 26.2 and 26.3 - 26.1.2, 26.2 and 26.3 as betas. It brings a
+settings screen of its own to every edition, so Cloth Config is optional everywhere. The 1.7.10 edition is built
+against GT: New Horizons 2.8.4.
 
 One mod, one version number, eight editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
-left them. Thirty-six classes are shared between them byte for byte. Where an edition cannot match
+left them. Sixty-three classes are shared between them byte for byte. Where an edition cannot match
 the others it is because the Minecraft version took away what the behaviour was built on, and the
 section it belongs to says so rather than leaving you to find out. They are collected in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) if you would rather see them all at once.
@@ -106,8 +105,8 @@ a golem that will hold a stretch of road at a wear level you choose while you ar
 Drop the jar for your Minecraft version and loader - `trmtr-1.7.10-<version>-forge.jar`,
 `trmtr-1.12.2-<version>-forge.jar`, `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar`,
 `trmtr-1.20.1-<version>-forge.jar` / `-fabric.jar`,
-`trmtr-1.21.1-<version>-beta-neoforge.jar` / `-forge.jar` / `-fabric.jar`, or
-`trmtr-26.1.2-<version>-alpha-neoforge.jar` / `-forge.jar` / `-fabric.jar`, and the same for 26.2 and 26.3 - into
+`trmtr-1.21.1-<version>-neoforge.jar` / `-forge.jar` / `-fabric.jar`, or
+`trmtr-26.1.2-<version>-beta-neoforge.jar` / `-forge.jar` / `-fabric.jar`, and the same for 26.2 and 26.3 - into
 your pack's `mods` folder, on **both** the client and the server. That is the only file you need; the
 `-dev` and `-sources` jars are for development.
 
@@ -137,51 +136,48 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
 
 **Requirements, 1.16.5**
 
-- Minecraft 1.16.5 with Forge 36.2.34 or newer, **or** Fabric Loader 0.14 or newer.
-- **[Cloth Config](https://github.com/shedaniel/cloth-config)**, on either loader.
-  Forge's own config screen was removed after 1.12.2 and vanilla has never had one, so this is what
-  the settings screen is built on - the one dependency this mod takes that is not a loader. The jar
-  declares it, so a pack without it is told rather than left to find out by pressing Config.
-- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** as well, and **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** if you want to reach the settings
-  screen in game: Fabric has no mod list with a Config button of its own. Without Mod Menu the
-  settings file and `/trmt reload` still work.
+- Minecraft 1.16.5 with Forge 36.0.42 or newer, **or** Fabric Loader 0.11.1 or newer.
+- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.30.0 or newer, which the Options screen's
+  button needs.
+- The mod opens a settings screen of its own - from a small button just right of the Options screen's top row, a key
+  you bind, `/trmt config` or the mod list - so nothing else is needed for it. **[Cloth Config](https://github.com/shedaniel/cloth-config)** is optional: where it is
+  installed, its own screen is one button away. On Fabric, **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** is
+  optional too, for a Config button in a mod list Fabric does not have of its own.
 
 **Requirements, 1.20.1**
 
-- Minecraft 1.20.1 with Forge 47 or newer, **or** Fabric Loader 0.14 or newer.
-- **[Cloth Config](https://github.com/shedaniel/cloth-config)** 11.0.99 or newer, on either loader, as on 1.16.5.
+- Minecraft 1.20.1 with Forge 47.0.34 or newer, **or** Fabric Loader 0.14.22 or newer.
 - On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.86.0 or newer - the first with the model
-  loading API the client needs, which the jar declares, so an older one is named at startup rather than failing - and
-  **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** to reach the settings screen.
+  loading API the client needs, which the jar declares, so an older one is named at startup rather than failing.
+- Cloth Config and Mod Menu are optional, as on 1.16.5.
 - A world from 1.16.5 opened on 1.20.1 keeps its wear: the game's own upgrade carries each chunk's record, and the
   first sweep heals it on from where it was.
 - A world from before 1.18 opened on 1.20.1 keeps its golems. Minecraft's own 1.18 chunk upgrade drops a chunk's whole
   list of creatures when one of them is a mod's; the list is kept and put back, each vanilla creature upgraded by the
   game itself.
 
-**Requirements, 1.21.1 (beta)**
+**Requirements, 1.21.1**
 
-- Minecraft 1.21.1 with NeoForge 21.1 or newer, Forge 52 or newer, **or** Fabric Loader 0.15.11 or newer, on Java 21,
+- Minecraft 1.21.1 with NeoForge 21.1 or newer, Forge 52 or newer, **or** Fabric Loader 0.16.1 or newer, on Java 21,
   which Minecraft 1.21.1 itself requires.
-- **[Cloth Config](https://github.com/shedaniel/cloth-config)** 15.0.140 or newer, on every loader, as on 1.16.5 and
-  1.20.1.
-- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.116.17 or newer, and
-  **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** to reach the settings screen.
+- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.102.0 or newer.
+- Cloth Config and Mod Menu are optional, as on 1.16.5.
 - **OptiFine** HD U J1 names Forge 52.0.16, and that is the Forge to run it on: on Forge 52.1 it stops a server the
   moment a chest is filled, in OptiFine's own code.
 - A world from 1.20.1 opened on 1.21.1 keeps its wear, and heals on from where it was. A Golem of Ways keeps what it
   carries and the upgrade fitted to it, its stacks put through the game's own item upgrade before they are read. A
   world from before 1.18 keeps its golems, as on 1.20.1.
 
-**Requirements, 26.1.2, 26.2 and 26.3 (alpha)**
+**Requirements, 26.1.2, 26.2 and 26.3 (beta)**
 
-- Minecraft 26.1.2, 26.2 or 26.3 with NeoForge for that game - 26.1.2, 26.2 or 26.3 or newer - Forge 64 for 26.1.2, 65
-  for 26.2 or 66 for 26.3, **or** Fabric Loader 0.19.5 or newer, on Java 25, which those versions themselves require.
-- **[Cloth Config](https://github.com/shedaniel/cloth-config)** is not required, on any loader. On 26.1.2, 26.2 and 26.3
-  NeoForge and on 26.3 Fabric, where it is installed, the settings screen is Cloth's; without it the mod shows a settings screen of its
-  own, laid out as Cloth's is. Cloth Config has no Forge build for these versions.
-- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.155.3 or newer on 26.1.2, 0.161.0 on 26.2 and
-  0.164.0 on 26.3, and **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** to reach the settings screen.
+- Minecraft 26.1.2, 26.2 or 26.3 with NeoForge 26.1.2.71, 26.2.0.57 or 26.3.0.76 or newer, Forge 64 for 26.1.2, 65 for
+  26.2 or 66 for 26.3, **or** Fabric Loader 0.19.1 on 26.1.2, 0.19.4 on 26.2 or 0.19.5 on 26.3 or newer, on Java 25,
+  which those versions themselves require.
+- On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.145.4 or newer on 26.1.2, 0.152.1 on 26.2 and
+  0.160.5 on 26.3.
+- Cloth Config is optional: on 26.1.2, 26.2 and 26.3 NeoForge and on 26.3 Fabric, where it is installed, its screen is
+  one button away from the mod's own. Cloth Config has no Forge build for these versions. Mod Menu is optional on
+  Fabric.
 - A world opened for the first time on 26.1.2 from 1.21.1, on 26.2 from 26.1.2, or on 26.3 from 26.2 keeps its wear,
   and heals on from where it was. A Golem of Ways keeps what it carries and the upgrade fitted to it.
 
@@ -1017,14 +1013,23 @@ the settings to move are `client.animateInnerLayers`, `client.innerLayerAnimatio
 
 ## The config screen
 
-Reachable from the mods list. Presets come first, then the client category - the part a player on
-someone else's server can actually change - then everything else.
+Every edition opens a settings screen of this mod's own: from the mods list, from a small button just right of the
+Options screen's top row (`client.optionsButton` hides it), from a key you bind - none is bound until you do - and
+with `/trmt config`. Presets come first, then the client category - the part a player on someone else's server can
+actually change - then everything else, each a tab, with the twelve surface families under one Surfaces tab and a
+search across them all.
 
-The block lists - detected blocks, resistant blocks, exclusions - draw each entry with that
-block's own icon beside it, and the mob list draws each mob's head, so you can see what you are
-looking at instead of parsing registry names.
+Numbers are sliders, drawn as wearing ground, and fields that show their range and refuse what is outside it; every
+chooser opens a dropdown with a line on each choice and a picture where one helps; a color opens a picker whose
+preview uses the game's own color math. Block, item, mob, fluid and dimension lists are edited with pickers that show
+each entry's picture, and a name nothing in the game answers to is shown red with the reason - a warning, never a
+refusal. What a server's rules hold reads *set by this server*. Each hover ends with the setting's range and default,
+and Shift shows the rest of a long one. Undo and reset sit on every row.
 
-Two buttons sit on it that are worth knowing about:
+A button on the screen opens the other one - Forge's own on 1.7.10 and 1.12.2, Cloth Config's where it is installed -
+and back, and the choice is remembered (`client.settingsScreen`). Both list every category.
+
+Two icons in its header are worth knowing about:
 
 - **Wear table** - see below.
 - **Push to server** - offers your client's copy of the server-owned settings to a live server.
@@ -1032,11 +1037,9 @@ Two buttons sit on it that are worth knowing about:
   exist. So on a server you administer the non-client categories are editable in game, not merely
   shown for reference; in single-player all of it is.
 
-The `client` category holds twenty-six settings of its own, from the three obvious ones (show worn
-paths, overlay distance, per-surface textures) through the inheritance switches, the inner-layer
-rendering budget, and the map highlight. Two settings just as personal sit under `general` instead
- - `hideWearUnderBlocks` and `flattenWearUnderBlocks`, which are yours alone and are never sent to
-anybody - and the config's own category comment says so where a reader will meet it.
+Two settings as personal as the client category's sit under `general` instead - `hideWearUnderBlocks` and
+`flattenWearUnderBlocks`, which are yours alone and are never sent to anybody - and the config's own category comment
+says so where a reader will meet it.
 
 ## The wear table
 
@@ -1182,15 +1185,13 @@ to quiet it.
   move past it. A release can also give one short sentence of what it does. Every word shown is this
   mod's own: the file supplies version numbers, one of the three reasons, and a sentence held to fifty
   characters of plain text with no address in it.
-- **Required mods.** The file gives UniMixins on 1.7.10, MixinBooter on 1.12.2, Cloth Config and
-  Fabric API on 1.16.5, 1.20.1 and 1.21.1, and Fabric API on 26.1.2, 26.2 and 26.3 Fabric a minimum and a recommended
-  version; 26.1.2, 26.2 and 26.3 NeoForge and Forge require none. Whoever can update the game is told when theirs is
-  older, on a beta or alpha edition as on a release, which version to get, and where to ask for help. The minimums
-  are the oldest run in game with this release, up to five years back - UniMixins 0.1.11, MixinBooter 8.0, Cloth
-  Config 4.11.26 on Forge and 4.14.54 on Fabric, Fabric API 0.29.4, on 1.20.1 Cloth Config 11.0.99 and Fabric API
-  0.86.0, on 1.21.1 Cloth Config 15.0.140 and Fabric API 0.116.17, and Fabric API 0.155.3 on 26.1.2, 0.161.0 on 26.2
-  and 0.164.0 on 26.3 - and the recommended versions are those the mod is built against. This is the softer line above the
-  loaders' own floors, and it can move without a new release of this mod.
+- **Required mods.** The file gives UniMixins on 1.7.10, MixinBooter on 1.12.2 and Fabric API on every Fabric edition
+  a minimum and a recommended version; the Forge and NeoForge editions from 1.16.5 on require none. Whoever can update
+  the game is told when theirs is older, on a beta edition as on a release, which version to get, and where to ask for
+  help. The minimums are the oldest run in game with this release - UniMixins 0.1.11, MixinBooter 8.0, and Fabric API
+  0.30.0 on 1.16.5, 0.86.0 on 1.20.1, 0.102.0 on 1.21.1, 0.145.4 on 26.1.2, 0.152.1 on 26.2 and 0.160.5 on 26.3 - and
+  the recommended versions are those the mod is built against. This is the softer line above the loaders' own floors,
+  and it can move without a new release of this mod.
 - **What is sent.** Nothing but the request itself, which GitHub sees as it would any page: no player
   names, no world, no settings, no identifier of any kind. The answer is kept in memory and noted in
   the game's log.
@@ -1262,8 +1263,8 @@ wear table and the config screen.
 | **[BetterQuesting](https://github.com/Funwayguy/BetterQuesting)** | a chapter of up to seventeen quests, written additively into `DefaultQuests`, or merged into `DefaultQuests.json` on 1.12.2 |
 | **[FTB Quests](https://github.com/FTBTeam/FTB-Quests)** (1.20.1; 1.21.1 NeoForge and Fabric) | the same chapter, written as FTB Quests' own chapter file as the server starts; its rewards paid in vanilla stand-ins where the pack has not got GT New Horizons' loot bags or HarvestCraft's food |
 | **[Et Futurum Requiem](https://github.com/Roadhog360/Et-Futurum-Requiem)** | two registry names in default block lists, and nothing more |
-| **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, Fabric) | the button that opens the settings screen; Fabric has no mod list of its own |
-| **[Cloth Config](https://github.com/shedaniel/cloth-config)** (26.1.2, 26.2 and 26.3 NeoForge; 26.3 Fabric) | the settings screen built on Cloth's; without it the mod shows a settings screen of its own, laid out as Cloth's is |
+| **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, Fabric) | a Config button in the mod list; the settings screen is also reached from the Options screen, a key and `/trmt config` |
+| **[Cloth Config](https://github.com/shedaniel/cloth-config)** (1.16.5, 1.20.1, 1.21.1; 26.1.2, 26.2 and 26.3 NeoForge; 26.3 Fabric) | Cloth's own settings screen, one button away from this mod's and back, listing every category |
 
 `integration.gtnhEnhanced` flips on when GregTech is present and switches the mod to pack-tuned
 recipes; without it, plain recipes, a golem built from vanilla blocks, a Wayfarer that no longer
@@ -1430,12 +1431,12 @@ not check it.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **548 tests on 1.7.10, 700 on 1.12.2, 787 on 1.16.5, 825 on 1.20.1, 838 on
-1.21.1, 863 on 26.1.2, 865 on 26.2 and 871 on 26.3**, every one
+types in them and are unit tested - **1,000 tests on 1.7.10, 1,162 on 1.12.2, 1,239 on 1.16.5, 1,296 on 1.20.1, 1,317 on
+1.21.1, 1,321 on 26.1.2, 1,323 on 26.2 and 1,337 on 26.3**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 
-**Thirty-six of those classes are shared between the editions byte for byte**, and a test in each
+**Sixty-three of those classes are shared between the editions byte for byte**, and a test in each
 reads its own copy and the one in the edition it was carried from, failing the build on any
 difference and naming the files.
 

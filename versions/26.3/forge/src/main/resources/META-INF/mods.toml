@@ -21,7 +21,7 @@ outright without a square of terrain having changed.
 [[dependencies.trmtgtnh]]
     modId = "forge"
     mandatory = true
-    versionRange = "[64,)"
+    versionRange = "[66,)"
     ordering = "NONE"
     side = "BOTH"
 

@@ -97,6 +97,20 @@ public final class OculusGate implements IMixinConfigPlugin {
     /** The mixin that needs WTHIT. */
     private static final String GATED_WTHIT = "MixinWthitHarvestLine";
 
+    /**
+     * Via Romana's road test, which worn ground answers again (0.9.228) - named here for the same reason as
+     * {@link #HOLDER}, and refused where Via Romana is not installed for the reason Jade's is.
+     */
+    public static final String VIA_ROMANA_PATHS = "net.rasanovum.viaromana.util.PathUtils";
+
+    /** Via Romana's fast-trip request, which a trip's road is worn from (0.9.228). */
+    public static final String VIA_ROMANA_TRIP = "net.rasanovum.viaromana.network.packets.TeleportRequestC2S";
+
+    /** The mixins that need Via Romana. */
+    private static final String GATED_VIA_ROMANA_PATHS = "MixinViaRomanaPathBlock";
+
+    private static final String GATED_VIA_ROMANA_TRIP = "MixinViaRomanaTrip";
+
     private boolean present;
 
     private boolean optiFinePresent;
@@ -107,6 +121,10 @@ public final class OculusGate implements IMixinConfigPlugin {
 
     private boolean wthitPresent;
 
+    private boolean viaRomanaPaths;
+
+    private boolean viaRomanaTrip;
+
     @Override
     public void onLoad(String mixinPackage) {
         present = there(HOLDER);
@@ -114,6 +132,8 @@ public final class OculusGate implements IMixinConfigPlugin {
         sodiumPresent = there(SODIUM_FACES) || there(EMBEDDIUM_FACES);
         jadePresent = there(JADE_HARVEST);
         wthitPresent = there(WTHIT_HARVEST);
+        viaRomanaPaths = there(VIA_ROMANA_PATHS);
+        viaRomanaTrip = there(VIA_ROMANA_TRIP);
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material.
         org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
@@ -151,6 +171,8 @@ public final class OculusGate implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(GATED_SODIUM)) return sodiumPresent;
         if (mixinClassName.endsWith(GATED_JADE)) return jadePresent;
         if (mixinClassName.endsWith(GATED_WTHIT)) return wthitPresent;
+        if (mixinClassName.endsWith(GATED_VIA_ROMANA_PATHS)) return viaRomanaPaths;
+        if (mixinClassName.endsWith(GATED_VIA_ROMANA_TRIP)) return viaRomanaTrip;
         return true;
     }
 

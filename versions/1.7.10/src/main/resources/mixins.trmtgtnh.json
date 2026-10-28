@@ -8,7 +8,8 @@
   "mixins": [
     "MixinBlockCollision",
     "MixinStuckInWornGround",
-    "MixinLibrarianBooks"
+    "MixinLibrarianBooks",
+    "MixinPlayerArrives"
   ],
   "client": [
     "MixinGrassTint",
@@ -25,7 +26,9 @@
     "MixinSettledOutline",
     "MixinGhostShaderMaterial",
     "MixinStairMetadata",
-    "MixinBlockArrivals"
+    "MixinBlockArrivals",
+    "MixinNewArrayRow",
+    "MixinPartialChunkHighIds"
   ],
   "server": [],
   "injectors": {

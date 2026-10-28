@@ -31,10 +31,14 @@ import com.trmtgtnh.config.TrmtConfig;
  *
  * <p>
  * The other edition refuses to register an achievement for a feature the config has switched off, so
- * that nothing unreachable sits on the page. A JSON file cannot be registered conditionally, so all
- * sixteen are always there and the refusal moved here instead: a switch that is off means the grant
- * never happens. The page shows one more unearned line than it used to; nothing can be earned that
- * the switches have closed.
+ * that nothing unreachable sits on the page. <strong>From 0.9.228 so does this one</strong> (BP30, BP33; Xep: "Match
+ * 1.7.10"): each file names the switches it needs, and a file whose switches are not all on is not loaded - with
+ * {@code general.achievements} off there is no tab at all, and with it on nothing shows that the pack cannot reach.
+ * On Forge that is a load condition, {@code trmtgtnh:settings}, in each file's {@code conditions}; on Fabric, whose API
+ * has no load conditions at this version, a filter at the head of the advancement manager's own load
+ * (MixinAdvancementsLoad). Both ask {@link #loads}. Read when data loads - a server's start and {@code /reload} - and a
+ * world's earned ones stay in its save either way. The grant still refuses with the switch off, for an advancement
+ * a pack's own data put back.
  */
 public final class ModAchievements {
 
@@ -54,7 +58,72 @@ public final class ModAchievements {
     public static final ResourceLocation OMNI = id("trmt_omni");
     public static final ResourceLocation LIBRARY = id("trmt_library");
 
+    /** The load condition each file names, on Forge: {@code {"type": "trmtgtnh:settings", "settings": [...]}}. */
+    public static final String CONDITION = "settings";
+
+    /**
+     * The switches each advancement needs, all on, to be loaded at all (0.9.228; Xep: "Match 1.7.10") - the 1.7.10
+     * edition's {@code ModAchievements.register}: nothing with {@code achievements} off; each mode and its book only
+     * with its switch on (the enchantments always exist at this version); the golem only with {@code golemEnabled}, All
+     * Ways only with {@code golemUpgrades} too; the four books read and the shelf whatever the golem switches say, as
+     * 1.7.10 makes one for every guide book that exists. A child whose parent is not loaded is dropped by the game with
+     * a warning, so every child names its parent's switches too. Each file's own {@code conditions} say the same, and
+     * the suite compares them file by file.
+     */
+    private static final java.util.Map<String, String[]> SWITCHES = new java.util.LinkedHashMap<String, String[]>();
+
+    static {
+        String on = "achievements";
+        for (String plain : new String[] { "trmt_tamper", "trmt_chunk_tamper", "trmt_wayfarer", "trmt_read_mk1",
+            "trmt_read_mk2", "trmt_read_commands", "trmt_read_golem", "trmt_library" }) {
+            SWITCHES.put(plain, new String[] { on });
+        }
+        SWITCHES.put("trmt_reinforcing", new String[] { on, "reinforceEnabled" });
+        SWITCHES.put("trmt_book_reinforce", new String[] { on, "reinforceEnabled" });
+        SWITCHES.put("trmt_lighting", new String[] { on, "lightEnabled" });
+        SWITCHES.put("trmt_book_light", new String[] { on, "lightEnabled" });
+        SWITCHES.put("trmt_warding", new String[] { on, "wardEnabled" });
+        SWITCHES.put("trmt_book_ward", new String[] { on, "wardEnabled" });
+        SWITCHES.put("trmt_golem", new String[] { on, "golemEnabled" });
+        SWITCHES.put("trmt_omni", new String[] { on, "golemEnabled", "golemUpgrades" });
+    }
+
     private ModAchievements() {}
+
+    /** The switches one of this mod's advancement files needs, by its name without the folder; null for any other. */
+    public static String[] switchesOf(String file) {
+        String[] switches = file == null ? null : SWITCHES.get(file);
+        return switches == null ? null : switches.clone();
+    }
+
+    /**
+     * Whether one of this mod's advancement files is loaded under the settings as they stand: every switch it names is
+     * on. A name this mod has no file of is asked for {@code achievements} alone, as every file of this mod's is.
+     */
+    public static boolean loads(String file) {
+        String[] switches = file == null ? null : SWITCHES.get(file);
+        return allOn(switches == null ? new String[] { "achievements" } : switches);
+    }
+
+    /** Whether every switch named is on - what Forge's {@code trmtgtnh:settings} condition asks. An unknown name is off. */
+    public static boolean allOn(String[] switches) {
+        if (switches == null) return true;
+        for (String each : switches) {
+            if (!switchOn(each)) return false;
+        }
+        return true;
+    }
+
+    /** One switch, by the name it has in the settings file. */
+    static boolean switchOn(String name) {
+        if ("achievements".equals(name)) return TrmtConfig.achievements;
+        if ("reinforceEnabled".equals(name)) return TrmtConfig.reinforceEnabled;
+        if ("lightEnabled".equals(name)) return TrmtConfig.lightEnabled;
+        if ("wardEnabled".equals(name)) return TrmtConfig.wardEnabled;
+        if ("golemEnabled".equals(name)) return TrmtConfig.golemEnabled;
+        if ("golemUpgrades".equals(name)) return TrmtConfig.golemUpgrades;
+        return false;
+    }
 
     private static ResourceLocation id(String name) {
         return new ResourceLocation(Trmt.MODID, name);
@@ -97,7 +166,7 @@ public final class ModAchievements {
     private static void award(Player player, ResourceLocation which) {
         if (which == null || !(player instanceof ServerPlayer)) return;
         // The switch the 1.7.10 edition asks before it registers anything: off, nothing is awarded (0.9.222, spec
-        // BP30). The tab itself still loads at this version, as a data file does.
+        // BP30). From 0.9.228 the files themselves are not loaded either (see loads); this stays for a pack's own data.
         if (!com.trmtgtnh.config.TrmtConfig.achievements) return;
         ServerPlayer real = (ServerPlayer) player;
         if (real.server == null) return;

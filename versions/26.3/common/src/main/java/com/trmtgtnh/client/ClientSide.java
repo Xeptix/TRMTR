@@ -159,6 +159,11 @@ public final class ClientSide implements Client.Side {
     }
 
     @Override
+    public void considerServerBuild(boolean sent, int protocol, String build) {
+        OlderServerNotice.rulesArrived(sent, protocol, build);
+    }
+
+    @Override
     public void considerServerTable(boolean sent, long fingerprint) {
         ClientRules.get()
             .considerServerTable(sent, fingerprint);
@@ -199,10 +204,14 @@ public final class ClientSide implements Client.Side {
     @Override
     public void openSnapshotScreen(int flags) {
         net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+        boolean asked = com.trmtgtnh.item.ItemSnapshotTool.answerAsked();
         if (client.gui.screen() instanceof com.trmtgtnh.client.gui.GuiSnapshot) {
             ((com.trmtgtnh.client.gui.GuiSnapshot) client.gui.screen()).update(flags);
             return;
         }
+        // A gesture's answer opens no screen (0.9.228, spec CF79, CF81): only the answer to holding the modifier and
+        // using the tool does. Anything else is dropped here.
+        if (!asked) return;
         client.gui.setScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
     }
 
@@ -640,6 +649,10 @@ public final class ClientSide implements Client.Side {
         InspectionCache.clear();
         int[] underServer = ServerRules.chainAppearances();
         ServerRules.release();
+        // Where the server's rules are dropped, so the next visit is told afresh whether its server is older (0.9.228).
+        OlderServerNotice.leave();
+        // And a snapshot screen asked for and never answered cannot open at a gesture in the next world (0.9.228).
+        com.trmtgtnh.item.ItemSnapshotTool.forgetScreenAsk();
         // The table a server named is the server's answer to what erodes, and a client that kept it
         // would meet the next world holding the last one's list. Released before the read, so the
         // rebuild below publishes this client's own table rather than the visit's again.

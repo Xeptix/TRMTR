@@ -11,7 +11,10 @@
     "MixinUnlocksAnswerTheirSwitch",
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
-    "MixinPackRepository"
+    "MixinPackRepository",
+    "MixinViaRomanaPathBlock",
+    "MixinViaRomanaTrip",
+    "MixinPlayerArrives"
   ],
   "client": [
     "MixinJadeHarvestLine",

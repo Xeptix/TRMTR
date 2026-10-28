@@ -86,7 +86,13 @@ public final class ItemTints {
                         + "still right; a modded one with a color handler of its own will draw untinted. "
                         + "Said once.");
             }
-            guessed = ItemColors.createDefault(client.getBlockColors());
+            try {
+                guessed = ItemColors.createDefault(client.getBlockColors());
+            } catch (RuntimeException refused) {
+                // Fabric API allows the game one set of item colors and refuses a second (0.9.228): no stand-in, so no
+                // tint, rather than a screen that takes the game down.
+                return null;
+            }
         }
         return guessed;
     }

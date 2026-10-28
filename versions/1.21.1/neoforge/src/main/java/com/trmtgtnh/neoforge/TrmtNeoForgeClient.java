@@ -61,12 +61,45 @@ public final class TrmtNeoForgeClient {
         Client.use(new ClientSide());
 
         // Where the mod list's Config button goes: NeoForge's IConfigScreenFactory, registered on the mod's own
-        // container, where Forge registered its ConfigScreenFactory through ModLoadingContext. The screen itself is
-        // shared and says the rest.
+        // container, where Forge registered its ConfigScreenFactory through ModLoadingContext. From 0.9.228 Cloth
+        // Config is optional (decided), so the button asks ConfigScreens, which opens this mod's own screen or Cloth's
+        // where Cloth is installed and client.settingsScreen asks for it. Registered whatever is installed.
         container.registerExtensionPoint(
             net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
-            (net.neoforged.neoforge.client.gui.IConfigScreenFactory) (mod, parent) -> com.trmtgtnh.client.gui.ConfigScreen
-                .build(parent));
+            (net.neoforged.neoforge.client.gui.IConfigScreenFactory) (mod, parent) -> com.trmtgtnh.client.gui.ConfigScreens
+                .open(parent));
+
+        // A fluid's still texture, for the settings screen's picture of a fluid with no bucket (0.9.228, spec 3.3):
+        // NeoForge's client fluid type extensions name it, on the block atlas. Asked only when a screen draws one.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTextures(
+            fluid -> net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid)
+                .getStillTexture());
+        // And its color, which the game's renderer multiplies that texture by (0.9.228): the same extensions' tint.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTints(
+            fluid -> net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid)
+                .getTintColor());
+    }
+
+    // The settings key is registered in NeoForgeClientSetup.keys, on the mod's bus: every listener in this class is the
+    // game's bus's, which is the one an FML before 4.0.40 registers this class on (NeoForgeBusesTest).
+
+    /**
+     * {@code /trmt config}, on the client: never sent, and the server's own /trmt answers everything else (0.9.228).
+     * NeoForge runs a typed command against the client's tree first and hands it to the server only where that tree
+     * has no such command or argument.
+     */
+    @SubscribeEvent
+    public static void commands(net.neoforged.neoforge.client.event.RegisterClientCommandsEvent event) {
+        com.trmtgtnh.client.gui.SettingsAccess.register(event.getDispatcher());
+    }
+
+    /**
+     * What this mod adds to a screen once it has laid itself out (0.9.228, ConfigScreens.afterInit): the small settings
+     * button on the game's Options screen, and the way back to the own screen on Cloth Config's.
+     */
+    @SubscribeEvent
+    public static void screens(net.neoforged.neoforge.client.event.ScreenEvent.Init.Post event) {
+        com.trmtgtnh.client.gui.ConfigScreens.afterInit(event.getScreen(), event.getListenersList(), event::addListener);
     }
 
     // The end of the tick, which NeoForge posts as an event of its own (Post) where Forge posted one event with a
@@ -85,6 +118,9 @@ public final class TrmtNeoForgeClient {
             left = true;
             ClientSide.tick();
         }
+
+        // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
+        com.trmtgtnh.client.gui.SettingsAccess.tick(client);
     }
 
     /** A chunk arriving in the client's world, which NeoForge announces once its blocks are in (spec PT18). */

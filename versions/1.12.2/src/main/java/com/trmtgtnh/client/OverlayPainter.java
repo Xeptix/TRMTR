@@ -428,7 +428,7 @@ public final class OverlayPainter {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
         IBlockState above = world.getBlockState(new BlockPos(x, y + 1, z));
         if (above.getBlock() instanceof BlockGhost) return ghostCovers(x, y + 1, z);
-        return above.isOpaqueCube();
+        return above.isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(above);
     }
 
     /**

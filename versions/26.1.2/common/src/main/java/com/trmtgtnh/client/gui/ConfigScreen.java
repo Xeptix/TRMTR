@@ -35,8 +35,9 @@ import com.trmtgtnh.network.TrmtNetwork;
  * each, and the alternative is writing a scrolling property editor from scratch - which is a
  * fortnight of work to arrive somewhere worse. So {@code TrmtConfigGui}, {@code TrmtGuiFactory},
  * {@code ConfigAdapter}, {@code BlockIconArrayEntry} and {@code MobIconArrayEntry} are replaced by
- * this one class, and it is required rather than optional: a settings screen that is sometimes
- * absent is worse than one that asks for a library.
+ * this one class. Required until 26.x, and optional on 26.x (Xep, 0.9.227: "if it's there it uses
+ * that, if not uses our in house one"): the mod's own screen ({@link WornPathScreen}) opens without
+ * it, and from 0.9.228 first, with a button on each screen switching to the other ({@link ConfigScreens}).
  *
  * <h2>Built from the file, not from a list</h2>
  *
@@ -52,8 +53,9 @@ import com.trmtgtnh.network.TrmtNetwork;
  * <p>
  * The headings are 1.7.10's, in its order, and {@link ConfigLayout} says which: presets, then client -
  * the only part a player on somebody else's server can actually change - then the rest as that screen
- * names them, then each family as a heading of its own. The six 1.7.10 leaves to a text editor are
- * left off here too (spec CF58).
+ * names them, then each family as a heading of its own. From 0.9.228 every category the own screen's
+ * tabs hold, the six only the file held until then included, in the tabs' order (Xep, 2026-10-25:
+ * "Keep every category"; {@code ConfigLayout.otherScreenHeadings}).
  *
  * <p>
  * The two buttons are kept as well, at the top of the first category rather than in a row of their
@@ -87,17 +89,34 @@ public final class ConfigScreen {
         ConfigEntryBuilder entries = builder.entryBuilder();
 
         boolean first = true;
-        for (String name : ConfigLayout.headings(config.getCategoryNames())) {
+        // Every category the own screen's tabs hold, in their order, then the families (0.9.228, spec M14; Xep: "If there
+        // are settings missing then yeah we should add all categories there too") - until then the six the file alone
+        // held were left off here, as Forge's screen leaves them off in the 1.7.10 edition no longer.
+        for (String name : ConfigLayout.otherScreenHeadings(config.getCategoryNames())) {
             ConfigFile.Category category = config.getCategory(name);
             if (category == null) continue;
-            ConfigCategory shown = builder.getOrCreateCategory(Component.literal(title(leaf(name))));
+            ConfigCategory shown = builder.getOrCreateCategory(heading(name));
             if (first) {
                 first = false;
                 buttons(shown, parent);
             }
             fill(shown, entries, config, name, category);
         }
-        return builder.build();
+        Screen built = builder.build();
+        // The way back to the own screen is added to this screen once it has laid itself out (ConfigScreens.afterInit).
+        ConfigScreens.builtCloth(built, parent);
+        return built;
+    }
+
+    /**
+     * A category's heading on Cloth's screen: the own screen's tab name where the language has it (0.9.228; Xep,
+     * 2026-10-25, "Use the tab names", as Forge's headings read them on 1.7.10 and 1.12.2), else its own name.
+     */
+    static Component heading(String name) {
+        String key = ConfigLayout.headingKey(name);
+        if (key != null && net.minecraft.locale.Language.getInstance()
+            .has(key)) return Component.translatable(key);
+        return Component.literal(title(leaf(name)));
     }
 
     /**
@@ -288,26 +307,15 @@ public final class ConfigScreen {
      * <p>
      * Every line of it, because these comments are the documentation: several run to a paragraph and
      * one runs to half a page, and a hover that showed the first sentence of those would be a hover
-     * that hid the part explaining what the setting is for.
+     * that hid the part explaining what the setting is for. The same lines as the own screen's, range and default line
+     * included, from {@link ConfigWords#noteLines} (0.9.228): the two screens say a setting the same way.
      */
     private static Component[] note(ConfigFile.Setting setting) {
-        String comment = setting.getComment();
-        if (comment == null || comment.isEmpty()) return new Component[0];
-        Minecraft client = Minecraft.getInstance();
-        List<String> lines = client == null ? Arrays.asList(comment) : GuiText.wrap(client.font, comment, 260);
-        if (setting.isBounded()) lines = withRange(lines, setting);
+        List<String> lines = ConfigWords.noteLines(setting);
         Component[] out = new Component[lines.size()];
         for (int at = 0; at < out.length; at++) {
             out[at] = Component.literal(lines.get(at));
         }
-        return out;
-    }
-
-    /** The allowed range, said in the hover, because Cloth refuses silently without saying why. */
-    private static List<String> withRange(List<String> lines, ConfigFile.Setting setting) {
-        List<String> out = new ArrayList<String>(lines);
-        out.add("");
-        out.add(net.minecraft.ChatFormatting.DARK_GRAY + setting.getRange());
         return out;
     }
 

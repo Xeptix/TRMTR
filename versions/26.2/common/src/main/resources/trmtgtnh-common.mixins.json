@@ -11,7 +11,8 @@
     "MixinUnlocksAnswerTheirSwitch",
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
-    "MixinPackRepository"
+    "MixinPackRepository",
+    "MixinPlayerArrives"
   ],
   "client": [
     "MixinJadeHarvestLine",

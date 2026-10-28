@@ -291,6 +291,32 @@ public final class GhostInherit {
     }
 
     /**
+     * The covered block's own answer to any question, or null where there is nothing to ask - nothing recorded under the
+     * square, or the question has come back round to a ghost - for a question whose answer {@link #sustainsPlant}'s
+     * true-or-false would throw away (0.9.228, GF15 on NeoForge; Xep: "Pass the question on").
+     *
+     * <p>
+     * NeoForge asks a soil's {@code canSustainPlant} before a plant's own {@code mayPlaceOn}, and answers in three ways:
+     * yes, no, or let the plant decide. The ghost hands the question to the covered block through the same view and the
+     * same guard as Forge's, and passes on all three: a modded soil whose rule lives in that method is asked, and a
+     * vanilla one, which answers "let the plant decide", falls through to {@code mayPlaceOn}, which the soil mixins
+     * already hand to the covered block. Forge's mixin goes on asking {@link #sustainsPlant}.
+     */
+    public static <T> T askCovered(Block ghost, BlockGetter world, BlockPos pos,
+        java.util.function.BiFunction<BlockState, BlockGetter, T> ask) {
+        BlockState covered = coveredAt(ghost, pos);
+        if (covered == null) return null;
+        if (!enter()) return null;
+        try {
+            return ask.apply(covered, new OriginView(world, pos, covered));
+        } catch (RuntimeException awkwardBlock) {
+            return null;
+        } finally {
+            leave();
+        }
+    }
+
+    /**
      * The ground a plant is asked to stand on: the block a ghost covers, where the ground is a ghost, and otherwise the
      * ground itself - for Fabric, whose plants decide this themselves rather than asking the block (spec GF15).
      *

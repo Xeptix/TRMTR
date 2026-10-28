@@ -1,6 +1,5 @@
 package com.trmtgtnh.server;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -83,7 +82,7 @@ public final class ServerEvents {
         if (!dueThisTick()) return;
 
         float multiplier = ErosionEngine.multiplierFor((ServerPlayer) player);
-        if (multiplier > 0f) ErosionEngine.get()
+        if (multiplier > 0f && admitted(player)) ErosionEngine.get()
             .onMoverTick((ServerPlayer) player, multiplier);
     }
 
@@ -91,20 +90,41 @@ public final class ServerEvents {
      * Everything else that walks.
      *
      * <p>
-     * The lead switch and the mob list are two ways in, and {@code multiplierFor} asks each of them
-     * properly. Returning on the lead switch alone shut the list off with it, so villagers stopped
-     * wearing paths the moment led animals were told not to. Skipped only when neither could answer,
-     * which keeps this costing nothing on a pack that uses neither.
+     * The lead switch, the mob list and the three groups are the ways in (0.9.228), and {@code multiplierFor} asks each
+     * of them properly. Returning on the lead switch alone shut the list off with it, so villagers stopped wearing
+     * paths the moment led animals were told not to. Skipped only when none could answer, which keeps this costing
+     * nothing on a pack that uses none.
      */
     public static void livingTicked(LivingEntity entity) {
-        if (!TrmtConfig.erodeFromLeashedMobs && TrmtConfig.mobMultipliers.isEmpty()) return;
+        if (!TrmtConfig.erodeFromLeashedMobs && TrmtConfig.mobMultipliers.isEmpty() && !TrmtConfig.fromHostileMobs
+            && !TrmtConfig.fromPassiveMobs && !TrmtConfig.fromVillagers) return;
         if (entity == null || entity.level() == null || entity.level().isClientSide()) return;
         if (entity instanceof Player) return; // handled above
         if (!dueThisTick()) return;
 
         float multiplier = ErosionEngine.multiplierFor(entity);
-        if (multiplier > 0f) ErosionEngine.get()
+        if (multiplier > 0f && admitted(entity)) ErosionEngine.get()
             .onMoverTick(entity, multiplier);
+    }
+
+    /**
+     * The per-chunk caps (0.9.228; Xep: "Movers per chunk"), one per server, cleared when it stops: at most so many of
+     * a kind wear the ground in one chunk in one round of the sampled movement, the rest walking without wearing it.
+     */
+    private static com.trmtgtnh.util.MobWear.Caps caps = new com.trmtgtnh.util.MobWear.Caps();
+
+    /**
+     * Whether this walking mover, already weighed above nought, is one its kind's cap lets wear the ground in its chunk
+     * this round. Asked where a walk is weighed and nowhere else - not of a fall, which is one landing and not a crowd.
+     */
+    private static boolean admitted(LivingEntity mover) {
+        int kind = ErosionEngine.kindOf(mover);
+        int cap = ErosionEngine.capOf(kind);
+        if (cap <= 0) return true;
+        int world = ErosionStore.get()
+            .indexOf(mover.level());
+        long chunk = com.trmtgtnh.util.MobWear.Caps.chunk(world, Mth.floor(mover.getX()) >> 4, Mth.floor(mover.getZ()) >> 4);
+        return caps.admit(sampleCounter, chunk, kind, cap);
     }
 
     private static boolean dueThisTick() {
@@ -154,6 +174,8 @@ public final class ServerEvents {
             .onServerTick();
         ErosionEngine.get()
             .sweepOrphans();
+        // Via Romana's fast trips that have landed wear their road, where integration.viaRomanaTripWear is on (0.9.228).
+        com.trmtgtnh.compat.viaromana.TripWear.tick();
         // The update notice's round every eight hours (0.9.221), asked once a second.
         if ((sampleCounter % 20) == 0) com.trmtgtnh.server.UpdateNotice.serverTick();
     }
@@ -337,6 +359,18 @@ public final class ServerEvents {
         com.trmtgtnh.compat.TrophyCompat.writeDefinitions();
         com.trmtgtnh.compat.QuestbookCompat.writeQuests();
         com.trmtgtnh.compat.QuestbookCompat.examineWorld(server);
+        sayUnknownMobs(server);
+    }
+
+    /**
+     * Names, once as a server starts, the mobs list's lines no mob in this game answers to (0.9.228; Xep: "named once
+     * in the server log at start"). At the start and not before, because mods register their mobs late; every mob the
+     * registry holds counts, and a 1.7.10 spelling counts where a mob it stands for is registered.
+     */
+    static void sayUnknownMobs(net.minecraft.server.MinecraftServer server) {
+        String said = com.trmtgtnh.util.MobNames.unknownLine(com.trmtgtnh.util.MobNames.unknown(TrmtConfig.mobLines,
+            com.trmtgtnh.erosion.MobGroups.registered(server == null ? null : server.overworld())));
+        if (said != null) Trmt.LOG.warn("{}", said);
     }
 
     /**
@@ -368,6 +402,10 @@ public final class ServerEvents {
             .reset();
         com.trmtgtnh.erosion.Weather.reset();
         com.trmtgtnh.erosion.SnowCover.reset();
+        // Via Romana trips still waiting to land, which held the stopped server's levels.
+        com.trmtgtnh.compat.viaromana.TripWear.forget();
+        // The caps' count of who wore what in which chunk, which belonged to the world that stopped.
+        caps = new com.trmtgtnh.util.MobWear.Caps();
     }
 
     /**
@@ -757,18 +795,12 @@ public final class ServerEvents {
         // spared block is neither destroyed nor counted as ground about to be.
         spareReinforced(level, affected, size);
         if (!TrmtConfig.enabled || !TrmtConfig.explosionWear || size <= 0f) return;
-        // Gathered here because this is the one moment the list exists: it holds every affected block
-        // still standing and about to be taken. Scouring ground that is air a moment later spends a
-        // chunk's entry budget on positions nobody will ever see.
-        Set<Long> doomed = new HashSet<Long>();
-        if (affected != null) {
-            for (BlockPos at : affected) {
-                doomed.add(Long.valueOf(ErosionEngine.packPosition(at.getX(), at.getY(), at.getZ())));
-            }
-        }
-
+        // Remembered, not scoured: this is called with every affected block still standing and about
+        // to be taken, and ground scoured now is ground under a block that is gone a moment later -
+        // sheltered by it, so the crater's floor and walls came out unworn. The engine scours it at
+        // the end of this tick, once the blocks have gone (0.9.228; ErosionEngine.blastLater).
         ErosionEngine.get()
-            .blast(level, centreX, centreY, centreZ, size, doomed);
+            .blastLater(level, centreX, centreY, centreZ, size);
     }
 
     /**

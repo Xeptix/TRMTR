@@ -1,7 +1,7 @@
 # Where the editions differ
 
 TRMT: Reimagined is one mod with one version number. Every edition does the same thing by the same
-numbers and reads the same settings file, and thirty-six classes are shared between them byte for
+numbers and reads the same settings file, and sixty-three classes are shared between them byte for
 byte, with a test in each edition's development tree that fails if the copies drift.
 
 This page is everything that is *not* the same, in one place. The manual says each of these in the
@@ -14,20 +14,20 @@ moving a pack from one to the other.
 |---|---|---|---|
 | **1.7.10** | Forge 10.13.4.1614+ | released | [UniMixins](https://github.com/LegacyModdingMC/UniMixins), or the older [GTNHMixins](https://github.com/GTNH-Museum/GTNHMixins) |
 | **1.12.2** | Forge 14.23.5.2847+ | released | [MixinBooter](https://github.com/CleanroomMC/MixinBooter) |
-| **1.16.5** | Forge 36.2.34+ **or** Fabric | released | [Cloth Config](https://github.com/shedaniel/cloth-config); on Fabric also [Fabric API](https://github.com/FabricMC/fabric-api), and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
-| **1.20.1** | Forge 47+ **or** Fabric | released | [Cloth Config](https://github.com/shedaniel/cloth-config) 11.0.99+; on Fabric also [Fabric API](https://github.com/FabricMC/fabric-api) 0.86.0+, and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
-| **1.21.1** | NeoForge 21.1+, Forge 52+ **or** Fabric | beta | [Cloth Config](https://github.com/shedaniel/cloth-config) 15.0.140+; on Fabric also [Fabric API](https://github.com/FabricMC/fabric-api) 0.116.17+, and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
-| **26.1.2** | NeoForge 26.1.2+, Forge 64 **or** Fabric, on Java 25 | alpha | Nothing on NeoForge or Forge, and [Cloth Config](https://github.com/shedaniel/cloth-config) optional on NeoForge, where the settings screen is then Cloth's; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.155.3+, and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
-| **26.2** | NeoForge 26.2+, Forge 65 **or** Fabric, on Java 25 | alpha | Nothing on NeoForge or Forge, and [Cloth Config](https://github.com/shedaniel/cloth-config) optional on NeoForge, where the settings screen is then Cloth's; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.161.0+, and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
-| **26.3** | NeoForge 26.3+, Forge 66 **or** Fabric, on Java 25 | alpha | Nothing on NeoForge or Forge, and [Cloth Config](https://github.com/shedaniel/cloth-config) optional on NeoForge and Fabric, where the settings screen is then Cloth's; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.164.0+, and [Mod Menu](https://github.com/TerraformersMC/ModMenu) to reach the settings screen |
+| **1.16.5** | Forge 36.0.42+ **or** Fabric Loader 0.11.1+ | released | Nothing on Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.30.0+. [Cloth Config](https://github.com/shedaniel/cloth-config) and [Mod Menu](https://github.com/TerraformersMC/ModMenu) optional |
+| **1.20.1** | Forge 47.0.34+ **or** Fabric Loader 0.14.22+ | released | Nothing on Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.86.0+. [Cloth Config](https://github.com/shedaniel/cloth-config) and [Mod Menu](https://github.com/TerraformersMC/ModMenu) optional |
+| **1.21.1** | NeoForge 21.1+, Forge 52+ **or** Fabric Loader 0.16.1+, on Java 21 | released | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.102.0+. [Cloth Config](https://github.com/shedaniel/cloth-config) and [Mod Menu](https://github.com/TerraformersMC/ModMenu) optional |
+| **26.1.2** | NeoForge 26.1.2.71+, Forge 64 **or** Fabric Loader 0.19.1+, on Java 25 | beta | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.145.4+. Cloth Config optional on NeoForge, Mod Menu on Fabric |
+| **26.2** | NeoForge 26.2.0.57+, Forge 65 **or** Fabric Loader 0.19.4+, on Java 25 | beta | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.152.1+. Cloth Config optional on NeoForge, Mod Menu on Fabric |
+| **26.3** | NeoForge 26.3.0.76+, Forge 66 **or** Fabric Loader 0.19.5+, on Java 25 | beta | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.160.5+. Cloth Config optional on NeoForge and Fabric, Mod Menu on Fabric |
 
 All eight run on plain Forge - or plain NeoForge, or plain Fabric - with nothing else installed. Every other
 integration is behind a mod-loaded check.
 
 1.16.5 and 1.20.1 are each one codebase and two jars, and 1.21.1, 26.1.2, 26.2 and 26.3 are each one codebase and
 three. Take the one that matches your loader. 1.20.1 is a release, carried from 1.16.5 and held to 1.7.10 rule for
-rule. 1.21.1 is a beta, carried from 1.20.1 and held to 1.7.10 the same way, and it runs on Java 21, as Minecraft
-1.21.1 does. 26.1.2, 26.2 and 26.3 are alphas: the first builds for those versions, held to 1.7.10 the same way, and
+rule. 1.21.1 is a release, carried from 1.20.1 and held to 1.7.10 the same way, and it runs on Java 21, as Minecraft
+1.21.1 does. 26.1.2, 26.2 and 26.3 are betas, held to 1.7.10 the same way, and
 they run on Java 25, which those versions require. In every table below 1.20.1 answers as 1.16.5 does, and 1.21.1 as
 1.20.1 does, unless the table says otherwise. 26.1.2, 26.2 and 26.3 have a column in the settings screen's table, the
 text under the maps, shaders and companion mods tables says what has been seen on them, and the other tables compare
@@ -210,17 +210,13 @@ on 1.20.1 it could not.
 
 | | 1.7.10 | 1.12.2 | 1.16.5 | 1.20.1 | 1.21.1 | 26.1.2, 26.2 and 26.3 |
 |---|---|---|---|---|---|---|
-| Reached from | Forge's mod list | Forge's mod list | Forge's mod list, or Mod Menu on Fabric | Forge's mod list, or Mod Menu on Fabric | NeoForge's or Forge's mod list, or Mod Menu on Fabric | NeoForge's or Forge's mod list, or Mod Menu on Fabric |
-| Built on | Forge's config screen | Forge's config screen | Cloth Config | Cloth Config | Cloth Config | a screen of its own, laid out as Cloth's is; Cloth Config where it is installed on 26.1.2, 26.2 and 26.3 NeoForge and on 26.3 Fabric |
+| Reached from | the mod list, the Options button, a key, `/trmt config` | the mod list, the Options button, a key, `/trmt config` | the same, and Mod Menu on Fabric | the same, and Mod Menu on Fabric | the same, and Mod Menu on Fabric | the same, and Mod Menu on Fabric |
+| Built on | this mod's own screen | this mod's own screen | this mod's own screen | this mod's own screen | this mod's own screen | this mod's own screen |
+| The other screen, one button away | Forge's config screen | Forge's config screen | Cloth Config, where installed | Cloth Config, where installed | Cloth Config, where installed | Cloth Config, where installed, on NeoForge and on 26.3 Fabric |
 
-Forge's own config screen was removed after 1.12.2 and vanilla has never had one, so 1.16.5, 1.20.1 and 1.21.1 use
-Cloth Config - the one dependency this mod takes that is not a loader. Fabric has no mod list with a
-Config button at all, which is what Mod Menu is for; without it the settings file and `/trmt reload`
-are the way in.
-
-26.1.2, 26.2 and 26.3 do not require Cloth Config on any loader, and Cloth Config has no Forge build for them. Without
-it the mod shows a settings screen of its own, laid out as Cloth's is; on 26.1.2, 26.2 and 26.3 NeoForge and on 26.3 Fabric, where Cloth Config
-is installed, the settings screen is Cloth's.
+From 0.9.228 every edition opens a settings screen of this mod's own, so no edition requires Cloth Config. A button on it
+opens the other screen - Forge's own on 1.7.10 and 1.12.2, Cloth Config's where Cloth is installed - and back, and the
+choice is remembered; both list every category. Cloth Config has no Forge build for 26.1.2, 26.2 and 26.3.
 
 ### Upgrading a world
 

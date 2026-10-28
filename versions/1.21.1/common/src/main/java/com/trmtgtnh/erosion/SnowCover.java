@@ -137,6 +137,15 @@ public final class SnowCover {
      * column of snow only stands because the layer below it reads as full, so notifying a drop from
      * full to nearly-full would bring down everything above it. It is also the standing rule that
      * arbitrary neighbour code must never be run from inside a wear tick.
+     *
+     * <p>
+     * <strong>So the thinner layer is set with {@code UPDATE_CLIENTS | UPDATE_KNOWN_SHAPE}, not with the clients' flag
+     * alone</strong> (0.9.228, SC8). 1.7.10's flag 2 tells clients and nothing else; at this version flag 2 still runs
+     * the neighbours' shape updates inside {@code Level.setBlock}, and a snow layer on a drift that is no longer full
+     * answers its shape update by going, so a full drift trodden to seven took down a drift stacked on it. The
+     * known-shape flag is what skips those updates here. It is right with {@code weather.fullSnowDriftsSolid} on or
+     * off, so it is not behind the setting. The last layer still goes through {@code Worlds.setToAir}, as 1.7.10's
+     * {@code setBlockToAir} does.
      */
     private static void breakLayer(Level world, int x, int ys, int z) {
         BlockState snow = com.trmtgtnh.util.Worlds.stateAt(world, x, ys, z);
@@ -160,7 +169,7 @@ public final class SnowCover {
                     snow.setValue(
                         net.minecraft.world.level.block.SnowLayerBlock.LAYERS,
                         Integer.valueOf(layers - 1)),
-                    2);
+                    Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
                 return;
             }
         }

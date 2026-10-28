@@ -36,8 +36,9 @@ dependencies {
         exclude group: "net.fabricmc", module: "fabric-loader"
     }
 
-    // Mod Menu, compile only, the way a Fabric player reaches the settings screen; Cloth Config, required, as in
-    // 1.16.5. The tooltip plugins (WTHIT, Jade) are the common module's from 0.9.226.
+    // Mod Menu, compile only, the way a Fabric player reaches the settings screen; Cloth Config, optional from 0.9.228
+    // (decided) and kept on the development run so the rig can photograph both screens. The tooltip plugins (WTHIT,
+    // Jade) are the common module's from 0.9.226.
     modCompileOnly("com.terraformersmc:modmenu:${rootProject.modmenu_version}") {
         exclude group: "net.fabricmc"
         exclude group: "net.fabricmc.fabric-api"

@@ -351,7 +351,7 @@ public final class ModRecipes {
             GuideBook.GOLEM,
             mk1,
             new ItemStack(net.minecraft.init.Items.skull, 1, 3),
-            harder ? compressed(10) : new ItemStack(net.minecraft.init.Blocks.dirt),
+            harder ? orDirt(compressed(10)) : new ItemStack(net.minecraft.init.Blocks.dirt),
             new ItemStack(net.minecraft.init.Blocks.cobblestone),
             null);
 
@@ -384,6 +384,18 @@ public final class ModRecipes {
         if (block == null || block == net.minecraft.init.Blocks.air) return null;
         net.minecraft.item.Item item = net.minecraft.item.Item.getItemFromBlock(block);
         return item == null ? null : new ItemStack(item, 1, meta);
+    }
+
+    /**
+     * The Golem guide's earth under the harder recipe: the compressed block, or plain dirt where the pack has none
+     * (0.9.228, BP20; Xep: "Dirt when missing"). The harder recipe only ever adds to the plain one, and the guide's
+     * earth is the one ingredient it swaps rather than adds - so a pack with the enhancements on and no compressed
+     * block lost the dirt altogether, and the harder guide came out cheaper than the plain. The other harder
+     * ingredients only add, and are left to skip a missing block as they always have.
+     */
+    static ItemStack orDirt(ItemStack compressed) {
+        return compressed == null || compressed.getItem() == null ? new ItemStack(net.minecraft.init.Blocks.dirt)
+            : compressed;
     }
 
     // ------------------------------------------------------------------

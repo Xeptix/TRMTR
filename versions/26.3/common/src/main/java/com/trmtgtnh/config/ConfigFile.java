@@ -263,7 +263,8 @@ public final class ConfigFile {
                 + broken.getMessage()
                 + "). It has been renamed to "
                 + aside.getName()
-                + " and a new config file will be generated, as Forge does.";
+                + " and a new config file will be generated, as Forge does. "
+                + com.trmtgtnh.util.MobWear.keptIn(aside.getName());
         }
     }
 
@@ -443,9 +444,21 @@ public final class ConfigFile {
     // Asking for a setting
     // ------------------------------------------------------------------
 
+    /**
+     * A switch, as Forge's {@code Configuration.get(String, String, boolean, String)} reads one in the 1.7.10 edition
+     * (0.9.228, spec CF12; Xep: "Match 1.7.10"): true or false, in any case, answer themselves, and anything else -
+     * {@code yes}, {@code 1}, {@code on} - answers the switch's default and is written back as it, the way getInt
+     * treats a number it cannot read. Until 0.9.228 anything but true read false and the file kept it, so a hand-typed
+     * {@code yes} turned off a switch that ships on.
+     */
     public boolean getBoolean(String name, String category, boolean def, String comment) {
         Setting setting = ask(category, name, 'B', def ? "true" : "false", comment);
-        return "true".equalsIgnoreCase(setting.value.trim());
+        String said = setting.value == null ? "" : setting.value.trim();
+        if ("true".equalsIgnoreCase(said)) return true;
+        if ("false".equalsIgnoreCase(said)) return false;
+        setting.value = def ? "true" : "false";
+        changed = true;
+        return def;
     }
 
     public int getInt(String name, String category, int def, int min, int max, String comment) {
@@ -477,7 +490,9 @@ public final class ConfigFile {
             changed = true;
         }
         setting.range = "[range: " + min + " ~ " + max + ", default: " + def + "]";
-        setting.bound(min, max);
+        // The bounds as each float's own decimal (0.9.228): handed over as floats they were widened to doubles, and the
+        // settings screens read them back for the range they show - explosion reach's 0.1 as 0.10000000149011612.
+        setting.bound(Double.parseDouble(Float.toString(min)), Double.parseDouble(Float.toString(max)));
         // Held to the range, as Forge's getInt and getFloat return it - the file keeps what was typed. Forge's other
         // bounded getter, get(..., min, max), does not, and this file's had followed that one until 0.9.222, so a
         // hand-typed stages=40 built a forty-layer run where the 1.7.10 edition reads sixteen (spec CF10).
@@ -899,6 +914,27 @@ public final class ConfigFile {
             settings.put(name, setting);
             changed = true;
         }
+
+        /**
+         * Puts the named settings first, in the order given, and every other after them in the order it stood - the
+         * order both screens show a heading in and the file writes it, as Forge's {@code setPropertyOrder} orders the
+         * 1.7.10 edition's (0.9.228, for the multipliers heading). Counted a change only where the order moved, so a
+         * file already in this order is not written again for it.
+         */
+        public void setPropertyOrder(List<String> order) {
+            Map<String, Setting> sorted = new LinkedHashMap<String, Setting>();
+            for (String name : order) {
+                Setting setting = settings.get(name);
+                if (setting != null) sorted.put(name, setting);
+            }
+            for (Map.Entry<String, Setting> each : settings.entrySet()) {
+                if (!sorted.containsKey(each.getKey())) sorted.put(each.getKey(), each.getValue());
+            }
+            if (new ArrayList<String>(sorted.keySet()).equals(new ArrayList<String>(settings.keySet()))) return;
+            settings.clear();
+            settings.putAll(sorted);
+            changed = true;
+        }
     }
 
     /** One setting: a name, a type, help text, and either a value or a list of them. */
@@ -995,8 +1031,15 @@ public final class ConfigFile {
             return value;
         }
 
+        /**
+         * The switch as the screens read it: true or false in any case themselves, anything else this setting's own
+         * default - the rule ConfigFile.getBoolean reads the file by (0.9.228, spec CF12).
+         */
         public boolean getBoolean() {
-            return "true".equalsIgnoreCase(value.trim());
+            String said = value == null ? "" : value.trim();
+            if ("true".equalsIgnoreCase(said)) return true;
+            if ("false".equalsIgnoreCase(said)) return false;
+            return "true".equalsIgnoreCase(def.trim());
         }
 
         public String[] getStringList() {

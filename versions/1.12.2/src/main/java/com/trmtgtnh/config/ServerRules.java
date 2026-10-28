@@ -92,12 +92,11 @@ public final class ServerRules {
          * What each family wears through into, as family ordinals, written rather than switched on.
          *
          * <p>
-         * The list as it is <em>written</em>, deliberately, with the two switches carried separately
-         * beside it. Sending the gated list would have been fewer bytes and would have thrown away
-         * the one question the client needs the ungated list for: whether a record it has been sent
-         * could ever have come from this ground. The painter asks exactly that before it draws
-         * anything, and a record made while a run was switched on is still that surface's own record
-         * afterwards.
+         * The list as it is <em>written</em>, deliberately, with the two switches carried separately beside it.
+         * Sending the gated list would have been fewer bytes and would have thrown away the one question the client
+         * needs the ungated list for: whether a record it has been sent could ever have come from this ground. The
+         * painter asks exactly that before it draws anything, and a record made while a run was switched on is
+         * still that surface's own record afterwards.
          */
         public final byte[][] successors;
 
@@ -259,6 +258,87 @@ public final class ServerRules {
     /** Whether a server currently owns part of this client's geometry. */
     public static boolean held() {
         return held;
+    }
+
+    /**
+     * The value a server's rules hold a setting at, as a string, or null where the server leaves it to this client
+     * (0.9.228, spec S4): the settings screen shows such a setting greyed with a lock, at the server's value, because
+     * an edit to it would be put straight back by {@link #reassert} for as long as the visit lasts. Answered from the
+     * same record {@link #apply} writes from, setting by setting, so the screen locks exactly what the visit
+     * overrides. Nothing in single player, where nothing is held, and never a client setting.
+     */
+    public static String lockedValue(String category, String key) {
+        if (!held || Trmt.runningServer() != null) return null;
+        return lockedValue(category, key, decayMode, geometry);
+    }
+
+    /**
+     * Whether a server's rules can hold a setting: every one outside the client category, and of the client's one
+     * alone, {@code settleOnWornGround} (0.9.228; Xep, 2026-10-25, offered the screen locking it: "I approve this."),
+     * which {@link #apply} takes from the server's record on a visit, so an edit to it would be put straight back. The
+     * sink start the record also carries has no setting to lock: the file retired {@code sinkStartFraction}.
+     */
+    public static boolean serverCarries(String category, String key) {
+        return !TrmtConfig.CATEGORY_CLIENT.equals(category) || "settleOnWornGround".equals(key);
+    }
+
+    /**
+     * {@link #lockedValue(String, String)} for a record handed in: plain, so a test can ask it with a stand-in.
+     * Each answer is the one {@link #apply} would write - a minus one or a nought the server sent is its silence, and
+     * the client's own value stands there.
+     */
+    public static String lockedValue(String category, String key, String mode, Geometry rules) {
+        if (category == null || key == null || !serverCarries(category, key)) return null;
+        if (TrmtConfig.CATEGORY_CLIENT.equals(category)) {
+            return rules == null || rules.settle < 0 ? null : String.valueOf(rules.settle != 0);
+        }
+        if (ConfigFile.CATEGORY_GENERAL.equals(category)) {
+            if ("physicalDecay".equals(key)) return mode;
+            if (rules == null) return null;
+            if (rules.switches >= 0 && "wearThroughToOtherSurfaces".equals(key)) {
+                return String.valueOf((rules.switches & 1) != 0);
+            }
+            if (rules.switches >= 0 && "grassWearsThroughToDirt".equals(key)) {
+                return String.valueOf((rules.switches & 2) != 0);
+            }
+            if (rules.tamperSteps >= 0 && "chunkTamperMaxSteps".equals(key)) {
+                return String.valueOf(Math.max(1, Math.min(16, rules.tamperSteps)));
+            }
+            if (rules.tamperReach >= 0 && "chunkTamperMaxReach".equals(key)) {
+                return String.valueOf(Math.max(0, Math.min(7, rules.tamperReach)));
+            }
+            return null;
+        }
+        String prefix = TrmtConfig.CATEGORY_FAMILIES + ConfigFile.CATEGORY_SPLITTER;
+        if (rules == null || !rules.usable() || !category.startsWith(prefix)) return null;
+        SurfaceFamily family = SurfaceFamily.byKey(category.substring(prefix.length()));
+        if (family == null) return null;
+        int i = family.ordinal();
+        if ("stages".equals(key) && i < rules.stages.length) {
+            int stage = clampStages(rules.stages[i] & 0xFF);
+            return stage > 0 ? String.valueOf(stage) : null;
+        }
+        if ("layersPerDepth".equals(key) && rules.depths != null && i < rules.depths.length) {
+            int per = clampStages(rules.depths[i] & 0xFF);
+            return per > 0 ? String.valueOf(per) : null;
+        }
+        if ("maxSinkPixels".equals(key) && i < rules.maxSink.length) {
+            return String.valueOf(clampSink(rules.maxSink[i] & 0xFF));
+        }
+        if ("enabled".equals(key) && rules.enabled != null && i < rules.enabled.length) {
+            return String.valueOf(rules.enabled[i]);
+        }
+        if ("wearsThroughTo".equals(key) && rules.successors != null
+            && i < rules.successors.length
+            && rules.successors[i] != null) {
+            StringBuilder out = new StringBuilder();
+            for (String name : namesOf(rules.successors[i])) {
+                if (out.length() > 0) out.append(", ");
+                out.append(name);
+            }
+            return out.toString();
+        }
+        return null;
     }
 
     /**

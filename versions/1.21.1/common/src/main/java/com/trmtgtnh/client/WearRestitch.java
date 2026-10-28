@@ -96,7 +96,7 @@ public final class WearRestitch {
             tell(
                 net.minecraft.ChatFormatting.GRAY + "[TRMT] "
                     + restitchWanted
-                    + " Rebuilding them now - the game will stop responding for a moment.");
+                    + " Rebuilding them now - the game will stop responding for up to half a minute.");
             restitchIn = RESTITCH_DELAY;
             return;
         }

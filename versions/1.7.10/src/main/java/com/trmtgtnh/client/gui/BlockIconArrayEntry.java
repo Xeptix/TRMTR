@@ -100,7 +100,8 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
      * classification path to change a working method, for a picture, is a poor trade. If the
      * accepted format ever changes, both move.
      */
-    private static ItemStack resolve(String raw) {
+    /** Also asked by the mod's own screen's list page ({@link WornPathListScreen}), so both draw the same block. */
+    static ItemStack resolve(String raw) {
         if (raw == null) return null;
         String entry = raw.trim();
         if (entry.isEmpty()) return null;
@@ -165,8 +166,20 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
      * block that dies here only ever dies once.
      */
     /** Shared with the mob rows, which need exactly this harness around exactly this call. */
+    /** The height a slot's item is drawn at, the game's own (GuiContainer.drawSlot). */
+    static final float SLOT_Z = 100.0F;
+
     static void drawIcon(String key, ItemStack stack, int x, int y) {
         draw(key, stack, x, y);
+    }
+
+    /**
+     * Whether a line's block threw when it was drawn, and so is never drawn again - asked by the mod's own screen's
+     * list
+     * page, which draws through {@link #drawIcon} as these rows do (spec CF60).
+     */
+    static boolean broken(String key) {
+        return BROKEN.contains(key);
     }
 
     private static void draw(String key, ItemStack stack, int x, int y) {
@@ -180,14 +193,16 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
                 | GL11.GL_TRANSFORM_BIT);
         int depth = GL11.glGetInteger(GL11.GL_MODELVIEW_STACK_DEPTH);
         try {
-            // Vanilla draws inventory items with depth testing off - the isometric cube is
-            // modelled behind the GUI plane, so with it on the icon is simply not there.
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            // As the game draws a slot's item (GuiContainer.drawSlot): depth testing on and the item lifted to z 100,
+            // in front of the screen's plane (0.9.228). With it off, as this drew until then, a cube's six faces were
+            // painted in the order they are drawn, so its back faces came out over its front ones and every block in
+            // the settings screen looked hollow, seen from inside (Xep, from GT New Horizons).
+            GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
             RenderHelper.enableGUIStandardItemLighting();
 
-            ITEMS.zLevel = 0.0F;
+            ITEMS.zLevel = SLOT_Z;
             ITEMS.renderItemIntoGUI(mc.fontRenderer, mc.getTextureManager(), stack, x, y);
         } catch (Throwable hostileRenderer) {
             BROKEN.add(key);

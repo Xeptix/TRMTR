@@ -1,4 +1,32 @@
 {
+    "neoforge:conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "golemEnabled",
+                "golemUpgrades"
+            ]
+        }
+    ],
+    "forge:condition": {
+        "type": "trmtgtnh:settings",
+        "settings": [
+            "achievements",
+            "golemEnabled",
+            "golemUpgrades"
+        ]
+    },
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "golemEnabled",
+                "golemUpgrades"
+            ]
+        }
+    ],
     "parent": "trmtgtnh:trmt_golem",
     "display": {
         "icon": {

@@ -508,7 +508,7 @@ public final class Presets {
     }
 
     /** gradations, rotations, sprite ceiling, textured surfaces, per-surface textures. */
-    static int[] quality(String rung) {
+    public static int[] quality(String rung) {
         if ("potato".equals(rung)) return new int[] { 16, 1, 8192, 64, 0 };
         if ("low".equals(rung)) return new int[] { 24, 2, 32768, 256, 1 };
         if ("high".equals(rung)) return new int[] { 80, 4, 262144, 2048, 1 };

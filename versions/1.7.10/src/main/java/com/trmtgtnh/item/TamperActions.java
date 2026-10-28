@@ -276,7 +276,7 @@ public final class TamperActions {
         if (y < TrmtConfig.minY || y > TrmtConfig.maxY) return false;
         if (!world.blockExists(x, y, z)) return false;
         return !world.getBlock(x, y + 1, z)
-            .isOpaqueCube();
+            .isOpaqueCube() && !com.trmtgtnh.erosion.SnowCover.shelters(world, x, y + 1, z);
     }
 
     // ------------------------------------------------------------------

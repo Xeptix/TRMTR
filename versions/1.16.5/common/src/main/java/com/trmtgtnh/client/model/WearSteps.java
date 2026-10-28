@@ -52,6 +52,21 @@ public final class WearSteps {
     }
 
     /**
+     * The picture a step of a surface's wear chain has its top drawn with, as {@link #topLayer} places it on the ground:
+     * the step's own appearance, gradation and depth, read from the chain rather than from a world. A settings screen
+     * slider's track wears grass through these, up to the chain's last step before the ground sinks (0.9.228; Xep:
+     * "degrading to fully worn (top layer only) grass as you slide"). -1 for a step the chain does not have. 1.7.10's
+     * {@code GhostRendering.chainPicture}.
+     */
+    public static int chainPicture(SurfaceFamily base, int index) {
+        SurfaceFamily appearance = com.trmtgtnh.erosion.ErosionChain.familyAt(base, index);
+        if (appearance == null) return -1;
+        int layer = com.trmtgtnh.erosion.ErosionChain.stageAt(base, index);
+        int sink = com.trmtgtnh.erosion.ErosionChain.sinkAt(base, index);
+        return topLayer(appearance, ErosionState.pack(appearance, layer, sink));
+    }
+
+    /**
      * The counted step a record's top is drawn at.
      *
      * <p>

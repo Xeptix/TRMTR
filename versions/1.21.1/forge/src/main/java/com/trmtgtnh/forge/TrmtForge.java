@@ -49,13 +49,12 @@ public final class TrmtForge {
                 .orElse("unknown"));
         // This jar's line in the update check's version file, whether this is a development game - which
         // only the loader can say - and the mods this jar requires. See UpdateNotice.
-        // Cloth Config only on a client (0.9.227): these jars declare it side = CLIENT, so a dedicated server without
-        // it is a whole one, and /trmt version there said it was missing a mod this mod needs.
+        // None from 0.9.228: Cloth Config, the one mod this jar named, is optional (decided) - its screen where it is
+        // installed, this mod's own otherwise.
         com.trmtgtnh.server.UpdateNotice.edition(
             "1.21.1-forge",
             !net.minecraftforge.fml.loading.FMLEnvironment.production,
-            net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient() ? com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE
-                : new String[0][]);
+            new String[0][]);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> net.minecraftforge.fml.ModList.get()
@@ -77,6 +76,9 @@ public final class TrmtForge {
         // c: on all three loaders at 1.21.1: Forge 52 ships its forge: tags and the c: convention's both, and c: is
         // what NeoForge and Fabric read, so a pack's material names mean the same on every jar (see OreNames).
         com.trmtgtnh.util.OreNames.namespace("c");
+        // And forge: where this Forge's build ships no c: tags - every 52 build before 52.0.20, OptiFine's among them -
+        // or none of this mod's recipes is ever built there (0.9.228; OreNames.fallback).
+        com.trmtgtnh.util.OreNames.fallback("forge");
         // No word from Forge for a machine's player at 1.21.1: Forge 52 has no FakePlayer, so a machine's player is its
         // mod's own ServerPlayer and the connection is what the shared module asks, as on Fabric (Machines; spec WD59).
         // A block keeps a tile entity, and detection must never stand a ghost in for it (spec SD6). On 1.16.5 a Forge
@@ -133,14 +135,16 @@ public final class TrmtForge {
 
         // Where the mod list's Config button goes. Forge's own GuiConfig is gone at this version and
         // this is what replaced the factory that used to point at it - one line rather than
-        // TrmtGuiFactory's forty-four, because the screen itself is shared and says the rest.
+        // TrmtGuiFactory's forty-four. Through ConfigScreens from 0.9.228, which opens this mod's own
+        // screen or Cloth's (where Cloth is installed and client.settingsScreen asks for it), rather than
+        // straight to the Cloth screen, which this jar no longer requires.
         DistExecutor.unsafeRunWhenOn(
             Dist.CLIENT,
             () -> () -> net.minecraftforge.fml.ModLoadingContext.get()
                 .registerExtensionPoint(
                     net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
                     () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory(
-                        (client, parent) -> com.trmtgtnh.client.gui.ConfigScreen.build(parent))));
+                        (client, parent) -> com.trmtgtnh.client.gui.ConfigScreens.open(parent))));
 
         // The game version read from the game, so the line cannot go stale as the edition is carried (see TrmtFabric).
         Trmt.LOG.info("{} on Forge, Minecraft {}", Trmt.NAME, net.minecraft.SharedConstants.getCurrentVersion()

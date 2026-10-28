@@ -61,8 +61,14 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
             .getRenderItem();
     }
 
-    private String lastText;
-    private ItemStack icon;
+    /** The row's block, worked out again whenever its text changes - a row just added included (0.9.228). */
+    private final RowPicture<ItemStack> picture = new RowPicture<ItemStack>(new RowPicture.Resolve<ItemStack>() {
+
+        @Override
+        public ItemStack of(String text) {
+            return resolve(text);
+        }
+    });
 
     public BlockIconArrayEntry(GuiEditArray owningScreen, GuiEditArrayEntries owningEntryList,
         IConfigElement configElement, Object value) {
@@ -77,11 +83,8 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
         super.drawEntry(slotIndex, x, y, listWidth, slotHeight, mouseX, mouseY, isSelected, partialTicks);
 
         String text = this.textFieldValue.getText();
-        if (lastText == null || !lastText.equals(text)) {
-            lastText = text;
-            icon = resolve(text);
-        }
-        String key = lastText.trim();
+        ItemStack icon = picture.of(text);
+        String key = text.trim();
         if (icon == null || BROKEN.contains(key)) return;
 
         // slotHeight is 16 here - GuiSlot passes its row pitch less four - so a 16x16 icon is
@@ -100,9 +103,10 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
      * The split mirrors the one in {@code SurfaceRegistry.applyList}, which is the authority on
      * what these strings mean; it is repeated rather than shared because reaching into the
      * classification path to change a working method, for a picture, is a poor trade. If the
-     * accepted format ever changes, both move.
+     * accepted format ever changes, both move. Also asked by the mod's own screen's list page
+     * ({@link WornPathListScreen}), so both screens draw the same block.
      */
-    private static ItemStack resolve(String raw) {
+    static ItemStack resolve(String raw) {
         if (raw == null) return null;
         String entry = raw.trim();
         if (entry.isEmpty()) return null;
@@ -174,7 +178,41 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
         draw(key, stack, x, y);
     }
 
-    private static void draw(String key, ItemStack stack, int x, int y) {
+    /**
+     * Whether a line's block threw when it was drawn, and so is never drawn again - asked by the mod's own screen's
+     * list page, which draws through {@link #drawIcon} as these rows do (spec CF60).
+     */
+    static boolean broken(String key) {
+        return BROKEN.contains(key);
+    }
+
+    private static void draw(String key, final ItemStack stack, final int x, final int y) {
+        guarded(key, new Runnable() {
+
+            @Override
+            public void run() {
+                // Vanilla's shared renderer rather than one of our own: making a RenderItem
+                // here would mean handing it the model manager and the item colors, and
+                // every screen in the game already draws through this one. Its zLevel is
+                // shared mutable state, which is why it is put back below.
+                RenderItem items = items();
+                float wasAt = items.zLevel;
+                items.zLevel = 0.0F;
+                try {
+                    items.renderItemAndEffectIntoGUI(stack, x, y);
+                } finally {
+                    items.zLevel = wasAt;
+                }
+            }
+        });
+    }
+
+    /**
+     * Runs one picture's drawing inside the harness every icon is drawn in, so a mob drawn small on the mob list page
+     * (0.9.228, {@link MobPicture}) is guarded exactly as a block's icon is: a picture that throws is marked broken under
+     * its key and never drawn again, and the state is put back from the driver's answer afterwards.
+     */
+    static void guarded(String key, Runnable paint) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc == null || mc.getTextureManager() == null) return;
 
@@ -196,18 +234,7 @@ public class BlockIconArrayEntry extends GuiEditArrayEntries.StringEntry {
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             RenderHelper.enableGUIStandardItemLighting();
 
-            // Vanilla's shared renderer rather than one of our own: making a RenderItem
-            // here would mean handing it the model manager and the item colors, and
-            // every screen in the game already draws through this one. Its zLevel is
-            // shared mutable state, which is why it is put back below.
-            RenderItem items = items();
-            float wasAt = items.zLevel;
-            items.zLevel = 0.0F;
-            try {
-                items.renderItemAndEffectIntoGUI(stack, x, y);
-            } finally {
-                items.zLevel = wasAt;
-            }
+            paint.run();
         } catch (Throwable hostileRenderer) {
             BROKEN.add(key);
             // A renderer that died part way through a quad leaves the tessellator believing it

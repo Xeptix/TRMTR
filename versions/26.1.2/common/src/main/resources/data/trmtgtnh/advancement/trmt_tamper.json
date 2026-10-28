@@ -1,4 +1,26 @@
 {
+    "neoforge:conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements"
+            ]
+        }
+    ],
+    "forge:condition": {
+        "type": "trmtgtnh:settings",
+        "settings": [
+            "achievements"
+        ]
+    },
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements"
+            ]
+        }
+    ],
     "display": {
         "icon": {
             "id": "trmtgtnh:tamper"

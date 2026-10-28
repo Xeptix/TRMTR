@@ -24,9 +24,15 @@ import com.trmtgtnh.client.texture.WearTextures;
  * Only the block atlas. The event fires for every atlas the game builds - the particle sheet, the banner sheet, a mod's
  * own - and none of those is this mod's business.
  */
-// No bus named: FML 4 ignores it and sends each listener to the mod's bus or the game's by its event's type
-// (IModBusEvent or not), where Forge took the bus from this annotation.
-@EventBusSubscriber(modid = Trmt.MODID, value = Dist.CLIENT)
+// The mod's bus named (0.9.228, step 9; Xep: "Fix the code too"): FML 4.0.40 (NeoForge 21.1.181) and later ignore
+// it and send each listener to the mod's bus or the game's by its event's type, but every FML before reads it and
+// takes the game's bus when none is named - where a mod-bus event is refused, the mod's subscribers are not
+// registered, and NeoForge 21.1.68 to 21.1.180 never got as far as a world. Every listener here is the mod's bus's,
+// so naming it is right on both; a class with listeners for both buses has to be two classes (see
+// NeoForgeClientSetup.keys). The attribute is deprecated for removal in the later FML 4.0 builds, hence the
+// suppression. NeoForgeBusesTest.
+@SuppressWarnings("removal")
+@EventBusSubscriber(modid = Trmt.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public final class NeoForgeTextures {
 
     private NeoForgeTextures() {}

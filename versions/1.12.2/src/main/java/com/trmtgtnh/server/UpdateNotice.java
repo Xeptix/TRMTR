@@ -35,8 +35,24 @@ import com.trmtgtnh.util.UpdateCheck;
  */
 public final class UpdateNotice {
 
-    /** This jar's line in the version file. */
+    /** This jar's line in the version file: the build's own key, asked after the running game's. */
     public static final String EDITION = "1.12.2-forge";
+
+    /**
+     * The edition keys asked, in order (0.9.228; Xep, 2026-10-20: the edition key from the running game): the
+     * running game's and this jar's loader, then the build's own, so a jar the file does not name for the game it
+     * runs in still reads its build's line. Here the two are always the same; written so for one shape everywhere.
+     */
+    static String[] editions() {
+        String running = net.minecraftforge.fml.common.Loader.MC_VERSION;
+        return new String[] { running + EDITION.substring(EDITION.indexOf('-')), EDITION };
+    }
+
+    /** The key whose line the last check read, or the build's own before any did. */
+    static String answered() {
+        UpdateCheck.Answer answer = UpdateCheck.last();
+        return answer == null || answer.edition == null ? EDITION : answer.edition;
+    }
 
     /** The headline, with its two places, in case a language file has none or the wrong number of them. */
     private static final String FALLBACK = "%s is out - this world runs %s.";
@@ -120,7 +136,7 @@ public final class UpdateNotice {
     /** What /trmt version says (0.9.227): this jar, the newest build for it, and its required mods (VersionReport). */
     public static java.util.List<String> versionLines() {
         return com.trmtgtnh.util.VersionReport
-            .lines(Trmt.NAME, Tags.VERSION, EDITION, UpdateCheck.last(), UpdateCheck.lastBody(), installed());
+            .lines(Trmt.NAME, Tags.VERSION, answered(), UpdateCheck.last(), UpdateCheck.lastBody(), installed());
     }
 
     /** Who has been told since they last joined, so an answer arriving late tells each of them once. */
@@ -146,7 +162,7 @@ public final class UpdateNotice {
         if (!UpdateCheck.mayAsk(TrmtConfig.updateNotice, development(), System.getProperties())) return;
         if (!round && !UpdateCheck.due(System.currentTimeMillis())) return;
         UpdateCheck
-            .start(EDITION, Tags.VERSION, TrmtConfig.updateNoticeReleases, System.getProperties(), new Runnable() {
+            .start(editions(), Tags.VERSION, TrmtConfig.updateNoticeReleases, System.getProperties(), new Runnable() {
 
                 @Override
                 public void run() {
@@ -154,7 +170,7 @@ public final class UpdateNotice {
                     if (answer != null) Trmt.LOG.info("Update check: {}", answer.said);
                     // And every required mod older than this mod wants (0.9.221): in the log always.
                     for (DependencyCheck.Below need : DependencyCheck
-                        .below(UpdateCheck.lastBody(), EDITION, installed())) {
+                        .below(UpdateCheck.lastBody(), answered(), installed())) {
                         Trmt.LOG.warn(
                             "Dependency check: {} {} is older than the {} this mod needs",
                             need.name,
@@ -282,7 +298,7 @@ public final class UpdateNotice {
     private static void tell(EntityPlayerMP player) {
         UpdateCheck.Answer answer = UpdateCheck.last();
         if (answer == null) return;
-        List<DependencyCheck.Below> needs = DependencyCheck.below(UpdateCheck.lastBody(), EDITION, installed());
+        List<DependencyCheck.Below> needs = DependencyCheck.below(UpdateCheck.lastBody(), answered(), installed());
         // Quiet for this player when they turned notices off, or silenced this very build (0.9.221); a newer one is
         // told.
         String who = player.getUniqueID()

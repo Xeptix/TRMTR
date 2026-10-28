@@ -288,17 +288,21 @@ public class ModelGolemOfWays extends net.minecraft.client.model.EntityModel<Ent
     @Override
     public void renderToBuffer(com.mojang.blaze3d.vertex.PoseStack pose,
         com.mojang.blaze3d.vertex.VertexConsumer into, int light, int overlay, int color) {
-        // From 1.21 the tint arrives as one packed color where it was four floats; this model never applied it,
-        // in this edition or the older ones, and still does not.
-        head.render(pose, into, light, overlay);
-        body.render(pose, into, light, overlay);
-        legLeft.render(pose, into, light, overlay);
-        legRight.render(pose, into, light, overlay);
-        armRight.render(pose, into, light, overlay);
-        armLeft.render(pose, into, light, overlay);
+        // The tint is passed on to every part, the mantle and the crown too (0.9.228; Xep: "Faint"). It is how an
+        // invisible golem a player may see - a spectator, or a player on its team - is drawn faint: from 1.21 the base
+        // renderer hands one packed color, 654311423 (0x26FFFFFF, an alpha of 0.15), and picks the translucent render
+        // type for it, as 1.7.10's RendererLivingEntity.renderModel draws such a mob at 0.15. Drawn through the
+        // four-argument render, each part went out as -1, white at full alpha, whatever it was handed, and that golem
+        // was drawn solid.
+        head.render(pose, into, light, overlay, color);
+        body.render(pose, into, light, overlay, color);
+        legLeft.render(pose, into, light, overlay, color);
+        legRight.render(pose, into, light, overlay, color);
+        armRight.render(pose, into, light, overlay, color);
+        armLeft.render(pose, into, light, overlay, color);
 
-        if (fitted != GolemUpgrade.NONE) mantle.render(pose, into, light, overlay);
-        if (fitted.carriesTheSet()) crown.render(pose, into, light, overlay);
+        if (fitted != GolemUpgrade.NONE) mantle.render(pose, into, light, overlay, color);
+        if (fitted.carriesTheSet()) crown.render(pose, into, light, overlay, color);
     }
 
     /**

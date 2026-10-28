@@ -96,7 +96,7 @@ public final class ReinforceCost {
      */
     public static String fluidNameOf(ItemStack stack) {
         if (stack == null || stack.getItem() == null) return null;
-        FluidStack fluid = FluidContainerRegistry.getFluidForFilledItem(stack);
+        FluidStack fluid = heldFluid(stack);
         if (fluid == null || fluid.getFluid() == null) return null;
         return fluid.getFluid()
             .getName();
@@ -105,7 +105,7 @@ public final class ReinforceCost {
     /** How much of that fluid it holds, for telling a full container from a partial one. */
     public static int fluidAmountOf(ItemStack stack) {
         if (stack == null || stack.getItem() == null) return 0;
-        FluidStack fluid = FluidContainerRegistry.getFluidForFilledItem(stack);
+        FluidStack fluid = heldFluid(stack);
         return fluid == null ? 0 : fluid.amount;
     }
 
@@ -180,12 +180,29 @@ public final class ReinforceCost {
     // Fluids
     // ------------------------------------------------------------------
 
+    /**
+     * What a container holds, as a payment reads it: Forge's fluid container registry, except a container whose empty
+     * is
+     * a glass bottle (0.9.228; Xep: "1.7.10 refuses a bottle"). Forge 1.7.10 registers the potion of water with the
+     * three-argument registerFluidContainer, which gives it a whole bucket (1000 mB, read in its bytecode), so a water
+     * bottle paid a fluid: entry as a bucket does; no other edition pays a bottle anything.
+     */
+    static FluidStack heldFluid(ItemStack stack) {
+        FluidStack fluid = FluidContainerRegistry.getFluidForFilledItem(stack);
+        if (fluid == null) return null;
+        ItemStack one = stack.copy();
+        one.stackSize = 1;
+        ItemStack empty = FluidContainerRegistry.drainFluidContainer(one);
+        if (empty != null && empty.getItem() == net.minecraft.init.Items.glass_bottle) return null;
+        return fluid;
+    }
+
     private static int findFluid(EntityPlayer player, String fluidName) {
         ItemStack[] inventory = player.inventory.mainInventory;
         for (int i = 0; i < inventory.length; i++) {
             ItemStack held = inventory[i];
             if (held == null || held.stackSize <= 0) continue;
-            FluidStack fluid = FluidContainerRegistry.getFluidForFilledItem(held);
+            FluidStack fluid = heldFluid(held);
             if (fluid == null || fluid.getFluid() == null) continue;
             if (fluid.amount < FluidContainerRegistry.BUCKET_VOLUME) continue;
             if (fluidName.equalsIgnoreCase(

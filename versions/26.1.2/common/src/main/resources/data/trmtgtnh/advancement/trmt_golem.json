@@ -1,4 +1,29 @@
 {
+    "neoforge:conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "golemEnabled"
+            ]
+        }
+    ],
+    "forge:condition": {
+        "type": "trmtgtnh:settings",
+        "settings": [
+            "achievements",
+            "golemEnabled"
+        ]
+    },
+    "fabric:load_conditions": [
+        {
+            "condition": "trmtgtnh:settings",
+            "settings": [
+                "achievements",
+                "golemEnabled"
+            ]
+        }
+    ],
     "parent": "trmtgtnh:trmt_tamper",
     "display": {
         "icon": {

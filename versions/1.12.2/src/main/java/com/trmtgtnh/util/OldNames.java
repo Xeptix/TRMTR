@@ -32,6 +32,15 @@ public final class OldNames {
     private OldNames() {}
 
     /**
+     * The 1.7.10 names this edition reads as the kinds they became, lower case: names a mob line may hold that answer
+     * to mobs here though no mob of this version is registered by them (0.9.228, the names said unknown at a server's
+     * start and drawn red on the settings screen).
+     */
+    public static java.util.Set<String> mobNames() {
+        return Collections.unmodifiableSet(MOBS.keySet());
+    }
+
+    /**
      * The other kinds a mob line written as the 1.7.10 edition writes it stands for at this version, or none when its
      * name means the same here.
      */

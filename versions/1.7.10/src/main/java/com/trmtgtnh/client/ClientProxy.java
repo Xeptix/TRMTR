@@ -78,6 +78,11 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(this);
         lastShowErosion = TrmtConfig.showErosion;
+        // The ways to the settings besides the mod list (0.9.228): the key, /trmt config and the Options-screen
+        // button. FML reads the saved key bindings again once every mod has loaded, so a key added here keeps its
+        // binding.
+        com.trmtgtnh.client.gui.SettingsAccess.register();
+        MinecraftForge.EVENT_BUS.register(com.trmtgtnh.client.gui.OptionsButton.EVENTS);
         // The mod list is settled before any mod's pre-init, so this answer never changes. Read here
         // rather than in init, which only the common proxy has.
         inspectionRead = cpw.mods.fml.common.Loader.isModLoaded("Waila");
@@ -355,6 +360,12 @@ public class ClientProxy extends CommonProxy {
      * server's table is held means the server has come round to it, and the visit's table is handed
      * back. Anything else is asked for once, and not again until a different fingerprint arrives.
      */
+    /** See OlderServerNotice: said once a visit, on the thread the rules are applied on. */
+    @Override
+    public void considerServerBuild(boolean sent, int protocol, String build) {
+        OlderServerNotice.considered(Minecraft.getMinecraft(), sent, protocol, build);
+    }
+
     @Override
     public void considerServerTable(boolean sent, long fingerprint) {
         if (!sent || Trmt.runningServer() != null) return;
@@ -779,6 +790,8 @@ public class ClientProxy extends CommonProxy {
         serviceRestitch();
 
         Minecraft mc = Minecraft.getMinecraft();
+        // A press of the settings key or a /trmt config, answered once the chat that ran it has closed.
+        com.trmtgtnh.client.gui.SettingsAccess.tick(mc);
         if (mc.theWorld == null || mc.thePlayer == null) return;
         // The moving pictures near the player, let go of beyond the render distance once a second (SeenPictures).
         if (mc.theWorld.getTotalWorldTime() % 20L == 0L) {
@@ -897,6 +910,15 @@ public class ClientProxy extends CommonProxy {
                 new com.trmtgtnh.client.gui.GuiGuideBook(com.trmtgtnh.item.GuideBook.byOrdinal(bookOrdinal)));
     }
 
+    /**
+     * Whether this client asked for the snapshot screen and its answer has not come yet (0.9.228, CF79, CF81; Xep:
+     * the gestures "no longer open its screen; only holding the modifier does"). Every gesture with the tool is
+     * answered with the tool's state, as the request is, so an answer alone cannot say which it was: the client opens
+     * the screen only for the answer it asked for. Cleared on leaving a world, so an answer that never came cannot make
+     * a later gesture's open it.
+     */
+    private static boolean snapshotScreenAsked;
+
     @Override
     public void openSnapshotScreen(int flags) {
         Minecraft mc = Minecraft.getMinecraft();
@@ -905,11 +927,15 @@ public class ClientProxy extends CommonProxy {
             ((com.trmtgtnh.client.gui.GuiSnapshot) mc.currentScreen).update(flags);
             return;
         }
+        // Not asked for: a gesture's answer, which opens nothing.
+        if (!snapshotScreenAsked) return;
+        snapshotScreenAsked = false;
         mc.displayGuiScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
     }
 
     @Override
     public void requestSnapshotScreen() {
+        snapshotScreenAsked = true;
         TrmtNetwork.sendSnapshotAction(com.trmtgtnh.network.PacketSnapshotAction.REQUEST);
     }
 
@@ -1184,6 +1210,10 @@ public class ClientProxy extends CommonProxy {
         // says, and only rebuilding the chains out of that file answers it.
         int[] appearancesUnderServer = ServerRules.chainAppearances();
         ServerRules.release();
+        // The older server's line is said once a visit, and this is where a visit's rules are dropped (0.9.228).
+        OlderServerNotice.left();
+        // And a snapshot screen asked for and never answered opens on nothing that comes later (0.9.228).
+        snapshotScreenAsked = false;
         // Before the read and the rebuild below, so the rebuild publishes this client's own table
         // rather than publishing the visit's again.
         boolean tableHandedBack = SurfaceRegistry.releaseServerTable();

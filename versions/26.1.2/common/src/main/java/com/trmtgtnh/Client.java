@@ -60,6 +60,12 @@ public final class Client {
 
         void setServerPricing(WearMath.Pricing pricing);
 
+        /**
+         * The server's own build, from the rules' last tail, or none where it sent no tail (0.9.228): a newer client
+         * on an older server tells its player so, once a visit.
+         */
+        void considerServerBuild(boolean sent, int protocol, String build);
+
         // ---- the surface table, which arrives in two steps ----
 
         void considerServerTable(boolean sent, long fingerprint);
@@ -261,6 +267,11 @@ public final class Client {
     public static void considerServerTable(boolean sent, long fingerprint) {
         Side at = reaching();
         if (at != null) at.considerServerTable(sent, fingerprint);
+    }
+
+    public static void considerServerBuild(boolean sent, int protocol, String build) {
+        Side at = reaching();
+        if (at != null) at.considerServerBuild(sent, protocol, build);
     }
 
     public static void installServerTable(long fingerprint, boolean holdsSwitch, byte[] bytes, boolean keysCarryForm) {

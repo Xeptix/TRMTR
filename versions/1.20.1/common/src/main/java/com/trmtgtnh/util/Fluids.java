@@ -55,6 +55,11 @@ public final class Fluids {
          * @param one a stack of exactly one, which this may modify
          */
         ItemStack drained(ItemStack one);
+
+        /** Which way a container is read on this loader, said by the harness beside its verdict (0.9.228). */
+        default String readBy(ItemStack stack) {
+            return "the loader's own reading";
+        }
     }
 
     /** What one bucket holds, which both loaders agree on and neither names the same way. */
@@ -96,6 +101,12 @@ public final class Fluids {
     public static ItemStack drained(ItemStack one) {
         Side at = reaching();
         return at == null || one == null || one.isEmpty() ? null : at.drained(one);
+    }
+
+    /** Which way this loader read a container, for the harness's line; "nothing" when no loader is wired. */
+    public static String readBy(ItemStack stack) {
+        Side at = side;
+        return at == null || stack == null || stack.isEmpty() ? "nothing" : at.readBy(stack);
     }
 
     /**

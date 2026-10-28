@@ -62,7 +62,14 @@ final class PatternPreview {
      * compared, the column has to be the same place in both runs rather than the same number handed
      * to both.
      */
-    private static final float[] AT = { 1f / 15f, 0.5f, 1.0f };
+    private static final float[] AT = { 1f / 15f, 0.5f, 1.0f, 0.75f };
+
+    /**
+     * The fourth point, three quarters through the run: the one picture of a look the settings screen's chooser draws
+     * beside each option (0.9.228, spec M23.2, S3.1), where a look has had time to show what it does and has not yet
+     * finished doing it. After the three the Wear Editor shows, so its row of three is unchanged.
+     */
+    static final int THREE_QUARTERS = 3;
 
     /** How many gradations the cover-coming-off look is shown across, which is its own run. */
     private static final int COVER_STEPS = 16;
@@ -100,11 +107,10 @@ final class PatternPreview {
      * The looks the picker offers, in the order it offers them.
      *
      * <p>
-     * Every one that does something, and no more. The setting still reads two further names - the
-     * old sand and polish - so that a file written before this was tidied goes on working, and both
-     * of them run the rub. Offering them would be offering the same picture three times over;
-     * {@link #canonical} is what makes a file that says one of them show the row it will actually
-     * use.
+     * Every one that does something, and no more. The setting still reads two further names - the old sand and
+     * polish - so that a file written before this was tidied goes on working, and both of them run the rub.
+     * Offering them would be offering the same picture three times over; {@link #canonical} is what makes a file
+     * that says one of them show the row it will actually use.
      *
      * <p>
      * Ordered so that each lighter or heavier variant sits directly under the look it varies, and
@@ -191,9 +197,8 @@ final class PatternPreview {
             forget();
             shownFor = family;
         }
-        // A different block is the same thirty-three names painted again, so nothing is released -
-        // but every one of the thirty-three is now out of date, not merely whichever is asked for
-        // first.
+        // A different block is the same thirty-three names painted again, so nothing is released - but every one of
+        // the thirty-three is now out of date, not merely whichever is asked for first.
         if (!on.equals(shownOn)) {
             shownOn = on;
             painted.clear();

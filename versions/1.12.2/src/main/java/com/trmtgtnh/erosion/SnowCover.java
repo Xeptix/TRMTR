@@ -4,7 +4,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockSnow;
 import net.minecraft.block.material.Material;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
 import com.trmtgtnh.config.TrmtConfig;
@@ -71,6 +75,49 @@ public final class SnowCover {
                 .getMaterial() == Material.SNOW
                 && !block.getDefaultState()
                     .isFullCube();
+        } catch (RuntimeException awkwardBlock) {
+            return false;
+        }
+    }
+
+    /**
+     * Whether the block at this position is a full drift that the settings make solid ground (0.9.228).
+     *
+     * <p>
+     * Asked beside {@code isOpaqueCube} at every question of cover - natural wear, the tamper and the golem through
+     * {@code Worlds.isOpaque}, the painter, wear drops and the showcase - with the position of the block above the
+     * ground. A snow layer is never an opaque cube in 1.7.10 or here, at eight layers as at one, so on its own that
+     * test lets every drift through; that is the rule, and with {@code weather.fullSnowDriftsSolid} off, the default,
+     * this answers false and changes nothing. On, a drift of eight layers answers as a solid block would, which is how
+     * the 1.16.5 and later editions treated one before 0.9.228 - so a pack setting it gets the same world in every
+     * edition. Seven layers or fewer never shelter. Read on the server only: the painter asks it too, but under a full
+     * drift the ground's top face is hidden by the drift itself, so a client's own copy of the setting changes nothing
+     * seen.
+     */
+    public static boolean shelters(IBlockAccess world, int x, int y, int z) {
+        if (!TrmtConfig.fullSnowDriftsSolid || world == null || y < 0 || y > 255) return false;
+        return shelters(world.getBlockState(new BlockPos(x, y, z)));
+    }
+
+    /** The same question of a state already read: a snow layer eight layers deep, with the setting on. */
+    public static boolean shelters(IBlockState state) {
+        if (!TrmtConfig.fullSnowDriftsSolid || state == null) return false;
+        return isSnowLayer(state.getBlock()) && fullDrift(state);
+    }
+
+    /**
+     * Whether a snow layer's state is eight layers: vanilla's by its layers property, and a pack's own layer, which
+     * has none, by the low three bits of its metadata, as 1.7.10 counts every layer.
+     */
+    static boolean fullDrift(IBlockState state) {
+        if (state.getPropertyKeys()
+            .contains(BlockSnow.LAYERS)) {
+            return state.getValue(BlockSnow.LAYERS)
+                .intValue() == 8;
+        }
+        try {
+            return (state.getBlock()
+                .getMetaFromState(state) & 7) == 7;
         } catch (RuntimeException awkwardBlock) {
             return false;
         }

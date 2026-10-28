@@ -73,6 +73,16 @@ public final class SnowCover {
         }
     }
 
+    /**
+     * How many layers deep this snow is, counted 1 to 8 as the state does, or -1 for a layer that keeps no count -
+     * which {@code weather.fullSnowDriftsSolid} never takes for a full drift (0.9.228, spec SC3).
+     */
+    public static int layers(BlockState state) {
+        if (state == null || !state.hasProperty(net.minecraft.world.level.block.SnowLayerBlock.LAYERS)) return -1;
+        return state.getValue(net.minecraft.world.level.block.SnowLayerBlock.LAYERS)
+            .intValue();
+    }
+
     /** Whether snow is lying on the square at this position. */
     public static boolean covers(Level world, int x, int y, int z) {
         if (!TrmtConfig.snowCovers || world == null || y >= com.trmtgtnh.util.Heights.top(world)) return false;
@@ -160,7 +170,12 @@ public final class SnowCover {
                     snow.setValue(
                         net.minecraft.world.level.block.SnowLayerBlock.LAYERS,
                         Integer.valueOf(layers - 1)),
-                    2);
+                    // Clients told and the neighbours' shapes left alone (0.9.228, spec SC8): at this version a set
+                    // with flag 2 alone still runs updateNeighbourShapes, and a drift stacked on this one, which stands
+                    // only on a full layer, was taken down with it. The 1.7.10 edition's flag 2 updates no shape. Not
+                    // behind weather.fullSnowDriftsSolid: the flag is right either way.
+                    net.minecraft.world.level.block.Block.UPDATE_CLIENTS
+                        | net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
                 return;
             }
         }

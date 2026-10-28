@@ -19,12 +19,14 @@ import com.trmtgtnh.erosion.PhysicalDecay;
  *
  * <p>
  * The 1.7.10 edition moves the renderer's bounds for the block. This version draws baked models, which have
- * no bounds to move, but every renderer at this version - vanilla's, the Sodium family's, FRAPI's and
- * OptiFine's - adds a block state's own offset to its model, the one vanilla scatters flowers with. So a
- * settling block answers that offset with the drop of the rut under it, and nothing else about it changes.
- * Canvas asks for the offset only of a block whose type says it has one, which snow and carpet do not, so
- * under Canvas they stayed up until 0.9.220; the Fabric module tells Canvas they have one
- * ({@link #offsetTypeFor}), and vanilla's own offset still reads none, so nothing is scattered.
+ * no bounds to move, so from 0.9.228 the settling block's own model is wrapped at the bake and answers each loader's
+ * level-aware question - NeoForge's collectParts with the level, Forge's getModelData, Fabric's emitQuads - with its
+ * quads moved down by the drop of the rut under it ({@link SettledModel}), and nothing else about it changes. Until
+ * then the seat was the offset a renderer adds to a block's model, which from 1.21.2 is asked with the position alone:
+ * Forge and NeoForge lowered it where the game's own chunk compiler asks it, and Fabric read the game's own level for
+ * it. Canvas asks for the offset only of a block whose type says it has one ({@link #offsetFor}, kept behind its gate
+ * as decided); with the offset no longer lowered that binds nothing, and a Canvas for this version would ask
+ * emitQuads like any FRAPI renderer.
  * The drop is the figure the footing is moved by as well, in {@code PhysicalDecay}, so the picture and the
  * footing cannot part company.
  *
@@ -79,6 +81,22 @@ public final class Settling {
         int origin = com.trmtgtnh.Client.ghostOriginAt(below.getX(), below.getY(), below.getZ());
         short record = com.trmtgtnh.Client.ghostRecordAt(level, below.getX(), below.getY(), below.getZ());
         int outline = BlockGhost.outlineAt(level, below, origin);
+        return dropOf(record, origin, outline);
+    }
+
+    /**
+     * The drop itself, from the square's record, the block it covers and its outline - {@link #dropFor}'s arithmetic,
+     * apart so it can be asked of a record and a block with no world.
+     *
+     * <p>
+     * Nothing settles on a covered stair (0.9.228; Xep: "Covered stair never settles"): a worn stair is drawn and stood
+     * on as the stair it covers and is never hollowed, so a carpet or snow resting on one has nothing to come down
+     * into - and the server's PhysicalDecay.groundDropUnder answers the same 0 for it, so the picture and the box stay
+     * together at the stair's own top. Asked of the covered block, because the client holds a ghost at the square; the
+     * 1.7.10 edition's GhostRendering.settledDrop answers 0 there because its stair stand-in is never sunk.
+     */
+    public static double dropOf(short record, int origin, int outline) {
+        if (BlockGhost.coveredStair(origin) != null) return 0.0D;
         double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
         return drop > 0.0D ? drop : 0.0D;
     }
@@ -132,7 +150,11 @@ public final class Settling {
         Trmt.LOG.info("Lowered the outline of a block settled onto worn ground; the hit outline hook is in place");
     }
 
-    /** The offset a settling block is drawn at - vanilla's, dropped by the rut under it - or null for unchanged. */
+    /**
+     * The offset a settling block is drawn at - vanilla's, dropped by the rut under it - or null for unchanged. Asked by
+     * {@link SettledModel#dropAt} with the view each loader's model question was handed (0.9.228), where the drop moves
+     * the model's quads.
+     */
     public static Vec3 offset(BlockState state, BlockGetter level, BlockPos pos, Vec3 vanilla) {
         if (state == null || !settles(state.getBlock())) return null;
         double drop = dropFor(level, pos);
@@ -218,12 +240,12 @@ public final class Settling {
     private static volatile boolean shiftSaid;
 
     /**
-     * Said once, the first time a block is drawn down - the only evidence the hook bound at all, since a
-     * missed injection here is silent and the picture it leaves is merely the old one.
+     * Said once, the first time a block is drawn down - the only evidence the wrapped model was asked with a view at
+     * all, since a renderer that never asks it is silent and the picture it leaves is merely the old one (SC31).
      */
     private static void noteShiftRan() {
         if (shiftSaid) return;
         shiftSaid = true;
-        Trmt.LOG.info("Settling a block onto worn ground; the offset its renderer draws it at is in place");
+        Trmt.LOG.info("Settling a block onto worn ground; the model its renderer asks with the view is lowered in place");
     }
 }

@@ -243,6 +243,9 @@ public final class Trmt {
         com.trmtgtnh.compat.QuestbookCompat.examineWorld(
             cpw.mods.fml.common.FMLCommonHandler.instance()
                 .getMinecraftServerInstance());
+        // Every mod has registered its mobs by now, so a name in the mobs list that answers to none is said once
+        // (0.9.228).
+        com.trmtgtnh.config.MobNames.sayUnknown();
     }
 
     @Mod.EventHandler
@@ -259,6 +262,8 @@ public final class Trmt {
             .clearOrphans();
         ErosionEngine.get()
             .reset();
+        com.trmtgtnh.server.ServerEvents.get()
+            .serverStopped();
         com.trmtgtnh.erosion.Weather.reset();
         com.trmtgtnh.erosion.SnowCover.reset();
     }

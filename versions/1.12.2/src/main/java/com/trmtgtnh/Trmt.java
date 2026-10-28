@@ -206,6 +206,8 @@ public class Trmt {
      */
     @Mod.EventHandler
     public void serverStarted(net.minecraftforge.fml.common.event.FMLServerStartedEvent event) {
+        // The curated mob list's names no mob answers to (0.9.228), said now, once every mod has registered its mobs.
+        com.trmtgtnh.server.ServerEvents.sayUnknownMobs();
         com.trmtgtnh.compat.QuestbookCompat.examineWorld(
             net.minecraftforge.fml.common.FMLCommonHandler.instance()
                 .getMinecraftServerInstance());
@@ -234,6 +236,9 @@ public class Trmt {
             .clearOrphans();
         com.trmtgtnh.erosion.ErosionEngine.get()
             .reset();
+        // The per-chunk caps' counts (0.9.228), one set per server.
+        com.trmtgtnh.server.ServerEvents.get()
+            .forgetCaps();
         com.trmtgtnh.erosion.Weather.reset();
         com.trmtgtnh.erosion.SnowCover.reset();
     }

@@ -114,6 +114,17 @@ public final class ForgeEvents {
         ServerEvents.playerLeft(event.getPlayer());
     }
 
+    /**
+     * A player put into another dimension: the first square they are seen on there is not counted (0.9.228; Xep: "Skip
+     * that first square"; see ErosionEngine.arrived). The one way of moving a player that this version's server does
+     * without {@code ServerGamePacketListenerImpl.teleport}, MixinPlayerArrives's seam - {@code
+     * ServerPlayer.changeDimension} places the player through Forge's teleporter and never calls it (read in this jar).
+     */
+    @SubscribeEvent
+    public static void onChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        com.trmtgtnh.erosion.ErosionEngine.get().arrived(event.getPlayer());
+    }
+
     // ------------------------------------------------------------------
     // Blocks coming and going
     // ------------------------------------------------------------------

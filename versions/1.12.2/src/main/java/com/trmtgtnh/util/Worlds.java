@@ -138,11 +138,15 @@ public final class Worlds {
         }
     }
 
-    /** Whether the block at a position is an opaque cube, which needs its state to answer now. */
+    /**
+     * Whether the block at a position is an opaque cube, which needs its state to answer now - or a full drift that
+     * weather.fullSnowDriftsSolid makes solid ground (0.9.228; see SnowCover.shelters). A snow layer is never an opaque
+     * cube here, at any depth, as in 1.7.10, so without the setting every drift lets the ground through.
+     */
     public static boolean isOpaque(IBlockAccess access, int x, int y, int z) {
         IBlockState state = stateAt(access, x, y, z);
         return state.getBlock()
-            .isOpaqueCube(state);
+            .isOpaqueCube(state) || com.trmtgtnh.erosion.SnowCover.shelters(state);
     }
 
     /** Sets a position's metadata, keeping the block it is on. */

@@ -10,15 +10,10 @@ import net.minecraft.world.level.material.Fluid;
  * What a bucket holds, which the bucket keeps to itself.
  *
  * <p>
- * Forge has a capability that asks any container what is inside it, and a mod's cell or tank answers
- * as readily as a bucket does. Fabric has nothing of the sort at this version - its fluid transfer
- * API is several versions away - so the only containers that can be read here are buckets, and the
- * only way to read one is the field it was built with.
- *
- * <p>
- * An accessor rather than a hardcoded list of the vanilla buckets, because a mod's bucket is a
- * {@code BucketItem} too and this reads it exactly as well. What it cannot read is a container that
- * is not a bucket at all, and that is the gap this loader has and the other does not.
+ * From 0.9.228 a container is read through Fabric API's fluid transfer API ({@code FabricFluids}), as Forge reads its
+ * fluid handler, and every bucket Fabric API knows of answers there. This is what is left of the older reading: a
+ * mod's {@code BucketItem} that registered no fluid storage of its own is still read by the field it was built with,
+ * so a bucket that paid before 0.9.228 pays still.
  */
 @Mixin(BucketItem.class)
 public interface BucketItemAccessor {

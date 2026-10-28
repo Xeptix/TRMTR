@@ -71,6 +71,19 @@ public final class Client {
         void acceptInspection(int x, int y, int z, float wear, float threshold, int untouchedSeconds,
             int recoverySeconds, int chainIndex, int chainLength, int reinforce, int ward);
 
+        /**
+         * Whether the server's rules carried their server tail, and the protocol and build it named (0.9.228): the
+         * client tells its player once a visit if the server runs an older build. A default, so the test stand-ins of
+         * this seam need not answer it.
+         */
+        default void considerServerBuild(boolean sent, int protocol, String build) {}
+
+        /**
+         * The snapshot tool asked the server for its screen (0.9.228, CF79, CF81): the next answer may open it. A
+         * default, so the test stand-ins of this seam need not answer it.
+         */
+        default void askedForSnapshotScreen() {}
+
         void openSnapshotScreen(int flags);
 
         /**
@@ -285,6 +298,16 @@ public final class Client {
                 reinforce,
                 ward);
         }
+    }
+
+    public static void considerServerBuild(boolean sent, int protocol, String build) {
+        Side at = reaching();
+        if (at != null) at.considerServerBuild(sent, protocol, build);
+    }
+
+    public static void askedForSnapshotScreen() {
+        Side at = reaching();
+        if (at != null) at.askedForSnapshotScreen();
     }
 
     public static void openSnapshotScreen(int flags) {

@@ -101,6 +101,25 @@ public final class TrmtFabricClient implements ClientModInitializer {
         // the field with a line of access widener. See ItemTints.
         com.trmtgtnh.client.gui.ItemTints.use(net.minecraft.client.Minecraft.getInstance().itemColors);
 
+        // A fluid's still texture, for the settings screen's picture of a fluid with no bucket (0.9.228, spec 3.2):
+        // Fabric API's fluid render handler names its sprites, the still one first. Asked with no world and no square,
+        // which a handler that reads them answers by throwing, and the screen then draws nothing for that fluid.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTextures(fluid -> {
+            net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandler handler =
+                net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry.INSTANCE.get(fluid);
+            if (handler == null) return null;
+            net.minecraft.client.renderer.texture.TextureAtlasSprite[] sprites =
+                handler.getFluidSprites(null, null, fluid.defaultFluidState());
+            return sprites == null || sprites.length == 0 || sprites[0] == null ? null : sprites[0].getName();
+        });
+        // And its color, which the game's renderer multiplies that texture by (0.9.228): the same handler's, asked the
+        // same way; white where there is no handler, and a handler that throws draws the texture as it is.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTints(fluid -> {
+            net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandler tinting =
+                net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry.INSTANCE.get(fluid);
+            return tinting == null ? 0xFFFFFF : tinting.getFluidColor(null, null, fluid.defaultFluidState());
+        });
+
         net.fabricmc.fabric.api.client.screenhandler.v1.ScreenRegistry
             .register(com.trmtgtnh.entity.GolemMenu.type(), com.trmtgtnh.client.gui.GuiGolem::new);
 
@@ -135,7 +154,23 @@ public final class TrmtFabricClient implements ClientModInitializer {
                 left = true;
                 ClientSide.tick();
             }
+
+            // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
+            com.trmtgtnh.client.gui.SettingsAccess.tick(client);
         });
+
+        // The ways to the settings besides Mod Menu, which is optional (0.9.228): a key, unbound until a player binds it;
+        // /trmt config, caught as it is sent and never sent (MixinSettingsCommand, which says why not Fabric API's
+        // client commands), the server's own /trmt answering everything else; and a small button on the game's Options
+        // screen, added once that screen has laid itself out - with the way back to the own screen on Cloth Config's.
+        net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper
+            .registerKeyBinding(com.trmtgtnh.client.gui.SettingsAccess.key());
+        net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register(
+            (client, screen, width, height) -> com.trmtgtnh.client.gui.ConfigScreens.afterInit(
+                screen,
+                net.fabricmc.fabric.api.client.screen.v1.Screens.getButtons(screen),
+                widget -> net.fabricmc.fabric.api.client.screen.v1.Screens.getButtons(screen)
+                    .add(widget)));
 
         Trmt.LOG.info("{} client ready on Fabric", Trmt.NAME);
     }

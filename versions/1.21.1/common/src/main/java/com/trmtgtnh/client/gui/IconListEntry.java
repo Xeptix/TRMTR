@@ -1,8 +1,6 @@
 package com.trmtgtnh.client.gui;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -11,16 +9,9 @@ import me.shedaniel.clothconfig2.gui.entries.AbstractTextFieldListListEntry;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
-import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.SpawnEggItem;
-import net.minecraft.world.level.block.Block;
 
 /**
  * A list of names on the settings screen that draws, beside each line, the block it names - or, for
@@ -42,11 +33,6 @@ public final class IconListEntry extends AbstractTextFieldListListEntry<String, 
 
     /** An icon's width and a two-pixel gap: the room the text field gives up. */
     static final int ICON_ROOM = 18;
-
-    /** Lines resolve the same for every row and every screen, so each is worked out once. */
-    private static final Map<String, ItemStack> BLOCKS = new HashMap<String, ItemStack>();
-
-    private static final Map<String, ItemStack> MOBS = new HashMap<String, ItemStack>();
 
     private final ConfigLayout.Icons kind;
 
@@ -114,6 +100,12 @@ public final class IconListEntry extends AbstractTextFieldListListEntry<String, 
                 delta);
 
             String text = widget.getValue();
+            if (listListEntry.kind == ConfigLayout.Icons.MOB) {
+                // The mobs list draws what the own screen's does (0.9.228 step 5): the mob itself, its egg, or the
+                // generic egg, worked out from the text as it stands this frame, so a row added shows it at once.
+                MobPictures.draw(graphics, text, x, y + 2);
+                return;
+            }
             if (lastText == null || !lastText.equals(text)) {
                 lastText = text;
                 icon = resolve(listListEntry.kind, text);
@@ -125,56 +117,8 @@ public final class IconListEntry extends AbstractTextFieldListListEntry<String, 
         }
     }
 
-    /** One line as a stack to draw, or the empty stack where there is nothing worth drawing. */
+    /** One line as a stack to draw, or the empty stack: {@link ConfigIcons}, which names no Cloth type (0.9.228). */
     static ItemStack resolve(ConfigLayout.Icons kind, String raw) {
-        if (raw == null || kind == null || kind == ConfigLayout.Icons.NONE) return ItemStack.EMPTY;
-        String entry = raw.trim();
-        if (entry.isEmpty()) return ItemStack.EMPTY;
-        Map<String, ItemStack> cache = kind == ConfigLayout.Icons.MOB ? MOBS : BLOCKS;
-        ItemStack known = cache.get(entry);
-        if (known != null) return known;
-        // Typing a name makes one dead line per keystroke, so this fills with rubbish long before it
-        // fills with blocks; nothing here is expensive to work out again.
-        if (cache.size() > 256) cache.clear();
-        ItemStack made;
-        try {
-            made = kind == ConfigLayout.Icons.MOB ? egg(entry) : block(entry);
-        } catch (Throwable hostile) {
-            // A name can reach any mod in the pack. Something in here throwing is a reason to draw
-            // nothing, never a reason to take the screen down.
-            made = ItemStack.EMPTY;
-        }
-        cache.put(entry, made);
-        return made;
-    }
-
-    private static ItemStack block(String entry) {
-        String name = ConfigLayout.blockName(entry);
-        ResourceLocation at = name == null ? null : ResourceLocation.tryParse(name);
-        if (at == null) return ItemStack.EMPTY;
-        // getOptional, because the registry answers a name it does not know with air.
-        Block block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getOptional(at)
-            .orElse(null);
-        if (block == null || block.defaultBlockState()
-            .isAir()) return ItemStack.EMPTY;
-        Item item = block.asItem();
-        // No item form: no icon, which is answer enough.
-        if (item == null || item == Items.AIR) return ItemStack.EMPTY;
-        return new ItemStack(item);
-    }
-
-    private static ItemStack egg(String entry) {
-        for (String name : ConfigLayout.mobNames(entry)) {
-            ResourceLocation at = ResourceLocation.tryParse(name);
-            if (at == null) continue;
-            EntityType<?> type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getOptional(at)
-                .orElse(null);
-            if (type == null) continue;
-            // The first mob the line names decides, as in 1.7.10: a mob with no egg shows its name
-            // alone rather than somebody else's egg.
-            SpawnEggItem egg = SpawnEggItem.byId(type);
-            return egg == null ? ItemStack.EMPTY : new ItemStack(egg);
-        }
-        return ItemStack.EMPTY;
+        return ConfigIcons.resolve(kind, raw);
     }
 }

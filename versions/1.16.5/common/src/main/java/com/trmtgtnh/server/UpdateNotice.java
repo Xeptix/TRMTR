@@ -114,9 +114,11 @@ public final class UpdateNotice {
      * own with {@link #edition}; until 0.9.222 this chose by comparing the edition's name to "1.16.5-fabric", which a
      * third loader would have got wrong in silence.
      */
-    public static final String[][] REQUIRED_FORGE = { { "cloth-config", "Cloth Config" } };
-
-    public static final String[][] REQUIRED_FABRIC = { { "fabric", "Fabric API" }, { "cloth-config2", "Cloth Config" } };
+    // From 0.9.228 Cloth Config is optional on both jars (Xep: "Optional relation"; its screen where it is installed, this
+    // mod's own otherwise), so it is no longer a mod a player is told to update - the Forge jar requires nothing, and
+    // REQUIRED_FORGE, which named Cloth alone, went with it, as it did on 26.x. Fabric API stays: the Fabric jar does not
+    // start without it.
+    public static final String[][] REQUIRED_FABRIC = { { "fabric", "Fabric API" } };
 
     /** The mods this jar requires, as its loader said; none until one has. */
     private static volatile String[][] required = new String[0][];
@@ -144,7 +146,7 @@ public final class UpdateNotice {
         return com.trmtgtnh.util.VersionReport.lines(
             Trmt.NAME,
             Trmt.version(),
-            edition == null ? "unknown" : edition,
+            edition == null ? "unknown" : answered(),
             UpdateCheck.last(),
             UpdateCheck.lastBody(),
             installed());
@@ -169,14 +171,40 @@ public final class UpdateNotice {
         edition = key;
         development = inDevelopment;
         required = requires;
-        // The key names the game this jar was built for, held to the build by EditionKeysNameThisGameTest; the game it
-        // runs in is said beside it when the two differ (0.9.227). A key worked out from the running game instead would
-        // ask a hotfix version a loader lets the jar run on - 26.1.3 for a 26.1.2 jar - for a line no file holds, and
-        // that jar would never hear of an update again.
+        // The key names the game this jar was built for, held to the build by EditionKeysNameThisGameTest. The running
+        // game's key is asked first and this one behind it (0.9.228; Xep, 2026-10-20: the edition key from the running
+        // game), so a hotfix version a loader lets the jar run on - 26.1.3 for a 26.1.2 jar - is read by its own line
+        // once the file has one, and by the build's until then, never falling silent. Said when the two differ.
         String running = runningGame();
         if (running != null && !key.startsWith(running + "-")) {
-            Trmt.LOG.warn("Update check: this jar is for {} and runs in Minecraft {}; it reads {}'s line", key, running, key);
+            Trmt.LOG.warn(
+                "Update check: this jar is for {} and runs in Minecraft {}; it asks {}'s line first and {}'s behind it",
+                key,
+                running,
+                runningKey(running, key),
+                key);
         }
+    }
+
+    /** The running game's key: its version with this jar's loader - the part of the build's key after its first dash. */
+    static String runningKey(String running, String key) {
+        return running + key.substring(key.indexOf('-'));
+    }
+
+    /**
+     * The edition keys asked, in order (0.9.228): the running game's, then the build's own; the build's alone where the
+     * running game cannot be asked.
+     */
+    static String[] editions() {
+        String key = edition;
+        String running = runningGame();
+        return running == null ? new String[] { key } : new String[] { runningKey(running, key), key };
+    }
+
+    /** The key whose line the last check read, or the build's own before any did. */
+    static String answered() {
+        UpdateCheck.Answer answer = UpdateCheck.last();
+        return answer == null || answer.edition == null ? edition : answer.edition;
     }
 
     /** The version of the game this runs in, or null if it cannot be asked. */
@@ -213,14 +241,14 @@ public final class UpdateNotice {
         if (key == null) return;
         if (!UpdateCheck.mayAsk(TrmtConfig.updateNotice, development, System.getProperties())) return;
         if (!round && !UpdateCheck.due(System.currentTimeMillis())) return;
-        UpdateCheck.start(key, Trmt.version(), TrmtConfig.updateNoticeReleases, System.getProperties(), new Runnable() {
+        UpdateCheck.start(editions(), Trmt.version(), TrmtConfig.updateNoticeReleases, System.getProperties(), new Runnable() {
 
             @Override
             public void run() {
                 UpdateCheck.Answer answer = UpdateCheck.last();
                 if (answer != null) Trmt.LOG.info("Update check: {}", answer.said);
                 // And every required mod older than this mod wants (0.9.221): in the log always.
-                for (DependencyCheck.Below need : DependencyCheck.below(UpdateCheck.lastBody(), edition, installed())) {
+                for (DependencyCheck.Below need : DependencyCheck.below(UpdateCheck.lastBody(), answered(), installed())) {
                     Trmt.LOG.warn(
                         "Dependency check: {} {} is older than the {} this mod needs",
                         need.name,
@@ -347,7 +375,7 @@ public final class UpdateNotice {
     private static void tell(ServerPlayer player) {
         UpdateCheck.Answer answer = UpdateCheck.last();
         if (answer == null) return;
-        List<DependencyCheck.Below> needs = DependencyCheck.below(UpdateCheck.lastBody(), edition, installed());
+        List<DependencyCheck.Below> needs = DependencyCheck.below(UpdateCheck.lastBody(), answered(), installed());
         // Quiet for this player when they turned notices off, or silenced this very build (0.9.221); a newer one is
         // told.
         String who = player.getUUID()

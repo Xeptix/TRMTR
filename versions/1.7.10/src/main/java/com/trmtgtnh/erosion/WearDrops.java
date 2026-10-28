@@ -65,7 +65,8 @@ public final class WearDrops {
         if (y <= 1) return null;
 
         Block above = world.getBlock(x, y + 1, z);
-        if (above != null && above.isOpaqueCube()) return null; // buried: not a top-level block
+        // Buried: not a top-level block - under something solid, or under a full drift the settings make solid.
+        if (above != null && (above.isOpaqueCube() || SnowCover.shelters(world, x, y + 1, z))) return null;
 
         if (world.rand.nextFloat() >= chance) return null;
 

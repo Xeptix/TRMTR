@@ -6,6 +6,7 @@
   "refmap": "trmtgtnh-fabric-refmap.json",
   "mixins": [
     "MixinChestBooksDrawAgain",
+    "MixinAdvancementsLoad",
     "BucketItemAccessor",
     "MixinCrashReportSupport",
     "MixinBlockItem",
@@ -14,12 +15,14 @@
     "MixinChunkSerializer",
     "MixinCraftingResult",
     "MixinExplosion",
+    "MixinExplosionRadius",
     "MixinGhostMapColor",
     "MixinStairNeighbours",
     "MixinItemStack",
     "MixinLivingEntity",
     "MixinLootArrivals",
     "MixinMob",
+    "MixinPlayerArrives",
     "MixinNaturalSpawnWard",
     "MixinRecipeArrivals",
     "MixinRepairItemRecipe",
@@ -63,7 +66,8 @@
     "MixinTextureAtlas",
     "StitcherHolderSize",
     "MixinWindowLight",
-    "MixinEntityLightLent"
+    "MixinEntityLightLent",
+    "MixinSettingsCommand"
   ],
   "injectors": {
     "defaultRequire": 1

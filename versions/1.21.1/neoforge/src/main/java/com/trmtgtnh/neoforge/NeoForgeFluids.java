@@ -52,6 +52,13 @@ public final class NeoForgeFluids implements Fluids.Side {
         return handler.getContainer();
     }
 
+    /** Which way a container was read, for the harness's line (0.9.228): this loader's fluid handler, or not at all. */
+    @Override
+    public String readBy(ItemStack stack) {
+        return FluidUtil.getFluidHandler(stack)
+            .isPresent() ? "the fluid handler" : "nothing";
+    }
+
     private static FluidStack contents(ItemStack stack) {
         return FluidUtil.getFluidHandler(stack)
             .map(handler -> handler.getFluidInTank(0))

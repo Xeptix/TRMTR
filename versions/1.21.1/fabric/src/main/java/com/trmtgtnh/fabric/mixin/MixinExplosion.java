@@ -31,8 +31,8 @@ import com.trmtgtnh.util.ExplosionSize;
  *
  * <p>
  * The three shadowed fields are the position, which this version keeps private with no accessor. The
- * strength is not shadowed: it is read by {@link ExplosionSize}, which finds the one float field by
- * its type rather than by name and so works on both loaders without a second mixin.
+ * strength is not shadowed: it is read by {@link ExplosionSize}, which asks the game's own {@code radius()}
+ * (0.9.228).
  */
 @Mixin(Explosion.class)
 public abstract class MixinExplosion {

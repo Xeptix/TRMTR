@@ -22,8 +22,8 @@
   "mixins": [ "trmtgtnh-common.mixins.json", "trmtgtnh-fabric.mixins.json", "trmtgtnh-fabric-canvas.mixins.json" ],
   "accessWidener": "trmtgtnh.accesswidener",
   "depends": {
-    "fabricloader": ">=0.19.5",
-    "fabric-api": ">=0.161.0",
+    "fabricloader": ">=0.19.4",
+    "fabric-api": ">=0.152.1",
     "minecraft": "26.2"
   },
   "recommends": {

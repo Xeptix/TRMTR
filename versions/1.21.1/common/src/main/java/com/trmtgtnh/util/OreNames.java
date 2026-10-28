@@ -134,6 +134,36 @@ public final class OreNames {
     public static synchronized void namespace(String space) {
         namespace = space;
         TAGS.clear();
+        synchronized (NAMED) {
+            NAMED.clear();
+        }
+    }
+
+    /**
+     * The namespace to read instead when the loader's own build ships no material tags in {@link #namespace} (0.9.228,
+     * the release's full pass). Forge 52 shipped its {@code forge:} tags alone until 52.0.20, where the {@code c:}
+     * convention's joined them - read in each build's universal jar: 52.0.0 and 52.0.16 hold no {@code data/c/tags},
+     * 52.0.20 holds 199 - so on 52.0.0 to 52.0.16, which takes in the build OptiFine for 1.21.1 needs, the iron probe
+     * below never held anything, {@link #tagsArrived} never said yes, and not one of this mod's recipes was ever built:
+     * no tamper, no guide, no draught. Forge names {@code forge} here; NeoForge and Fabric, which have only ever shipped
+     * {@code c:} at 1.21.1, name none.
+     */
+    private static volatile String fallback;
+
+    /** Which namespace to read where this loader's build has no tags in its own. Called once by a loader module. */
+    public static void fallback(String space) {
+        fallback = space;
+    }
+
+    /**
+     * Which namespace to read, once tags have arrived: the loader's own while its probe holds anything, else the
+     * fallback's if that holds anything, else none yet (null). Both empty is the moment before tags are bound - every
+     * namespace reads empty then - so nothing is switched on it. Pure, so it can be asked without a game.
+     */
+    static String spaceToRead(String own, boolean ownHolds, String other, boolean otherHolds) {
+        if (ownHolds) return own;
+        if (other != null && !other.equals(own) && otherHolds) return other;
+        return null;
     }
 
     /**
@@ -323,7 +353,21 @@ public final class OreNames {
             // asks the serialiser for the tag's name to label it, which throws "Unrecognized tag"
             // for a tag the serialiser has never heard of. Empty is also what an unbound tag looks
             // like, so waiting for contents covers both.
-            return !contents(probe).isEmpty();
+            if (!contents(probe).isEmpty()) return true;
+            // Or the fallback's, where this loader's build has none of its own (see fallback).
+            String other = fallback;
+            if (other == null || other.equals(namespace)) return false;
+            ResourceLocation there = ResourceLocation.tryParse(other + ":" + FOLDERS.get("ingot") + "/iron");
+            boolean otherHolds = there != null && !contents(TagKey.create(Registries.ITEM, there)).isEmpty();
+            String read = spaceToRead(namespace, false, other, otherHolds);
+            if (read == null) return false;
+            Trmt.LOG.info(
+                "This loader's build ships no {} material tags (Forge before 52.0.20), so this mod reads its {} tags "
+                    + "instead: every recipe made from a material is built from those.",
+                namespace,
+                read);
+            namespace(read);
+            return true;
         }
     }
 

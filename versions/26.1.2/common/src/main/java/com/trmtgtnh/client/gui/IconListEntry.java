@@ -25,7 +25,11 @@ import net.minecraft.world.item.ItemStack;
  *
  * <p>
  * A name nothing answers to draws nothing, the same answer 1.7.10 gives for a mob with no egg; and a
- * block whose renderer throws is never asked again, which {@link WearIcons#drawIcon} remembers.
+ * block whose renderer throws is never asked again, which {@link WearIcons#drawIcon} remembers. From
+ * 0.9.228 a mob's line draws what the mod's own screen draws ({@link MobPictures}): the mob itself
+ * where there is a world to make it in, else its egg, else this mod's own generic egg. The rows stay
+ * text rows, as the 1.7.10 edition's Forge screen keeps them: the number field of their own and the
+ * red unknown name are the own screen's.
  */
 public final class IconListEntry extends AbstractTextFieldListListEntry<String, IconListEntry.Cell, IconListEntry> {
 
@@ -99,6 +103,13 @@ public final class IconListEntry extends AbstractTextFieldListListEntry<String, 
                 delta);
 
             String text = widget.getValue();
+            if (listListEntry.kind == ConfigLayout.Icons.MOB) {
+                // What the own screen's list page draws, in its order - the mob itself, its egg, the generic egg -
+                // asked of what the field holds this frame (0.9.228). Cloth makes a row added with its "+" through
+                // this same cell, so a new row and a typed name show their picture at once here too.
+                MobPictures.draw(graphics, text, x, y + 2);
+                return;
+            }
             if (lastText == null || !lastText.equals(text)) {
                 lastText = text;
                 icon = resolve(listListEntry.kind, text);

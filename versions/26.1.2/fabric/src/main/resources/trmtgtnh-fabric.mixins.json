@@ -52,7 +52,6 @@
     "MixinGhostStepSound",
     "MixinLevelReplaced",
     "MixinServerLightArrives",
-    "MixinSettleOnWornGround",
     "MixinSettledFaces",
     "MixinSettledFacesIndigo",
     "MixinStitcher",

@@ -166,6 +166,10 @@ public final class TrmtFabric implements ModInitializer {
         // Fluids for why that is the loader's limit rather than this mod's.
         FabricFluids.use();
 
+        // What an advancement file of this mod needs on to load, asked as data loads (0.9.228, BP30, BP33): see
+        // ModAchievements.SWITCHES.
+        FabricConditions.register();
+
         // The four moments Fabric has an event for. The other seven are mixins, and FabricEvents
         // says which and why.
         FabricEvents.open();

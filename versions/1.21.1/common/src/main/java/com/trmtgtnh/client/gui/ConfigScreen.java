@@ -35,8 +35,11 @@ import com.trmtgtnh.network.TrmtNetwork;
  * each, and the alternative is writing a scrolling property editor from scratch - which is a
  * fortnight of work to arrive somewhere worse. So {@code TrmtConfigGui}, {@code TrmtGuiFactory},
  * {@code ConfigAdapter}, {@code BlockIconArrayEntry} and {@code MobIconArrayEntry} are replaced by
- * this one class, and it is required rather than optional: a settings screen that is sometimes
- * absent is worse than one that asks for a library.
+ * this one class. It was required until 0.9.227; from 0.9.228 it is optional, as on 26.x - this mod
+ * has a screen of its own ({@link WornPathScreen}), and {@link ConfigScreens} builds this one only
+ * where Cloth is installed and {@code client.settingsScreen} asks for it. Nothing outside
+ * {@code ConfigScreens} may touch this class: it names Cloth's types, and loading it without them
+ * throws.
  *
  * <h2>Built from the file, not from a list</h2>
  *
@@ -87,17 +90,26 @@ public final class ConfigScreen {
         ConfigEntryBuilder entries = builder.entryBuilder();
 
         boolean first = true;
-        for (String name : ConfigLayout.headings(config.getCategoryNames())) {
+        // Every category the own screen's tabs hold, in their order, then the families (0.9.228, spec M14; Xep: "If there
+        // are settings missing then yeah we should add all categories there too") - until then the six the file alone
+        // held were left off here, as Forge's screen leaves them off in the 1.7.10 edition no longer.
+        for (String name : ConfigLayout.otherScreenHeadings(config.getCategoryNames())) {
             ConfigFile.Category category = config.getCategory(name);
             if (category == null) continue;
-            ConfigCategory shown = builder.getOrCreateCategory(Component.literal(title(leaf(name))));
+            // Each heading by the own screen's tab name (0.9.228; Xep, 2026-10-25, "Use the tab names").
+            String key = ConfigLayout.headingKey(name);
+            ConfigCategory shown = builder.getOrCreateCategory(
+                key == null ? Component.literal(title(leaf(name))) : Component.translatable(key));
             if (first) {
                 first = false;
                 buttons(shown, parent);
             }
             fill(shown, entries, config, name, category);
         }
-        return builder.build();
+        Screen built = builder.build();
+        // The way back to the own screen is added to this screen once it has laid itself out (ConfigScreens.afterInit).
+        ConfigScreens.builtCloth(built, parent);
+        return built;
     }
 
     /**
@@ -112,8 +124,10 @@ public final class ConfigScreen {
     /** Every setting under one top-level category, with its folders as sub-categories. */
     private static void fill(ConfigCategory shown, ConfigEntryBuilder entries, ConfigFile config, String top,
         ConfigFile.Category category) {
-        for (ConfigFile.Setting setting : category.getValues()
-            .values()) {
+        // In the page's own order, which on the multipliers page is not the file's (ConfigLayout.ordered).
+        for (String name : ConfigLayout.ordered(top, category.getValues()
+            .keySet())) {
+            ConfigFile.Setting setting = category.get(name);
             if (setting != null) shown.addEntry(entry(entries, top, setting));
         }
 
@@ -283,31 +297,22 @@ public final class ConfigScreen {
     }
 
     /**
-     * A setting's comment, wrapped, as the lines of its hover.
+     * A setting's comment, wrapped, and its range or default line, as the lines of its hover: the own screen's
+     * words, from {@link ConfigWords#noteLines} (0.9.228).
      *
      * <p>
-     * Every line of it, because these comments are the documentation: several run to a paragraph and
-     * one runs to half a page, and a hover that showed the first sentence of those would be a hover
-     * that hid the part explaining what the setting is for.
+     * Every line of the comment, because these comments are the documentation. The range and the default follow
+     * once, in the line every edition writes the same way - until 0.9.227 this hover ended with the file's own
+     * {@code [range: 0.0 ~ 10.0, default: 0.20000000298023224]}, which said the default as a widened float and
+     * nothing at all for a setting with no bounds. Cloth draws no range of its own in a tooltip, so the line is said
+     * here once and nowhere else.
      */
     private static Component[] note(ConfigFile.Setting setting) {
-        String comment = setting.getComment();
-        if (comment == null || comment.isEmpty()) return new Component[0];
-        Minecraft client = Minecraft.getInstance();
-        List<String> lines = client == null ? Arrays.asList(comment) : GuiText.wrap(client.font, comment, 260);
-        if (setting.isBounded()) lines = withRange(lines, setting);
+        List<String> lines = ConfigWords.noteLines(setting);
         Component[] out = new Component[lines.size()];
         for (int at = 0; at < out.length; at++) {
             out[at] = Component.literal(lines.get(at));
         }
-        return out;
-    }
-
-    /** The allowed range, said in the hover, because Cloth refuses silently without saying why. */
-    private static List<String> withRange(List<String> lines, ConfigFile.Setting setting) {
-        List<String> out = new ArrayList<String>(lines);
-        out.add("");
-        out.add(net.minecraft.ChatFormatting.DARK_GRAY + setting.getRange());
         return out;
     }
 

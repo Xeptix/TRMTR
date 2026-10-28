@@ -103,7 +103,29 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
      * else brought an answer, and opened for anybody at all. 1.7.10: {@code ClientProxy.requestSnapshotScreen}.
      */
     private static void requestScreen() {
+        screenAsked = true;
         TrmtNetwork.sendSnapshotAction(com.trmtgtnh.network.PacketSnapshotAction.REQUEST);
+    }
+
+    /**
+     * Whether this client asked for the screen and has had no answer since (0.9.228, spec CF79, CF81; Xep: "they no
+     * longer open its screen; only holding the modifier does"). Every gesture's answer - a side stored, a side put
+     * back - is the same state packet the screen opens on, and until 0.9.228 every one of them opened the screen; the
+     * spec has it opened only by holding the modifier and using the tool. Client side only; nothing here names a
+     * client class, so the server never loads one through it. 1.7.10: {@code ClientProxy.requestSnapshotScreen}.
+     */
+    private static volatile boolean screenAsked;
+
+    /** An answer arrived: whether the screen was asked for, with the ask spent so one answer opens it once. */
+    public static boolean answerAsked() {
+        boolean asked = screenAsked;
+        screenAsked = false;
+        return asked;
+    }
+
+    /** Leaving a world: an answer lost on the way cannot open the screen at a later gesture. */
+    public static void forgetScreenAsk() {
+        screenAsked = false;
     }
 
     /** Sneaking stores this side; not sneaking puts it back. */

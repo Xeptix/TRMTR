@@ -8,6 +8,7 @@
     "MixinCrashReportSupport",
     "MixinGhostFriction",
     "MixinGhostMapColor",
+    "MixinGhostSustainsPlant",
     "MixinLegacyChunkEntities",
     "MixinItemStack",
     "MixinRepairItemRecipe",
@@ -35,7 +36,6 @@
     "MixinLevelReplaced",
     "MixinBlockRenderDispatcher",
     "MixinServerLightArrives",
-    "MixinSettleOnWornGround",
     "MixinSettledFaces",
     "MixinStitcher",
     "MixinStitcherRegion",
@@ -44,6 +44,7 @@
     "StitcherHolderSize",
     "LighterFaceShape",
     "MixinSunkLightVanilla",
+    "MixinGhostClosedEnhancedLighter",
     "MixinWindowLight",
     "MixinEntityLightLent"
   ],

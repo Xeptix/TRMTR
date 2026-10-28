@@ -12,7 +12,8 @@
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
     "MixinPackRepository",
-    "RecipeMapMaker"
+    "MixinPlayerArrives",
+    "MixinRecipeSuggestions"
   ],
   "client": [
     "MixinJadeHarvestLine",

@@ -125,6 +125,14 @@ public final class ModLoot {
         CATEGORIES.put("bonusChest", LootTableList.CHESTS_SPAWN_BONUS_CHEST);
     }
 
+    /**
+     * The chest categories by the 1.7.10 edition's names, in order: what the settings screen's picker offers for
+     * {@code loot.wayfarerCategories} (0.9.228), as that edition's picker offers its chest categories.
+     */
+    public static java.util.List<String> categories() {
+        return new java.util.ArrayList<String>(CATEGORIES.keySet());
+    }
+
     private static final ResourceLocation DUNGEON = LootTableList.CHESTS_SIMPLE_DUNGEON;
     private static final ResourceLocation MINESHAFT = LootTableList.CHESTS_ABANDONED_MINESHAFT;
     private static final ResourceLocation SMITH = LootTableList.CHESTS_VILLAGE_BLACKSMITH;
@@ -347,8 +355,8 @@ public final class ModLoot {
     }
 
     /**
-     * A stack's entry name: the mod's prefix and the item's registry name, and for a stack carrying a tag, a mark of that
-     * tag as well.
+     * A stack's entry name: the mod's prefix and the item's registry name, and for a stack carrying a tag, a mark of
+     * that tag as well.
      *
      * <p>
      * The tag is what tells apart the three unlock books, which are all one item, and a tamper's grades. Until 0.9.222
@@ -392,7 +400,8 @@ public final class ModLoot {
         java.util.Set<ResourceLocation> known = LootTableList.getAll();
         List<ResourceLocation> real = new ArrayList<ResourceLocation>();
         List<String> unused = new ArrayList<String>();
-        // Every name as often as it is written: a name written twice is filed twice in the 1.7.10 edition, which doubles
+        // Every name as often as it is written: a name written twice is filed twice in the 1.7.10 edition, which
+        // doubles
         // the odds there and is the one way a pack can weight one place above another (0.9.222, spec WD15). Warned
         // about once each.
         for (String name : configured) {

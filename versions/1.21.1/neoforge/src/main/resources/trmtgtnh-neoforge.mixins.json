@@ -15,7 +15,8 @@
     "MixinRecipeArrivals",
     "MixinSnowRestsOnWornGround",
     "MixinStairNeighbours",
-    "MixinWornCollision"
+    "MixinWornCollision",
+    "MixinGhostSustainsPlant"
   ],
   "client": [
     "MixinModelManagerBaked",

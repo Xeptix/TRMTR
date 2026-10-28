@@ -750,9 +750,13 @@ public final class FamilySettings {
         return settings;
     }
 
+    /**
+     * Declared with the default as the float's own decimal (0.9.228), named a float and tidied, as
+     * {@link TrmtConfig#declareFloat} says why. Until then the default went over widened, and a family's 0.2 was written
+     * into the file and shown on the screens as 0.20000000298023224.
+     */
     private static float readFloat(ConfigFile config, String category, String name, float def, String comment) {
-        return (float) config.get(category, name, def, comment, 0.0d, 1000000.0d)
-            .getDouble();
+        return TrmtConfig.declareFloat(config, category, name, def, 0f, 1000000f, comment);
     }
 
     /** Threshold draw range after the global erosion speed multiplier. */

@@ -166,6 +166,11 @@ public final class WearIcons {
     private static final java.util.Set<String> BROKEN =
         java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
 
+    /** Whether a key's picture has died once and is no longer drawn: the settings screen's budget asks it (Part 6). */
+    static boolean broken(String key) {
+        return key != null && BROKEN.contains(key);
+    }
+
     /**
      * Draws one sixteen-pixel icon of a block, and gives up on a block that will not be drawn.
      *

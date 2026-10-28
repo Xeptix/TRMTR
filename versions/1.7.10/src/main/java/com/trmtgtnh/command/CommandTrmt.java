@@ -707,7 +707,7 @@ public class CommandTrmt extends CommandBase {
                         .familyOf(world.getBlock(x, y, z), world.getBlockMetadata(x, y, z));
                     if (family == null || !family.staged) continue;
                     if (world.getBlock(x, y + 1, z)
-                        .isOpaqueCube()) continue;
+                        .isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(world, x, y + 1, z)) continue;
 
                     // Stripe the stages across one axis so every gradation is visible at once.
                     int steps = ErosionChain.length(family);

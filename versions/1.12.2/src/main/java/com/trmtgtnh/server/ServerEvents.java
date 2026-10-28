@@ -81,7 +81,7 @@ public final class ServerEvents {
         if (!dueThisTick()) return;
 
         float multiplier = ErosionEngine.multiplierFor(event.player);
-        if (multiplier > 0f) ErosionEngine.get()
+        if (multiplier > 0f && admitted(event.player, com.trmtgtnh.util.MobWear.PLAYERS)) ErosionEngine.get()
             .onMoverTick(event.player, multiplier);
     }
 
@@ -96,15 +96,118 @@ public final class ServerEvents {
      */
     @SubscribeEvent
     public void onLivingUpdate(LivingEvent.LivingUpdateEvent event) {
-        if (!TrmtConfig.erodeFromLeashedMobs && TrmtConfig.mobMultipliers.isEmpty()) return;
+        if (!mobsCanWear()) return;
         EntityLivingBase entity = event.getEntityLiving();
         if (entity == null || entity.world == null || entity.world.isRemote) return;
         if (entity instanceof EntityPlayer) return; // handled above
         if (!dueThisTick()) return;
 
         float multiplier = ErosionEngine.multiplierFor(entity);
-        if (multiplier > 0f) ErosionEngine.get()
+        if (multiplier > 0f && admitted(entity, ErosionEngine.kindOf(entity))) ErosionEngine.get()
             .onMoverTick(entity, multiplier);
+    }
+
+    /**
+     * Whether any loose or led mob can wear the ground at all (0.9.228): every way {@code multiplierFor} can count one -
+     * the lead switch, the curated list, and the three groups' switches. Skipped only when none could answer.
+     */
+    static boolean mobsCanWear() {
+        return TrmtConfig.erodeFromLeashedMobs || !TrmtConfig.mobMultipliers.isEmpty()
+            || TrmtConfig.fromHostileMobs
+            || TrmtConfig.fromPassiveMobs
+            || TrmtConfig.fromVillagers;
+    }
+
+    /**
+     * The per-chunk caps (0.9.228; Xep: "Movers per chunk"), one per server. Cleared when the server stops, so a world
+     * opened next starts from nothing.
+     */
+    private com.trmtgtnh.util.MobWear.Caps caps = new com.trmtgtnh.util.MobWear.Caps();
+
+    /**
+     * Whether a walking mover whose weight is above nought may wear the ground in its chunk this round, counting it if
+     * so: at most its kind's number per chunk while that kind's cap is on, the round the sampled movement's counter. Not
+     * asked of a fall, which is one landing rather than a crowd.
+     */
+    private boolean admitted(EntityLivingBase mover, int kind) {
+        int cap = TrmtConfig.capFor(kind);
+        if (cap <= 0) return true;
+        long chunk = com.trmtgtnh.util.MobWear.Caps.chunk(
+            mover.world.provider.getDimension(),
+            MathHelper.floor(mover.posX) >> 4,
+            MathHelper.floor(mover.posZ) >> 4);
+        return caps.admit(sampleCounter, chunk, kind, cap);
+    }
+
+    /** The caps forgotten, as a server stops. */
+    public void forgetCaps() {
+        caps = new com.trmtgtnh.util.MobWear.Caps();
+    }
+
+    /**
+     * Names the curated list's names no mob in this game answers to, once, as a server starts (0.9.228) - then rather
+     * than as the file is read, because mods register mobs late.
+     */
+    public static void sayUnknownMobs() {
+        String line = unknownMobsLine(unknownMobs(TrmtConfig.mobLines, registeredMobNames()));
+        if (line != null) Trmt.LOG.warn("{}", line);
+    }
+
+    /**
+     * The list's names no mob answers to ({@code MobWear.unknown}), each line asked as the engine reads its name. A
+     * registry name on a line of its own - what the magic tamper writes - reads to {@code MobEntries} as a name whose
+     * number does not read, which {@code unknown} passes over as a line already warned about; the engine reads that
+     * whole line as the name, so it is asked here as that name at 1.0, and a typed {@code minecraft:creper} is said.
+     */
+    static java.util.List<String> unknownMobs(String[] lines, java.util.Collection<String> registered) {
+        if (lines == null) return java.util.Collections.emptyList();
+        String[] named = new String[lines.length];
+        for (int at = 0; at < lines.length; at++) {
+            com.trmtgtnh.util.MobEntries.Entry entry = com.trmtgtnh.util.MobEntries.parse(lines[at]);
+            named[at] = entry != null && entry.badWeight ? entry.name + ":1" : lines[at];
+        }
+        return com.trmtgtnh.util.MobWear.unknown(named, registered);
+    }
+
+    /**
+     * Every name a mob of this game answers to in the list: each registered entity's registry name and short name, and
+     * the 1.7.10 names this edition reads as the kinds 1.11 split ({@code OldNames}).
+     */
+    public static java.util.Set<String> registeredMobNames() {
+        java.util.Set<String> names = new java.util.LinkedHashSet<String>();
+        for (net.minecraftforge.fml.common.registry.EntityEntry entry : net.minecraftforge.fml.common.registry.ForgeRegistries.ENTITIES) {
+            if (entry == null) continue;
+            if (entry.getRegistryName() != null) names.add(
+                entry.getRegistryName()
+                    .toString());
+            if (entry.getName() != null) names.add(entry.getName());
+        }
+        names.addAll(com.trmtgtnh.util.OldNames.mobNames());
+        return names;
+    }
+
+    /**
+     * The line said at a server's start for the names no mob answers to, or null for none: "The mobs list names
+     * <n> mob(s) no mob in this game answers to: <the first UNKNOWN_SAID, comma-separated> (and <m> more)".
+     */
+    public static String unknownMobsLine(java.util.List<String> unknown) {
+        if (unknown == null || unknown.isEmpty()) return null;
+        int said = Math.min(unknown.size(), com.trmtgtnh.util.MobWear.UNKNOWN_SAID);
+        StringBuilder line = new StringBuilder("The mobs list names ").append(unknown.size())
+            .append(unknown.size() == 1 ? " mob" : " mobs")
+            .append(" no mob in this game answers to: ");
+        for (int at = 0; at < said; at++) {
+            if (at > 0) line.append(", ");
+            String name = unknown.get(at);
+            line.append(
+                name.length() > com.trmtgtnh.util.LogSample.LONGEST
+                    ? name.substring(0, com.trmtgtnh.util.LogSample.LONGEST) + "..."
+                    : name);
+        }
+        if (unknown.size() > said) line.append(" (and ")
+            .append(unknown.size() - said)
+            .append(" more)");
+        return line.toString();
     }
 
     /**
@@ -521,17 +624,14 @@ public final class ServerEvents {
         // spared block is neither destroyed nor counted as ground about to be.
         spareReinforced(event, size);
         if (!TrmtConfig.enabled || !TrmtConfig.explosionWear || size <= 0f) return;
-        // Gathered here because this event is the one moment the list exists: Forge fires it with
-        // every affected block still standing and about to be taken. Scouring ground that is air a
-        // moment later spends a chunk's entry budget on positions nobody will ever see.
-        java.util.Set<Long> doomed = new java.util.HashSet<Long>();
-        for (BlockPos at : event.getAffectedBlocks()) {
-            doomed.add(Long.valueOf(ErosionEngine.packPosition(at.getX(), at.getY(), at.getZ())));
-        }
-
+        // Remembered, not scoured: Forge fires this with every affected block still standing and
+        // about to be taken, and ground scoured now is ground under a block that is gone a moment
+        // later - sheltered by it, so the crater's floor and walls came out unworn. The engine
+        // scours it at the end of this tick, once the blocks have gone (0.9.228;
+        // ErosionEngine.blastLater).
         Vec3d centre = explosion.getPosition();
         ErosionEngine.get()
-            .blast(world, centre.x, centre.y, centre.z, size, doomed);
+            .blastLater(world, centre.x, centre.y, centre.z, size);
     }
 
     /** Whether a spared block has been reported yet, so the log says it once a session. */

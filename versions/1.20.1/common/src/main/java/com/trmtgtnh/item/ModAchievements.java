@@ -30,11 +30,15 @@ import com.trmtgtnh.config.TrmtConfig;
  * of which is a thing vanilla watches for.
  *
  * <p>
- * The other edition refuses to register an achievement for a feature the config has switched off, so
- * that nothing unreachable sits on the page. A JSON file cannot be registered conditionally, so all
- * sixteen are always there and the refusal moved here instead: a switch that is off means the grant
- * never happens. The page shows one more unearned line than it used to; nothing can be earned that
- * the switches have closed.
+ * The other edition refuses to register an achievement for a feature the config has switched off, so that nothing
+ * unreachable sits on the page. <strong>From 0.9.228 the files load on the same rule</strong> (BP30, BP33; Xep: "Match
+ * 1.7.10"): each names, under every key its loaders read, one condition, {@code trmtgtnh:settings}, carrying the
+ * switches that must all be on for it to load - {@link #SWITCHES} - and every loader's condition asks
+ * {@link #allOn}. With {@code general.achievements} off there is no tab; a mode and its book load only with that mode's
+ * switch on; the golem only with the golem on, All Ways only with its upgrades too. A child names its parent's
+ * switches as well, because vanilla drops a child whose parent was filtered, with a warning. Read when data loads - at
+ * server start and on {@code /reload} - and a world's earned ones stay in its save either way. The grants still ask the
+ * switches, which costs nothing and keeps a pack's own copy of a file from being earned while it is switched off.
  */
 public final class ModAchievements {
 
@@ -63,6 +67,80 @@ public final class ModAchievements {
     /** The file one guide book's reading is written into. */
     public static ResourceLocation forBook(GuideBook book) {
         return book == null ? null : id("trmt_read_" + book.key);
+    }
+
+    // ------------------------------------------------------------------
+    // Loading
+    // ------------------------------------------------------------------
+
+    /** The condition every advancement file names, under each of its loaders' keys (0.9.228, BP30, BP33). */
+    public static final String CONDITION = "settings";
+
+    /**
+     * The switches each advancement file needs on to load, by file - 1.7.10's {@code ModAchievements.register}, as data
+     * (0.9.228). Every file needs {@code achievements}; a mode and its book that mode's switch, since the enchantment
+     * is always registered here; the golem the golem, All Ways its upgrades too. The four books read and the shelf need
+     * nothing more, as 1.7.10 makes one for every guide book that exists and the shelf once any does. Each file carries
+     * the same list, and {@code AdvancementsLoadOnTheirSwitchesTest} holds the two together.
+     */
+    public static final java.util.Map<String, java.util.List<String>> SWITCHES = switches();
+
+    private static java.util.Map<String, java.util.List<String>> switches() {
+        java.util.Map<String, java.util.List<String>> out = new java.util.LinkedHashMap<String, java.util.List<String>>();
+        for (String plain : new String[] { "trmt_tamper", "trmt_chunk_tamper", "trmt_wayfarer", "trmt_read_mk1",
+            "trmt_read_mk2", "trmt_read_commands", "trmt_read_golem", "trmt_library" }) {
+            out.put(plain, java.util.Collections.singletonList("achievements"));
+        }
+        out.put("trmt_reinforcing", java.util.Arrays.asList("achievements", "reinforceEnabled"));
+        out.put("trmt_book_reinforce", java.util.Arrays.asList("achievements", "reinforceEnabled"));
+        out.put("trmt_lighting", java.util.Arrays.asList("achievements", "lightEnabled"));
+        out.put("trmt_book_light", java.util.Arrays.asList("achievements", "lightEnabled"));
+        out.put("trmt_warding", java.util.Arrays.asList("achievements", "wardEnabled"));
+        out.put("trmt_book_ward", java.util.Arrays.asList("achievements", "wardEnabled"));
+        out.put("trmt_golem", java.util.Arrays.asList("achievements", "golemEnabled"));
+        out.put("trmt_omni", java.util.Arrays.asList("achievements", "golemEnabled", "golemUpgrades"));
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * Whether an advancement file of this mod loads, by its name: every switch {@link #SWITCHES} names for it on. A file
+     * this mod does not ship - a pack's own - loads as the pack wrote it, on {@code achievements} alone.
+     */
+    public static boolean loads(String file) {
+        java.util.List<String> needs = SWITCHES.get(file);
+        return allOn(needs == null ? java.util.Collections.singletonList("achievements") : needs);
+    }
+
+    /**
+     * Whether every switch named is on - what each loader's {@code trmtgtnh:settings} condition asks of the list a file
+     * carries. A name that is not one of the six is off, and said once, so a misspelt file hides itself rather than
+     * standing on the page for ever.
+     */
+    public static boolean allOn(java.util.Collection<String> switches) {
+        if (switches == null) return false;
+        for (String each : switches) {
+            if (!on(each)) return false;
+        }
+        return true;
+    }
+
+    private static volatile boolean unknownSaid;
+
+    /** One switch by its name, as the settings file spells it. */
+    static boolean on(String name) {
+        if ("achievements".equals(name)) return TrmtConfig.achievements;
+        if ("reinforceEnabled".equals(name)) return TrmtConfig.reinforceEnabled;
+        if ("lightEnabled".equals(name)) return TrmtConfig.lightEnabled;
+        if ("wardEnabled".equals(name)) return TrmtConfig.wardEnabled;
+        if ("golemEnabled".equals(name)) return TrmtConfig.golemEnabled;
+        if ("golemUpgrades".equals(name)) return TrmtConfig.golemUpgrades;
+        if (!unknownSaid) {
+            unknownSaid = true;
+            Trmt.LOG.warn(
+                "An advancement asks for a setting called {}, which this mod has not got, so it is not loaded. This is said once.",
+                name);
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------

@@ -99,6 +99,20 @@ public final class ForgeClientSetup {
             net.minecraft.client.Minecraft.getInstance()
                 .getItemColors());
 
+        // A fluid's still texture, for the settings screen's picture of a fluid with no bucket (0.9.228, spec 3.2):
+        // Forge's FluidAttributes names it, on the block atlas.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTextures(
+            fluid -> fluid.getAttributes()
+                .getStillTexture());
+        // And its color, which the game's renderer multiplies that texture by (0.9.228): the same attributes' color.
+        com.trmtgtnh.client.gui.SettingsPictures.useStillTints(
+            fluid -> fluid.getAttributes()
+                .getColor());
+
+        // The settings key, unbound until a player binds it (0.9.228, SettingsAccess). Forge 36 takes a key here, at
+        // client setup, through its own registry; the Fabric side hands the same key to Fabric API's KeyBindingHelper.
+        net.minecraftforge.fml.client.registry.ClientRegistry.registerKeyBinding(com.trmtgtnh.client.gui.SettingsAccess.key());
+
         Trmt.LOG.info("Registered the golem's renderer and screen, and the tampers' grade property, with Forge");
     }
 

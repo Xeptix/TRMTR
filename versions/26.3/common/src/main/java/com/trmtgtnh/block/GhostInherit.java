@@ -281,11 +281,26 @@ public final class GhostInherit {
      */
     public static Boolean sustainsPlant(Block ghost, BlockGetter world, BlockPos pos,
         java.util.function.BiPredicate<BlockState, BlockGetter> ask) {
+        return askCovered(ghost, world, pos, (covered, view) -> Boolean.valueOf(ask.test(covered, view)));
+    }
+
+    /**
+     * Any question put to the covered block, answered as it answers - or null where nothing is recorded under the
+     * square, the question came back round, or the block threw (0.9.228, spec GF15).
+     *
+     * <p>
+     * {@link #sustainsPlant}'s sibling for an answer that is not a yes or a no: NeoForge's {@code canSustainPlant} is
+     * three-way, and its "no opinion" is what lets a plant fall through to {@code mayPlaceOn}, which the NeoForge soil
+     * mixins already hand to the covered block. A Boolean would throw that third answer away. The same covered block,
+     * the same view holding it at its own square, and the same guard against the question coming back here.
+     */
+    public static <T> T askCovered(Block ghost, BlockGetter world, BlockPos pos,
+        java.util.function.BiFunction<BlockState, BlockGetter, T> ask) {
         BlockState covered = coveredAt(ghost, pos);
         if (covered == null) return null;
         if (!enter()) return null;
         try {
-            return Boolean.valueOf(ask.test(covered, new OriginView(world, pos, covered)));
+            return ask.apply(covered, new OriginView(world, pos, covered));
         } catch (RuntimeException awkwardBlock) {
             return null;
         } finally {

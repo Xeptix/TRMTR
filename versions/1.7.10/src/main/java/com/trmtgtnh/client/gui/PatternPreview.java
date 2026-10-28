@@ -64,7 +64,14 @@ final class PatternPreview {
      * compared, the column has to be the same place in both runs rather than the same number handed
      * to both.
      */
-    private static final float[] AT = { 1f / 15f, 0.5f, 1.0f };
+    private static final float[] AT = { 1f / 15f, 0.5f, 1.0f, 0.75f };
+
+    /**
+     * The fourth point, three quarters through the run: the one picture of a look the settings screen's chooser draws
+     * beside each option (0.9.228, spec M23.2, S3.1), where a look has had time to show what it does and has not yet
+     * finished doing it. After the three the Wear Editor shows, so its row of three is unchanged.
+     */
+    static final int THREE_QUARTERS = 3;
 
     /** How many gradations the cover-coming-off look is shown across, which is its own run. */
     private static final int COVER_STEPS = 16;

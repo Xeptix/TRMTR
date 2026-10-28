@@ -96,6 +96,12 @@ public class CommonProxy {
     public void considerServerTable(boolean sent, long fingerprint) {}
 
     /**
+     * A server's rules said which build it runs, or said nothing of it (0.9.228). Only a client has anything to do with
+     * it: a newer client tells its player once a visit that the server runs an older build.
+     */
+    public void considerServerBuild(boolean sent, int protocol, String build) {}
+
+    /**
      * Block ids moved under the surface table, so it is rebuilt under the ids now in force.
      *
      * <p>

@@ -12,6 +12,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 
+import com.trmtgtnh.config.TrmtConfig;
+
 /**
  * Asking a world about a position by three numbers, the way the 1.7.10 edition does.
  *
@@ -156,11 +158,34 @@ public final class Worlds {
      * says yes to that. So on this edition ground under a snow layer never wore and the snow never took a step,
      * ground under a carpet or a slab never wore, and the painter left worn ground undrawn beneath all four, where
      * the other two editions wear it and draw it. Found by the second yard's bench photographs.
+     *
+     * <p>
+     * <strong>And a snow layer is never one, at any depth, unless the settings say a full drift is</strong> (0.9.228;
+     * Xep: "Match, with a setting"). 1.7.10's {@code BlockSnow.isOpaqueCube()} answers false at every depth, so every
+     * question of cover there lets the snow through: a full drift is trodden away a layer at a time before the ground
+     * under it wears, a tamper and the golem work the ground under it, and the painter draws the wear beneath it. Here
+     * {@code isSolidRender} says yes at eight layers, whose occlusion shape is a whole column, so until 0.9.228 a full
+     * drift sheltered the ground completely. Every question of cover - the engine, the tamper, the golem, the painter,
+     * wear drops and the showcase - asks this method, so the rule is held here alone: a snow layer is opaque only at
+     * eight layers with {@code weather.fullSnowDriftsSolid} on, which keeps the older editions' world for a pack that
+     * wants it. A snow block is not a snow layer ({@code SnowCover.isSnowLayer} refuses a full collision cube) and is
+     * answered as any block.
      */
     public static boolean isOpaque(BlockGetter access, int x, int y, int z) {
         BlockPos pos = new BlockPos(x, y, z);
-        return access.getBlockState(pos)
-            .isSolidRender(access, pos);
+        BlockState state = access.getBlockState(pos);
+        if (com.trmtgtnh.erosion.SnowCover.isSnowLayer(state)) {
+            return TrmtConfig.fullSnowDriftsSolid && layers(state) == 8 && state.isSolidRender(access, pos);
+        }
+        return state.isSolidRender(access, pos);
+    }
+
+    /** How many layers a snow layer stands, or 0 for a block that counts none. */
+    private static int layers(BlockState state) {
+        return state.hasProperty(net.minecraft.world.level.block.SnowLayerBlock.LAYERS)
+            ? state.getValue(net.minecraft.world.level.block.SnowLayerBlock.LAYERS)
+                .intValue()
+            : 0;
     }
 
     /**

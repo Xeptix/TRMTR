@@ -7,7 +7,9 @@
   "mixins": [
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
-    "MixinPackRepository"
+    "MixinPackRepository",
+    "MixinViaRomanaPathBlock",
+    "MixinViaRomanaTrip"
   ],
   "client": [
     "MixinJadeHarvestLine",

@@ -78,6 +78,15 @@ public final class ItemTints {
         if (guessed == null) {
             Minecraft client = Minecraft.getInstance();
             if (client == null) return null;
+            // The game's own set, read from its field by type, where a loader handed over nothing in time (0.9.228):
+            // Fabric's client entry point runs before the game has made its colors, so it handed over null, and the
+            // set built below then threw from Fabric API ("Cannot set colorMap twice") the first time a family page
+            // drew its band - a crash on opening Surfaces, found by the walk harness's settings-surfaces.
+            ItemColors own = ownColors(client);
+            if (own != null) {
+                told = own;
+                return own;
+            }
             if (!complained) {
                 complained = true;
                 Trmt.LOG.warn(
@@ -86,8 +95,27 @@ public final class ItemTints {
                         + "still right; a modded one with a color handler of its own will draw untinted. "
                         + "Said once.");
             }
-            guessed = ItemColors.createDefault(client.getBlockColors());
+            try {
+                guessed = ItemColors.createDefault(client.getBlockColors());
+            } catch (RuntimeException refused) {
+                // A loader that allows one set alone (Fabric API's color registry): no tint, and no crash.
+                return null;
+            }
         }
         return guessed;
+    }
+
+    /** The client's own item colors, from its field of that type; null where there is none yet or it cannot be read. */
+    static ItemColors ownColors(Minecraft client) {
+        for (java.lang.reflect.Field field : Minecraft.class.getDeclaredFields()) {
+            if (field.getType() != ItemColors.class) continue;
+            try {
+                field.setAccessible(true);
+                return (ItemColors) field.get(client);
+            } catch (ReflectiveOperationException | RuntimeException unread) {
+                return null;
+            }
+        }
+        return null;
     }
 }

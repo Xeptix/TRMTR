@@ -1,4 +1,10 @@
 {
+    "conditions": [
+        {
+            "type": "trmtgtnh:settings",
+            "settings": ["achievements", "golemEnabled", "golemUpgrades"]
+        }
+    ],
     "parent": "trmtgtnh:trmt_golem",
     "display": {
         "icon": {

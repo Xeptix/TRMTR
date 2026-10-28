@@ -2282,10 +2282,13 @@ public class GuiWearEditor extends Screen {
                 // The whole of a sixteen-pixel image rather than a corner of a two-hundred-and-
                 // fifty-six-pixel sheet, which is what the ordinary blit assumes. The source stays
                 // the whole face and only the destination shrinks, so the tight pitch costs
-                // resolution on the screen and nothing in the picture behind it. The same numbers
-                // 1.21.1 gave its blit: an art-wide square of the sixteen-pixel image, from its corner.
+                // resolution on the screen and nothing in the picture behind it: the scaled blit,
+                // an art-wide square on the screen drawn from the whole sixteen-by-sixteen image, as
+                // the 1.7.10 edition's func_152125_a draws it (0.9.228; Xep: "Match 1.7.10"). Until
+                // then this drew an art-wide square of the image from its corner, as 1.21.1's did,
+                // which below a pitch of eighteen showed only the face's top left.
                 graphics.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, at, cl + 118 + step * (art + 4), y,
-                    0f, 0f, art, art, 16, 16, multiplier);
+                    0f, 0f, art, art, 16, 16, 16, 16, multiplier);
             }
         }
     }

@@ -390,7 +390,11 @@ public final class ModRecipes {
             GuideBook.GOLEM,
             mk1,
             new ItemStack(net.minecraft.world.item.Items.PLAYER_HEAD),
-            harder ? compressed(10) : new ItemStack(net.minecraft.world.level.block.Blocks.DIRT),
+            // The harder guide's earth is the compressed block, and plain dirt wherever that block is missing (0.9.228,
+            // spec BP20; Xep: "Dirt when missing"): the earth is a whole ingredient of the plain recipe, so a pack
+            // without the compressed block must not get a guide cheaper than the plain one. compressed answers
+            // nothing at this version, so with the enhancements on the guide asks for dirt here.
+            harder ? orDirt(compressed(10)) : new ItemStack(net.minecraft.world.level.block.Blocks.DIRT),
             new ItemStack(net.minecraft.world.level.block.Blocks.COBBLESTONE),
             null);
 
@@ -670,6 +674,14 @@ public final class ModRecipes {
         // plain recipes, which is right, and the day something fills that role here this is the one
         // method that has to learn its name.
         return null;
+    }
+
+    /**
+     * The stack, or plain dirt where there is none - for an ingredient that stands in for dirt, so a missing compressed
+     * block costs the recipe nothing (0.9.228, spec BP20).
+     */
+    static ItemStack orDirt(ItemStack stack) {
+        return stack == null || stack.isEmpty() ? new ItemStack(net.minecraft.world.level.block.Blocks.DIRT) : stack;
     }
 
     /**

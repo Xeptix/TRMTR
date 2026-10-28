@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.client.render.SettledModel;
 
 /**
  * Puts the ghost's own model in place of the one baked from its blockstate file, under Fabric.
@@ -38,6 +39,8 @@ public final class GhostModelProvider implements ModelLoadingPlugin {
 
     @Override
     public void initialize(ModelLoadingPlugin.Context context) {
+        // A new bake makes new models, so the settled quads moved for the old ones are let go.
+        SettledModel.forget();
         // From Fabric API 0.155 (26.1; the split came with 1.21.4's model loading) a block's models are modified
         // after bake on an event of their own, handed the state the model is for rather than a model name.
         context.modifyBlockModelAfterBake()
@@ -48,8 +51,14 @@ public final class GhostModelProvider implements ModelLoadingPlugin {
     // From 1.21.4 a block's model is baked for each of its states and the hook names the state, so the ghost is
     // recognised by the block's own registry name - the name its blockstate file is under, as 1.21.1 read it from
     // the model's.
+    //
+    // And every block that rests on the ground - snow and carpet - wrapped so it is drawn down with the ground worn away
+    // under it, asked with the view it is meshed in (0.9.228; see SettledModel): every state of such a block, whatever
+    // the settling switch says now, because the models stay baked while a server's rules change it.
     static BlockStateModel wrap(BlockStateModel baked, BlockState state) {
-        if (baked == null || baked instanceof GhostModelFabric || state == null) return baked;
+        if (baked == null || baked instanceof GhostModelFabric || baked instanceof SettledModelFabric || state == null)
+            return baked;
+        if (SettledModel.wraps(state)) return new SettledModelFabric(baked);
         Identifier id = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock());
         if (!Trmt.MODID.equals(id.getNamespace())) return baked;
         if (!GHOST.getPath()

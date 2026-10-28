@@ -65,7 +65,8 @@ public final class WearDrops {
         if (y <= 1) return null;
 
         Block above = com.trmtgtnh.util.Worlds.blockAt(world, x, y + 1, z);
-        if (above != null && above.isOpaqueCube(above.getDefaultState())) return null; // buried: not a top-level block
+        if (above != null && (above.isOpaqueCube(above.getDefaultState()) || SnowCover.shelters(world, x, y + 1, z)))
+            return null; // buried: not a top-level block
 
         if (world.rand.nextFloat() >= chance) return null;
 

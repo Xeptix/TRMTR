@@ -103,6 +103,8 @@ public class ItemSnapshotTool extends Item implements AirSwingTool {
      * else brought an answer, and opened for anybody at all. 1.7.10: {@code ClientProxy.requestSnapshotScreen}.
      */
     private static void requestScreen() {
+        // Only an answer to this opens the screen (0.9.228, CF79, CF81): every gesture is answered the same way.
+        com.trmtgtnh.Client.askedForSnapshotScreen();
         TrmtNetwork.sendSnapshotAction(com.trmtgtnh.network.PacketSnapshotAction.REQUEST);
     }
 

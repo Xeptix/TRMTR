@@ -196,6 +196,12 @@ public final class ClientSide implements Client.Side {
      * open - refreshed in place, so pressing a button does not blink the screen (spec CF81; 1.7.10
      * {@code ClientProxy.openSnapshotScreen}).
      */
+    /** See OlderServerNotice: said once a visit, on the thread the rules are applied on (0.9.228). */
+    @Override
+    public void considerServerBuild(boolean sent, int protocol, String build) {
+        OlderServerNotice.considered(net.minecraft.client.Minecraft.getInstance(), sent, protocol, build);
+    }
+
     @Override
     public void openSnapshotScreen(int flags) {
         net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
@@ -203,7 +209,24 @@ public final class ClientSide implements Client.Side {
             ((com.trmtgtnh.client.gui.GuiSnapshot) client.screen).update(flags);
             return;
         }
+        // Not asked for: a gesture's answer, which opens nothing.
+        if (!snapshotScreenAsked) return;
+        snapshotScreenAsked = false;
         client.setScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
+    }
+
+    /**
+     * Whether this client asked for the snapshot screen and its answer has not come yet (0.9.228, CF79, CF81; Xep:
+     * the gestures "no longer open its screen; only holding the modifier does"). Every gesture with the tool is
+     * answered with the tool's state, as the request is, so an answer alone cannot say which it was: the client opens
+     * the screen only for the answer it asked for. Cleared on leaving a world, so an answer that never came cannot make
+     * a later gesture's open it. The 1.7.10 edition's {@code ClientProxy.snapshotScreenAsked}.
+     */
+    private static boolean snapshotScreenAsked;
+
+    @Override
+    public void askedForSnapshotScreen() {
+        snapshotScreenAsked = true;
     }
 
     /**
@@ -620,6 +643,10 @@ public final class ClientSide implements Client.Side {
         InspectionCache.clear();
         int[] underServer = ServerRules.chainAppearances();
         ServerRules.release();
+        // The older server's line is said once a visit, and this is where a visit's rules are dropped (0.9.228).
+        OlderServerNotice.left();
+        // And a snapshot screen asked for and never answered opens on nothing that comes later (0.9.228).
+        snapshotScreenAsked = false;
         // The table a server named is the server's answer to what erodes, and a client that kept it
         // would meet the next world holding the last one's list. Released before the read, so the
         // rebuild below publishes this client's own table rather than the visit's again.

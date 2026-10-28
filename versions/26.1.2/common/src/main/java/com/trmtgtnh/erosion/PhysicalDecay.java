@@ -280,9 +280,18 @@ public final class PhysicalDecay {
      * moved the picture by - on a whole block in the visual mode that is the drawn depth, as the 1.7.10
      * edition's code has it (Xep, 2026-10-08). Footing does not follow it there: no collision moves in
      * the visual mode, so only the picture comes down.
+     *
+     * <p>
+     * Nothing settles on a covered stair (0.9.228; Xep: "Covered stair never settles"): a worn stair is drawn and stood
+     * on as the stair it covers and is never hollowed, so a carpet or snow on one has nothing to come down into, and
+     * the two sides must both answer 0. Asked before the branch, of the real block - which the server holds; the client
+     * holds a ghost there, and {@link com.trmtgtnh.client.render.Settling#dropFor} asks the same of the block it covers.
+     * Until 0.9.228 the server's {@code sinkAt} gave a stair its depth and lowered a carpet's box into a stair the client
+     * drew whole.
      */
     public static double groundDropUnder(Level world, int x, int y, int z) {
         if (world == null || y <= com.trmtgtnh.util.Heights.bottom(world)) return 0.0D;
+        if (SurfaceShape.of(com.trmtgtnh.util.Worlds.stateAt(world, x, y - 1, z)) == SurfaceShape.STAIR) return 0.0D;
         if (world.isClientSide()) return Client.settledDropUnder(x, y - 1, z);
         return sinkAt(world, x, y - 1, z) / 16.0D;
     }
@@ -399,7 +408,13 @@ public final class PhysicalDecay {
         settling = found;
     }
 
-    private static boolean restsOnTheGround(Block block) {
+    /**
+     * Whether a block rests on the ground rather than being it, whatever the switches say - the test
+     * {@link #markSettlingBlocks} applies to the registry. Public for the client's model bake (SettledModel, 0.9.228),
+     * which wraps the model of every such block once, because the switch and a server's rules can change while the
+     * models stay baked; the drawn drop asks {@link #isSettling} each time.
+     */
+    public static boolean restsOnTheGround(Block block) {
         try {
             BlockState state = block.defaultBlockState();
             com.trmtgtnh.surface.MaterialKind material = com.trmtgtnh.surface.MaterialKind.of(state);

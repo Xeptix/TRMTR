@@ -50,6 +50,11 @@ public class ClientProxy extends CommonProxy {
         net.minecraftforge.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(
             com.trmtgtnh.entity.EntityGolemOfWays.class,
             new com.trmtgtnh.client.render.RenderGolemOfWays.Factory());
+        // The ways to the settings besides the mod list (0.9.228): the key, /trmt config and the Options-screen
+        // button. The game reads the saved key bindings again once every mod has loaded, so a key added here keeps its
+        // binding.
+        com.trmtgtnh.client.gui.SettingsAccess.register();
+        MinecraftForge.EVENT_BUS.register(com.trmtgtnh.client.gui.OptionsButton.EVENTS);
     }
 
     @Override
@@ -254,6 +259,8 @@ public class ClientProxy extends CommonProxy {
         com.trmtgtnh.client.texture.InnerLayers.newTick();
 
         Minecraft mc = Minecraft.getMinecraft();
+        // A press of the settings key or a /trmt config, answered once the chat that ran it has closed.
+        com.trmtgtnh.client.gui.SettingsAccess.tick(mc);
         if (mc.world == null || mc.player == null) {
             handBack();
             // With no world too, as the 1.7.10 edition services it above its world check: a look changed at the
@@ -422,7 +429,7 @@ public class ClientProxy extends CommonProxy {
             tell(
                 net.minecraft.util.text.TextFormatting.GRAY + "[TRMT] "
                     + restitchWanted
-                    + " Rebuilding them now - the game will stop responding for a moment.");
+                    + " Rebuilding them now - the game will stop responding for up to half a minute.");
             restitchIn = RESTITCH_DELAY;
             return;
         }
@@ -556,6 +563,9 @@ public class ClientProxy extends CommonProxy {
      * world the last one's roads.
      */
     private void handBack() {
+        // A snapshot screen asked for and never answered opens on nothing that comes later (0.9.228). Before the
+        // early return, because leaving a world is leaving it whether or not a server's rules were held.
+        snapshotScreenAsked = false;
         if (!announced) return;
         announced = false;
         // The server forgot the modifier the moment this connection went; if this did not forget it
@@ -575,6 +585,8 @@ public class ClientProxy extends CommonProxy {
         // and only rebuilding the chains out of that file answers it.
         int[] underServer = com.trmtgtnh.config.ServerRules.chainAppearances();
         com.trmtgtnh.config.ServerRules.release();
+        // The older server's line is said once a visit, and this is where a visit's rules are dropped (0.9.228).
+        OlderServerNotice.left();
         // Before the read and the rebuild below, so the rebuild publishes this client's own table rather
         // than publishing the visit's again.
         boolean tableHandedBack = com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
@@ -1013,6 +1025,12 @@ public class ClientProxy extends CommonProxy {
      * 1.7.10 edition's method; until 0.9.219 this one asked for the table on every join whether or not
      * it was the client's own, and again after every announcement.
      */
+    /** See OlderServerNotice: said once a visit, on the thread the rules are applied on. */
+    @Override
+    public void considerServerBuild(boolean sent, int protocol, String build) {
+        OlderServerNotice.considered(Minecraft.getMinecraft(), sent, protocol, build);
+    }
+
     @Override
     public void considerServerTable(boolean sent, long fingerprint) {
         if (!sent || com.trmtgtnh.Trmt.runningServer() != null) return;
@@ -1278,6 +1296,15 @@ public class ClientProxy extends CommonProxy {
                 new com.trmtgtnh.client.gui.GuiGuideBook(com.trmtgtnh.item.GuideBook.byOrdinal(bookOrdinal)));
     }
 
+    /**
+     * Whether this client asked for the snapshot screen and its answer has not come yet (0.9.228, CF79, CF81; Xep:
+     * the gestures "no longer open its screen; only holding the modifier does") - the 1.7.10 edition's flag. Every
+     * gesture with the tool is answered with the tool's state, as the request is, so an answer alone cannot say which
+     * it was: the client opens the screen only for the answer it asked for. Cleared on leaving a world, so an answer
+     * that never came cannot make a later gesture's open it.
+     */
+    private static boolean snapshotScreenAsked;
+
     @Override
     public void openSnapshotScreen(int flags) {
         Minecraft mc = Minecraft.getMinecraft();
@@ -1286,11 +1313,15 @@ public class ClientProxy extends CommonProxy {
             ((com.trmtgtnh.client.gui.GuiSnapshot) mc.currentScreen).update(flags);
             return;
         }
+        // Not asked for: a gesture's answer, which opens nothing.
+        if (!snapshotScreenAsked) return;
+        snapshotScreenAsked = false;
         mc.displayGuiScreen(new com.trmtgtnh.client.gui.GuiSnapshot(flags));
     }
 
     @Override
     public void requestSnapshotScreen() {
+        snapshotScreenAsked = true;
         com.trmtgtnh.network.TrmtNetwork.sendSnapshotAction(com.trmtgtnh.network.PacketSnapshotAction.REQUEST);
     }
 

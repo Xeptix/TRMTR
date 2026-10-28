@@ -22,6 +22,7 @@ import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.network.TrmtNetwork;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
+import com.trmtgtnh.util.MobWear;
 
 /**
  * Where wear is accumulated, advanced and healed. Server side only.
@@ -57,6 +58,22 @@ public final class ErosionEngine {
      */
     private final WeakHashMap<Entity, java.util.HashMap<Long, Integer>> recentlyWorn = new WeakHashMap<Entity, java.util.HashMap<Long, Integer>>();
 
+    /**
+     * Players just put somewhere by the server, whose first square is not to be counted (0.9.228; Xep: "Skip that
+     * first square"), each with that square once it has been seen - {@link #NOT_YET} until then. Weak for the same
+     * reason lastGround is. Filled by {@link #arrived} and emptied by {@link #steppedOnto}.
+     */
+    private final WeakHashMap<Entity, long[]> arriving = new WeakHashMap<Entity, long[]>();
+
+    /** An arrival whose first square has not been seen yet. Never written to: an arrival's square is a new array. */
+    private static final long[] NOT_YET = new long[0];
+
+    /**
+     * How long an arrival lasts once its first square is seen (0.9.228; Xep: "Add a time limit", "2 seconds"): long
+     * past the client's answer to the teleport, a few ticks, and short enough that a jump on the spot after it counts.
+     */
+    static final long ARRIVAL_MILLIS = 2000L;
+
     private final Random random = new Random();
 
     private int tickCounter;
@@ -69,6 +86,9 @@ public final class ErosionEngine {
 
     public void reset() {
         lastGround.clear();
+        arriving.clear();
+        // A blast held over a server's last tick belongs to a world that is gone.
+        heldBlasts.clear();
         tickCounter = 0;
         healPause = 0;
     }
@@ -111,6 +131,99 @@ public final class ErosionEngine {
     // ------------------------------------------------------------------
 
     /**
+     * The server has just put this player somewhere - joining a world, respawning, changing dimension or teleported -
+     * so the first square they are seen standing on is recorded and not counted (0.9.228; Xep: "Skip that first
+     * square").
+     *
+     * <p>
+     * Without it, the square a player appears on is a step: a joining player is a new entity with no last square, so
+     * the square they stand on was worn; and a teleport lands on a square whose key differs from the last one, which
+     * counts as entered. So a player who logs out standing on a path wore it again on every visit - found by the reload
+     * test on 1.21.1 NeoForge in 0.9.227. A landing is not an arrival and still counts: only what the server moved is
+     * skipped, and a player put down in the air skips the square they land on, the first one they are seen on. The
+     * settle back onto that first square is not a step either; {@link #steppedOnto} says why.
+     *
+     * <p>
+     * Called from the one place every vanilla way of moving a player passes through, the server's
+     * {@code NetHandlerPlayServer.setPlayerLocation} (MixinPlayerArrives) - Forge has no event for /tp in this version.
+     * A dismount, a bed and the server's own movement correction pass there too, so the first square after each is
+     * skipped as well: one step, never more. Mobs are not asked, and a fall's own landing wear is not this method's.
+     */
+    public void arrived(EntityPlayer player) {
+        if (player == null) return;
+        arrive(arriving, lastGround, player);
+    }
+
+    /**
+     * What {@link #arrived} does, on the two maps it is handed, so a test can drive it without a world: the mover is
+     * noted as arriving with no square seen yet, and their last square is forgotten.
+     */
+    static <K> void arrive(java.util.Map<K, long[]> arriving, java.util.Map<K, long[]> lastGround, K mover) {
+        arriving.put(mover, NOT_YET);
+        lastGround.remove(mover);
+    }
+
+    /**
+     * Whether a mover on the ground on the square {@code packed} has just stepped onto it, and so may wear it - the
+     * last square and an arrival decide, and both are brought up to date. On the two maps it is handed, so a test can
+     * drive it without a world; the airborne branch of onMoverTick, which only forgets the last square, is the rest.
+     *
+     * <p>
+     * An arrival is not over at its first square: the settle back onto that square is not a new step either (0.9.228,
+     * found by the reload part on 26.2 and 26.3 Fabric, about one run in three). The server knows a player is on the
+     * ground only from what it was last told - a rejoined player is loaded with the saved flag, a teleported one keeps
+     * the one from before - until the client answers the teleport, and every edition's client answers it with a
+     * position that says "not on the ground". So a sampled tick before the answer sees the player grounded and spends
+     * the arrival there, the answer reads as a tick in the air, which forgets the last square, and the next packet
+     * reads as a landing on the same square, which counted. Whether a sample falls before the answer is timing, which
+     * is why it failed in some runs and not others. A body set down a hair above a sunk square's top settles the
+     * same way.
+     *
+     * <p>
+     * So the arrival keeps its first square, and coming down onto that same square again ends the arrival without
+     * wearing it. Anything else ends it and counts exactly as before: a step to a different square on the ground, or
+     * a landing on a different one. Standing on the square is the same block as ever. The price, accepted: a jump on
+     * the spot within two seconds of arriving is not counted, once. Mobs never arrive, so nothing here changes for them.
+     */
+    static <K> boolean steppedOnto(java.util.Map<K, long[]> arriving, java.util.Map<K, long[]> lastGround, K mover,
+        long packed, long now) {
+        long[] arrival = arriving.get(mover);
+        if (arrival != null && arrival.length == 2 && now > arrival[1]) {
+            // Two seconds since its first square (ARRIVAL_MILLIS): the arrival is over, so a jump on the spot from here
+            // counts as any other.
+            arriving.remove(mover);
+            arrival = null;
+        }
+        if (arrival != null) {
+            if (arrival.length == 0) {
+                // The first square seen since arriving: recorded as the last square and as the arrival's own, with the
+                // time the arrival lasts to.
+                arriving.put(mover, new long[] { packed, now + ARRIVAL_MILLIS });
+                lastGround.put(mover, new long[] { packed });
+                return false;
+            }
+            if (arrival[0] == packed) {
+                // Back on the arrival's own square after a tick or more off the ground: the settle, which ends it.
+                if (lastGround.get(mover) == null) {
+                    arriving.remove(mover);
+                    lastGround.put(mover, new long[] { packed });
+                }
+                return false;
+            }
+            // A different square, on foot or landing: the arrival is over and this counts as it always has.
+            arriving.remove(mover);
+        }
+        long[] previous = lastGround.get(mover);
+        if (previous != null && previous[0] == packed) return false; // still on the same block
+        if (previous == null) {
+            lastGround.put(mover, new long[] { packed });
+        } else {
+            previous[0] = packed;
+        }
+        return true;
+    }
+
+    /**
      * Called once per sampled tick for anything that can wear the ground down.
      *
      * @param walker     the entity being tracked; its vehicle, if any, is what actually
@@ -143,13 +256,9 @@ public final class ErosionEngine {
         int z = MathHelper.floor(mover.posZ);
 
         long packed = ((long) x << 40) ^ ((long) (y & 0xFF) << 32) ^ (z & 0xFFFFFFFFL);
-        long[] previous = lastGround.get(walker);
-        if (previous != null && previous[0] == packed) return; // still on the same block
-        if (previous == null) {
-            lastGround.put(walker, new long[] { packed });
-        } else {
-            previous[0] = packed;
-        }
+        // Whether the mover has stepped onto a new square - an arrival's own square is not one (see arrived). After
+        // the airborne branch, so an arrival in the air waits for the landing, and before anything wears.
+        if (!steppedOnto(arriving, lastGround, walker, packed, System.currentTimeMillis())) return;
 
         if (TrmtConfig.sneakSuppresses && walker.isSneaking()) return;
         // The same class of suppression as sneaking, so it sits in the same place - after the
@@ -312,52 +421,86 @@ public final class ErosionEngine {
      * Every position goes through the ordinary step, which is what makes this cheap to trust:
      * pinned ground is still pinned, ground under a solid block is still sheltered, the
      * per-chunk entry cap still holds and an unloaded chunk is still left alone. This method
-     * only decides where to knock and how hard.
-     */
-    public void blast(World world, double centreX, double centreY, double centreZ, float radius) {
-        blast(world, centreX, centreY, centreZ, radius, null);
-    }
-
-    /**
-     * As above, told which positions the blast is about to destroy.
+     * only decides where to knock and how hard, and {@link com.trmtgtnh.util.BlastWear} - the same
+     * file in every edition - says how far and how hard.
      *
      * <p>
-     * Forge fires the detonate event while every affected block is still standing, so without
-     * this the scouring is spent on ground that is air a moment later. That is not merely
-     * wasteful: entries are capped per chunk, and a large charge could fill a chunk's budget
-     * with positions that no longer exist and leave nothing for the surviving ring - which is
-     * the only part anybody was ever going to see.
+     * Run once the blast has taken its blocks, never while they stand: see {@link #blastLater}.
+     * The crater's floor and walls are then open ground, and wear like any other.
      */
-    public void blast(World world, double centreX, double centreY, double centreZ, float radius,
-        java.util.Set<Long> doomed) {
+    public void blast(World world, double centreX, double centreY, double centreZ, float radius) {
         if (world == null || world.isRemote || radius <= 0f) return;
         if (!TrmtConfig.explosionWear || TrmtConfig.explosionStrength <= 0f) return;
         // Wearing asks the dimension list, as walking and the tamper do: the setting's own words put the test before
         // anything is worn, and a dimension it rules out was being scoured by blasts and landings (0.9.222, spec SD47).
         if (!TrmtConfig.dimensionAllowed(world.provider.getDimension())) return;
 
-        // The ground a charge scours is wider than the hole it digs, so the reach is the
-        // blast's own radius scaled up rather than the radius itself.
-        float reachF = Math.min(radius * TrmtConfig.explosionReach, TrmtConfig.explosionMaxRadius);
-
-        // Bounded by work rather than only by distance. A sphere grows as the cube of its
-        // radius and all of this happens inside the tick that set the charge off, so a big
-        // enough number would stall the server outright however sensible the distance looked.
-        // Pulling the reach in is the right way to lose it: what goes is the outermost ring,
-        // where the wear had already faded to nothing.
-        double affordable = Math.cbrt(TrmtConfig.explosionMaxPositions * 3.0D / (4.0D * Math.PI));
-        if (reachF > affordable) reachF = (float) affordable;
-
-        int reach = (int) Math.ceil(reachF);
-        if (reach <= 0) return;
+        // The ground a charge scours is wider than the hole it digs, so the reach runs past the
+        // blast's own radius, bounded by distance and by work (BlastWear.reach).
+        float reachF = com.trmtgtnh.util.BlastWear
+            .reach(radius, TrmtConfig.explosionReach, TrmtConfig.explosionMaxRadius, TrmtConfig.explosionMaxPositions);
+        if ((int) Math.ceil(reachF) <= 0) return;
 
         // Strength scales with the charge, quoted against vanilla TNT: a creeper scuffs less
         // than a stick of dynamite and a mining charge leaves a mark you can find later.
-        float force = radius <= 0f ? 0f : radius / TrmtConfig.REFERENCE_BLAST;
-        float centre = TrmtConfig.explosionStrength * force;
+        float centre = com.trmtgtnh.util.BlastWear
+            .centre(radius, TrmtConfig.explosionStrength, TrmtConfig.REFERENCE_BLAST);
         if (centre <= 0f) return;
 
-        scour(world, centreX, centreY, centreZ, reachF, centre, doomed);
+        scour(world, centreX, centreY, centreZ, reachF, centre, true);
+    }
+
+    /** A blast heard as it went off, scoured at the end of the tick once its blocks are gone. */
+    private static final class HeldBlast {
+
+        final World world;
+
+        final double x;
+
+        final double y;
+
+        final double z;
+
+        final float radius;
+
+        HeldBlast(World world, double x, double y, double z, float radius) {
+            this.world = world;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.radius = radius;
+        }
+    }
+
+    /** The blasts heard this tick, in the order they went off (0.9.228). */
+    private final java.util.List<HeldBlast> heldBlasts = new java.util.ArrayList<HeldBlast>();
+
+    /**
+     * Remembers a blast as it goes off, to be scoured at the end of this server tick (0.9.228).
+     *
+     * <p>
+     * Forge fires the detonate event while every block the blast takes is still standing, and
+     * until 0.9.228 the scouring ran there: it skipped the doomed positions, and every block under
+     * them was still covered and sheltered by its step, so the crater's floor and walls came out
+     * unworn - a clean pit in scuffed ground (Xep, 2026-10-22: "the blocks underneath aren't worn;
+     * they should be"). By the end of the tick the explosion has taken its blocks, so the bared
+     * ground is open and wears through the ordinary step like the ring around it, and nothing
+     * needs to know which blocks went. Every other rule the step holds - pins, shelter, the
+     * per-chunk cap, unloaded chunks, the dimension list, reinforcement - holds as it did.
+     */
+    public void blastLater(World world, double centreX, double centreY, double centreZ, float radius) {
+        if (world == null || world.isRemote || radius <= 0f) return;
+        heldBlasts.add(new HeldBlast(world, centreX, centreY, centreZ, radius));
+    }
+
+    /** Scours every blast heard since the last call, oldest first. Called at the end of each server tick. */
+    public void settleBlasts() {
+        if (heldBlasts.isEmpty()) return;
+        java.util.List<HeldBlast> due = new java.util.ArrayList<HeldBlast>(heldBlasts);
+        heldBlasts.clear();
+        for (HeldBlast held : due) {
+            blast(held.world, held.x, held.y, held.z, held.radius);
+        }
     }
 
     /**
@@ -391,7 +534,7 @@ public final class ErosionEngine {
         if (centre <= 0f) return;
 
         float reachF = Math.min(TrmtConfig.fallMaxRadius, 1f + drop / reference);
-        scour(world, centreX, centreY, centreZ, reachF, centre, null);
+        scour(world, centreX, centreY, centreZ, reachF, centre, false);
     }
 
     /**
@@ -402,9 +545,12 @@ public final class ErosionEngine {
      * rather than a second path to keep honest: pinned ground stays pinned, ground under a
      * solid block stays sheltered, the per-chunk entry cap holds and an unloaded chunk is left
      * alone. Callers decide only where to knock and how hard.
+     *
+     * @param ragged whether each position's share is roughed by a roll of the world's random, as a
+     *               blast's is so its worn edge is not a circle; a landing's is not
      */
     private void scour(World world, double centreX, double centreY, double centreZ, float reachF, float centre,
-        java.util.Set<Long> doomed) {
+        boolean ragged) {
         int reach = (int) Math.ceil(reachF);
         if (reach <= 0 || centre <= 0f) return;
 
@@ -417,23 +563,19 @@ public final class ErosionEngine {
                 for (int dz = -reach; dz <= reach; dz++) {
                     double distance = Math.sqrt((double) dx * dx + (double) dy * dy + (double) dz * dz);
                     if (distance > reachF) continue;
-                    // Linear rather than square-law. The real thing falls off faster, but a
-                    // scuff that is invisible two blocks out is a scuff nobody sees at all, and
-                    // what this is for is the ring of scoured ground around the middle.
-                    float share = 1f - (float) (distance / reachF);
-                    float amount = centre * share;
+                    // Linear rather than square-law, from the middle to nothing at the reach
+                    // (BlastWear.share), and for a blast roughed by the world's own random.
+                    float amount = ragged
+                        ? com.trmtgtnh.util.BlastWear.amount(centre, distance, reachF, world.rand.nextFloat())
+                        : centre * com.trmtgtnh.util.BlastWear.share(distance, reachF);
                     if (amount <= 0f) continue;
-                    int x = baseX + dx;
-                    int y = baseY + dy;
-                    int z = baseZ + dz;
-                    if (doomed != null && doomed.contains(Long.valueOf(packPosition(x, y, z)))) continue;
-                    step(world, x, y, z, amount);
+                    step(world, baseX + dx, baseY + dy, baseZ + dz, amount);
                 }
             }
         }
     }
 
-    /** One world position in a single long, for the set of blocks a blast is about to take. */
+    /** One world position in a single long. */
     public static long packPosition(int x, int y, int z) {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF);
     }
@@ -1007,6 +1149,9 @@ public final class ErosionEngine {
     }
 
     public void onServerTick() {
+        // First, and ahead of the healing switch, which has nothing to say about blasts: every blast
+        // heard this tick has taken its blocks by now, so its crater is open ground (blastLater).
+        settleBlasts();
         if (!TrmtConfig.enabled || !TrmtConfig.healingEnabled) return;
 
         // Counted every tick rather than every sweep, because it is a clock: a sweep that runs once
@@ -1781,17 +1926,55 @@ public final class ErosionEngine {
             return TrmtConfig.erodeFromPlayers ? 1.0f : 0f;
         }
         if (entity instanceof EntityPlayer) return 0f;
+        // This mod's own Golem of Ways never wears the ground, on a lead or loose (0.9.228; Xep: "This mod's Golem
+        // of Ways never counts"): it is a creature, so the passive group or a lead would otherwise count it, and it
+        // works the roads it walks. Asked before the lead, which the first draft of 0.9.228 asked first.
+        if (entity instanceof com.trmtgtnh.entity.EntityGolemOfWays) return 0f;
+        // A mob carrying a player does not wear by itself: the rider's mounted step is what counts (0.9.228; Xep:
+        // "Mount doesn't wear"), where a horse under its rider wore the ground twice.
+        if (entity.getPassengers().stream().anyMatch(p -> p instanceof EntityPlayer)) return 0f;
         if (entity instanceof EntityLiving && TrmtConfig.erodeFromLeashedMobs && ((EntityLiving) entity).getLeashed()) {
             // Being led counts whatever the mob is: somebody is walking it somewhere.
             return TrmtConfig.multiplierLeashed;
         }
-        // Otherwise only the mobs named in the config, which by default is villagers. Looking
-        // the name up costs one map lookup, and this already only runs on a sampled tick.
-        // A line naming the mob by its registry name first - what the magic tamper writes since 0.9.223 - then its
-        // short name, with the 1.7.10 edition's meanings for a kind 1.11 split (spec WH4).
+        // Otherwise its group and the curated list, by 0.9.228's rules (MobWear.multiplier): two map lookups at most,
+        // and this already only runs on a sampled tick.
+        return MobWear.multiplier(groupOf(entity), nameOf(entity), TrmtConfig.mobSwitches, TrmtConfig.mobMultipliers);
+    }
+
+    /**
+     * Which group a loose mob is in (0.9.228; Xep: "As described"): hostile is every monster - {@code IMob}, as this
+     * version marks one - and any boss, which 1.12.2 marks by {@code isNonBoss()} answering false (the dragon and the
+     * wither, and a mod's boss); villager is {@code EntityVillager}, the only villager this version has (the wandering
+     * trader came in 1.14); passive is every other {@code EntityLiving} - animals, iron and snow golems, water and
+     * ambient mobs. Anything else that lives - an armor stand - is in no group, and only the list can count it, as only
+     * the list ever did. The engine's own question for the caps as well as for the weight.
+     */
+    public static MobWear.Group groupOf(Entity entity) {
+        return entity == null ? null : groupOf(entity.getClass(), !entity.isNonBoss());
+    }
+
+    /** {@link #groupOf(Entity)} by the mob's class and whether the game marks it a boss, so a test can ask every one. */
+    static MobWear.Group groupOf(Class<?> type, boolean boss) {
+        if (type == null || !EntityLiving.class.isAssignableFrom(type)) return null;
+        if (boss || net.minecraft.entity.monster.IMob.class.isAssignableFrom(type)) return MobWear.Group.HOSTILE;
+        if (net.minecraft.entity.passive.EntityVillager.class.isAssignableFrom(type)) return MobWear.Group.VILLAGER;
+        return MobWear.Group.PASSIVE;
+    }
+
+    /**
+     * The name the curated list knows a mob by - exactly as the list has been asked since 0.9.223: its registry name
+     * where a line names that, which is what the magic tamper writes, and otherwise its short name, the one the list
+     * has always held, with the 1.7.10 edition's meanings for a kind 1.11 split filed under it as well (spec WH4).
+     */
+    public static String nameOf(Entity entity) {
         net.minecraft.util.ResourceLocation key = net.minecraft.entity.EntityList.getKey(entity);
-        Float byKey = key == null ? null : TrmtConfig.mobNamed(key.toString());
-        if (byKey != null) return byKey.floatValue();
-        return TrmtConfig.mobMultiplier(net.minecraft.entity.EntityList.getEntityString(entity));
+        if (key != null && TrmtConfig.mobNamed(key.toString()) != null) return key.toString();
+        return net.minecraft.entity.EntityList.getEntityString(entity);
+    }
+
+    /** The kind a per-chunk cap counts a loose mob as (MobWear.kindOf), asked by the walking call sites. */
+    public static int kindOf(Entity entity) {
+        return MobWear.kindOf(groupOf(entity), nameOf(entity), TrmtConfig.mobSwitches, TrmtConfig.mobMultipliers);
     }
 }

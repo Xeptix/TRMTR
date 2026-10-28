@@ -21,12 +21,14 @@
   "mixins": [ "trmtgtnh-common.mixins.json", "trmtgtnh-fabric.mixins.json", "trmtgtnh-fabric-canvas.mixins.json" ],
   "accessWidener": "trmtgtnh.accesswidener",
   "depends": {
-    "fabricloader": ">=0.15.11",
+    "fabricloader": ">=0.16.1",
     "fabric-api": ">=0.102.0",
-    "minecraft": "1.21.1",
-    "cloth-config": ">=15.0.0"
+    "minecraft": "1.21.1"
   },
   "recommends": {
     "modmenu": "*"
+  },
+  "suggests": {
+    "cloth-config": ">=15.0.130"
   }
 }

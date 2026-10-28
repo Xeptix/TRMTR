@@ -3,7 +3,7 @@ package com.trmtgtnh.fabric;
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
 
-import com.trmtgtnh.client.gui.ConfigScreen;
+import com.trmtgtnh.client.gui.ConfigScreens;
 
 /**
  * Where Mod Menu's Config button goes.
@@ -15,13 +15,15 @@ import com.trmtgtnh.client.gui.ConfigScreen;
  * Menu and by nothing else, and Mod Menu is not there to look when it is absent.
  *
  * <p>
- * The screen is {@code ConfigScreen}, shared with the other loader. Nothing here is more than the
- * one line that names it.
+ * The screen is chosen by {@code ConfigScreens}, shared with the other loaders: this mod's own, or
+ * Cloth Config's where Cloth is installed and {@code client.settingsScreen} asks for it. Until
+ * 0.9.227 this named the Cloth screen directly, because this jar required Cloth; from 0.9.228 Cloth
+ * is optional (decided), so this class names no Cloth class at all.
  */
 public final class FabricModMenu implements ModMenuApi {
 
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
-        return ConfigScreen::build;
+        return ConfigScreens::open;
     }
 }

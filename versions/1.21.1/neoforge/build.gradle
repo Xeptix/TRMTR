@@ -31,8 +31,8 @@ dependencies {
     // No MixinExtras carried here, unlike the Forge jar: NeoForge 21.1's own libraries hold it (mixinextras-neoforge
     // 0.5.5, read from its userdev config, 0.9.226), so the common module's librarian hook finds it at run time.
 
-    // Cloth Config, which the settings screen is built on, at its 1.21.1 build for NeoForge, as the Forge module has
-    // Forge's.
+    // Cloth Config, whose screen is the other of this mod's two, at its 1.21.1 build for NeoForge, as the Forge module
+    // has Forge's. Optional from 0.9.228 (decided); kept on the development run so the rig can photograph both screens.
     modImplementation("me.shedaniel.cloth:cloth-config-neoforge:${rootProject.cloth_version}") {
         exclude group: "net.fabricmc"
         exclude group: "net.fabricmc.fabric-api"

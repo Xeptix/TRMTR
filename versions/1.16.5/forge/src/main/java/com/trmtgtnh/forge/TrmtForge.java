@@ -49,13 +49,13 @@ public final class TrmtForge {
                 .orElse("unknown"));
         // This jar's line in the update check's version file, whether this is a development game - which
         // only the loader can say - and the mods this jar requires. See UpdateNotice.
-        // Cloth Config only on a client (0.9.227): these jars declare it side = CLIENT, so a dedicated server without
-        // it is a whole one, and /trmt version there said it was missing a mod this mod needs.
+        // Nothing required from 0.9.228: Cloth Config, which this jar required on a client for the settings screen, is
+        // optional now (decided; this mod's own screen opens without it), so this jar names no mod for the check to ask
+        // about - on a client or a server.
         com.trmtgtnh.server.UpdateNotice.edition(
             "1.16.5-forge",
             !net.minecraftforge.fml.loading.FMLEnvironment.production,
-            net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient() ? com.trmtgtnh.server.UpdateNotice.REQUIRED_FORGE
-                : new String[0][]);
+            new String[0][]);
         // How the dependency check reads a required mod's version (0.9.221).
         com.trmtgtnh.server.UpdateNotice.modVersions(
             id -> net.minecraftforge.fml.ModList.get()
@@ -146,13 +146,15 @@ public final class TrmtForge {
 
         // Where the mod list's Config button goes. Forge's own GuiConfig is gone at this version and
         // this is what replaced the factory that used to point at it - one line rather than
-        // TrmtGuiFactory's forty-four, because the screen itself is shared and says the rest.
+        // TrmtGuiFactory's forty-four, because the screen itself is shared and says the rest. Through ConfigScreens from
+        // 0.9.228 rather than straight to the Cloth screen: Cloth Config is optional now, the mod's own screen opens by
+        // default, and ConfigScreens is the one class that asks whether Cloth is there before touching it.
         DistExecutor.unsafeRunWhenOn(
             Dist.CLIENT,
             () -> () -> net.minecraftforge.fml.ModLoadingContext.get()
                 .registerExtensionPoint(
                     net.minecraftforge.fml.ExtensionPoint.CONFIGGUIFACTORY,
-                    () -> (client, parent) -> com.trmtgtnh.client.gui.ConfigScreen.build(parent)));
+                    () -> (client, parent) -> com.trmtgtnh.client.gui.ConfigScreens.open(parent)));
 
         Trmt.LOG.info("{} on Forge, Minecraft 1.16.5", Trmt.NAME);
     }

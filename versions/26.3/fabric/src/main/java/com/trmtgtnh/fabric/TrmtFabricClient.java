@@ -97,7 +97,8 @@ public final class TrmtFabricClient implements ClientModInitializer {
             com.trmtgtnh.client.render.ModelGolemOfWays::createBodyLayer);
         // 1.21.1 handed the game's item color handlers to ItemTints here. From 1.21.4 an item's tint is part of its
         // model, ItemColors is gone, and ItemTints reads the tint from the stack's resolved model itself: nothing is
-        // handed over (see ItemTints).
+        // handed over (see ItemTints) - so the fault 1.20.1 and 1.21.1 Fabric found in 0.9.228, the colors handed over
+        // before the game had made them, cannot happen here (ItemTintsAreTheGamesOwnTest holds that nothing is).
 
         // Vanilla's own registration; Fabric's ScreenRegistry, which stood in for it, is gone. Private in 26.1.2, and
         // opened by Fabric API's own transitive access widener, as it was at 1.21.1.
@@ -131,7 +132,25 @@ public final class TrmtFabricClient implements ClientModInitializer {
                 left = true;
                 ClientSide.tick();
             }
+
+            // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
+            com.trmtgtnh.client.gui.SettingsAccess.tick(client);
         });
+
+        // The ways to the settings besides Mod Menu, which is optional (0.9.228): a key, unbound until a player binds it;
+        // /trmt config, caught as it is sent and never sent on (SettingsAccess.sentCommand says why it is not a client
+        // command on Fabric), every other /trmt going to the server; and a small button on the game's Options screen -
+        // with the way back to the own screen on Cloth Config's.
+        net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper.registerKeyMapping(
+            com.trmtgtnh.client.gui.SettingsAccess.key());
+        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.ALLOW_COMMAND
+            .register(command -> !com.trmtgtnh.client.gui.SettingsAccess.sentCommand(command));
+        net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register(
+            (client, screen, width, height) -> com.trmtgtnh.client.gui.ConfigScreens.afterInit(
+                screen,
+                net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(screen),
+                widget -> net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(screen)
+                    .add(widget)));
 
         Trmt.LOG.info("{} client ready on Fabric", Trmt.NAME);
     }

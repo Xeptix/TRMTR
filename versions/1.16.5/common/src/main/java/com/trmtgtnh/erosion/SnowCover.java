@@ -74,6 +74,16 @@ public final class SnowCover {
         }
     }
 
+    /**
+     * How many layers a snow layer holds, 1 to 8, or 0 for a block that does not count them - a modded layer without
+     * the vanilla property, which is then never a full drift.
+     */
+    public static int layersOf(BlockState state) {
+        if (state == null || !state.hasProperty(net.minecraft.world.level.block.SnowLayerBlock.LAYERS)) return 0;
+        return state.getValue(net.minecraft.world.level.block.SnowLayerBlock.LAYERS)
+            .intValue();
+    }
+
     /** Whether snow is lying on the square at this position. */
     public static boolean covers(Level world, int x, int y, int z) {
         if (!TrmtConfig.snowCovers || world == null || y >= com.trmtgtnh.util.Heights.top(world)) return false;
@@ -138,6 +148,16 @@ public final class SnowCover {
      * column of snow only stands because the layer below it reads as full, so notifying a drop from
      * full to nearly-full would bring down everything above it. It is also the standing rule that
      * arbitrary neighbour code must never be run from inside a wear tick.
+     *
+     * <p>
+     * <strong>So the flags are 2 and 16, not 2 alone</strong> (0.9.228, spec SC8). The 1.7.10 edition's flag 2 tells
+     * the clients and no neighbour, and that is all it means there. Here flag 2 still runs every neighbour's shape
+     * update - {@code Level.markAndNotifyBlock} calls {@code updateNeighbourShapes} and {@code
+     * updateIndirectNeighbourShapes} unless {@code (flags & 16) != 0}, read in this version's bytecode - and a snow
+     * layer's shape update pops a layer that no longer stands on a full one, so treading a full drift down to seven
+     * took the drift stacked on it with it. Literals, because this version's mappings name no constants for them. The
+     * last layer still goes through {@code Worlds.setToAir}, a removal with the ordinary updates, as 1.7.10's
+     * {@code setBlockToAir} does.
      */
     private static void breakLayer(Level world, int x, int ys, int z) {
         BlockState snow = com.trmtgtnh.util.Worlds.stateAt(world, x, ys, z);
@@ -161,7 +181,7 @@ public final class SnowCover {
                     snow.setValue(
                         net.minecraft.world.level.block.SnowLayerBlock.LAYERS,
                         Integer.valueOf(layers - 1)),
-                    2);
+                    2 | 16);
                 return;
             }
         }

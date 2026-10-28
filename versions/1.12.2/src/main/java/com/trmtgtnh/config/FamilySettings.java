@@ -748,9 +748,9 @@ public final class FamilySettings {
         return settings;
     }
 
+    /** Declared with the default as the float's own decimal (0.9.228), as {@link TrmtConfig#declareFloat} says why. */
     private static float readFloat(ConfigFile config, String category, String name, float def, String comment) {
-        return (float) config.get(category, name, def, comment, 0.0d, 1000000.0d)
-            .getDouble();
+        return TrmtConfig.declareFloat(config, category, name, def, 0f, 1000000f, comment);
     }
 
     /** Threshold draw range after the global erosion speed multiplier. */

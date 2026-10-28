@@ -406,6 +406,12 @@ public class BlockGhost extends Block {
         }
     }
 
+    /** The shape of the block a square stands in for, by its class as SurfaceShape.of decides it (0.9.228). */
+    public static SurfaceShape coveredShape(int origin) {
+        IBlockState covered = coveredState(origin);
+        return SurfaceShape.of(covered == null ? null : covered.getBlock());
+    }
+
     // ------------------------------------------------------------------
     // Stairs
     // ------------------------------------------------------------------

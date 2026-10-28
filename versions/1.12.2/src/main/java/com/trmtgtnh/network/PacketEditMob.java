@@ -239,6 +239,10 @@ public class PacketEditMob implements IMessage {
                         // read, so the ordinary line would promise something that cannot happen.
                         if (TrmtConfig.multiplierPlayer <= 0f) {
                             tell(player, TextFormatting.YELLOW, "trmtgtnh.mobedit.wears.nobody", name);
+                        } else if (!TrmtConfig.mobSwitches.custom) {
+                            // The curated list is off, so the line just written counts for nothing until it is on:
+                            // said, rather than promising the mob will wear (0.9.228).
+                            tell(player, TextFormatting.YELLOW, "trmtgtnh.mobedit.wears.listoff", name);
                         } else {
                             tell(player, TextFormatting.AQUA, "trmtgtnh.mobedit.wears", name);
                         }

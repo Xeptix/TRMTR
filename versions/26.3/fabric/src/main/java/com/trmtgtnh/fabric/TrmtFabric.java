@@ -164,9 +164,12 @@ public final class TrmtFabric implements ModInitializer {
 
         FabricChannel.open();
 
-        // How to ask a container what is inside it, which here means a bucket and nothing else. See
-        // Fluids for why that is the loader's limit rather than this mod's.
+        // How to ask a container what is inside it: Fabric API's fluid transfer API, and a bucket's own field behind it
+        // (0.9.228). See FabricFluids.
         FabricFluids.use();
+
+        // The condition every advancement file loads on (0.9.228, spec BP30, BP33): see FabricAdvancementSettings.
+        FabricAdvancementSettings.register();
 
         // The four moments Fabric has an event for. The other seven are mixins, and FabricEvents
         // says which and why.

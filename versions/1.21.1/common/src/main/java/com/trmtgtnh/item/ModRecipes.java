@@ -390,7 +390,7 @@ public final class ModRecipes {
             GuideBook.GOLEM,
             mk1,
             new ItemStack(net.minecraft.world.item.Items.PLAYER_HEAD),
-            harder ? compressed(10) : new ItemStack(net.minecraft.world.level.block.Blocks.DIRT),
+            harder ? orDirt(compressed(10)) : new ItemStack(net.minecraft.world.level.block.Blocks.DIRT),
             new ItemStack(net.minecraft.world.level.block.Blocks.COBBLESTONE),
             null);
 
@@ -655,6 +655,19 @@ public final class ModRecipes {
      * upgrade is built the plain way - which is the same thing that happens on any 1.7.10 pack without
      * the mod, and the recipe below is written to expect it.
      */
+    /**
+     * The Golem guide's earth under the harder recipe: the compressed block, or plain dirt where the pack has none
+     * (0.9.228, BP20; Xep: "Dirt when missing"). The harder recipe only ever adds to the plain one, and the guide's
+     * earth is the one ingredient it swaps rather than adds - so with the enhancements on and no compressed block the
+     * guide lost its dirt altogether and came out cheaper than the plain one, which at this version, where
+     * {@link #compressed} always answers nothing, was every pack. The other harder ingredients only add, and are left
+     * to skip a missing block as they always have.
+     */
+    static ItemStack orDirt(ItemStack compressed) {
+        return compressed == null || compressed.isEmpty() ? new ItemStack(net.minecraft.world.level.block.Blocks.DIRT)
+            : compressed;
+    }
+
     private static ItemStack compressed(int tier) {
         // Nothing, at this version, and the honest answer is to say so rather than to guess.
         //

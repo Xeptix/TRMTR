@@ -774,7 +774,7 @@ public final class GolemWork {
     private static boolean coveredOver(World world, int x, int y, int z) {
         Block above = world.getBlock(x, y + 1, z);
         if (above == null || above.isAir(world, x, y + 1, z)) return false;
-        if (above.isOpaqueCube()) return true;
+        if (above.isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(world, x, y + 1, z)) return true;
         Material material = above.getMaterial();
         if (material == null) return false;
         return material == Material.carpet || material.blocksMovement();

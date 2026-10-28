@@ -14,6 +14,7 @@ import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.GhostBlock;
 import com.trmtgtnh.block.GhostRendering;
 import com.trmtgtnh.erosion.ISettlingBlock;
+import com.trmtgtnh.surface.SurfaceShape;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -84,6 +85,11 @@ public final class Settling {
         if (!active || world == null || y <= 0) return 0.0D;
         Block below = world.getBlock(x, y - 1, z);
         if (!(below instanceof GhostBlock)) return 0.0D;
+        // A covered stair never settles (0.9.228): a worn stair is never hollowed, so nothing resting on it may come
+        // down, and the server's PhysicalDecay.groundDropUnder answers nought for it too. The stand-in already says it
+        // is not sunken, so settledDrop answers nought as well; the rule is written here so it stands in one place per
+        // side in every edition, and does not hang on that answer.
+        if (((GhostBlock) below).shape() == SurfaceShape.STAIR) return 0.0D;
         return GhostRendering.settledDrop((GhostBlock) below, world, x, y - 1, z);
     }
 

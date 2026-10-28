@@ -2264,8 +2264,12 @@ public class GuiWearEditor extends Screen {
                 // The whole of a sixteen-pixel image rather than a corner of a two-hundred-and-
                 // fifty-six-pixel sheet, which is what the ordinary blit assumes. The source stays
                 // the whole face and only the destination shrinks, so the tight pitch costs
-                // resolution on the screen and nothing in the picture behind it.
-                graphics.blit(at, cl + 118 + step * (art + 4), y, 0f, 0f, art, art, 16, 16);
+                // resolution on the screen and nothing in the picture behind it. The scaled blit, a source region of
+                // sixteen by sixteen laid onto an art-by-art square, as 1.7.10's Gui.func_152125_a(..., 0f, 0f, 16,
+                // 16, art, art, 16f, 16f) lays it (0.9.228; Xep: "Match 1.7.10"). Until then this was the blit that
+                // takes one size for both, which copies art pixels of the image from its corner: below a pitch of
+                // eighteen the picker showed the corner of each face rather than the whole of it, smaller.
+                graphics.blit(at, cl + 118 + step * (art + 4), y, art, art, 0f, 0f, 16, 16, 16, 16);
             }
         }
         graphics.setColor(1f, 1f, 1f, 1f);

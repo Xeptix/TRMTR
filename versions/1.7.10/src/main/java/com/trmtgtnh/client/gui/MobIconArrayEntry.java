@@ -23,16 +23,14 @@ import cpw.mods.fml.client.config.IConfigElement;
  * that may have no world behind it.
  *
  * <p>
- * Mobs a mod registered without claiming a global id have no egg, and show their name alone.
- * That is the same answer this gives for a name nothing recognises, which is a little
- * unsatisfying and still better than a missing-texture square.
+ * From 0.9.228 the row draws what the mod's own screen draws ({@link MobPictures}): the mob itself where there is a
+ * world to make it in (Xep: "We should always try to show the mob itself"), else its egg, else this mod's own generic
+ * egg - so a mob a mod registered without a global id, which has no egg, still looks different from a name nothing
+ * recognises, which shows its name alone. The egg is still worked out here, for both screens.
  */
 public class MobIconArrayEntry extends GuiEditArrayEntries.StringEntry {
 
     private static final Map<String, ItemStack> RESOLVED = new HashMap<String, ItemStack>();
-
-    private String lastText;
-    private ItemStack icon;
 
     public MobIconArrayEntry(GuiEditArray owningScreen, GuiEditArrayEntries owningEntryList,
         IConfigElement configElement, Object value) {
@@ -44,17 +42,16 @@ public class MobIconArrayEntry extends GuiEditArrayEntries.StringEntry {
         net.minecraft.client.renderer.Tessellator tessellator, int mouseX, int mouseY, boolean isSelected) {
         super.drawEntry(slotIndex, x, y, listWidth, slotHeight, tessellator, mouseX, mouseY, isSelected);
 
-        String text = this.textFieldValue.getText();
-        if (lastText == null || !lastText.equals(text)) {
-            lastText = text;
-            icon = resolve(text);
-        }
-        if (icon == null) return;
-        BlockIconArrayEntry.drawIcon(lastText.trim(), icon, listWidth / 4 - 18, y);
+        // The picture the own screen's list page draws, in the same order - the mob itself, its egg, the generic egg -
+        // asked of what the field holds this frame, so a name typed shows its picture at once (0.9.228).
+        MobPictures.draw(this.textFieldValue.getText(), listWidth / 4 - 18, y);
     }
 
-    /** Turns one config line into a spawn egg, or null when there is nothing to show. */
-    private static ItemStack resolve(String raw) {
+    /**
+     * Turns one config line into a spawn egg, or null when there is nothing to show. Also asked by the mod's own
+     * screen's list page ({@link WornPathListScreen}), so both draw the same egg.
+     */
+    static ItemStack resolve(String raw) {
         if (raw == null) return null;
         String entry = raw.trim();
         if (entry.isEmpty()) return null;

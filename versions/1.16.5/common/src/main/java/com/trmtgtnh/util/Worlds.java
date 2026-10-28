@@ -156,11 +156,26 @@ public final class Worlds {
      * says yes to that. So on this edition ground under a snow layer never wore and the snow never took a step,
      * ground under a carpet or a slab never wore, and the painter left worn ground undrawn beneath all four, where
      * the other two editions wear it and draw it. Found by the second yard's bench photographs.
+     *
+     * <p>
+     * <strong>A snow layer is never an opaque cube here either, unless the settings say a full drift is</strong>
+     * (0.9.228; Xep: "Match, with a setting"). A drift eight layers deep answers {@code isSolidRender} yes at this
+     * version - its occlusion shape is the whole cell - so until 0.9.228 every question of cover asked here sheltered
+     * the ground under one: no wear, no tamper, no golem, nothing painted. The 1.7.10 edition's {@code
+     * BlockSnow.isOpaqueCube()} answers false at every depth, so there a full drift is trodden a layer at a time like
+     * any other. Every caller - the engine, the tamper, the golem, the painter, wear drops and the showcase - asks
+     * here, so this one clause is the whole of the rule. {@code weather.fullSnowDriftsSolid} keeps the old answer for
+     * a pack that leaned on it; one to seven layers are never solid either way.
      */
     public static boolean isOpaque(BlockGetter access, int x, int y, int z) {
         BlockPos pos = new BlockPos(x, y, z);
-        return access.getBlockState(pos)
-            .isSolidRender(access, pos);
+        BlockState state = access.getBlockState(pos);
+        if (com.trmtgtnh.erosion.SnowCover.isSnowLayer(state)) {
+            return com.trmtgtnh.config.TrmtConfig.fullSnowDriftsSolid
+                && com.trmtgtnh.erosion.SnowCover.layersOf(state) == 8
+                && state.isSolidRender(access, pos);
+        }
+        return state.isSolidRender(access, pos);
     }
 
     /**

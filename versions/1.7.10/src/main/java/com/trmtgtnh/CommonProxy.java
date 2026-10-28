@@ -180,6 +180,12 @@ public class CommonProxy {
     public void considerServerTable(boolean sent, long fingerprint) {}
 
     /**
+     * A server's rules said which build it runs, or said nothing of it (0.9.228). Only a client has anything to do with
+     * it: a newer client tells its player once a visit that the server runs an older build.
+     */
+    public void considerServerBuild(boolean sent, int protocol, String build) {}
+
+    /**
      * Rebuilds the surface table, and what is stamped from it, under the block ids now in force. See
      * {@code Trmt.idsMoved} for why. Run where it stands: on a dedicated server both ways in - a world's
      * ids loading and their revert when it stops - arrive on the server thread, before any player can

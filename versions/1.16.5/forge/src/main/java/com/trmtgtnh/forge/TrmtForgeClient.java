@@ -57,6 +57,28 @@ public final class TrmtForgeClient {
             left = true;
             ClientSide.tick();
         }
+
+        // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
+        com.trmtgtnh.client.gui.SettingsAccess.tick(client);
+    }
+
+    /**
+     * {@code /trmt config}, on the client: caught as it is sent, answered, and never sent (0.9.228). Forge 36 has no client
+     * command API, so the line is caught here, where every chat line leaves the client; everything else goes on to the
+     * server's own /trmt. The settings key is registered in ForgeClientSetup, which runs at client setup.
+     */
+    @SubscribeEvent
+    public static void chat(net.minecraftforge.client.event.ClientChatEvent event) {
+        if (com.trmtgtnh.client.gui.SettingsAccess.typed(event.getMessage())) event.setCanceled(true);
+    }
+
+    /**
+     * What this mod adds to a screen once it has laid itself out (0.9.228, ConfigScreens.afterInit): the small settings
+     * button on the game's Options screen, and the way back to the own screen on Cloth Config's.
+     */
+    @SubscribeEvent
+    public static void screens(net.minecraftforge.client.event.GuiScreenEvent.InitGuiEvent.Post event) {
+        com.trmtgtnh.client.gui.ConfigScreens.afterInit(event.getGui(), event.getWidgetList(), event::addWidget);
     }
 
     /** A chunk arriving in the client's world, which Forge announces once its blocks are in (spec PT18). */

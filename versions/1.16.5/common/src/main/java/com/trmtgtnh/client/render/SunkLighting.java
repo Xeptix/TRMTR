@@ -81,4 +81,17 @@ public final class SunkLighting {
         int sky = Math.max(packed >>> 16, cell >>> 16);
         return block | (sky << 16);
     }
+
+    /**
+     * Whether Canvas should take a cell as closed for its light (0.9.228; Xep, 2026-10-26: "The craters look darker
+     * (more shadows) than the other versions"): a ghost that holds no light at all, sky or block. Canvas averages the
+     * light of every cell it is not told is closed into a face's corners, and a ghost - which says it occludes nothing,
+     * so that its neighbours' faces are not culled against a dip - stops light as the block it stands in for did, so a
+     * whole one holds none. Averaged in, that nought drew every crater wall at under half the luma it has under every
+     * other renderer, which take a neighbour with no light as missing. A sunk ghost lets light in and a glowing one
+     * holds its own, and both stay open. See MixinCanvasGhostClosed.
+     */
+    public static boolean closedToLight(boolean ghost, int packedLight) {
+        return ghost && packedLight == 0;
+    }
 }
