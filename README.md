@@ -1,8 +1,10 @@
-![TRMT: Reimagined - terrain wears into paths along the routes you actually walk, and grows back over time when you stop using them. Eighty gradations, half a block deep, no block ever placed](docs/images/03-header.png)
+![TRMT: Reimagined - terrain wears into paths along the routes you actually walk, and grows back over time when you stop using them. Eighty gradations, half a block deep, no block ever placed](docs/images/03-header-animated.gif)
 
 # TRMT: Reimagined
 
-![Worn roads running across grass, dirt, sand and stone, each one darker and more sunken along the line that has been walked](docs/images/roads-reel.gif)
+[![Download on CurseForge](https://img.shields.io/badge/CurseForge-Download-F16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods/trmt-reimagined)
+[![Download on Modrinth](https://img.shields.io/badge/Modrinth-Download-1BD96A?logo=modrinth&logoColor=white)](https://modrinth.com/mod/trmtr)
+[![Join the Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RE85HRwYZZ)
 
 The line between your base and the mine is a path whether you built one or not. This makes it look
 like one, and lets it fade again once you stop using it.
@@ -13,10 +15,15 @@ ever written into the world. The server keeps a compact wear record per chunk an
 cosmetic blocks over its own copy of the terrain, so the mod is removable, switchable per player,
 switchable per server, and invisible in a world opened without it.
 
-Minecraft 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, on Forge, on Fabric for 1.16.5 and every
+| | |
+|---|---|
+| ![Any block, in any pack: wear is generated from each block's own pixels, so modded ground wears in its own colors](docs/images/04-any-block-any-pack.png) | ![Ruts you walk down into: later stages hollow out, down to half a block](docs/images/06-ruts.png) |
+| ![Stop walking it and it comes back: recovery follows the world's clock](docs/images/07-grows-back.png) | ![Every number is yours: the mod's own settings screen in every edition](docs/images/13-settings.png) |
+
+**Minecraft 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3**, on Forge, on Fabric for 1.16.5 and every
 version after it, and on NeoForge for 1.21.1, 26.1.2, 26.2 and 26.3 - 26.1.2, 26.2 and 26.3 as betas. It brings a
 settings screen of its own to every edition, so Cloth Config is optional everywhere. The 1.7.10 edition is built
-against GT: New Horizons 2.8.4.
+against GT: New Horizons 2.8.4. [Install](#install) says which jar to take and what it needs.
 
 One mod, one version number, eight editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
@@ -25,20 +32,15 @@ the others it is because the Minecraft version took away what the behaviour was 
 section it belongs to says so rather than leaving you to find out. They are collected in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) if you would rather see them all at once.
 
-Derived from milkucha's work and licensed CC BY-NC 4.0. This version by Xep, and unofficial: not
-produced, endorsed or supported by milkucha. See [`LICENSE.md`](LICENSE.md) and
+**Source** - here, where bug reports and feature requests belong; a version's own notes are in
+[`CHANGELOG.md`](CHANGELOG.md). Derived from milkucha's work and licensed CC BY-NC 4.0. This version by Xep, and
+unofficial: not produced, endorsed or supported by milkucha. See [`LICENSE.md`](LICENSE.md) and
 [`ATTRIBUTION.md`](ATTRIBUTION.md).
-
-**Downloads** - [CurseForge](https://www.curseforge.com/minecraft/mc-mods/trmt-reimagined) or [Modrinth](https://modrinth.com/mod/trmtr).
-**Source** - [GitHub](https://github.com/Xeptix/TRMTR), where bug reports and feature requests belong; a version's own notes are
-in [`CHANGELOG.md`](CHANGELOG.md).
-**Community** - [![Join the Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RE85HRwYZZ), for questions and talk about the mod.
 
 The mod is free and always will be. If you would like to put something in the hat:
 
 [![Support the mod on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F6L1285ROA)
 [![Support the mod on Patreon](https://img.shields.io/badge/Patreon-Xeptix-F96854?logo=patreon&logoColor=white)](https://www.patreon.com/Xeptix)
-[![Join the Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/RE85HRwYZZ)
 
 ---
 
@@ -88,17 +90,18 @@ The mod is free and always will be. If you would like to put something in the ha
 
 ## What it is
 
-The idea comes from milkucha's mod: a world where the routes people take show it. Walk the same
-line between your base and the mine a few hundred times and the turf scuffs, thins, goes bald, and
-finally sinks into a rut. Stop walking it and it comes back.
+The rest of this page is the manual, with every number and setting in it. The ground comes first: how a path forms
+from what walks on it, how it wears through eighty gradations into a rut half a block deep, what each surface wears
+into, and how it heals on the world's clock once it is left alone - the sections after [Install](#install) take those
+in turn, then the weather, and what a route does to whatever is standing in it.
 
-What this version changed is where the wear lives. **No block is ever written into the world.** The
-server keeps a compact wear record per chunk, and your client paints cosmetic blocks over its own
-copy of the terrain. Everything else unusual about it follows from that one decision.
+Around that core the mod has grown a set of tools for shaping ground deliberately rather than only walking it in: hand
+tampers, a chunk tamper, three enchantments that unlock extra modes, and a golem that will hold a stretch of road at a
+wear level you choose while you are elsewhere. They follow the ground, from [Tampers](#tampers) on, and the settings,
+commands and servers come after them.
 
-Around that core the mod has grown a set of tools for shaping ground deliberately rather than
-only walking it in: hand tampers, a chunk tamper, three enchantments that unlock extra modes, and
-a golem that will hold a stretch of road at a wear level you choose while you are elsewhere.
+To play, [Install](#install) is next and the [Presets](#presets) are the one place worth a look. A pack maker wants
+[Which blocks erode](#which-blocks-erode) and [Tuning](#tuning) as well; a server operator, [Servers](#servers).
 
 ## Install
 
@@ -170,7 +173,7 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
 
 **Requirements, 26.1.2, 26.2 and 26.3 (beta)**
 
-- Minecraft 26.1.2, 26.2 or 26.3 with NeoForge 26.1.2.71, 26.2.0.57 or 26.3.0.76 or newer, Forge 64 for 26.1.2, 65 for
+- Minecraft 26.1.2, 26.2 or 26.3 with NeoForge 26.1.2.71, 26.2.0.57 or 26.3.0.0-beta or newer, Forge 64 for 26.1.2, 65 for
   26.2 or 66 for 26.3, **or** Fabric Loader 0.19.1 on 26.1.2, 0.19.4 on 26.2 or 0.19.5 on 26.3 or newer, on Java 25,
   which those versions themselves require.
 - On Fabric, **[Fabric API](https://github.com/FabricMC/fabric-api)** 0.145.4 or newer on 26.1.2, 0.152.1 on 26.2 and
@@ -219,13 +222,14 @@ A crossing does not only mark the square underfoot. It bleeds a fifth of its wea
 ahead and half of it onto each flanking block, which is what gives a path width and a soft edge
 rather than a one-block line.
 
-Sneaking adds no wear, so you can cross a lawn without scarring it. Loose mobs never wear ground
-at all: only players, mounts, anything on a lead, and mobs you name explicitly, and the shipped
-list is villagers alone.
+Sneaking adds no wear, so you can cross a lawn without scarring it. Creatures wear the ground by group - monsters,
+other mobs and villagers - each with a switch and a multiplier against a player's step (0.25, 0.25 and 1.0), and a
+`mobs` list that names mobs one by one at their own numbers; a new settings file has all of it on. A mob carrying a
+player leaves the counting to the rider, and the Golem of Ways never wears the ground. See [Tuning](#tuning).
 
-A blast scuffs the ring of ground around it that it did not destroy, falling off with distance,
-so a crater does not read as a hole somebody cut out of clean terrain. Something landing hard
-marks the patch it lands on the same way at a much smaller scale.
+A blast wears the ground two to five blocks past the blocks it destroys, falling off to a ragged edge, and the floor
+and walls of the crater it leaves are worn too, hardest at the middle - so a crater does not read as a hole somebody
+cut out of clean terrain. Something landing hard marks the patch it lands on the same way at a much smaller scale.
 
 ## What you actually see
 
@@ -960,14 +964,15 @@ Three dials matter most, and all read the same way: **higher means faster**.
 - `healing.healingRate` - recovery only.
 
 Beyond those: who wears the ground (`multipliers` - players at 0.5, mounted at 2.0, anything on
-a lead at 1.5, and a `mobs` list that defaults to villagers only), which dimensions and which Y
-range are tracked, how far wear bleeds to the sides and ahead, bone meal reach and strength,
+a lead at 1.5, and loose creatures by group: `fromHostileMobs`, `fromPassiveMobs`, `fromVillagers` and `fromCustom`,
+the `mobs` list, each group with its own multiplier and a cap per chunk that is off until set), which dimensions and
+which Y range are tracked, how far wear bleeds to the sides and ahead, bone meal reach and strength,
 trampling, weather, snow cover, the golem, the tampers and their grades, loot, and the sweep and
 sampling budgets under `performance`.
 
-A line of `Name:0` in `mobs` keeps that mob off the ground while it walks loose, even under a `*`
-line, because a named line outranks the wildcard; the Wayfarer's Tamper's *Stop this wearing the
-ground* button writes it. A mob on a lead still wears while `fromLeashedMobs` is on, because that
+A line of `Name:0` in `mobs` keeps that mob off the ground while it walks loose, whatever the switches say, because
+a named line outranks its group; the Wayfarer's Tamper's *Stop this wearing the ground* button writes it. A settings
+file from before 0.9.228 is read into the switches so the ground wears exactly as it did. A mob on a lead still wears while `fromLeashedMobs` is on, because that
 counts anything being led.
 
 `/trmt reload` re-reads the file from disk and re-runs detection without a restart.
