@@ -91,7 +91,8 @@ final class WearGeneration {
             int[] pixels = composed.get(i);
             if (pixels == null) {
                 sprite.markUnusable();
-                tally.failed++;
+                // A glow overlay with nothing to light is no failure: most gradations of the look have none.
+                if (!sprite.isGlow()) tally.failed++;
                 continue;
             }
             // Every picture is composed at the edge its sprite was stitched at, so this counts a fault rather than a
@@ -108,6 +109,8 @@ final class WearGeneration {
                 tally.failed++;
                 continue;
             }
+            // A glow overlay is not a wear picture and is not tallied as one.
+            if (sprite.isGlow()) continue;
             tally.built++;
             if (sprite.isImprovised()) {
                 tally.guessed++;

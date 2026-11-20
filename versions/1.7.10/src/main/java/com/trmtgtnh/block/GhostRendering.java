@@ -11,6 +11,7 @@ import net.minecraft.world.World;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.client.ClientErosionCache;
+import com.trmtgtnh.client.texture.FaceSource;
 import com.trmtgtnh.client.texture.SideShift;
 import com.trmtgtnh.client.texture.WearTextures;
 import com.trmtgtnh.config.FamilySettings;
@@ -18,8 +19,10 @@ import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.erosion.ErosionState;
 import com.trmtgtnh.erosion.Rotations;
+import com.trmtgtnh.original.FaithfulChains;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
+import com.trmtgtnh.surface.SurfaceShape;
 import com.trmtgtnh.surface.WearScale;
 
 import cpw.mods.fml.relauncher.Side;
@@ -48,6 +51,31 @@ import cpw.mods.fml.relauncher.SideOnly;
  */
 @SideOnly(Side.CLIENT)
 public final class GhostRendering {
+
+    /**
+     * Vanilla's {@code RenderBlocks.uvRotateTop} for each quarter turn clockwise, seen from above with north up, read
+     * from 1.7.10's renderFaceYPos: 1 lays the picture's top row down the face's east edge (a quarter clockwise), 3 is
+     * the half turn (u and v both reversed) and 2 the quarter the other way.
+     */
+    static final int[] UV_ROTATE_TOP = { 0, 1, 3, 2 };
+
+    /**
+     * Set while a plugin's renderer draws a square (ApiDraw), on the meshing thread doing it: its tops are drawn as it
+     * laid them out, never turned, as every newer edition draws a hooked square's quads apart from the ghost's own.
+     */
+    public static final ThreadLocal<Boolean> HOOK_DRAWING = new ThreadLocal<Boolean>();
+
+    /**
+     * The uvRotateTop a worn top drawing this icon at this position is drawn with (0.9.229, docs/goals/
+     * 0.9.229-rotation-spec.md): the position's rotation, from the same pick and depth the icon was chosen by, where
+     * the icon's set turns (WearTextures.quarterTurns); none for anything else. Asked by MixinGhostTopTurn as a ghost's
+     * top face is drawn, on whichever thread meshes it, so it reads only what the icon pick reads.
+     */
+    public static int uvRotateTop(IIcon drawn, int x, int y, int z) {
+        if (!(drawn instanceof com.trmtgtnh.client.texture.WearSprite) || HOOK_DRAWING.get() != null) return 0;
+        int depth = ErosionState.sinkOf(Trmt.proxy.erosionStateAt(x, y, z));
+        return UV_ROTATE_TOP[WearTextures.quarterTurns(drawn, Rotations.forPosition(x, z, depth), depth) & 3];
+    }
 
     /**
      * The map color for a worn position, from a base color darkened for its wear stage.
@@ -114,10 +142,13 @@ public final class GhostRendering {
     /**
      * Whether the ground at this square has sunk: its record's own sink, which is what the thinned fringe and the
      * earth wall are kept from, as the ports ask it. {@code isSunken} says only which stand-in this is, and the short
-     * lawn's is hollow to draw a short block without having sunk at all (0.9.223, spec GS5).
+     * lawn's is hollow to draw a short block without having sunk at all (0.9.223, spec GS5). A block a data file keeps
+     * flat ({@code "sinks": false}) has not sunk whatever its record's step says, as its drawn top and its collision
+     * say (W3 T6 follow-up, 2026-11-04).
      */
     static boolean sunkHere(GhostBlock ghost, int x, int y, int z) {
-        return ghost.isSunken() && ErosionState.sinkOf(Trmt.proxy.erosionStateAt(x, y, z)) > 0;
+        return ghost.isSunken() && ErosionState.sinkOf(Trmt.proxy.erosionStateAt(x, y, z)) > 0
+            && SurfaceShape.sinks(Trmt.proxy.originBlockAt(x, y, z), GhostLogic.originMetaAt(x, y, z));
     }
 
     /**
@@ -129,7 +160,13 @@ public final class GhostRendering {
         return sunkHere(ghost, x, y, z);
     }
 
-    public static IIcon grassSideOverlay(GhostBlock ghost, int x, int y, int z, IIcon vanilla) {
+    /**
+     * The thinned fringe a worn grass side takes: as the ground's own wear thins it, or, for a wall a render hook's cut
+     * opened ({@code cut}), as the box's stage would (W3 T8, Codex review R21). First of its name in the file, because
+     * the source guards read the first body of that name.
+     */
+    private static IIcon grassSideOverlay(GhostBlock ghost, int x, int y, int z, IIcon vanilla, int stage,
+        boolean cut) {
         if (PROBE) probe(
             "grassSideOverlay reached, family=" + ghost.appearance()
                 + " sunken="
@@ -144,7 +181,7 @@ public final class GhostRendering {
         if (ghost.appearance() != SurfaceFamily.GRASS || ghost.isUntinted()) return vanilla;
         if (!ghost.mimicsVanillaGrassTop()) return vanilla;
         if (sunkHere(ghost, x, y, z)) return vanilla;
-        int layer = sideLayer(SurfaceFamily.GRASS, x, y, z);
+        int layer = sideLayer(SurfaceFamily.GRASS, x, y, z, stage, cut);
         IIcon thinned = WearTextures.grassSideOverlay(layer, Rotations.forPosition(x, z));
         if (PROBE) probe(
             "grassSideOverlay answering: layer=" + layer
@@ -153,6 +190,17 @@ public final class GhostRendering {
                 + " vanillaWas="
                 + (vanilla == null ? "null" : vanilla.getIconName()));
         return thinned != null ? thinned : vanilla;
+    }
+
+    public static IIcon grassSideOverlay(GhostBlock ghost, int x, int y, int z, IIcon vanilla) {
+        return grassSideOverlay(ghost, x, y, z, vanilla, 0, false);
+    }
+
+    /**
+     * The fringe over a wall a render hook's cut opened at {@code stage}: the cut's walls take that stage's pictures.
+     */
+    public static IIcon grassSideOverlay(GhostBlock ghost, int x, int y, int z, IIcon vanilla, int stage) {
+        return grassSideOverlay(ghost, x, y, z, vanilla, stage, true);
     }
 
     /**
@@ -176,6 +224,14 @@ public final class GhostRendering {
         // One number either way, so the footing and the picture of what rests on it cannot part company.
         double drop = GhostLogic.originTop(ghost, x, y, z) - GhostLogic.collidedHeightAt(ghost, world, x, y, z);
         return drop > 0.0D ? drop : 0.0D;
+    }
+
+    /**
+     * The boxes worn ground over a data file's boxes is drawn as, in block units, or null where the covered block has
+     * none (W3 T6): {@code GhostLogic.boxesAt} at the drawn depth, for the renderer outside this package.
+     */
+    public static double[][] drawnBoxes(GhostBlock ghost, IBlockAccess world, int x, int y, int z) {
+        return GhostLogic.boxesAt(ghost, world, x, y, z, false);
     }
 
     private GhostRendering() {}
@@ -217,7 +273,15 @@ public final class GhostRendering {
         Trmt.LOG.info("Ghost probe: {}", what);
     }
 
-    public static IIcon iconFor(GhostBlock ghost, IBlockAccess world, int x, int y, int z, int side) {
+    /**
+     * The picture a face of this ghost takes at {@code stage}: the stage it stands at, or, for a face a render hook's
+     * cut opened ({@code cut}), the stage its box names (W3 T8, api/API.md "Drawing a hooked block"). For a cut the
+     * record's own depth and the position's rotation still apply; only the gradation is the one given, on the floor
+     * and on the walls alike (Codex review R21: the walls used to keep the record's own). First of its name in the
+     * file, because the source guards read the first body of that name.
+     */
+    private static IIcon iconFor(GhostBlock ghost, IBlockAccess world, int x, int y, int z, int side, int stage,
+        boolean cut) {
         if (PROBE) probe(
             "iconFor (position-aware) side=" + side
                 + " family="
@@ -226,13 +290,24 @@ public final class GhostRendering {
                 + ghost.mimicsVanillaGrassTop()
                 + " untinted="
                 + ghost.isUntinted());
-        int stage = world.getBlockMetadata(x, y, z);
         int packedOrigin = ClientErosionCache.get()
             .originAt(x, y, z);
 
         Block origin = originBlock(packedOrigin);
         int originMeta = packedOrigin >= 0 ? (packedOrigin & 0xF) : 0;
         SurfaceFamily originFamily = origin == null ? null : SurfaceRegistry.familyOf(origin, originMeta);
+
+        if (WearTextures.capacityDisabled()) {
+            if (origin != null && !(origin instanceof GhostBlock)) {
+                try {
+                    IIcon unchanged = origin.getIcon(side, originMeta);
+                    if (unchanged != null) return unchanged;
+                } catch (RuntimeException awkwardBlock) {
+                    // A block with a position-only icon falls back to the ghost's registered icon.
+                }
+            }
+            return ghost.fallbackIcon();
+        }
 
         // Every face of a surface that looks the same all round, not just the top. Sand, gravel,
         // dirt and stone are one texture on all six sides, so a rut cut into them shows the wear
@@ -242,7 +317,7 @@ public final class GhostRendering {
         // and carry a tinted overlay, so they render as grass sides always have.
         if (side == 1 || (ghost.appearance() != SurfaceFamily.GRASS && !hasOwnSides(origin, originMeta))) {
             int layer = side == 1 ? topLayer(ghost.appearance(), stage, x, y, z)
-                : sideLayer(ghost.appearance(), x, y, z);
+                : sideLayer(ghost.appearance(), x, y, z, stage, cut);
             // Read inside this branch rather than at the top of the method: every rendered face of
             // every ghost passes through here, and the faces that do not want a generated wear
             // texture should not pay for the lookup that finds one.
@@ -319,7 +394,7 @@ public final class GhostRendering {
             // somebody else's texture, which is what put a red edge on spectral moss and a dark
             // band on Biomes O' Plenty's long grass.
             && ghost.mimicsVanillaGrassTop()
-            && sideLayer(SurfaceFamily.GRASS, x, y, z) >= WALL_START) {
+            && sideLayer(SurfaceFamily.GRASS, x, y, z, stage, cut) >= WALL_START) {
             IIcon wall = WearTextures.grassEarthWall(origin, originMeta);
             if (wall != null) return asGrassSide(wall);
         }
@@ -336,7 +411,7 @@ public final class GhostRendering {
 
         if (origin != null) {
             try {
-                IIcon icon = origin.getIcon(face, originMeta);
+                IIcon icon = FaceSource.faceIcon(origin, originMeta, face);
                 if (icon != null) {
                     // A made surface keeps its own side texture, and as the ground sinks that
                     // texture slides down with it, so the cap along its top edge stays at the
@@ -365,6 +440,16 @@ public final class GhostRendering {
         }
         return ghost.asBlock()
             .getIcon(side, stage);
+    }
+
+    /** The picture a face of this ghost takes at the stage it stands at. */
+    public static IIcon iconFor(GhostBlock ghost, IBlockAccess world, int x, int y, int z, int side) {
+        return iconFor(ghost, world, x, y, z, side, world.getBlockMetadata(x, y, z), false);
+    }
+
+    /** The picture a face a render hook's cut opened takes at the stage its box names (W3 T8, Codex review R21). */
+    public static IIcon iconFor(GhostBlock ghost, IBlockAccess world, int x, int y, int z, int side, int stage) {
+        return iconFor(ghost, world, x, y, z, side, stage, true);
     }
 
     /** Whether something snowy is resting on this block, which is what vanilla tests for. */
@@ -511,12 +596,13 @@ public final class GhostRendering {
      * from. Neither the fade toward the material underneath nor the desire-path highlight can come
      * with it: both are blends toward an absolute color, and a multiplier cannot carry those.
      */
-    static int wearShade(GhostBlock ghost, IBlockAccess world, SurfaceFamily base, int x, int y, int z) {
+    static int wearShade(GhostBlock ghost, IBlockAccess world, ErosionChain.Chain chain, int x, int y, int z) {
         if (!TrmtConfig.mapWearThroughTint || !TrmtConfig.mapTracksWear) return 0xFFFFFF;
         if (!fromOutsideTheRenderer(world)) return 0xFFFFFF;
-        if (base == null) return 0xFFFFFF;
+        if (chain.base == null) return 0xFFFFFF;
 
-        int length = ErosionChain.length(base);
+        // Along the chain the origin block follows: its own, where a data file gives it one (W3 T9).
+        int length = chain.length();
         if (length <= 1) return 0xFFFFFF;
 
         short state;
@@ -529,8 +615,8 @@ public final class GhostRendering {
         }
         if (state == ErosionState.NONE) return 0xFFFFFF;
 
-        int index = ErosionChain
-            .indexOf(base, ErosionState.familyOf(state), ErosionState.layerOf(state), ErosionState.sinkOf(state));
+        int index = chain
+            .indexOf(ErosionState.familyOf(state), ErosionState.layerOf(state), ErosionState.sinkOf(state));
         if (index < 0) index = 0;
         if (index > length - 1) index = length - 1;
         return GhostLogic.darkenBy(0xFFFFFF, index / (float) (length - 1));
@@ -557,7 +643,7 @@ public final class GhostRendering {
         // whether a biome tint applies, which is a different question from how worn the ground is -
         // and the exit most worth shading is the one for ground that has worn past its own family,
         // because that is the deepest wear there is.
-        int shade = wearShade(ghost, world, originFamily, x, y, z);
+        int shade = wearShade(ghost, world, SurfaceRegistry.chainOf(origin, originMeta), x, y, z);
 
         // Once a surface has worn past its own family, or past the point where a biome tint
         // still helps, it is mostly bare earth. Tinting that is what would turn a path olive.
@@ -884,6 +970,8 @@ public final class GhostRendering {
     }
 
     private static int topLayer(SurfaceFamily appearance, int layer, int x, int y, int z) {
+        int faithful = faithfulPicture(appearance, layer);
+        if (faithful >= 0) return faithful;
         FamilySettings settings = TrmtConfig.family(appearance);
         if (settings == null || TrmtConfig.wearCarriesWithDepth <= 0f) return counted(layer, settings);
         return topLayerOf(appearance, layer, Trmt.proxy.erosionStateAt(x, y, z));
@@ -900,9 +988,40 @@ public final class GhostRendering {
         SurfaceFamily appearance = ErosionChain.familyAt(base, index);
         if (appearance == null) return -1;
         int layer = ErosionChain.stageAt(base, index);
+        int faithful = faithfulPicture(appearance, layer);
+        if (faithful >= 0) return faithful;
         FamilySettings settings = TrmtConfig.family(appearance);
         if (settings == null || TrmtConfig.wearCarriesWithDepth <= 0f) return counted(layer, settings);
         return topLayerOf(appearance, layer, ErosionState.pack(appearance, layer, ErosionChain.sinkAt(base, index)));
+    }
+
+    /**
+     * The picture a grass or sand surface layer shows under Faithful Mode, or -1 where Faithful Mode does not decide
+     * it (0.9.229 W5 T4; docs/goals/0.9.229-w5-spec.md, 2.2 "Which picture", question 7).
+     *
+     * <p>
+     * The original drew five pictures for each and its first is already worn. This mod's first picture of a run is a
+     * worn one as well, not clean ground (R2, 2026-11-03: grass's first shows a twentieth of its earth against the
+     * original's tenth, and sand's first is the original's own {@code eroded_sand_0}), so layer k of five goes at k/4
+     * of the run: the first stage on the first picture, the last on the last. At (k+1)/5, as the spec first proposed
+     * for a clean first picture, sand's five stages would land on the original's pictures 1, 2, 2, 3 and 4.
+     *
+     * <p>
+     * Placed by the layer alone, not by the depth the step is drawn at or the player's depth, gradation and blending
+     * settings: sand's stages sink 0, 2, 2, 4 and 6 pixels, and placed by depth as this mod's own sand is, stages 1 and
+     * 2 shared a picture and the first sunken stage jumped half the run (R2: pictures 0, 41, 42, 67, 76); grass keeps
+     * the player's depth under Faithful Mode, and any depth on grass squeezed its turf into the first two fifths of
+     * its pictures. Dirt is not decided here: its stages are drawn as they always were, the original's bare earth at
+     * the start of the dirt run.
+     */
+    private static int faithfulPicture(SurfaceFamily appearance, int layer) {
+        if (appearance != SurfaceFamily.GRASS && appearance != SurfaceFamily.SAND) return -1;
+        if (!FaithfulChains.wears(appearance)) return -1;
+        int runLast = FaithfulChains.stages(appearance) - 1;
+        if (layer <= 0 || runLast <= 0) return 0;
+        int last = WearScale.COUNTED_STEPS - 1;
+        int placed = Math.round(layer / (float) runLast * last);
+        return placed > last ? last : placed;
     }
 
     /** {@link #topLayer} with the record already read, so a picture can be placed with no world to read it from. */
@@ -1024,7 +1143,7 @@ public final class GhostRendering {
         if (origin == null) return false;
         try {
             IIcon top = origin.getIcon(1, originMeta);
-            IIcon flank = origin.getIcon(2, originMeta);
+            IIcon flank = FaceSource.faceIcon(origin, originMeta, 2);
             if (top == null || flank == null) return false;
             return !top.getIconName()
                 .equals(flank.getIconName());
@@ -1047,11 +1166,27 @@ public final class GhostRendering {
      * Scaled down as well, so the wall stays behind the floor. The floor is what takes the
      * traffic; the sides only get what catches them on the way past.
      */
-    private static int sideLayer(SurfaceFamily appearance, int x, int y, int z) {
+    private static int sideLayer(SurfaceFamily appearance, int x, int y, int z, int stage, boolean cut) {
+        short state = Trmt.proxy.erosionStateAt(x, y, z);
+        return sideLayerOf(appearance, cut ? atStage(appearance, state, stage) : state);
+    }
+
+    /**
+     * The record as a render hook's cut at {@code stage} shows it (W3 T8, Codex review R21): its own depth, with the
+     * stage as its layer, held to the layers a record can carry.
+     */
+    public static short atStage(SurfaceFamily appearance, short state, int stage) {
+        int layer = stage < 0 ? 0 : stage > MOST_LAYER ? MOST_LAYER : stage;
+        return ErosionState.pack(appearance, layer, ErosionState.sinkOf(state));
+    }
+
+    /** The highest layer a record can carry: five bits, biased by one. */
+    private static final int MOST_LAYER = 30;
+
+    /** {@link #sideLayer} of a record already read. */
+    public static int sideLayerOf(SurfaceFamily appearance, short state) {
         FamilySettings settings = TrmtConfig.family(appearance);
         if (settings == null) return 0;
-
-        short state = Trmt.proxy.erosionStateAt(x, y, z);
         if (state == ErosionState.NONE) return 0;
 
         // The third copy of that number, and the one nobody would have thought to look for: a rut's

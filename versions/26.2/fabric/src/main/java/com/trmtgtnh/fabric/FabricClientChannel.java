@@ -51,7 +51,16 @@ public final class FabricClientChannel {
                 Trmt.LOG.warn("No address for {}, so it was not sent", message.getClass().getName());
                 return;
             }
-            ClientPlayNetworking.send(Payload.of(entry, message));
+            Payload payload = Payload.of(entry, message);
+            // The press only to a server that declared it (review R30, 0.9.229): the protocol the server's rules named
+            // says so, and Fabric's own record of the channels the server declared says it again, which holds after a
+            // proxy's move to an older server where the protocol heard may not yet be forgotten. The press alone: the
+            // hello goes once a visit and never again, so a declaration missed or read late (in play on 1.16.5 and
+            // 1.20.1, or through a proxy) would cost the visit all its wear, where a press not sent leaves the server's
+            // two-tick rule.
+            if (message instanceof com.trmtgtnh.network.PacketTamperPress
+                && !ClientPlayNetworking.canSend(payload.type())) return;
+            ClientPlayNetworking.send(payload);
         });
 
         Trmt.LOG.info("Opened the Fabric client channel, listening for {} message(s)", listening);

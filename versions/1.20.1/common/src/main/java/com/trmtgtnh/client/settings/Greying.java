@@ -79,7 +79,7 @@ public final class Greying {
 
     /** The families whose settings wear in stages, as the file names their headings ({@code families.<key>}). */
     private static final String[] STAGED = { "grass", "dirt", "sand", "gravel", "stone", "cobble", "nether", "end",
-        "snow", "ice" };
+        "snow", "ice", "flesh", "taint", "sculk", "cloud" };
 
     /** The table, in the screen's order of tabs. */
     public static final List<Rule> RULES;

@@ -129,9 +129,11 @@ public final class MendPurse {
 
             @Override
             public Quote quote(Level world, int x, int y, int z, Block block, int meta) {
-                Long key = Long.valueOf(((long) net.minecraft.core.registries.BuiltInRegistries.BLOCK.getId(block) << 32) | (meta & 0xFFFFFFFFL));
+                // By the state on the ground: a data file may give one state of a block its own price.
+                net.minecraft.world.level.block.state.BlockState state = com.trmtgtnh.util.Worlds.stateAt(world, x, y, z);
+                Long key = Long.valueOf(Block.getId(state));
                 if (quotes.containsKey(key)) return quotes.get(key);
-                HealingCost cost = HealingCost.forPlayer(player, block, meta);
+                HealingCost cost = HealingCost.forPlayer(player, state);
                 Quote quote = cost == null ? null : new OwnBlockQuote(cost);
                 quotes.put(key, quote);
                 return quote;
@@ -181,6 +183,14 @@ public final class MendPurse {
      * @return how many gradations went back on this square
      */
     public int mendSquare(Level world, int x, int y, int z, int steps, boolean notifyClients) {
+        return mendSquare(world, x, y, z, steps, notifyClients, false);
+    }
+
+    /**
+     * As above, and with {@code healChain} each gradation is the step Faithful Mode's heal would take
+     * ({@link ErosionEngine#restoreOneStage(Level, int, int, int, boolean, boolean)}): Faithful bone meal's.
+     */
+    public int mendSquare(Level world, int x, int y, int z, int steps, boolean notifyClients, boolean healChain) {
         if (halted || steps <= 0) return 0;
         // Asking the world for ground it does not have loaded would generate the chunk, and a patch
         // at a chunk edge reaches across one.
@@ -193,7 +203,7 @@ public final class MendPurse {
         // through to the payer below, because the quote's signature is the engine's and kept its
         // shape; there is simply nothing for it to mean.
         int meta = 0;
-        SurfaceFamily family = SurfaceRegistry.familyOf(block);
+        SurfaceFamily family = SurfaceRegistry.familyOf(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z));
         if (family == null || !family.staged) return 0;
 
         Quote quote = null;
@@ -212,7 +222,7 @@ public final class MendPurse {
                 wantedSeen.add(quote.wanted());
                 break;
             }
-            if (!engine.restoreOneStage(world, x, y, z, notifyClients)) break;
+            if (!engine.restoreOneStage(world, x, y, z, notifyClients, healChain)) break;
             if (owed > 0) {
                 List<Object> kinds = quote.take(owed);
                 if (kinds == null) {

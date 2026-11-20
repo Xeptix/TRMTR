@@ -11,6 +11,7 @@
     "MixinBoneMealMends",
     "MixinChunkMap",
     "MixinChunkSerializer",
+    "MixinLevelSaved",
     "MixinCraftingResult",
     "MixinExplosion",
     "MixinGhostMapColor",
@@ -28,7 +29,9 @@
     "MixinTableOffersUnlocks",
     "MixinWornCollision",
     "MixinPlayerArrives",
-    "MixinExplosionRadius"
+    "MixinPistonCarriesWear",
+    "MixinExplosionRadius",
+    "MixinFaithfulBrush"
   ],
   "client": [
     "MixinModelManagerBaked",
@@ -40,6 +43,7 @@
     "MixinGhostSprintDust",
     "MixinAirSwing",
     "MixinOptiFineSettledFaces",
+    "MixinGhostHidesFaces",
     "MixinBlockArrivals",
     "MixinChunkForgotten",
     "MixinGhostBoatFriction",
@@ -50,6 +54,7 @@
     "MixinGhostItemFriction",
     "MixinGhostLivingEntity",
     "MixinGhostOrbFriction",
+    "MixinGhostSnifferDig",
     "MixinGhostSoilBush",
     "MixinGhostSoilCactus",
     "MixinGhostSoilMushroom",

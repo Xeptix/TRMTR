@@ -181,6 +181,14 @@ public final class MendPurse {
      * @return how many gradations went back on this square
      */
     public int mendSquare(World world, int x, int y, int z, int steps, boolean notifyClients) {
+        return mendSquare(world, x, y, z, steps, notifyClients, false);
+    }
+
+    /**
+     * As above, and with {@code healChain} each gradation is the step Faithful Mode's heal would take
+     * ({@link ErosionEngine#restoreOneStage(World, int, int, int, boolean, boolean)}): Faithful bone meal's.
+     */
+    public int mendSquare(World world, int x, int y, int z, int steps, boolean notifyClients, boolean healChain) {
         if (halted || steps <= 0) return 0;
         // Asking the world for ground it does not have loaded would generate the chunk, and a patch
         // at a chunk edge reaches across one.
@@ -209,7 +217,7 @@ public final class MendPurse {
                 wantedSeen.add(quote.wanted());
                 break;
             }
-            if (!engine.restoreOneStage(world, x, y, z, notifyClients)) break;
+            if (!engine.restoreOneStage(world, x, y, z, notifyClients, healChain)) break;
             if (owed > 0) {
                 List<Object> kinds = quote.take(owed);
                 if (kinds == null) {

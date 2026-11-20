@@ -27,6 +27,11 @@ import net.minecraft.world.level.block.state.BlockState;
  * square are the context's own {@code state}, {@code level} and {@code pos}, set for each block before its faces are
  * asked. So they are read from there, and the rule is {@link com.trmtgtnh.client.render.FaceRule}'s, as every loader's. There is no Embeddium for 26.1.2, and
  * Fabric runs Mojang's names from 26.1 (no intermediary), so the one Mojang descriptor is the whole of the name.
+ *
+ * <p>
+ * <strong>GF1's hide of covered faces is not asked here</strong>: it is kept for vanilla's mesher alone (Xep,
+ * 2026-11-09: "Keep, vanilla only"), where it measured cheaper, and the Sodium family measured no gain. See
+ * {@code client.render.GhostHide}.
  */
 @Pseudo
 @Mixin(targets = OculusGate.SODIUM_FACES, remap = false)

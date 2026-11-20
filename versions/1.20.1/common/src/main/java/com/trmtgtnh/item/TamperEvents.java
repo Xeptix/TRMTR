@@ -79,7 +79,7 @@ public final class TamperEvents {
      *
      * <p>
      * Server side and nowhere else. Both loaders deliver this on both sides - the client's copy is
-     * what swings the arm - and only one of them may act.
+     * what swings the arm, and in reinforce mode says where a press begins - and only one of them may act.
      *
      * <p>
      * Robots and drones hold items and click blocks too. Only somebody with a connection has a
@@ -87,7 +87,15 @@ public final class TamperEvents {
      * class for a stand-in; see {@code Notices}, which asks it the same way.
      */
     public void leftClicked(Level world, Player player, int x, int y, int z, ItemStack held) {
-        if (world == null || world.isClientSide()) return;
+        if (world == null) return;
+        if (world.isClientSide()) {
+            // The client's copy acts on nothing, but in reinforce mode it tells the server where a press of the
+            // attack key begins, in the client's own ticks (RL19): see ReinforceGestures.clientClicked.
+            if (player != null && holdsTamper(held)
+                && held.getItem() instanceof ItemChunkTamper
+                && ItemChunkTamper.reinforceActive(held)) ReinforceGestures.clientClicked(x, y, z, player.tickCount);
+            return;
+        }
         if (player == null || !holdsTamper(held)) return;
         if (com.trmtgtnh.util.Machines.is(player)) return;
 

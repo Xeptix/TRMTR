@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "_": [
+    "Soul sand wears as sand (Xep, 2026-11-06: Let them wear). Named here because the rules refuse every block called soul and, from 1.16.5, every block short of its cell, and one block of the game's should not move that line for every mod's. Nether wart holds its square because it is planted there, as wheat is on farmland, and a path worn through a wart bed would otherwise break the crop. Mud wears as dirt (Xep, 2026-11-08: Vanilla mud wears as dirt), as the world-generation mods' muds of its class do; it is short of its cell as soul sand is, so it is named here for the same reason. Packed mud and muddy mangrove roots are not mud and are left to detection.",
+    "From the plain census of 1.20.1 (W4 R4, judged 2026-11-10), as 1.16.5's from its own. Terracotta in every color, sandstone, red sandstone, obsidian, calcite and tuff are natural rock the rules leave out: terracotta, calcite and tuff have no stone word, and sandstone and obsidian are on the decorative list so that their bricks and made blocks stay out. The amethyst block and budding amethyst are the rock of a geode's wall, on a material no rule reads. Clay is packed earth of river beds and the moss block a living top over the ground of lush caves, both on a material no rule reads. Magma, both nyliums and soul soil are the Nether's own ground with no nether word, and soul soil is refused for the soil in its name. Basalt and blackstone are only ever the Nether's ground, and the rules read the stone in their names.",
+    "Named one by one because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Stone stairs are made from stone in this game, so 1.7.10's cobble entry for them is not here.",
+    "From All the Mods 9's census (W4 R7, judged 2026-11-11), as 1.16.5's from ATM6's: the red sandstone slab is a slab of the natural rock above, which the stone family can take, and its single and doubled forms both take it. Its own entry, so the plain census's lines stand as they were. The red sandstone stairs and wall and the cut and smooth slabs were not judged and are left out.",
+    "Sculk is the deep dark's living skin and its own family (Xep, 2026-11-11: Add both families; 0.9.229, W4), judged so by this edition's plain census; its rut opens onto deepslate by the family's own list.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.20.1 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["minecraft:soul_sand"], "family": "sand" },
+    { "blocks": ["minecraft:nether_wart"], "cover": "holds" },
+    { "blocks": ["minecraft:mud"], "family": "dirt" },
+    { "blocks": ["minecraft:terracotta", "minecraft:white_terracotta", "minecraft:orange_terracotta", "minecraft:magenta_terracotta", "minecraft:light_blue_terracotta", "minecraft:yellow_terracotta", "minecraft:lime_terracotta", "minecraft:pink_terracotta", "minecraft:gray_terracotta", "minecraft:light_gray_terracotta", "minecraft:cyan_terracotta", "minecraft:purple_terracotta", "minecraft:blue_terracotta", "minecraft:brown_terracotta", "minecraft:green_terracotta", "minecraft:red_terracotta", "minecraft:black_terracotta"], "family": "stone" },
+    { "blocks": ["minecraft:sandstone", "minecraft:red_sandstone", "minecraft:obsidian"], "family": "stone" },
+    { "blocks": ["minecraft:calcite", "minecraft:tuff", "minecraft:amethyst_block", "minecraft:budding_amethyst"], "family": "stone" },
+    { "blocks": ["minecraft:clay"], "family": "dirt" },
+    { "blocks": ["minecraft:moss_block"], "family": "grass" },
+    { "blocks": ["minecraft:magma_block", "minecraft:basalt", "minecraft:blackstone", "minecraft:soul_soil", "minecraft:crimson_nylium", "minecraft:warped_nylium"], "family": "nether" },
+    { "blocks": ["minecraft:red_sandstone_slab"], "family": "stone" },
+    { "blocks": ["minecraft:sculk"], "family": "sculk" },
+    { "blocks": ["minecraft:blackstone_slab", "minecraft:blackstone_stairs"], "family": "nether" },
+    { "blocks": ["minecraft:red_sandstone_stairs", "minecraft:sandstone_slab", "minecraft:sandstone_stairs"], "family": "stone" }
+  ]
+}

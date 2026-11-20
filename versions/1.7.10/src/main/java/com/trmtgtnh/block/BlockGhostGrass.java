@@ -331,12 +331,27 @@ public class BlockGhostGrass extends BlockGrass implements GhostBlock {
 
     @Override
     public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z) {
+        float[] boxes = GhostLogic.boxBoundsAt(this, world, x, y, z);
+        if (boxes != null) {
+            // Round a data file's boxes (W3 T6); each box is drawn on its own by GhostBoxes.
+            setBlockBounds(boxes[0], boxes[1], boxes[2], boxes[3], boxes[4], boxes[5]);
+            return;
+        }
         setBlockBounds(0.0F, 0.0F, 0.0F, 1.0F, (float) GhostLogic.heightAt(this, world, x, y, z), 1.0F);
     }
 
     @Override
     public AxisAlignedBB getCollisionBoundingBoxFromPool(World world, int x, int y, int z) {
         return GhostLogic.solidBox(appearance, world, x, y, z);
+    }
+
+    /** A data file's boxes collide one by one, as the server's do (W3 T6); everything else keeps its one box. */
+    @SuppressWarnings("rawtypes")
+    @Override
+    public void addCollisionBoxesToList(World world, int x, int y, int z, AxisAlignedBB mask, java.util.List list,
+        Entity entity) {
+        if (GhostLogic.addBoxes(this, world, x, y, z, mask, list)) return;
+        super.addCollisionBoxesToList(world, x, y, z, mask, list, entity);
     }
 
     /**

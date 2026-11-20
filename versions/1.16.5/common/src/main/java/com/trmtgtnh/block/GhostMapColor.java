@@ -86,6 +86,15 @@ public final class GhostMapColor {
         if (family == null) return null;
         if (family == SurfaceFamily.GRAVEL) return MaterialColor.STONE;
         if (family == SurfaceFamily.END) return MaterialColor.SAND;
+        // The two with no vanilla block of their own report what the real block does, read from each jar: flesh's
+        // sponge material gives cloth's color, and Thaumcraft builds its taint material on grass's (0.9.229, W4
+        // T17; the 1.7.10 edition's GhostLogic.mapColor).
+        if (family == SurfaceFamily.FLESH) return MaterialColor.WOOL;
+        if (family == SurfaceFamily.TAINT) return MaterialColor.GRASS;
+        // Sculk is black on every map, as vanilla's own from 1.19 is, and fluffy cloud's packed ice gives ice's, as
+        // Twilight Forest's own cloud reports (0.9.229, W4; the 1.7.10 edition's GhostLogic.mapColor).
+        if (family == SurfaceFamily.SCULK) return MaterialColor.COLOR_BLACK;
+        if (family == SurfaceFamily.CLOUD) return MaterialColor.ICE;
         return GhostFamily.standIn(family)
             .getMapColor(null, null);
     }

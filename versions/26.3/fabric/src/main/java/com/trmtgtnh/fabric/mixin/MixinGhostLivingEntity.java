@@ -6,9 +6,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -25,6 +26,14 @@ import com.trmtgtnh.block.GhostFamily;
  * across real ice at 0.98, said they had not, and the server put them back. Forge patches both methods to ask the
  * block at the square, and the ghost answers there; these ask {@link GhostFamily} at the same moments. The square is
  * the one vanilla itself looks the block up at, noted as it does so - the only lookup either method makes.
+ *
+ * <p>
+ * <strong>The friction is changed after it is read, not redirected</strong> (0.9.229). Until 0.9.228 this was a required
+ * {@code @Redirect} of {@code Block.getFriction()}: two redirects of one call cannot both apply, Mixin skipped one, and
+ * beside Biome Makeover's redirect of the same read all of 1.16.5's Fabric 3 died before its first screen. MixinExtras'
+ * {@code @ModifyExpressionValue} takes the value the read gave - vanilla's, or another mod's redirect's, whichever
+ * Mixin applied first - and {@link GhostFamily#frictionOver} keeps it on every square but a worn one. This jar's Fabric
+ * Loader floor (0.19.5) brings MixinExtras; 1.16.5 and 1.20.1, whose floors do not, take the stored local instead.
  */
 @Mixin(LivingEntity.class)
 public abstract class MixinGhostLivingEntity {
@@ -53,10 +62,10 @@ public abstract class MixinGhostLivingEntity {
         return GhostFamily.soundOf(state, ((LivingEntity) (Object) this).level(), trmt$groundAt);
     }
 
-    @Redirect(
+    @ModifyExpressionValue(
         method = "travelInAir",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;getFriction()F"))
-    private float trmt$frictionOfTheSquare(Block block) {
-        return GhostFamily.frictionOf(block, ((LivingEntity) (Object) this).level(), trmt$groundAt);
+    private float trmt$frictionOfTheSquare(float friction) {
+        return GhostFamily.frictionOver(friction, ((LivingEntity) (Object) this).level(), trmt$groundAt);
     }
 }

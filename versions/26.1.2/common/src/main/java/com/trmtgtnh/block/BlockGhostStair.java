@@ -52,13 +52,49 @@ public class BlockGhostStair extends BlockGhost {
     public VoxelShape getOcclusionShape(BlockState state, BlockGetter world, BlockPos pos) {
         // Asked by a chunk about its own column too, in the chunk's coordinates - see BlockGhost.inWorld.
         pos = inWorld(world, pos);
-        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        BlockState stair = lightStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         if (stair == null) return getOcclusionShape(state);
         try {
             return stair.getOcclusionShape();
         } catch (RuntimeException awkwardBlock) {
             return getOcclusionShape(state);
         }
+    }
+
+    /**
+     * Whether a state is a whole opaque cube at a square: 1.21.1's {@code isSolidRender(level, pos)}, which a ghost
+     * answered for its square - asked of a worn stair at its square, and the state's own kept answer for anything else
+     * (1.0.0).
+     *
+     * <p>
+     * From 1.21.2 a state answers {@code isSolidRender()} alone, kept from its occlusion shape at no square, and the
+     * worn stair's kept shape is the whole cell (see below), so its state says it is a solid cube, which no stair is.
+     * Sodium's light cache (0.9.2 for 26.1.2, 26.2 and 26.3, {@code LightDataAccess.compute}, read from its jars) gives
+     * a cell whose state says so no light at all, and lights a face inside a block - a stair's riser and its lower
+     * tread - by that block's own cell ({@code FlatLightPipeline.calculate}, and the smooth path blends it in). So once
+     * a worn stair drew with smooth lighting off on Fabric (0.9.228), every riser and lower tread of a worn stair drew
+     * pure black under Sodium, and under smooth lighting on NeoForge too dark. The cell holds the stair's light, which
+     * the light engine let in through the open half as it does for the real stair ({@code MixinGhostBlockLight}); this
+     * is what lets Sodium read it - see {@code MixinWornStairLightSodium}, which counts each answer here.
+     */
+    public static boolean solidRenderAt(BlockState state, BlockGetter world, BlockPos pos) {
+        if (!(state.getBlock() instanceof BlockGhostStair stair)) return state.isSolidRender();
+        try {
+            return net.minecraft.world.level.block.Block.isShapeFullBlock(stair.getOcclusionShape(state, world, pos));
+        } catch (RuntimeException awkwardBlock) {
+            return state.isSolidRender();
+        }
+    }
+
+    /** How many worn stairs Sodium's light cache asked at their square this session - the proof its hook binds. */
+    private static final java.util.concurrent.atomic.AtomicLong READ_AT_SQUARE = new java.util.concurrent.atomic.AtomicLong();
+
+    public static void noteReadAtSquare() {
+        READ_AT_SQUARE.incrementAndGet();
+    }
+
+    public static long readAtSquareCount() {
+        return READ_AT_SQUARE.get();
     }
 
     /**

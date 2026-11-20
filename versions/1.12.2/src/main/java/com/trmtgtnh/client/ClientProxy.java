@@ -45,6 +45,14 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(WearTextures.class);
         MinecraftForge.EVENT_BUS.register(this);
         inspectionRead = net.minecraftforge.fml.common.Loader.isModLoaded("waila");
+        // The enabled resource packs' data files, before Trmt.preInit's first data read, and again after every
+        // resource reload (W3 spec 2.2).
+        PackData.start();
+        // Distant Horizons' far terrain told what a worn square looks like (0.9.229 W6 T17, as 1.20.1's), only where that
+        // mod is loaded: the plugin is the one class that names it, and a game without it never loads it. See DhPlugin.
+        if (net.minecraftforge.fml.common.Loader.isModLoaded("distanthorizons")) {
+            com.trmtgtnh.client.dh.DhPlugin.register();
+        }
         // The golem's renderer, handed over as a factory because the render manager that a renderer
         // needs does not exist yet. The other edition registers the object itself from here.
         net.minecraftforge.fml.client.registry.RenderingRegistry.registerEntityRenderingHandler(
@@ -193,7 +201,16 @@ public class ClientProxy extends CommonProxy {
         net.minecraft.world.chunk.Chunk chunk = event.getChunk();
         if (chunk == null || chunk.getWorld() == null || !chunk.getWorld().isRemote) return;
         if (ClientErosionCache.get()
-            .overlay(chunk.x, chunk.z) == null) return;
+            .overlay(chunk.x, chunk.z) == null) {
+            // No record yet: the server sends none for a chunk with no wear, and sends a worn chunk's statement after the
+            // chunk itself (ChunkWatchEvent.Watch), so Distant Horizons' far terrain is told only that the chunk came back
+            // bare; where no statement follows in time, whatever it remembered worn here healed while away (0.9.229 W6
+            // T17, shift 28; see DistantColors.settleBare). No chunk is handed in: this event comes before the chunk's
+            // blocks are read (NetHandlerPlayClient.handleChunkData, doPreChunk then Chunk.read), so the chunk handed over
+            // is the one held once the wait is over.
+            if (DistantColors.pluginRegistered()) DistantColors.arrivedBare(chunk.getWorld(), null, chunk.x, chunk.z);
+            return;
+        }
         OverlayPainter.get()
             .queueChunk(chunk.x, chunk.z);
     }
@@ -216,6 +233,8 @@ public class ClientProxy extends CommonProxy {
         // back still glowing: a chunk with nothing lit in it sends no light packet to say so.
         ClientLightCache.get()
             .remove(chunkX, chunkZ);
+        RelightRetry.get()
+            .forgetChunk(chunkX, chunkZ);
     }
 
     /**
@@ -233,6 +252,8 @@ public class ClientProxy extends CommonProxy {
         ClientErosionCache.get()
             .clear();
         ClientLightCache.get()
+            .clear();
+        RelightRetry.get()
             .clear();
         OverlayPainter.get()
             .clearQueue();
@@ -269,6 +290,8 @@ public class ClientProxy extends CommonProxy {
             serviceRestitch();
             return;
         }
+        // The wear backups' question in single player, once the world is in view and nothing else is open (0.9.229).
+        com.trmtgtnh.client.gui.GuiWearRestore.tick(mc);
         // The moving pictures near the player, let go of beyond the render distance once a second (SeenPictures).
         if (mc.world.getTotalWorldTime() % 20L == 0L) {
             com.trmtgtnh.client.texture.InnerLayers
@@ -311,8 +334,33 @@ public class ClientProxy extends CommonProxy {
         com.trmtgtnh.client.journeymap.JourneyMapColors.tick();
         OverlayPainter.get()
             .tick();
+        // The re-lights the game turned down while the chunks round them were still arriving, done now they are.
+        RelightRetry.get()
+            .tick(lightOf(mc.world));
+        // The chunks round the camera whose blending pass is drawn in an order sorted from somewhere else, sorted
+        // again (0.9.229, G17): a sunk window's sides otherwise come out over the tops in front of them.
+        com.trmtgtnh.client.render.TranslucentOrder.keepRound(mc);
         askAboutCrosshair(mc);
+        // At the end of the client's tick, after its clicks: whether a chunk tamper's press is still held (RL19).
+        followTheAttackKey(mc);
         serviceRestitch();
+    }
+
+    /**
+     * Tells a chunk tamper's press, each client tick, whether the attack key is still held on a block (RL19, 0.9.229).
+     *
+     * <p>
+     * The game's own reading of a held key for digging, as {@code Minecraft.runTick} hands it to
+     * {@code sendClickBlockToController}: no screen, the window in front and the key down, and the crosshair on a
+     * block. The left-clicks alone cannot say it, since the game's dig delay sends none for several ticks of a held
+     * key; see {@code ReinforceGestures.heldThrough}.
+     */
+    private static void followTheAttackKey(Minecraft mc) {
+        net.minecraft.util.math.RayTraceResult target = mc.objectMouseOver;
+        com.trmtgtnh.item.ReinforceGestures.clientTicked(
+            mc.currentScreen == null && mc.inGameHasFocus && mc.gameSettings.keyBindAttack.isKeyDown(),
+            target != null && target.typeOfHit == net.minecraft.util.math.RayTraceResult.Type.BLOCK,
+            mc.player.ticksExisted);
     }
 
     /**
@@ -587,6 +635,8 @@ public class ClientProxy extends CommonProxy {
         com.trmtgtnh.config.ServerRules.release();
         // The older server's line is said once a visit, and this is where a visit's rules are dropped (0.9.228).
         OlderServerNotice.left();
+        // And the server's protocol, so the next server is sent no message before its own rules say it reads it (RL19).
+        com.trmtgtnh.network.TrmtNetwork.leftServer();
         // Before the read and the rebuild below, so the rebuild publishes this client's own table rather
         // than publishing the visit's again.
         boolean tableHandedBack = com.trmtgtnh.surface.SurfaceRegistry.releaseServerTable();
@@ -603,6 +653,8 @@ public class ClientProxy extends CommonProxy {
             .clear();
         ClientLightCache.get()
             .clear();
+        RelightRetry.get()
+            .clear();
         // The mirror of the join, here rather than left to the next reload: a family this client had
         // switched off can have been resolved into its table for the visit, and leaving it there would go
         // on trampling ground the player's own file had said to leave alone.
@@ -613,6 +665,13 @@ public class ClientProxy extends CommonProxy {
         if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
         // A client that wore a server's chains needs its own pictures back.
         if (appearancesHandedBack) requestRestitch("Back on the materials your own config draws.");
+        // The server's rules for this player's own settings last (0.9.229): let go and read again on their own, after
+        // the hand-back above, so what the read moves is theirs alone and a rebuild of the pictures is asked for only
+        // where a setting they are built from actually changes - as a server clearing its list does.
+        if (com.trmtgtnh.config.ClientSettingsHeld.held()) {
+            com.trmtgtnh.config.ClientSettingsHeld.release();
+            com.trmtgtnh.config.ConfigReload.fromClientRules();
+        }
     }
 
     // -- packet sinks --
@@ -626,6 +685,12 @@ public class ClientProxy extends CommonProxy {
         OverlayPainter.get()
             .restoreVanished(Minecraft.getMinecraft().world, previous, keys);
         cache.put(chunkX, chunkZ, ClientErosionCache.build(chunkX, chunkZ, keys, states, previous));
+        // Distant Horizons' far terrain told of every square this statement no longer lists, healed while away or just
+        // lifted above, so it stops drawing them worn (0.9.229 W6 T17; see DistantColors). Nothing where it is not loaded.
+        if (DistantColors.pluginRegistered()) {
+            net.minecraft.client.multiplayer.WorldClient world = Minecraft.getMinecraft().world;
+            DistantColors.restated(world, heldChunk(world, chunkX, chunkZ), chunkX, chunkZ, keys, previous);
+        }
         // Any square already painted whose record has just crossed into or out of sunk. See relightIfMoved.
         if (keys != null && states != null) {
             for (int i = 0; i < keys.length && i < states.length; i++) {
@@ -668,7 +733,34 @@ public class ClientProxy extends CommonProxy {
         BlockPos pos = new BlockPos(x, y, z);
         if (!(world.getBlockState(pos)
             .getBlock() instanceof com.trmtgtnh.block.BlockGhost)) return;
-        world.checkLight(pos);
+        // Through the retry rather than straight to the world: the world re-lights nothing unless every chunk
+        // within sixteen blocks is loaded, says nothing when it refuses, and is never asked again (RelightRetry).
+        RelightRetry.get()
+            .relight(lightOf(world), x, y, z);
+    }
+
+    /**
+     * The world as {@link RelightRetry} asks it: whether the game will re-light a square now, by the game's own test,
+     * the re-light, and the redraw after it.
+     */
+    static RelightRetry.Light lightOf(final net.minecraft.world.World world) {
+        return new RelightRetry.Light() {
+
+            @Override
+            public boolean loadedRound(int x, int y, int z) {
+                return world.isAreaLoaded(new BlockPos(x, y, z), RelightRetry.LIGHT_REACH, false);
+            }
+
+            @Override
+            public void relight(int x, int y, int z) {
+                world.checkLight(new BlockPos(x, y, z));
+            }
+
+            @Override
+            public void redraw(int x0, int y0, int z0, int x1, int y1, int z1) {
+                world.markBlockRangeForRenderUpdate(x0, y0, z0, x1, y1, z1);
+            }
+        };
     }
 
     /** Whether a record moving from one state to the other changes the square's answer to the light engine. */
@@ -691,6 +783,12 @@ public class ClientProxy extends CommonProxy {
                 .restoreSingle(Minecraft.getMinecraft().world, chunkX, chunkZ, key, previous.originAt(key));
         }
         cache.put(chunkX, chunkZ, ClientErosionCache.withSingle(previous, chunkX, chunkZ, key, state));
+        // Distant Horizons' far terrain told the square has healed, so it stops drawing it worn (0.9.229 W6 T17; see
+        // DistantColors). Nothing where it is not loaded.
+        if (state == com.trmtgtnh.erosion.ErosionState.NONE && DistantColors.pluginRegistered()) {
+            net.minecraft.client.multiplayer.WorldClient world = Minecraft.getMinecraft().world;
+            DistantColors.cleared(world, heldChunk(world, chunkX, chunkZ), x, y, z, previous != null && previous.indexOf(key) >= 0);
+        }
         relightIfMoved(
             previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(key),
             state,
@@ -711,6 +809,12 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public void handleClearAll() {
+        // The chunks that held wear, for Distant Horizons' far terrain below: taken before the caches go.
+        java.util.List<long[]> held = new java.util.ArrayList<long[]>();
+        if (DistantColors.pluginRegistered()) {
+            for (ClientErosionCache.ChunkOverlay overlay : ClientErosionCache.get()
+                .overlays()) held.add(new long[] { overlay.chunkX, overlay.chunkZ });
+        }
         // Put back before the caches go, since the caches are the only record of what to put back.
         OverlayPainter.get()
             .restoreAll();
@@ -718,6 +822,24 @@ public class ClientProxy extends CommonProxy {
             .clear();
         ClientLightCache.get()
             .clear();
+        RelightRetry.get()
+            .clear();
+        // Distant Horizons' far terrain: nothing remembered stands, and each chunk whose ghosts were just lifted is
+        // handed to it again (0.9.229 W6 T17; see DistantColors).
+        DistantColors.forgetAll();
+        net.minecraft.client.multiplayer.WorldClient world = Minecraft.getMinecraft().world;
+        for (long[] chunk : held) {
+            DistantColors.painted(world, heldChunk(world, (int) chunk[0], (int) chunk[1]), (int) chunk[0], (int) chunk[1]);
+        }
+    }
+
+    /**
+     * A chunk of the client's world as it holds it, or null where it holds none - for Distant Horizons to read again,
+     * which must never be handed the empty stand-in the client gives for a chunk it has not got (0.9.229 W6 T17). Asked
+     * of DistantColors.heldChunk, the same answer it gives for whether a chunk is held (shift 28).
+     */
+    static Object heldChunk(net.minecraft.client.multiplayer.WorldClient world, int chunkX, int chunkZ) {
+        return DistantColors.heldChunk(world, chunkX, chunkZ);
     }
 
     @Override
@@ -865,16 +987,17 @@ public class ClientProxy extends CommonProxy {
 
         if (packedOrigin >= 0 && com.trmtgtnh.erosion.GroundCover.holdsAt(world, x, y, z)) {
             IBlockState under = net.minecraft.block.Block.getStateById(packedOrigin);
-            com.trmtgtnh.surface.SurfaceFamily base = com.trmtgtnh.surface.SurfaceRegistry.familyOf(
+            // The chain the block underneath follows: its own, where a data file gives it one (W3 T9).
+            com.trmtgtnh.erosion.ErosionChain.Chain chain = com.trmtgtnh.surface.SurfaceRegistry.chainOf(
                 under.getBlock(),
                 under.getBlock()
                     .getMetaFromState(under));
-            int flat = base == null ? -1 : com.trmtgtnh.erosion.ErosionChain.lastFlatIndex(base);
+            int flat = chain.base == null ? -1 : chain.lastFlatIndex();
             if (flat >= 0) {
-                int at = com.trmtgtnh.erosion.ErosionChain.indexOf(base, appearance, layer, sink);
+                int at = chain.indexOf(appearance, layer, sink);
                 if (at < 0 || at > flat) {
-                    com.trmtgtnh.surface.SurfaceFamily held = com.trmtgtnh.erosion.ErosionChain.familyAt(base, flat);
-                    int heldLayer = com.trmtgtnh.erosion.ErosionChain.stageAt(base, flat);
+                    com.trmtgtnh.surface.SurfaceFamily held = chain.familyAt(flat);
+                    int heldLayer = chain.stageAt(flat);
                     if (held != null && heldLayer >= 0) {
                         appearance = held;
                         layer = heldLayer;
@@ -885,8 +1008,10 @@ public class ClientProxy extends CommonProxy {
             }
         }
 
-        if (sink > 0 && com.trmtgtnh.config.TrmtConfig.flattenWearUnderBlocks
-            && OverlayPainter.covered(world, x, y, z)) {
+        // A solid block standing on it holds it full on both sides whatever this player's settings say (0.9.229): see
+        // GroundCover.roofedAt. Under a full drift the settings decide, as they always have.
+        if (sink > 0 && (com.trmtgtnh.erosion.GroundCover.roofedAt(world, x, y, z)
+            || com.trmtgtnh.config.TrmtConfig.flattenWearUnderBlocks && OverlayPainter.covered(world, x, y, z))) {
             sink = 0;
             changed = true;
         }
@@ -917,6 +1042,14 @@ public class ClientProxy extends CommonProxy {
         if (world == null || pos == null) return;
         com.trmtgtnh.client.model.GhostDust
             .hold(com.trmtgtnh.erosion.ErosionState.familyOf(ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())));
+    }
+
+    @Override
+    public int gameTurnAt(short record, int origin, int x, int y, int z) {
+        if (com.trmtgtnh.erosion.ErosionState.sinkOf(record) > 0 || !com.trmtgtnh.client.texture.WearTurns.START_GAME
+            .equals(com.trmtgtnh.client.texture.WearTurns.start(com.trmtgtnh.config.TrmtConfig.wearTurnStart)))
+            return 0;
+        return com.trmtgtnh.client.model.GhostBakedModel.gameTurn(new net.minecraft.util.math.BlockPos(x, y, z), origin);
     }
 
     @Override
@@ -976,6 +1109,11 @@ public class ClientProxy extends CommonProxy {
         // Whether snow and carpet settle is the server's now (0.9.223), and it decides the footing as well as the
         // picture: the set both read is made again from what was just held.
         com.trmtgtnh.erosion.PhysicalDecay.markSettlingBlocks();
+        // Faithful Mode is the server's for the visit (0.9.229 W5, spec 2.7): where its switch is not the one this
+        // client wears by, the settings are read again, which writes Faithful Mode's numbers in or gives the player's
+        // back, and builds the server's chains. Leaving reads the file with the rules released, so its own switch.
+        boolean faithfulMoved = com.trmtgtnh.config.ServerRules.faithfulMoved();
+        if (faithfulMoved) com.trmtgtnh.config.TrmtConfig.read();
 
         if (forceOverlay && !wasForced && !com.trmtgtnh.config.TrmtConfig.showErosion) {
             OverlayPainter.get()
@@ -1004,7 +1142,7 @@ public class ClientProxy extends CommonProxy {
             // showing any wear at the point it reached it.
             requestRestitch("This server's ground wears through to different materials than your config draws.");
         }
-        if (com.trmtgtnh.config.ServerRules.overrode() > 0 && restitchWanted == null) {
+        if ((com.trmtgtnh.config.ServerRules.overrode() > 0 || faithfulMoved) && restitchWanted == null) {
             // What a worn block draws, and how deep, is worked out from the live settings as a chunk's mesh
             // is built, so geometry that moved under an already-built chunk goes on showing the old
             // picture until the meshes are built again. Skipped when a stitch has just been queued,
@@ -1012,6 +1150,61 @@ public class ClientProxy extends CommonProxy {
             Minecraft mc = Minecraft.getMinecraft();
             if (mc.renderGlobal != null) mc.renderGlobal.loadRenderers();
         }
+    }
+
+    /**
+     * Takes a server's rules for this player's own settings (0.9.229; Xep, 2026-11-18), at join and whenever the
+     * server's list changes. Nothing is taken in a world of one's own: the host's settings are its own. Where anything
+     * held moved, the settings are read again with the rules in and acted on as the settings screen's Done is, so a
+     * setting that rebuilds the wear pictures asks for one rebuild, which a join's own rebuild shares; the file is not
+     * saved and never holds a server's value.
+     */
+    @Override
+    public void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {
+        if (com.trmtgtnh.Trmt.runningServer() != null) return;
+        boolean wasHeld = com.trmtgtnh.config.ClientSettingsHeld.held();
+        if (!com.trmtgtnh.config.ClientSettingsHeld.hold(rules)) return;
+        com.trmtgtnh.config.ConfigReload.fromClientRules();
+        int count = com.trmtgtnh.config.ClientSettingsHeld.count();
+        if (count > 0 || wasHeld) {
+            com.trmtgtnh.Trmt.LOG.info(
+                "This server sets {} of your TRMT settings for the visit; your own file is untouched and they come back when you leave",
+                Integer.valueOf(count));
+        }
+        tellClientRules(count, wasHeld);
+    }
+
+    /** The player's one line about a server's rules for their settings, from the shared words. */
+    private void tellClientRules(int count, boolean wasHeld) {
+        if (count <= 0 && !wasHeld) return;
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.player == null) return;
+        net.minecraft.util.text.ITextComponent line;
+        if (count <= 0) {
+            line = new net.minecraft.util.text.TextComponentTranslation(
+                com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_NONE);
+        } else if (count == 1) {
+            line = new net.minecraft.util.text.TextComponentTranslation(
+                com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_ONE);
+        } else {
+            line = new net.minecraft.util.text.TextComponentTranslation(
+                com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_MANY,
+                Integer.valueOf(count));
+        }
+        int notHere = count > 0 ? com.trmtgtnh.config.ClientSettingsHeld.notApplying()
+            .size() : 0;
+        if (notHere > 0) {
+            line.appendText("; ");
+            line.appendSibling(
+                new net.minecraft.util.text.TextComponentTranslation(
+                    com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_NOT_HERE,
+                    Integer.valueOf(notHere)));
+        }
+        net.minecraft.util.text.ITextComponent said = new net.minecraft.util.text.TextComponentString("[TRMT] ")
+            .appendSibling(line);
+        said.getStyle()
+            .setColor(net.minecraft.util.text.TextFormatting.GRAY);
+        mc.player.sendMessage(said);
     }
 
     /**
@@ -1070,8 +1263,11 @@ public class ClientProxy extends CommonProxy {
             return;
         }
         com.trmtgtnh.surface.SurfaceTableCodec.Table decoded;
+        com.trmtgtnh.surface.ChainTable.Unwrapped sent;
         try {
-            decoded = com.trmtgtnh.surface.SurfaceTableCodec.decode(bytes);
+            // The codec's table, with the blocks' own chains after it (W3 T9).
+            sent = com.trmtgtnh.surface.ChainTable.unwrap(bytes);
+            decoded = com.trmtgtnh.surface.SurfaceTableCodec.decode(sent.table);
         } catch (IllegalArgumentException malformed) {
             tableAskedFor = fingerprint;
             com.trmtgtnh.Trmt.LOG.warn("This server's surface table could not be read; keeping your own", malformed);
@@ -1079,7 +1275,7 @@ public class ClientProxy extends CommonProxy {
         }
         OverlayPainter painter = OverlayPainter.get();
         painter.restoreAll();
-        if (!com.trmtgtnh.surface.SurfaceRegistry.holdServerTable(decoded, holdsSwitch, fingerprint)) {
+        if (!com.trmtgtnh.surface.SurfaceRegistry.holdServerTable(decoded, sent.chains, holdsSwitch, fingerprint)) {
             // Nothing was held, so the table in use is still this client's own; the ground is only put back
             // as it was.
             tableAskedFor = fingerprint;
@@ -1164,6 +1360,12 @@ public class ClientProxy extends CommonProxy {
      * queued after the rebuild only says how many blocks with wear of their own now carry another id.
      */
     @Override
+    public boolean onClientThread() {
+        return Minecraft.getMinecraft()
+            .isCallingFromMinecraftThread();
+    }
+
+    @Override
     public void idsMoved() {
         boolean inPlace = Minecraft.getMinecraft()
             .isCallingFromMinecraftThread()
@@ -1222,6 +1424,18 @@ public class ClientProxy extends CommonProxy {
     }
 
     @Override
+    public boolean physicalClient() {
+        return true;
+    }
+
+    /** The world's own server has found wear lost: its question, shown once the player is in the world (0.9.229). */
+    @Override
+    public void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+        boolean dataPutBack) {
+        com.trmtgtnh.client.gui.GuiWearRestore.offer(chunks, newestBackupMillis, newerWorld, mirrorHolds, dataPutBack);
+    }
+
+    @Override
     public void openTamperScreen(net.minecraft.item.ItemStack stack) {
         if (stack == null) return;
         Minecraft.getMinecraft()
@@ -1270,6 +1484,51 @@ public class ClientProxy extends CommonProxy {
                     + "[TRMT] Your look changed for now, but the config file failed to read, so it will not be kept. Fix it and use /trmt reload.");
         }
         requestRestitch("Your wear look changed.");
+    }
+
+    /**
+     * Turns classic wear on or off for this client, for one family or (family null) for every family with a classic
+     * look, and remembers it: the switch written to the config, every family's look worked out again from what its
+     * file names ({@link com.trmtgtnh.config.FamilySettings#effectiveLook}), and the atlas rebuilt, as a look chosen
+     * in the wear table is.
+     */
+    @Override
+    public void setClassicWear(com.trmtgtnh.surface.SurfaceFamily family, boolean on) {
+        com.trmtgtnh.config.ConfigFile config = com.trmtgtnh.config.TrmtConfig.raw();
+        String category = family == null ? com.trmtgtnh.config.TrmtConfig.CATEGORY_CLIENT
+            : com.trmtgtnh.config.TrmtConfig.CATEGORY_FAMILIES + com.trmtgtnh.config.ConfigFile.CATEGORY_SPLITTER
+                + family.key();
+        if (family == null) {
+            com.trmtgtnh.config.TrmtConfig.classicWear = on;
+        } else {
+            com.trmtgtnh.config.FamilySettings settings = com.trmtgtnh.config.TrmtConfig.family(family);
+            if (settings == null || com.trmtgtnh.config.FamilySettings.classicLook(family) == null) return;
+            settings.classicWear = on;
+        }
+        for (com.trmtgtnh.surface.SurfaceFamily each : com.trmtgtnh.surface.SurfaceFamily.values()) {
+            com.trmtgtnh.config.FamilySettings settings = com.trmtgtnh.config.TrmtConfig.family(each);
+            if (settings == null || com.trmtgtnh.config.FamilySettings.classicLook(each) == null) continue;
+            String chosen = settings.wearPattern;
+            if (config != null) {
+                com.trmtgtnh.config.ConfigFile.Setting look = config
+                    .getCategory(
+                        com.trmtgtnh.config.TrmtConfig.CATEGORY_FAMILIES + com.trmtgtnh.config.ConfigFile.CATEGORY_SPLITTER
+                            + each.key())
+                    .get("wearPattern");
+                if (look != null) chosen = look.getString();
+            }
+            settings.wearPattern = com.trmtgtnh.config.FamilySettings
+                .effectiveLook(each, chosen, com.trmtgtnh.config.TrmtConfig.classicWear, settings.classicWear);
+        }
+        if (config != null) {
+            com.trmtgtnh.config.ConfigFile.Setting property = config.getCategory(category)
+                .get("classicWear");
+            if (property != null) {
+                property.set(on);
+                com.trmtgtnh.config.TrmtConfig.save();
+            }
+        }
+        requestRestitch("Classic wear " + (on ? "on." : "off."));
     }
 
     @Override

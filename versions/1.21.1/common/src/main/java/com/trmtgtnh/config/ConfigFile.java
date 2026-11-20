@@ -8,6 +8,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -110,6 +111,12 @@ public final class ConfigFile {
 
     /** Categories in the order they were first asked for, which is the order they are written. */
     private final Map<String, Category> categories = new LinkedHashMap<String, Category>();
+
+    /**
+     * Every heading's keys in the order the code asked for them, by the heading's name (0.9.229): what
+     * {@link #applyOrder} hands each heading, as 1.7.10's {@code OrderedConfiguration} notes every typed {@code get}.
+     */
+    private final Map<String, LinkedHashSet<String>> declared = new LinkedHashMap<String, LinkedHashSet<String>>();
 
     private boolean changed;
 
@@ -523,6 +530,7 @@ public final class ConfigFile {
     /** A list setting, made at the default if the file had none. */
     public Setting get(String category, String name, String[] def, String comment) {
         Category into = category(category);
+        note(into, name);
         Setting setting = into.settings.get(name);
         if (setting == null) {
             setting = new Setting(name, 'S', comment);
@@ -617,6 +625,35 @@ public final class ConfigFile {
     }
 
     /**
+     * A list of fractional numbers with bounds for the screen to draw, as Forge's own: Faithful Mode's heal days per
+     * stage (0.9.229 W5). As Forge's {@code Configuration.get} with a {@code double[]}, a held list any entry of which is
+     * not a number is put back to the default whole, and the bounds go to the screen alone.
+     */
+    public Setting get(String category, String name, double[] def, String comment, double min, double max,
+        boolean fixedLength, int maxLength) {
+        String[] asText = new String[def.length];
+        for (int i = 0; i < def.length; i++) {
+            asText[i] = Double.toString(def[i]);
+        }
+        Setting setting = get(category, name, asText, comment);
+        setting.type = 'D';
+        // No range line: Forge writes none for a list, only the bounds the screen reads.
+        setting.bound(min, max);
+        boolean numbers = true;
+        for (String each : setting.values) {
+            if (!parses(each, true)) {
+                numbers = false;
+                break;
+            }
+        }
+        if (!numbers) {
+            setting.values = new ArrayList<String>(java.util.Arrays.asList(asText));
+            changed = true;
+        }
+        return setting;
+    }
+
+    /**
      * Whether a held value is a number at all, which is the only thing Forge checks.
      *
      * <p>
@@ -637,6 +674,7 @@ public final class ConfigFile {
 
     private Setting ask(String category, String name, char type, String def, String comment) {
         Category into = category(category);
+        note(into, name);
         Setting setting = into.settings.get(name);
         if (setting == null) {
             setting = new Setting(name, type, comment);
@@ -648,6 +686,45 @@ public final class ConfigFile {
         setting.type = type;
         setting.def = def == null ? "" : def;
         return setting;
+    }
+
+    /** A key asked for under a heading, noted in the order asked: every typed get comes through here. */
+    private void note(Category into, String name) {
+        LinkedHashSet<String> keys = declared.get(into.name);
+        if (keys == null) {
+            keys = new LinkedHashSet<String>();
+            declared.put(into.name, keys);
+        }
+        keys.add(name);
+    }
+
+    /**
+     * Puts every heading's settings in the order the code declares them, but for the headings named, which keep their
+     * own (0.9.229; 0.9.228, Xep: "Declared order everywhere"), on the screen and in the file alike, as 1.7.10's
+     * {@code OrderedConfiguration.applyOrder} hands Forge the order. A heading read from a file is otherwise held in the
+     * file's order, and a setting new to the file goes after everything it already held: over a file 0.9.228 wrote,
+     * Faithful Mode's switch, declared first, was listed under Rut depth. A setting the file holds that nothing declares
+     * stays after them. Order alone is not a change to save.
+     */
+    public void applyOrder(String... ownOrder) {
+        java.util.Set<String> leave = new java.util.HashSet<String>();
+        for (String heading : ownOrder) {
+            leave.add(heading.toLowerCase(java.util.Locale.ROOT));
+        }
+        for (Map.Entry<String, LinkedHashSet<String>> heading : declared.entrySet()) {
+            Category category = categories.get(heading.getKey());
+            if (category == null || leave.contains(heading.getKey())) continue;
+            Map<String, Setting> ordered = new LinkedHashMap<String, Setting>();
+            for (String key : heading.getValue()) {
+                Setting setting = category.settings.get(key);
+                if (setting != null) ordered.put(key, setting);
+            }
+            for (Map.Entry<String, Setting> held : category.settings.entrySet()) {
+                if (!ordered.containsKey(held.getKey())) ordered.put(held.getKey(), held.getValue());
+            }
+            category.settings.clear();
+            category.settings.putAll(ordered);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -970,6 +1047,20 @@ public final class ConfigFile {
         private boolean changed;
 
         /**
+         * Whether this setting has been edited since the file was last read or written, for a server's rules for a
+         * player's own settings (0.9.229, ClientSettingsHeld): a read with a server's values in puts every setting back
+         * as it found it, this mark with its value, so a visit alone never makes the next save write the file.
+         */
+        boolean edited() {
+            return changed;
+        }
+
+        /** Puts this setting's edited mark back as {@link #edited()} found it. */
+        void edited(boolean was) {
+            changed = was;
+        }
+
+        /**
          * What the code asked for, which is not what the file holds.
          *
          * <p>
@@ -1130,6 +1221,25 @@ public final class ConfigFile {
             int[] exact = new int[kept];
             System.arraycopy(held, 0, exact, 0, kept);
             return exact;
+        }
+
+        /** This list as fractional numbers, skipping anything that is not one, as Forge's {@code getDoubleList}. */
+        public double[] getDoubleList() {
+            if (values == null) return new double[0];
+            List<Double> held = new ArrayList<Double>();
+            for (String each : values) {
+                try {
+                    held.add(Double.valueOf(Double.parseDouble(each)));
+                } catch (NumberFormatException notANumber) {
+                    // Skipped, as Forge skips it.
+                }
+            }
+            double[] out = new double[held.size()];
+            for (int i = 0; i < out.length; i++) {
+                out[i] = held.get(i)
+                    .doubleValue();
+            }
+            return out;
         }
 
         /** This setting as a whole number, or nought if it is not one. */

@@ -130,7 +130,21 @@ public final class UpdateNotice {
                 .get(REQUIRED[at][0]);
             out[at] = new String[] { REQUIRED[at][0], REQUIRED[at][1], mod == null ? null : mod.getVersion() };
         }
-        return out;
+        return wanted(out, com.trmtgtnh.core.TrmtLoadingPlugin.registeredWithoutMixinBooter());
+    }
+
+    /**
+     * The required mods this game wants (G17 R5, 2026-11-11): all of them, but MixinBooter not where it is absent and
+     * this mod's mixins run under the Mixin another mod booted - RLCraft's way, where MixinBooter cannot even start, and
+     * a line saying this mod needs it would send the player for the crash.
+     */
+    public static String[][] wanted(String[][] installed, boolean registeredWithoutMixinBooter) {
+        java.util.List<String[]> out = new java.util.ArrayList<String[]>();
+        for (String[] mod : installed) {
+            if (registeredWithoutMixinBooter && mod != null && "mixinbooter".equals(mod[0]) && mod[2] == null) continue;
+            out.add(mod);
+        }
+        return out.toArray(new String[out.size()][]);
     }
 
     /** What /trmt version says (0.9.227): this jar, the newest build for it, and its required mods (VersionReport). */

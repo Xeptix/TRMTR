@@ -14,12 +14,16 @@
     "MixinPackRepository",
     "MixinViaRomanaPathBlock",
     "MixinViaRomanaTrip",
-    "MixinPlayerArrives"
+    "MixinPlayerArrives",
+    "MixinPistonCarriesWear",
+    "MixinFaithfulBrush"
   ],
   "client": [
     "MixinJadeHarvestLine",
     "MixinWthitHarvestLine",
-    "MixinSettledFacesSodium"
+    "MixinSettledFacesSodium",
+    "MixinClothDrawsItsDirt",
+    "MixinSavingIndicator"
   ],
   "injectors": {
     "defaultRequire": 1

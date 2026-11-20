@@ -110,7 +110,10 @@ public final class Tooltips {
             Font font = mc == null ? null : mc.font;
             // No font yet is not a case worth being clever about: it cannot happen while a tooltip is
             // being drawn, and the honest fallback is the line exactly as it was written.
-            if (font == null) return delegate.add(new TextComponent(entry));
+            // Search index workers can ask for tooltips off the render thread. The font
+            // splitter may bake glyphs, so keep the line whole for those callers.
+            if (font == null || !com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread())
+                return delegate.add(new TextComponent(entry));
 
             List<FormattedText> split = font.getSplitter()
                 .splitLines(entry, room(), Style.EMPTY);

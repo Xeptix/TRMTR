@@ -62,6 +62,38 @@ public final class ForgeEvents {
     }
 
     // ------------------------------------------------------------------
+    // Data packs (W3 spec 2.2; T18)
+    // ------------------------------------------------------------------
+
+    /**
+     * The data packs' data files, read on every data reload - the world's first load and every {@code /reload} - by a
+     * listener of the server's own reload. See {@code dataload.DataPackListener}.
+     */
+    @SubscribeEvent
+    public static void onAddReloadListener(net.minecraftforge.event.AddReloadListenerEvent event) {
+        event.addListener(new com.trmtgtnh.dataload.DataPackListener());
+    }
+
+    /**
+     * A data reload is over and its tags are bound: the surface table is resolved from the files just read, with every
+     * tag a file names. Forge 64 to 66 (26.1.2, 26.2, 26.3) never post {@code TagsUpdatedEvent} with the cause
+     * SERVER_DATA_LOAD, which 1.20.1 and 1.21.1 posted from {@code ReloadableServerResources}: the only place the
+     * game's code posts that event now is {@code ClientPacketListener}, for tags a client receives, so a handler on it
+     * never ran for a server's reload and a data pack's families were read and never resolved (found 2026-11-07 in
+     * the spike walk's api part: clay and an oak slab left out of the data pack's dirt).
+     * {@code PlayerList.reloadResources} posts {@code OnDatapackSyncEvent} with no player once the reload's tags are
+     * bound ({@code MinecraftServer.reloadResources} binds them first), on the server thread; a player joining posts
+     * it with that player, which is not a reload and is left alone. At a world's first load neither is posted and
+     * the table is resolved as the server starts, as before.
+     */
+    @SubscribeEvent
+    public static void onDatapackSync(net.minecraftforge.event.OnDatapackSyncEvent event) {
+        if (event.getPlayer() == null) {
+            ServerEvents.dataReloaded();
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Movement
     // ------------------------------------------------------------------
 

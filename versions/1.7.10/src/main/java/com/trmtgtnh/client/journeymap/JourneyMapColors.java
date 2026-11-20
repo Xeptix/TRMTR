@@ -275,7 +275,13 @@ public final class JourneyMapColors {
                         x,
                         y,
                         z,
-                        wornFraction(walking, wearMeta, x, y, z),
+                        wornFraction(
+                            walking,
+                            base == null ? null : SurfaceRegistry.throughOf(origin, originMeta),
+                            wearMeta,
+                            x,
+                            y,
+                            z),
                         originColor(chunkMd, origin, originMeta, x, y, z),
                         GhostRendering.mapFallbackColor(endOf(walking)));
                 }
@@ -284,7 +290,7 @@ public final class JourneyMapColors {
                 x,
                 y,
                 z,
-                wornFraction(appearance, wearMeta, x, y, z),
+                wornFraction(appearance, null, wearMeta, x, y, z),
                 GhostRendering.mapFallbackColor(appearance),
                 GhostRendering.mapFallbackColor(endOf(appearance)));
         }
@@ -333,9 +339,11 @@ public final class JourneyMapColors {
          * state the client already draws from, and with both the chain can say exactly which of
          * its eighty steps this is.
          */
-        private float wornFraction(SurfaceFamily base, int layer, int x, int y, int z) {
+        private float wornFraction(SurfaceFamily base, SurfaceFamily[] through, int layer, int x, int y, int z) {
             if (base == null) return 0f;
-            int length = ErosionChain.length(base);
+            // Along the chain the block follows: its own, where a data file gives it one (W3 T9).
+            ErosionChain.Chain chain = ErosionChain.of(base, through);
+            int length = chain.length();
             if (length <= 1) return 0f;
             int sink = 0;
             try {
@@ -345,7 +353,7 @@ public final class JourneyMapColors {
             } catch (Throwable ignore) {
                 // A read racing a chunk unload. No sink is the least-worn answer, and harmless.
             }
-            int index = ErosionChain.indexOf(base, appearance, layer, sink);
+            int index = chain.indexOf(appearance, layer, sink);
             if (index < 0) index = 0;
             if (index > length - 1) index = length - 1;
             return index / (float) (length - 1);

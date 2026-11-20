@@ -5,8 +5,10 @@ import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.trmtgtnh.apiload.ApiLoad;
 import com.trmtgtnh.command.CommandTrmt;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.dataload.DataLoad;
 import com.trmtgtnh.erosion.ErosionEngine;
 import com.trmtgtnh.erosion.ErosionStore;
 import com.trmtgtnh.erosion.PhysicalDecay;
@@ -99,6 +101,12 @@ public final class Trmt {
         TrmtConfig.load(event.getSuggestedConfigurationFile());
         TrmtNetwork.init();
         proxy.preInit();
+        // The data files (W3 spec 2.2): after the config, whose folder holds config/trmtr, and after the client proxy
+        // has read the enabled resource packs; before the first resolve in init, which T5 feeds from this table.
+        DataLoad.read();
+        // trmtr-api (W3 spec 2.5): TRMTR installed, the shading check, and every plugin the read listed loaded - after
+        // the data read, which lists them from mod jars' plugin.json, and before the first resolve in init.
+        ApiLoad.start();
     }
 
     @Mod.EventHandler
@@ -126,6 +134,9 @@ public final class Trmt {
 
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
+        // Every mod's blocks and entities are registered now, so the pre-init data read's summary can count the names
+        // its files give that are not installed.
+        DataLoad.registered();
         // Again, now that every other mod has finished registering. Anything that appeared
         // since init is picked up; a second pass that finds nothing new writes nothing.
         SurfaceRegistry.resolve();
@@ -255,7 +266,12 @@ public final class Trmt {
         // client's disconnect, which in single player ran while this server was still shutting
         // down and could discard a reload it had queued; the client's queue is its own business.
         com.trmtgtnh.util.MainThread.clearServer();
+        // And the changes a last chunk load left for a tick that will not come: the world they name has gone.
+        com.trmtgtnh.apiload.ApiHooks.dropHeld();
         com.trmtgtnh.compat.QuestbookCompat.forgetWorld();
+        // The wear mirror's last writes and the backups' record, before the store forgets the world (0.9.229).
+        com.trmtgtnh.server.WearBackups.get()
+            .serverStopped();
         ErosionStore.get()
             .clearMemory();
         ErosionEngine.get()

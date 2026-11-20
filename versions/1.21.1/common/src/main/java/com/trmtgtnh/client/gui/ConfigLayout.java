@@ -25,7 +25,7 @@ import com.trmtgtnh.util.OldNames;
  * <p>
  * The tabs begin with the headings Forge's screen here names ({@link #HEADINGS}, spec CF58), in the same order, so the
  * two screens agree where they overlap; then the six categories the file alone held until 0.9.228 (Xep: they "become
- * tabs"), and the twelve families are not tabs of their own but sub-tabs under Surfaces. The 1.7.10 edition and the
+ * tabs"), and the sixteen families are not tabs of their own but sub-tabs under Surfaces. The 1.7.10 edition and the
  * others carry a class of this name with the same answers; this one reads the mod's own {@link ConfigFile}, and also
  * says what a block or mob line of Cloth Config's screen stands for, which is this edition's other screen.
  */
@@ -55,7 +55,9 @@ public final class ConfigLayout {
             TrmtConfig.CATEGORY_WEATHER));
 
     /**
-     * The six categories only the file held until 0.9.228, which became tabs then (spec S2), after Forge's headings.
+     * The six categories only the file held until 0.9.228, which became tabs then (spec S2), after Forge's headings;
+     * then the conversion of the original mod's worlds (0.9.229 W5, spec 2.9), a heading only the editions that convert
+     * have.
      */
     static final List<String> FILE_ONLY = Collections.unmodifiableList(
         Arrays.asList(
@@ -64,7 +66,8 @@ public final class ConfigLayout {
             TrmtConfig.CATEGORY_WARD,
             TrmtConfig.CATEGORY_LIGHT,
             TrmtConfig.CATEGORY_INTEGRATION,
-            TrmtConfig.CATEGORY_SPAWN_ITEMS));
+            TrmtConfig.CATEGORY_SPAWN_ITEMS,
+            TrmtConfig.CATEGORY_CONVERSION));
 
     /** Every tab the own screen can show, in its order (spec M1.1): Forge's headings, then the six. */
     /**
@@ -366,6 +369,8 @@ public final class ConfigLayout {
             return ListLine.Kind.ITEM_OR_FLUID;
         }
         if (TrmtConfig.CATEGORY_LIGHT.equals(category) && "materials".equals(key)) return ListLine.Kind.ITEM;
+        // The plants Faithful Mode tramples, as this edition names them: block and metadata (0.9.229 W5).
+        if ("faithful.vegetation".equals(category) && "blocks".equals(key)) return ListLine.Kind.BLOCK;
         if (TrmtConfig.CATEGORY_WARD.equals(category)
             && ("hostileMaterials".equals(key) || "passiveMaterials".equals(key))) {
             return ListLine.Kind.ITEM;

@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "Create, from ATM6's census (W4 R6, judged 2026-11-11). Dolomite, gabbro and natural scoria are natural rock its worlds lay in the ground, and the rules leave them out for having no stone word. Named one by one, only the blocks that census saw and judged, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Their bricks, cobblestones, pillars, slabs, stairs and walls, and plain scoria, were not judged and are left to the rules."
+  ],
+  "entries": [
+    { "blocks": ["create:dolomite", "create:gabbro", "create:natural_scoria"], "family": "stone" }
+  ]
+}

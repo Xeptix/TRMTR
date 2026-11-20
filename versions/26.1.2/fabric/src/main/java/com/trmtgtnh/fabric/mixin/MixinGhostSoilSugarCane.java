@@ -2,13 +2,14 @@ package com.trmtgtnh.fabric.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.SugarCaneBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.trmtgtnh.block.GhostInherit;
 
 /**
@@ -20,17 +21,21 @@ import com.trmtgtnh.block.GhostInherit;
  * answer for a reed is the same blocks and the same water; here the block below is read as the covered block instead.
  * Only that read - the first this method makes; the water is looked for in the world, as Forge looks for it. See
  * {@link MixinGhostSoilBush}.
+ *
+ * <p>
+ * <strong>The read is wrapped, not redirected</strong> (0.9.229), as {@link MixinGhostSoilCactus} wraps it, so another
+ * mod's {@code @Redirect} of the same read still applies and its answer is kept on every square but a worn one.
  */
 @Mixin(SugarCaneBlock.class)
 public abstract class MixinGhostSoilSugarCane {
 
-    @Redirect(
+    @WrapOperation(
         method = "canSurvive",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/world/level/LevelReader;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;",
             ordinal = 0))
-    private BlockState trmt$theCoveredBlockBelow(LevelReader world, BlockPos below) {
-        return GhostInherit.soilFor(world.getBlockState(below), below);
+    private BlockState trmt$theCoveredBlockBelow(LevelReader world, BlockPos below, Operation<BlockState> read) {
+        return GhostInherit.soilFor(read.call(world, below), below);
     }
 }

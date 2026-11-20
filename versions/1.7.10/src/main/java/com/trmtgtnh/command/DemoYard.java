@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockChest;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.item.EntityXPOrb;
@@ -23,7 +24,6 @@ import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.entity.EntityGolemOfWays;
 import com.trmtgtnh.entity.GolemUpgrade;
 import com.trmtgtnh.erosion.ChunkErosionData;
-import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.erosion.ErosionEngine;
 import com.trmtgtnh.erosion.ErosionStore;
 import com.trmtgtnh.item.ItemChunkTamper;
@@ -66,6 +66,12 @@ final class DemoYard {
 
     /** One pen to the next, leaving a visible gap between two aprons. */
     private static final int PITCH = APRON + 2;
+
+    /** A vanilla chest's metadata facing north, towards negative Z: the front wall's pair, onto the sign's apron. */
+    private static final int FACING_NORTH = 2;
+
+    /** A vanilla chest's metadata facing south, towards positive Z: the back wall's pair, onto the back apron. */
+    private static final int FACING_SOUTH = 3;
 
     /**
      * How far a golem is told to work, which is inside its own walls.
@@ -286,7 +292,10 @@ final class DemoYard {
                     set(world, x, y + up, z, Blocks.air, 0);
                 }
 
-                int length = ErosionChain.length(family);
+                // Along the chain the placed block follows, its own where a data file gives it one (W3 T9), as
+                // forceStage reads the index.
+                int length = ErosionEngine.chainFor(world, x, y, z, family)
+                    .length();
                 if (length <= 1) continue;
                 // Across the quarter rather than along it, so each strip of three reads as one run
                 // from untouched to gone and the four runs sit side by side.
@@ -329,17 +338,38 @@ final class DemoYard {
         // Set into the wall rather than standing in the pen, because six squares of ground is what
         // was asked for and a chest in the corner of it is five and a half. Reachable from the
         // apron, and each pair is a double chest because vanilla joins two that touch. The fence
-        // above them stays: it is not a solid cube, so it does not stop a chest opening.
+        // above them stays: it is not a solid cube, so it does not stop a chest opening. Each pair
+        // faces out onto its own apron, the front one towards the sign and the back one away from it.
         int at = FOOTPRINT / 2 - 1;
-        stock(world, penX + at, baseY + 2, penZ, toolChest());
-        stock(world, penX + at, baseY + 2, penZ + FOOTPRINT - 1, healingChest());
+        stock(world, penX + at, baseY + 2, penZ, toolChest(), FACING_NORTH);
+        stock(world, penX + at, baseY + 2, penZ + FOOTPRINT - 1, healingChest(), FACING_SOUTH);
     }
 
-    /** Puts a pair of containers into two squares of the wall and fills them. */
-    private static void stock(World world, int x, int y, int z, List<ItemStack> contents) {
+    /** Puts a pair of containers into two squares of the wall, fills them and turns them to face one way. */
+    private static void stock(World world, int x, int y, int z, List<ItemStack> contents, int facing) {
         if (!world.blockExists(x, y, z) || !world.blockExists(x + 1, y, z)) return;
+        // The second stands even when the first holds everything: the pair is what makes the double chest
+        // (CM78), and placed only on overflow it never stood, since neither list fills a chest. Both are
+        // turned only once both stand: placing the second makes vanilla choose the pair's facing again.
         int placed = CommandTrmt.placeContainer(world, x, y, z, contents, 0);
-        if (placed < contents.size()) CommandTrmt.placeContainer(world, x + 1, y, z, contents, placed);
+        CommandTrmt.placeContainer(world, x + 1, y, z, contents, placed);
+        face(world, x, y, z, facing);
+        face(world, x + 1, y, z, facing);
+    }
+
+    /**
+     * Turns a chest to face one way.
+     *
+     * <p>
+     * A chest set by code chooses its own facing as it is added, from the blocks round it, and in a
+     * wall with the pen open behind it that choice is the pen: until 0.9.229 the front pair showed the
+     * apron its back. Only a chest is turned, the plain one or the trapped one, whose metadata is its
+     * facing; a container of another kind, set as demoContainer, keeps the placement it made, because
+     * its metadata need not be a facing at all.
+     */
+    private static void face(World world, int x, int y, int z, int facing) {
+        if (!(world.getBlock(x, y, z) instanceof BlockChest)) return;
+        world.setBlockMetadataWithNotify(x, y, z, facing, 2);
     }
 
     /**

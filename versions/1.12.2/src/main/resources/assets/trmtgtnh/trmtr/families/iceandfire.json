@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "Ice and Fire, from the censuses of 1.12.2, Enigmatica 2 Expert 1.93a's and RLCraft 2.9.3's, as 1.16.5's census ruled it, so the editions match (W4 R14, 2026-11-13). Frozen gravel, the gravel an ice dragon leaves frozen, is still loose gravel, and the rules make it dirt by its ground material. One state, so the whole block is named; a file reaches a config that already holds detection's line where a changed rule does not. The other frozen and charred grounds already wear by detection or are left to the rules."
+  ],
+  "entries": [
+    { "blocks": ["iceandfire:frozen_gravel"], "family": "gravel" }
+  ]
+}

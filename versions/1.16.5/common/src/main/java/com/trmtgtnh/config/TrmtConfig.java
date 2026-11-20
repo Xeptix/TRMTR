@@ -129,7 +129,8 @@ public final class TrmtConfig {
      *
      * <p>
      * The single switch over the whole idea, so a pack that wants none of it edits one line rather
-     * than ten lists. What each family becomes is families.&lt;name&gt;.wearsThroughTo.
+     * than a list a family. What each family becomes is families.&lt;name&gt;.wearsThroughTo. Grass and,
+     * since 0.9.229, sculk do not answer to it; see {@link #wearsThroughTo}.
      */
     public static boolean wearThroughToOtherSurfaces = false;
 
@@ -180,6 +181,22 @@ public final class TrmtConfig {
     public static String updateNoticeReleases = RELEASES_RELEVANT;
 
     /**
+     * Whether the world's wear is backed up (0.9.229; docs/goals/0.9.229-wear-backup-spec.md, on by default, Xep's
+     * choice): the mirror written as chunks save, a backup on a schedule, before a mod update and before a bulk clear,
+     * and lost wear noticed and put back. Off, none of it runs and nothing already written is touched.
+     */
+    public static boolean wearBackups = true;
+
+    /** Hours of play between scheduled wear backups (6, "Boot + every 6h"). */
+    public static int wearBackupHours = com.trmtgtnh.erosion.WearBackupSet.DEFAULT_HOURS;
+
+    /** How many wear backups a world keeps (5). */
+    public static int wearBackupsKept = com.trmtgtnh.erosion.WearBackupSet.DEFAULT_KEEP;
+
+    /** The most room a world's wear backups may take, in MB (256; configurable, Xep's choice over a fixed limit). */
+    public static int wearBackupDiskMb = com.trmtgtnh.erosion.WearBackupSet.DEFAULT_DISK_MB;
+
+    /**
      * Scales every wear threshold at once. Above 1.0 erodes faster, below 1.0 slower. The
      * shipped defaults are about eight times slower than upstream TRMT, so 8.0 here restores
      * upstream's pace.
@@ -213,9 +230,19 @@ public final class TrmtConfig {
      */
     public static boolean writeDetectedSurfaces = true;
 
-    /** Blocks that must never erode, whatever detection concludes. */
-    public static String[] surfaceExclude = { "minecraft:mycelium", "minecraft:soul_sand", "minecraft:farmland",
-        "etfuturum:farmland", "minecraft:tilled_field", "Natura:GrassSlabDouble", "GalacticraftAmunRa:tile.baseGrass" };
+    /**
+     * Blocks that must never erode, whatever detection concludes.
+     *
+     * <p>
+     * Mycelium and soul sand stood here from the first commit with no reason written, and came off on Xep's word
+     * (2026-11-06, W4 Q5: "Let them wear"). Mycelium is grass by detection; soul sand is sand by this mod's own data file,
+     * {@code assets/trmtgtnh/trmtr/families/minecraft.json}, as the rules refuse every "soul" block. A config written
+     * before then holds the old list, and what a file on disk says stands, so there they stay excluded, and out of the
+     * data file's reach, until the player takes the two lines out: nothing here may change a config on disk (W4 spec
+     * section 9).
+     */
+    public static String[] surfaceExclude = { "minecraft:farmland", "etfuturum:farmland", "minecraft:tilled_field",
+        "Natura:GrassSlabDouble", "GalacticraftAmunRa:tile.baseGrass" };
 
     /**
      * Whether snow and carpet are drawn down with ground that has worn away underneath them.
@@ -263,8 +290,23 @@ public final class TrmtConfig {
      */
     public static boolean largerAtlas;
 
+    /**
+     * Pixels of Angelica's gutter round each of this mod's wear sprites, where Angelica reserves one round every block
+     * sprite (0.9.229, public issue #3). Angelica's own is sixteen at four mip levels, which made a 16-pixel wear
+     * sprite take 48 by 48 and GT New Horizons 2.9.0's block atlas 32768. "auto" by default: the largest gutter at
+     * which every face, rotation and gradation asked for fits (Xep, 2026-11-15: "is there any way we could make it
+     * reliably automatically adjust appropriately? So it's higher where it can be, and lower as it needs to be?");
+     * or a number, which forces that gutter, never more than Angelica's own. See SmallGutter. Carried to every
+     * edition 1:1 (Xep, 2026-11-18, "Drop-down + minimum (Recommended)"); nothing reads it in this one, which has no
+     * Angelica, as its summary says.
+     */
+    public static String angelicaWearGutter = "auto";
+
     /** Upper bound on how many distinct block faces get their own generated wear textures. */
-    public static int maxTexturedSurfaces = 1024;
+    public static int maxTexturedSurfaces = 2048;
+
+    /** What surfaces.maxTexturedSurfaces shipped at before 0.9.229, moved on where a file still holds it. */
+    static final int TEXTURED_SURFACES_WAS = 1024;
 
     /**
      * Whether worn ground is forbidden from ever looking cleaner than it did a step ago.
@@ -292,14 +334,38 @@ public final class TrmtConfig {
     public static boolean grassSideWear = true;
 
     /**
+     * Whether the end's purple cracks and the nether's ash glow in the dark: drawn a second time as a cutout overlay
+     * lit at a baked light (0.9.228, real glow; Xep, 2026-11-15: "I'd prefer a true glow"). Off, no overlay is stitched
+     * or drawn and the cracks and the ash are the colors the picture draws them in, lit as the ground around them is.
+     */
+    public static boolean glowingWear = true;
+
+    /**
      * How many wear patterns a surface has to spread across neighbouring blocks.
      *
      * <p>
-     * Which pixels wear away first, not a turn of the texture. The position already picks one
-     * of four, but only two were ever built, so the other two folded onto them and a long path
+     * Which pixels wear away first, not a turn of the texture; the turn is {@link #wearTurns}. The position already
+     * picks one of four, but only two were ever built, so the other two folded onto them and a long path
      * came out visibly striped in a two-block rhythm.
      */
     public static int wearRotations = 4;
+
+    /**
+     * How a worn block's rotation is shown (0.9.229; Xep, 2026-11-16, docs/goals/0.9.229-rotation-spec.md): "both",
+     * the default, draws each position's seeded pattern turned by its own quarter turn; "turn" draws one pattern per
+     * gradation turned four ways, a quarter of the atlas room for the faces that turn; "reseed" draws the seeded
+     * patterns unturned, as before. Only faces with no direction turn (FaceDirection). See WearTurns.
+     */
+    public static String wearTurns = com.trmtgtnh.client.texture.WearTurns.BOTH;
+
+    /**
+     * When a worn block starts turning (0.9.229; Xep, 2026-11-16, docs/goals/0.9.229-rotation-spec.md, "When the turn
+     * starts"): "game", the default, keeps before the first pixel of sinking exactly the turn the game gives the unworn
+     * block - the game's own random turn where the block's model has one, as dirt, sand and grass tops do, and none
+     * otherwise - and from then on each depth's own; "sink" leaves every stage before the first sink unturned; "first"
+     * turns from the first stage of wear, as before. See WearTurns and GhostQuads.rotationAt.
+     */
+    public static String wearTurnStart = com.trmtgtnh.client.texture.WearTurns.START_GAME;
 
     /**
      * How many separate pictures a surface's run of wear is drawn with.
@@ -320,6 +386,14 @@ public final class TrmtConfig {
      * them suits at most half. One leaves each look on its own, which is what the mod is tuned for.
      */
     public static float wearCurve = 1.0f;
+
+    /**
+     * Whether every family with a look made for it is drawn in its classic look, the one it shipped with before
+     * (0.9.229; Xep, 2026-11-12: "a global + per family toggle for bringing back the old wear styles"). Off as it
+     * ships; a family's own {@code classicWear} does the same for that family, and a look chosen by hand beats both
+     * ({@link FamilySettings#effectiveLook}).
+     */
+    public static boolean classicWear = false;
 
     // -- multipliers -------------------------------------------------------
 
@@ -1265,6 +1339,13 @@ public final class TrmtConfig {
      * config and then nothing at all, no matter how much anybody walked on it. Its own older
      * setting says whether a bald patch appears, and says it alone.
      *
+     * <p>
+     * Sculk answers to its own list alone (0.9.229, W4; Xep, 2026-11-11, "Yes, by default"). Its rut showing the
+     * deep dark's rock under the dulled skin is the look the family was designed for, and held to a switch that ships
+     * off it would be hidden from almost every player; emptying {@code families.sculk.wearsThroughTo} makes it sink as
+     * itself. Unlike grass it has a depth of its own, so a block a data file stands aside with its own empty list still
+     * has its rut.
+     *
      * @param honourSwitches false to get the list as it is written, whatever the switches say.
      *                       That is what recognises ground recorded under a setting somebody has
      *                       since turned off, which would otherwise be thrown away as though the
@@ -1276,7 +1357,7 @@ public final class TrmtConfig {
         if (honourSwitches) {
             if (family == SurfaceFamily.GRASS) {
                 if (!grassWearsThroughToDirt) return Collections.emptyList();
-            } else if (!wearThroughToOtherSurfaces) {
+            } else if (family != SurfaceFamily.SCULK && !wearThroughToOtherSurfaces) {
                 return Collections.emptyList();
             }
         }
@@ -1508,6 +1589,19 @@ public final class TrmtConfig {
             Trmt.LOG.warn("Not applying settings: the config file failed to read, fix it and use /trmt reload");
             return;
         }
+        // A server's rules for this player's own settings, put in for the read and the settings put back as they were
+        // before anything can save them (0.9.229; Xep, 2026-11-18): the file never holds a server's value. Closed in
+        // a finally, because a read that threw with the server's values still in would have them saved by the next.
+        ClientSettingsHeld.Window held = ClientSettingsHeld.open(config);
+        try {
+            readHeld();
+        } finally {
+            ClientSettingsHeld.close(held);
+        }
+    }
+
+    /** {@link #read()} with a server's rules for this player's settings in, where it holds any. */
+    private static void readHeld() {
         // First, before any reader declares a setting: a file from before 0.9.228 is told apart by what it lacks, and
         // declaring the new settings writes their defaults into it.
         carryMobsAcross(config);
@@ -1530,6 +1624,17 @@ public final class TrmtConfig {
         // Before the server's own numbers are put back, so that a host owning the geometry has
         // the last word over any rung a visitor has chosen for themselves.
         Presets.applyAll(config);
+        // Faithful Mode over the presets, for the five families it owns, and under the server's rules below, which have
+        // the last word over both (0.9.229 W5, spec 2.1). Into the live settings only: the file keeps the player's own.
+        FaithfulProfile.apply(config);
+        // Every heading in the order its settings are declared, as 1.7.10 holds it (0.9.228; Xep: "Declared order
+        // everywhere"), after the last declaration and before anything is shown or saved: a file read keeps its own
+        // order, which put a setting new to an older file after all it held, Faithful Mode's switch among them
+        // (0.9.229). The multipliers page keeps the order it sets itself.
+        // The server's list for its players' settings, after every setting it may name has been declared, so each line
+        // is checked against them (0.9.229).
+        ClientSettingsBook.read(config);
+        config.applyOrder(CATEGORY_MULTIPLIERS);
         // Last, after every reader that gives a setting its comment. Forge does not read comments
         // back out of a file, so a setting loaded from disk has none until the code declares it again -
         // and the audit ran at the end of the client heading, before the family headings and the
@@ -1648,7 +1753,7 @@ public final class TrmtConfig {
             "wearThroughToOtherSurfaces",
             ConfigFile.CATEGORY_GENERAL,
             false,
-            "Off out of the box. When true a surface that has worn through its own face goes on as a different material rather than hollowing out as more of itself: a stone road breaks into cobble, then into the grit that came off it, then into the earth it was laid on. When false every surface sinks as itself, which is what it did before this existed. It costs nothing in steps - a run is the same length either way and each step costs the same - so this changes what a rut looks like on the way down and nothing else. What each family becomes is families.<name>.wearsThroughTo. Grass is not among them: turf is a face rather than a substance and has no rut of its own to sink into, so it is grassWearsThroughToDirt above, and only that, which decides whether a path through turf ever goes bald.");
+            "Off out of the box. When true a surface that has worn through its own face goes on as a different material rather than hollowing out as more of itself: a stone road breaks into cobble, then into the grit that came off it, then into the earth it was laid on. When false every surface sinks as itself, which is what it did before this existed. It costs nothing in steps - a run is the same length either way and each step costs the same - so this changes what a rut looks like on the way down and nothing else. What each family becomes is families.<name>.wearsThroughTo. Grass is not among them: turf is a face rather than a substance and has no rut of its own to sink into, so it is grassWearsThroughToDirt above, and only that, which decides whether a path through turf ever goes bald. Nor is sculk, which answers to families.sculk.wearsThroughTo alone and ships showing the deep dark's rock in its rut; emptying that list makes it sink as itself.");
         wearPaceFollowsTheGround = config.getBoolean(
             "wearPaceFollowsTheGround",
             ConfigFile.CATEGORY_GENERAL,
@@ -1672,6 +1777,32 @@ public final class TrmtConfig {
             RELEASES_RELEVANT,
             "Which newer releases updateNotice tells of. relevant: only one that changes this edition - every edition takes the new number with every release, so most releases change only some of them. all: every newer release. A release that changes nothing here is still written in the server's log. A release with a critical fix for this edition says so either way.",
             new String[] { RELEASES_RELEVANT, RELEASES_ALL });
+        wearBackups = config.getBoolean(
+            "wearBackups",
+            ConfigFile.CATEGORY_GENERAL,
+            true,
+            "Whether the world's wear is backed up. Every chunk's wear is also written, as the chunk saves, to a small mirror under the world's trmtgtnh/wear folder, and the mirror and this mod's world data (the heal clock, spawn grants and the rest) are frozen into a dated backup under trmtgtnh/backups: five minutes after the server or world starts when the last backup is older than wearBackupHours, then every wearBackupHours of play, before the first load of the world by a different version of this mod, and before /trmt purge. A chunk that loads without the wear the mirror holds for that same save is put back quietly. A bigger loss asks in single player, with Restore, Ignore and Don't ask again for this world; a dedicated server puts the missing wear back by itself and tells its operators as they join, with /trmt wear undo and /trmt wear restore <backup>. Off, none of this runs, and nothing already written is touched.");
+        wearBackupHours = config.getInt(
+            "wearBackupHours",
+            ConfigFile.CATEGORY_GENERAL,
+            com.trmtgtnh.erosion.WearBackupSet.DEFAULT_HOURS,
+            1,
+            168,
+            "Hours of play between scheduled wear backups, counted while the server or world runs. The first comes five minutes after the start when the newest backup is older than this.");
+        wearBackupsKept = config.getInt(
+            "wearBackupsKept",
+            ConfigFile.CATEGORY_GENERAL,
+            com.trmtgtnh.erosion.WearBackupSet.DEFAULT_KEEP,
+            1,
+            100,
+            "How many wear backups a world keeps. Past this the oldest go, but never the newest, and never the one taken before a mod update.");
+        wearBackupDiskMb = config.getInt(
+            "wearBackupDiskMb",
+            ConfigFile.CATEGORY_GENERAL,
+            com.trmtgtnh.erosion.WearBackupSet.DEFAULT_DISK_MB,
+            1,
+            1048576,
+            "The most room a world's wear backups may take, in MB. Past it the oldest go, but never the newest, and never the one taken before a mod update, so those two stay even when they alone are larger.");
 
         globalSpeed = config.get(
             ConfigFile.CATEGORY_GENERAL,
@@ -1706,8 +1837,8 @@ public final class TrmtConfig {
         surfaceExclude = config.get(
             CATEGORY_SURFACES,
             "exclude",
-            new String[] { "minecraft:mycelium", "minecraft:soul_sand", "minecraft:farmland", "etfuturum:farmland",
-                "minecraft:tilled_field", "Natura:GrassSlabDouble", "GalacticraftAmunRa:tile.baseGrass" },
+            new String[] { "minecraft:farmland", "etfuturum:farmland", "minecraft:tilled_field",
+                "Natura:GrassSlabDouble", "GalacticraftAmunRa:tile.baseGrass" },
             "Blocks that must never erode, whatever detection concludes. Registry names only, no metadata. Tilled soil is here because a field someone hoed should stay a field; paths are deliberately not, and resist wear instead - see families.dirt.resistantBlocks. Natura's double grass slab is a shape somebody built out of turf rather than ground that grew, and Amun-Ra's red grass turns itself into methane dirt anywhere but its own world, so wearing either is showing you something that is about to stop existing.")
             .getStringList();
         maxWearSprites = config.getInt(
@@ -1716,20 +1847,27 @@ public final class TrmtConfig {
             262144,
             768,
             262144,
-            "A ceiling on the wear sprites this mod plans into the block atlas, counting every one it registers: worn faces, the family fallbacks, the grass-side fringes, the grass side walls and the mended sides. It is not what decides whether they fit. At every stitch the mod measures how much of the atlas the rest of the pack has already taken and how large a texture this card will address, and plans no further than the room left: an 8192 square at most, or 16384 with client.largerAtlas, less a sixteenth held back for the stitcher, less the pack's own textures, each at the size its file says it is. That room is counted in sixteen-pixel slots, and a wear sprite is drawn at the resolution of the face it is worn from, so it takes one slot for a sixteen-pixel face, four for a thirty-two and sixteen for a sixty-four. While anisotropic filtering is on, every texture the game loads into the atlas for itself is sixteen pixels wider and taller, and the pack's own are priced that way; a wear sprite is not, because it is made from its face with that border taken off, so a sixteen-pixel face's wear takes one slot either way. Even with nothing else in an 8192 atlas that is 245,760 sprites at one slot apiece, under this default of 262,144, so at the default this setting never takes effect there at all: it exists to be turned down. With client.largerAtlas on the room can be four times that, and this default then holds the wear to an 8192 square's worth of sixteen-pixel sprites - which only a pack worn mostly at sixteen pixels reaches, since a larger face takes several slots for one sprite. Turned down far enough, it binds before the room does, which keeps the wear textures' share of video memory small on a machine short of it - 65,536 sixteen-pixel sprites are a 4096 square's worth, about eighty-five megabytes once mipmaps are counted, against about three hundred and forty for an 8192 square's worth. When it stops the plan, the ramp keeps its gradations and the faces last in registry-name order wear their family's generic art instead, and the log says so. The family fallbacks, fringes and walls are always planned in full, whatever this says and even where the room will not hold them, because without them worn ground has nothing to draw, and they count against this ceiling before any face does. Out of the box they come to three thousand eight hundred and forty sprites at eighty gradations and four rotations, and one hundred and ninety-two at sixteen and one, plus one for every grass wall and mended side and one for the wall an unknown grass falls back on: twelve appearances at every gradation and rotation, a fallback for each of the ten families that wear, one more for the earth under grass, and the fringe. Turning general.wearThroughToOtherSurfaces on, or joining a server whose rules turn it on, adds a fallback for every surface a family wears through into, which at the shipped families.<name>.wearsThroughTo makes eighteen appearances and those figures five thousand seven hundred and sixty and two hundred and eighty-eight. Set below what they come to, this gives no block its own wear at all and saves nothing further, and the log says so, and gives the figure that lets the first face in wherever the room would take it. Every face that wears with its own pixels costs gradations times rotations sprites, twice that for grass, which carries its earth as well. Where this ceiling stops the plan, lowering client.wearGradations fits more faces under it, but only below the count the log says was drawn, and never below sixteen; lowering client.wearRotations fits more too, though where the log also says the room drew fewer gradations than were asked, a rotation given up is spent on finer gradations first, up to the count asked for, and only what is left over brings faces back. Either way the log works out how many faces each change would keep. Where the room stops the plan, the ramp is at sixteen already, and lowering client.wearRotations is the only one of the two that can bring faces back. The log says how much room was measured and how much of it was used, every stitch.");
+            "A ceiling on the wear sprites this mod plans into the block atlas, counting every one it registers: worn faces, the family fallbacks, the grass-side fringes, the grass side walls and the mended sides. It is not what decides whether they fit. At every stitch the mod measures how much of the atlas the rest of the pack has already taken and how large a texture this card will address, and plans no further than the room left: an 8192 square at most, or 16384 with client.largerAtlas, less a sixteenth held back for the stitcher, less the pack's own textures, each at the size its file says it is. That room is counted in sixteen-pixel slots, and a wear sprite is drawn at the resolution of the face it is worn from, so it takes one slot for a sixteen-pixel face, four for a thirty-two and sixteen for a sixty-four. While anisotropic filtering is on, every texture the game loads into the atlas for itself is sixteen pixels wider and taller, and the pack's own are priced that way; a wear sprite is not, because it is made from its face with that border taken off, so a sixteen-pixel face's wear takes one slot either way. Even with nothing else in an 8192 atlas that is 245,760 sprites at one slot apiece, under this default of 262,144, so at the default this setting never takes effect there at all: it exists to be turned down. With client.largerAtlas on the room can be four times that, and this default then holds the wear to an 8192 square's worth of sixteen-pixel sprites - which only a pack worn mostly at sixteen pixels reaches, since a larger face takes several slots for one sprite. Turned down far enough, it binds before the room does, which keeps the wear textures' share of video memory small on a machine short of it - 65,536 sixteen-pixel sprites are a 4096 square's worth, about eighty-five megabytes once mipmaps are counted, against about three hundred and forty for an 8192 square's worth. When it stops the plan, the ramp keeps its gradations and the faces last in the plan's order, vanilla's ground first and the rest by registry name, wear their family's generic art instead, and the log says so. The family fallbacks, fringes and walls are always planned in full, whatever this says and even where the room will not hold them, because without them worn ground has nothing to draw, and they count against this ceiling before any face does. Out of the box they come to five thousand four hundred and forty sprites at eighty gradations and four rotations, and two hundred and seventy-two at sixteen and one, plus one for every grass wall and mended side and one for the wall an unknown grass falls back on: seventeen appearances at every gradation and rotation, a fallback for each of the fourteen families that wear, one more for the earth under grass, one for the stone under sculk, and the fringe. Turning general.wearThroughToOtherSurfaces on, or joining a server whose rules turn it on, adds a fallback for every other surface a family wears through into, which at the shipped families.<name>.wearsThroughTo makes twenty-three appearances and those figures seven thousand three hundred and sixty and three hundred and sixty-eight. Set below what they come to, this gives no block its own wear at all and saves nothing further, and the log says so, and gives the figure that lets the first face in wherever the room would take it. Every face that wears with its own pixels costs gradations times rotations sprites, twice that for grass, which carries its earth as well. Where this ceiling stops the plan, lowering client.wearGradations fits more faces under it, but only below the count the log says was drawn, and never below sixteen; lowering client.wearRotations fits more too, though where the log also says the room drew fewer gradations than were asked, a rotation given up is spent on finer gradations first, up to the count asked for, and only what is left over brings faces back. Either way the log works out how many faces each change would keep. Where the room stops the plan, the ramp is at sixteen already, and lowering client.wearRotations is the only one of the two that can bring faces back. The log says how much room was measured and how much of it was used, every stitch.");
         largerAtlas = config.getBoolean(
             "largerAtlas",
             CATEGORY_CLIENT,
             false,
             "Let this mod plan its wear into a block atlas larger than an 8192 square - up to 16384, where your graphics card says it can address one. Off, the wear is planned into what an 8192 square has left once the pack's own textures are in, and a pack whose faces will not all fit at client.wearGradations draws every surface's ramp more coarsely, never below sixteen gradations, before any face falls back to its family's generic art; Chisel for 1.12.2's carvings, for one, drew every ramp at 62 of 80. On, they fit, and the price is video memory: a 16384 atlas is four times an 8192 one, about one and a third gigabytes with its smaller copies against about three hundred and forty megabytes. Turn it on only if your card has that to spare. The game builds the atlas without checking that the card accepted it, so a card that cannot hold one draws every block in the game black, with nothing in the log to say why - if that happens, turn this off again. A pack that needs more than 8192 for its own textures gets it from the game either way; this only lets the wear ask for the room. client.maxWearSprites still applies. Takes effect on the next resource reload.");
         com.trmtgtnh.client.texture.AtlasPlan.allowLarger(largerAtlas);
+        angelicaWearGutter = config.getString(
+            "angelicaWearGutter",
+            CATEGORY_CLIENT,
+            "auto",
+            "Under Angelica, the pixels of border round each worn-ground picture in the block atlas, filled from the picture's own edge. Angelica gives every block texture sixteen at the game's four mipmap levels, and at that width the worn-ground pictures of a large pack need a block atlas past what map mods and many cards can take. auto uses the widest border at which every face, all four wear patterns and every gradation fit a block atlas your card and map mods can take, trying Angelica's own first and then 8, 4, 2, 1 and none; the log says which it chose and why. atLeast2 chooses the same way but never below 2 pixels, giving up wear patterns first and then gradations to keep them, and goes narrower only where not every face fits even at one pattern and one gradation. A number forces that border, never wider than Angelica's own: wider blends less at the farthest distances, narrower fits more. Where it is kept, wear patterns give way first and then gradations; where not every face fits at it even at one pattern and one gradation, the widest narrower border that fits is taken, and the log says so. 0, for no border, is still read from the file. Does nothing without Angelica, and so nothing in any edition but 1.7.10. Takes effect on the next resource reload.",
+            com.trmtgtnh.client.texture.SmallGutter.SETTINGS);
         maxTexturedSurfaces = config.getInt(
             "maxTexturedSurfaces",
             CATEGORY_SURFACES,
-            1024,
+            2048,
             0,
             4096,
-            "Upper bound on how many distinct block faces get their own generated wear textures. Anything past it falls back to the family's vanilla-derived set, which is why a modded block would wear into a vanilla one. Metadata values that draw the same face share a set, so this counts faces rather than block states. It is not the only limit. The block atlas is measured at every stitch, and when the faces this lets through would not fit in the room it actually has, the ramp is drawn more coarsely first, never below sixteen gradations, and past that the faces last in registry-name order fall back too - so once the log says the atlas stopped the plan, raising this changes nothing. Zero gives no block its own wear at all.");
+            "Upper bound on how many distinct block faces get their own generated wear textures. Anything past it falls back to the family's vanilla-derived set, which is why a modded block would wear into a vanilla one. Metadata values that draw the same face share a set, so this counts faces rather than block states. Faces are offered their places in the plan's order: vanilla's own ground first, then every other face by registry name, so what this turns away is the last of a mod's faces before any of the vanilla ground a path is worn across. The default of 2048 holds the largest pack measured whole, 1513 faces on 1.20.1 with Chisel, Chipped and Rechiseled, with room to spare. It is not the only limit. The block atlas is measured at every stitch, and when the faces this lets through would not fit in the room it actually has, the ramp is drawn more coarsely first, never below sixteen gradations, and past that the faces last in the plan's order, vanilla's ground first and the rest by registry name, fall back too - so once the log says the atlas stopped the plan, raising this changes nothing. Zero gives no block its own wear at all.");
+        maxTexturedSurfaces = repointTexturedSurfaces(config, maxTexturedSurfaces);
         inheritShaderMaterial = config.getBoolean(
             "inheritShaderMaterial",
             CATEGORY_CLIENT,
@@ -1794,13 +1932,33 @@ public final class TrmtConfig {
             0.2d,
             3.0d)
             .getDouble();
+        // Before the families are read, which ask it (FamilySettings.effectiveLook).
+        classicWear = config.getBoolean(
+            "classicWear",
+            CATEGORY_CLIENT,
+            false,
+            "Whether every family that has a look made for it is drawn in its classic look instead, the one it shipped with before: sand, gravel, cobble, snow, ice, nether and end in their 0.9.228 looks (smooth_dirt, dirt, crack_dirt, crack_dirt_lite, crack_dirt, smooth_crack and smooth_crack), and flesh, taint, sculk and cloud in the looks they arrived with (smooth_dirt, crack_dirt, smooth_heavy and dirt_lite). Only for a family whose wearPattern names its shipped default: a look written there by hand wins over this. Each of those families has a classicWear of its own for bringing back just that one. Read by your own client and by nobody else. Takes effect on the next resource reload.");
         wearRotations = config.getInt(
             "wearRotations",
             CATEGORY_CLIENT,
             4,
             1,
             4,
-            "How many wear patterns a surface has to spread across neighbouring blocks - which pixels wear away first, not a turn of the texture. A position already picks one of four, but only two used to be built and the other two folded onto them, which is why a long path read as striped in a two-block rhythm. Four is the most the position can distinguish. Every face's wear textures are gradations times rotations, so while everything asked for is drawn this multiplies what the wear takes in the block atlas exactly as client.wearGradations does, and lowering either lightens the stitch. Once the room left in the atlas or client.maxWearSprites limits the plan, a rotation given up is spent rather than saved: where the log says fewer gradations were drawn than asked, on finer gradations, up to the count asked for, and where it says faces gave way, on bringing faces back. Until everything asked for is drawn the atlas is about as full as before, so a lower setting here trades wear patterns for gradations or faces and leaves the stitch no lighter. To make it smaller where the log says fewer gradations were drawn and no face gave way, lower client.wearGradations below the count the log gives; where faces gave way, lower client.maxWearSprites below the sprites the log says were registered in all, which gives still more of them their family's generic art.");
+            "How many wear patterns a surface has to spread across neighbouring blocks - which pixels wear away first; how the picture is turned is client.wearTurns. A position already picks one of four, but only two used to be built and the other two folded onto them, which is why a long path read as striped in a two-block rhythm. Four is the most the position can distinguish. Every face's wear textures are gradations times rotations, so while everything asked for is drawn this multiplies what the wear takes in the block atlas exactly as client.wearGradations does, and lowering either lightens the stitch. Once the room left in the atlas or client.maxWearSprites limits the plan, a rotation given up is spent rather than saved: where the log says fewer gradations were drawn than asked, on finer gradations, up to the count asked for, and where it says faces gave way, on bringing faces back. Until everything asked for is drawn the atlas is about as full as before, so a lower setting here trades wear patterns for gradations or faces and leaves the stitch no lighter. To make it smaller where the log says fewer gradations were drawn and no face gave way, lower client.wearGradations below the count the log gives; where faces gave way, lower client.maxWearSprites below the sprites the log says were registered in all, which gives still more of them their family's generic art.");
+        wearTurns = com.trmtgtnh.client.texture.WearTurns.mode(
+            config.getString(
+                "wearTurns",
+                CATEGORY_CLIENT,
+                com.trmtgtnh.client.texture.WearTurns.BOTH,
+                "How a worn block's rotation is shown, so worn ground does not read as a repeating tile. both: each block draws one of four wear patterns, turned a quarter at a time from block to block. turn: one pattern, turned four ways, which takes a quarter of the room in the block atlas for the faces that turn. reseed: the four patterns, never turned, as before 0.9.229. Only a face with no direction turns - dirt, sand, gravel, cobble, netherrack, end stone, stone and the like; bricks, planks, tiles and anything else with lines or a grain keep their way up in all three, read from each face's own pixels and name, and a looks file's turns can say either way for a block. Takes effect on the next resource reload.",
+                com.trmtgtnh.client.texture.WearTurns.MODES));
+        wearTurnStart = com.trmtgtnh.client.texture.WearTurns.start(
+            config.getString(
+                "wearTurnStart",
+                CATEGORY_CLIENT,
+                com.trmtgtnh.client.texture.WearTurns.START_GAME,
+                "When a worn block starts turning. game: before the block first sinks it keeps exactly the turn the game gives the unworn block - none in the 1.7.10 edition, and the game's own random turn for dirt, sand, grass tops and the like here - and from the first pixel of sinking each depth takes its own turn. sink: the stages before the first sink are drawn unturned, and the turn starts at the first pixel of sinking. first: the turn appears at the first stage of wear, as before. Shown as soon as the worn blocks are drawn again.",
+                com.trmtgtnh.client.texture.WearTurns.STARTS));
         wearNeverStepsBack = config.getBoolean(
             "wearNeverStepsBack",
             CATEGORY_CLIENT,
@@ -1811,6 +1969,11 @@ public final class TrmtConfig {
             CATEGORY_CLIENT,
             true,
             "Whether a worn grass block's side fringe recedes toward dirt as its top wears, instead of keeping a full green edge down a bald path. On, the tinted fringe is thinned per gradation and the earth wall behind it is de-greened, so the sides of a path read as soil; off leaves the static grass side. This drives a second renderer mixin, so if a resource pack renames a modded grass side away from grass_side and its fringe drops out, turn this off to recover it.");
+        glowingWear = config.getBoolean(
+            "glowingWear",
+            CATEGORY_CLIENT,
+            true,
+            "Whether the purple cracks of worn end stone and the flecks of ash on worn netherrack glow in the dark. On, each of those pixels is drawn a second time as an overlay at a baked light, as the ender dragon's eyes are drawn at full light: by day it is the same pixels again and adds nothing, and at night the cracks and the ash stay lit while the ground around them goes dark. The end's cracks are lit at about three fifths of full and the nether's ash at about a third, and the light is only ever raised, never lowered, so a lit room or the day is untouched. Off, the overlays are not made at all, which saves their share of the block atlas, and the cracks and the ash are lit as the ground around them is. Turn it off to leave it to a shader pack that handles light itself. Takes effect on the next resource reload.");
     }
 
     /** What the demonstrate command asks for now, and what every build before 0.9.118 asked for. */
@@ -1855,6 +2018,54 @@ public final class TrmtConfig {
         } catch (java.io.IOException unreadable) {
             return false;
         }
+    }
+
+    /**
+     * Moves an untouched surfaces.maxTexturedSurfaces on to the ceiling 0.9.229 ships, as demoContainer's was moved.
+     *
+     * <p>
+     * Forge keeps whatever is in the file and only ever writes a default into one that has none, so the raised
+     * default (Xep, 2026-11-08: "Both") would reach nobody who has run the mod before, and a pack of their size would
+     * go on cutting 489 faces of 1513. Rewritten only when the file holds the old default exactly and was written by a
+     * build whose default it was ({@link #writtenAtOldCeiling}). Anything else somebody chose is left alone: the low
+     * rung's 256, the old high rung's 2048, and 1024 chosen again after this build has saved the file.
+     */
+    static int repointTexturedSurfaces(ConfigFile from, int read) {
+        if (read != TEXTURED_SURFACES_WAS) return read;
+        java.io.File file = from.getConfigFile();
+        if (file == null || !file.isFile()) return read;
+        String text;
+        try {
+            text = new String(java.nio.file.Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException unreadable) {
+            return read;
+        }
+        if (!writtenAtOldCeiling(text)) return read;
+        int now = Presets.quality("default")[3];
+        from.getCategory(CATEGORY_SURFACES)
+            .get("maxTexturedSurfaces")
+            .set(now);
+        Trmt.LOG.info(
+            "Raised surfaces.maxTexturedSurfaces from the old default of {} to {}, which is what its default now asks for",
+            Integer.valueOf(TEXTURED_SURFACES_WAS),
+            Integer.valueOf(now));
+        return now;
+    }
+
+    /**
+     * Whether a settings file's text holds surfaces.maxTexturedSurfaces at 1024 under the comment a build that shipped
+     * 1024 wrote above it, whose last line ends with that build's range and default. Every save writes the comment
+     * again with the default of the build saving, so this answers true once, for the file an earlier build left.
+     */
+    static boolean writtenAtOldCeiling(String text) {
+        return text != null && java.util.regex.Pattern
+            .compile(
+                "(?m)default: " + TEXTURED_SURFACES_WAS
+                    + "\\]\\s*\\R\\s*I:\\s*maxTexturedSurfaces\\s*=\\s*"
+                    + TEXTURED_SURFACES_WAS
+                    + "\\s*$")
+            .matcher(text)
+            .find();
     }
 
     /**
@@ -2723,7 +2934,7 @@ public final class TrmtConfig {
     private static void readWeather() {
         config.setCategoryComment(
             CATEGORY_WEATHER,
-            "Two different things the sky does to ground, kept under one heading because both of them are weather, and only one of them is waiting to be asked for. The first is snow lying on ground taking the traffic instead of the ground beneath it, which is on out of the box and is what the three snowCover settings decide: walking a snowy road treads the snow away layer by layer, and only once the last of it has gone does what is underneath begin to mark. That half is at work in every world without anything being switched on. The second is ground that mends only while the weather is doing the mending, and that half is off out of the box - a surface waits for weather when its own families.<name>.healsOnlyWhenWet is switched on, and every one of the twelve families ships that off, so until somebody turns one on wetHealingEnabled and wetHealSecondsPerStage decide nothing whatever. The rule they then decide is that elapsed time still banks up exactly as it always did, so a dry spell delays recovery rather than cancelling it and a chunk nobody has visited for a month still holds every day of it - but the bank is only paid out while precipitation is actually falling on that spot, and paid at a rate rather than in a lump, so a storm fills a path in while you stand in it instead of undoing it the instant it starts. The three settings after those - whether ground has to see the sky, whether its biome has to be one that gets weather, and what to do in a dimension that has none - are each there because they name a place where waiting for weather would quietly mean never. Two of them are earning their keep already with every family switch still off, because the same questions decide where rain counts toward the families.<name>.wetRecoverySpeed discount, which ships at two for turf, earth, sand and gravel: narrow either one and a sheltered or a dry path stops earning its faster mending as well as being shut out of the gate. The dimension setting only ever matters to the gate, since rain never falls in a world with no sky for it to fall from.");
+            "Two different things the sky does to ground, kept under one heading because both of them are weather, and only one of them is waiting to be asked for. The first is snow lying on ground taking the traffic instead of the ground beneath it, which is on out of the box and is what the three snowCover settings decide: walking a snowy road treads the snow away layer by layer, and only once the last of it has gone does what is underneath begin to mark. That half is at work in every world without anything being switched on. The second is ground that mends only while the weather is doing the mending, and that half is off out of the box - a surface waits for weather when its own families.<name>.healsOnlyWhenWet is switched on, and every one of the sixteen families ships that off, so until somebody turns one on wetHealingEnabled and wetHealSecondsPerStage decide nothing whatever. The rule they then decide is that elapsed time still banks up exactly as it always did, so a dry spell delays recovery rather than cancelling it and a chunk nobody has visited for a month still holds every day of it - but the bank is only paid out while precipitation is actually falling on that spot, and paid at a rate rather than in a lump, so a storm fills a path in while you stand in it instead of undoing it the instant it starts. The three settings after those - whether ground has to see the sky, whether its biome has to be one that gets weather, and what to do in a dimension that has none - are each there because they name a place where waiting for weather would quietly mean never. Two of them are earning their keep already with every family switch still off, because the same questions decide where rain counts toward the families.<name>.wetRecoverySpeed discount, which ships at two for turf, earth, sand and gravel: narrow either one and a sheltered or a dry path stops earning its faster mending as well as being shut out of the gate. The dimension setting only ever matters to the gate, since rain never falls in a world with no sky for it to fall from.");
         snowCovers = config.getBoolean(
             "snowCovers",
             CATEGORY_WEATHER,
@@ -3236,7 +3447,7 @@ public final class TrmtConfig {
             CATEGORY_CLIENT,
             "perSurfaceTextures",
             true,
-            "Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt wears in its own colors instead of vanilla's. Costs extra sprites in the block atlas at the resolution of the faces they are worn from, bounded by surfaces.maxTexturedSurfaces and client.maxWearSprites. Where the atlas has not the room for them all at client.wearGradations, every surface's ramp is drawn more coarsely first, the family fallbacks that everything else wears included, never below sixteen gradations, and only past that do the faces last in registry-name order fall back; the log says which. On a large pack, or one drawn at thirty-two pixels, that means this setting can cost every worn block in the world some of its gradations, and switching it off gives that room back to the ramp. Off, no worn block is drawn from its own pixels, so nothing named in client.innerLayerTextures is drawn into worn ground either: Chisel's lavastone and waterstone wear their family's generic art with no lava or water in it. The potato quality rung turns this off.");
+            "Build wear textures per surface, so a Biomes O' Plenty grass or a Twilight Forest dirt wears in its own colors instead of vanilla's. Costs extra sprites in the block atlas at the resolution of the faces they are worn from, bounded by surfaces.maxTexturedSurfaces and client.maxWearSprites. Where the atlas has not the room for them all at client.wearGradations, every surface's ramp is drawn more coarsely first, the family fallbacks that everything else wears included, never below sixteen gradations, and only past that do the faces last in the plan's order, vanilla's ground first and the rest by registry name, fall back; the log says which. On a large pack, or one drawn at thirty-two pixels, that means this setting can cost every worn block in the world some of its gradations, and switching it off gives that room back to the ramp. Off, no worn block is drawn from its own pixels, so nothing named in client.innerLayerTextures is drawn into worn ground either: Chisel's lavastone and waterstone wear their family's generic art with no lava or water in it. The potato quality rung turns this off.");
         perSurface.setLanguageKey("trmtgtnh.config.perSurfaceTextures");
         perSurface.setRequiresMcRestart(true);
         perSurfaceTextures = perSurface.getBoolean();

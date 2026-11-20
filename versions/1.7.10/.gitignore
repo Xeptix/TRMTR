@@ -40,3 +40,9 @@ __pycache__/
 # Where the other edition of this mod is checked out on this machine, for the test that compares
 # the two copies of the portable core. Machine-specific, so never committed.
 sibling.properties
+
+# Crosswire memories: facts for later shifts, kept here and out of git (planning D56).
+/.crosswire/
+
+# Cross-edition scratch patches and findings remain local to a worktree.
+/.claude-patches/

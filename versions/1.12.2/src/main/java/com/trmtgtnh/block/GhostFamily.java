@@ -66,6 +66,13 @@ public final class GhostFamily {
                 return SoundType.SNOW;
             case ICE:
                 return SoundType.GLASS;
+            case SCULK:
+                // Where nothing is recorded, its stand-in's sound (0.9.229, W4; the design's table 3.5): the
+                // 1.7.10 edition gives gravel's, as Et Futurum's own sculk sound cannot be named without it.
+                return SoundType.STONE;
+            case CLOUD:
+                // Fluffy cloud's own, read from Twilight Forest's jar, and white wool's (0.9.229, W4).
+                return SoundType.CLOTH;
             default:
                 return SoundType.GROUND;
         }
@@ -147,8 +154,47 @@ public final class GhostFamily {
                 return Blocks.SNOW.getDefaultState();
             case ICE:
                 return Blocks.ICE.getDefaultState();
+            case FLESH:
+                // No vanilla flesh: soul sand is the Nether floor it is all but a twin of, and its short box and
+                // drag (0.9.229, W4 T17; the 1.7.10 edition's vanillaCounterpart).
+                return Blocks.SOUL_SAND.getDefaultState();
+            case TAINT:
+                // No vanilla taint: mycelium, a living crust that spreads over the earth.
+                return Blocks.MYCELIUM.getDefaultState();
+            case SCULK:
+                // No sculk before 1.19: obsidian is the nearest vanilla face to it and every edition has it
+                // (0.9.229, W4; the 1.7.10 edition's vanillaCounterpart). Its map color is sculk's own.
+                return Blocks.OBSIDIAN.getDefaultState();
+            case CLOUD:
+                // No vanilla cloud: white wool is fluffy cloud's twin in all a ghost reports, as soft to dig, the
+                // same quiet sound, and as white (0.9.229, W4; the 1.7.10 edition's vanillaCounterpart).
+                return Blocks.WOOL.getDefaultState();
             default:
                 return Blocks.DIRT.getDefaultState();
         }
+    }
+
+    /**
+     * A family's own hardness where its stand-in's is not the real block's, or NaN: flesh 0.4 and crusted taint 1.75,
+     * read from Biomes O' Plenty's and Thaumcraft's jars, which no vanilla block shares (0.9.229, W4 T17; the 1.7.10
+     * edition's GhostLogic.hardnessFor gives its ghosts those figures). Every other family's stand-in is its own
+     * block, whose hardness is already the family's. Asked only where nothing is recorded under a square.
+     */
+    public static float ownHardness(SurfaceFamily family) {
+        if (family == SurfaceFamily.FLESH) return 0.4F;
+        if (family == SurfaceFamily.TAINT) return 1.75F;
+        // Sculk stands in as obsidian before 1.19, and is vanilla sculk's own 0.2 to dig (0.9.229, W4).
+        if (family == SurfaceFamily.SCULK) return 0.2F;
+        return Float.NaN;
+    }
+
+    /**
+     * The block a square is dug as where nothing is recorded under it and its family has its own hardness
+     * ({@link #ownHardness}): its stand-in, but sculk's is obsidian, which only a diamond pick harvests, and sculk
+     * needs no tool. So sculk is dug as sponge, which needs none either, which no tool of this version is made for; its
+     * hardness stays sculk's own (0.9.229, W4; Codex's review of the new families).
+     */
+    public static IBlockState dugAs(SurfaceFamily family, IBlockState standIn) {
+        return family == SurfaceFamily.SCULK ? Blocks.SPONGE.getDefaultState() : standIn;
     }
 }

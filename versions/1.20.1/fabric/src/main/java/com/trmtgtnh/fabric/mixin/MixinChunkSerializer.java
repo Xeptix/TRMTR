@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.trmtgtnh.erosion.ErosionStore;
+import com.trmtgtnh.original.OriginalChunk;
 
 /**
  * Wear going to and coming back from a chunk's own NBT.
@@ -58,13 +59,28 @@ public abstract class MixinChunkSerializer {
     private static void trmt$read(ServerLevel level, PoiManager poi, ChunkPos pos, CompoundTag tag,
         CallbackInfoReturnable<ProtoChunk> callback) {
         if (level == null || pos == null || tag == null) return;
+        // The original mod's blocks, converted while the palette still holds their stage (0.9.229 W5, spec 2.9).
+        java.util.List<com.trmtgtnh.original.OriginalWorld.Square> converted = OriginalChunk.convert(pos.x, pos.z, tag);
         ErosionStore.get()
             .chunkDataLoaded(
                 level.dimension()
                     .location(),
                 pos.x,
                 pos.z,
-                tag);
+                tag,
+                converted);
+    }
+
+    /**
+     * A chunk the read converted is marked unsaved as it is handed back, so it is written with no block of the
+     * original's in it and its records beside it at the next save, and converted once (spec 2.9, "Saved, once").
+     */
+    @Inject(method = "read", at = @At("RETURN"))
+    private static void trmt$readDone(ServerLevel level, PoiManager poi, ChunkPos pos, CompoundTag tag,
+        CallbackInfoReturnable<ProtoChunk> callback) {
+        if (!OriginalChunk.takeChanged()) return;
+        ProtoChunk chunk = callback.getReturnValue();
+        if (chunk != null) chunk.setUnsaved(true);
     }
 
     /**

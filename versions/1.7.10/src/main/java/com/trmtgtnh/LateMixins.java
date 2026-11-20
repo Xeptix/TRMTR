@@ -60,6 +60,12 @@ public class LateMixins implements ILateMixinLoader {
             .isClient()) {
             wanted.add("MixinLayeredBlockShell");
         }
+        // Real glow's light under Angelica's Celeritas (MixinCeleritasGlow): a drawing correction, client only, for
+        // the same reason as the shell lift.
+        if (loadedMods.contains("angelica") && cpw.mods.fml.relauncher.FMLLaunchHandler.side()
+            .isClient()) {
+            wanted.add("MixinCeleritasGlow");
+        }
         return wanted;
     }
 }

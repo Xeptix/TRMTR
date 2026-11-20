@@ -85,6 +85,16 @@ public class CommonProxy {
     /** Called after the config GUI or a command changes something. */
     public void onConfigChanged(ConfigReload.Delta delta) {}
 
+    /**
+     * Offers the single-player screen that asks whether to restore lost wear (0.9.229, wear backups): how many chunks
+     * lost it, when the newest backup was taken (-1 with none), and whether the world was last opened by a newer
+     * version
+     * of this mod; whether the mirror holds the newest copy, and whether this mod's world data was missing and was put
+     * back. Only a client has anyone to ask; a dedicated server puts the wear back by itself.
+     */
+    public void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+        boolean dataPutBack) {}
+
     /** Says that a server owns some of what was just typed. Only a client has anyone to tell. */
     public void tellServerOwnsGeometry() {}
 
@@ -176,6 +186,9 @@ public class CommonProxy {
     public void applyServerRules(boolean forceOverlay, String decayMode,
         com.trmtgtnh.config.ServerRules.Geometry geometry) {}
 
+    /** A server's rules for this player's own settings (0.9.229). Only a client has settings of that kind. */
+    public void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {}
+
     /** A server named its surface table's fingerprint. Only a client has anything to do with it. */
     public void considerServerTable(boolean sent, long fingerprint) {}
 
@@ -184,6 +197,14 @@ public class CommonProxy {
      * it: a newer client tells its player once a visit that the server runs an older build.
      */
     public void considerServerBuild(boolean sent, int protocol, String build) {}
+
+    /**
+     * Whether this is the client's own thread, the one its world is read on (trmtr-api's position queries, Codex review
+     * R16). A dedicated server has no client.
+     */
+    public boolean onClientThread() {
+        return false;
+    }
 
     /**
      * Rebuilds the surface table, and what is stamped from it, under the block ids now in force. See
@@ -234,6 +255,12 @@ public class CommonProxy {
      * it did before anybody noticed.
      */
     public void setWearLook(com.trmtgtnh.surface.SurfaceFamily family, String pattern) {}
+
+    /**
+     * Turns classic wear on or off for one family, or for every family when {@code family} is null (0.9.229). As
+     * cosmetic as a look, and as much this client's own: nothing on a server draws, so nothing here.
+     */
+    public void setClassicWear(com.trmtgtnh.surface.SurfaceFamily family, boolean on) {}
 
     /** True on a physical client whose player has the overlay switched on. */
     public boolean overlayActive() {

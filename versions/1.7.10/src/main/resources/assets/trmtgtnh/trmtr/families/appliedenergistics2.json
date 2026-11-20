@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "_": "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). Sky Stone, value 0, is the natural dark rock of the meteors the mod scatters; its other values are the cut and brick forms, which are made. The name holds stone only inside SkyStone, after the tile word the rules read as decorative.",
+  "entries": [
+    { "blocks": ["appliedenergistics2:tile.BlockSkyStone:0"], "family": "stone" }
+  ]
+}

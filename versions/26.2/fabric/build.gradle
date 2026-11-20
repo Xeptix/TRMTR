@@ -49,6 +49,11 @@ dependencies {
         transitive = false
     }
 
+    // Distant Horizons' API, compile only and never shipped (0.9.229 W6 T17): that mod is LGPL-3.0, and the plugin
+    // that names it (com.trmtgtnh.fabric.dh) is loaded only where a player has it installed. From Modrinth's Maven; 7.2.0 is
+    // the API inside DistantHorizons-3.3.3-26.2-fabric-neoforge.jar, one jar for Fabric and NeoForge.
+    compileOnly "maven.modrinth:distanthorizonsapi:${rootProject.distanthorizons_api_version}"
+
     common(project(path: ":common")) { transitive = false }
     shadowBundle project(path: ":common", configuration: "transformProductionFabric")
 }
@@ -80,3 +85,76 @@ shadowJar {
 }
 
 assemble.dependsOn shadowJar
+
+// ---------------------------------------------------------------------------
+// The TRMTR API's example mod, on the development runs only
+// ---------------------------------------------------------------------------
+//
+// The example mod (0.9.229, W3 spec 2.8, carried in T19 and T20) lives in the 1.7.10 tree's api/example/: its portable plugin
+// and data in common/, and this loader's one registration class in 26.2/fabric/. That tree is found as the Forge
+// module finds it, through the untracked sibling.properties at the root: its apiHome line where one is given,
+// otherwise by following otherEdition to the tree each names in turn. Where neither leads to the folder, this tree and
+// its public repository build exactly as before. A source set of its own, so nothing a shipped jar takes can reach it,
+// and its jar written to build/example/, outside build/libs; guards in the 1.7.10 tree's tools hold both.
+//
+// Fabric Loader loads a second mod in development from the run's classpath: in a development launch its
+// ClasspathModCandidateFinder (fabric-loader 0.19.5's sources) takes every class path entry holding a fabric.mod.json
+// as a mod of its own, grouping only the paths fabric.classPathGroups names, which Loom sets for this module's own
+// output. So the example's jar on runClient's and runServer's class path is the separate mod it is, with its own jar as
+// its source, and TRMTR reads its plugin.json and data from that jar as it would a player's.
+def exampleHome = null
+def exampleTrees = []
+def exampleFirst = rootProject.file('sibling.properties')
+if (exampleFirst.exists()) {
+    Properties heldForExample = new Properties()
+    exampleFirst.withInputStream { heldForExample.load(it) }
+    String apiTree = heldForExample.getProperty('apiHome', '').trim()
+    if (!apiTree.isEmpty()) exampleTrees << new File(apiTree)
+    // otherEdition, then the tree each one names in turn, a few steps at most: this tree names 1.7.10.
+    String olderTree = heldForExample.getProperty('otherEdition', '').trim()
+    for (int step = 0; step < 3 && !olderTree.isEmpty(); step++) {
+        File older = rootProject.file(olderTree)
+        exampleTrees << older
+        File olderSibling = new File(older, 'sibling.properties')
+        olderTree = ''
+        if (olderSibling.exists()) {
+            Properties olderHeld = new Properties()
+            olderSibling.withInputStream { olderHeld.load(it) }
+            olderTree = olderHeld.getProperty('otherEdition', '').trim()
+        }
+    }
+}
+for (File tree : exampleTrees) {
+    if (exampleHome == null && new File(tree, 'api/example/26.2/fabric').isDirectory()) {
+        exampleHome = new File(tree, 'api/example')
+    }
+}
+if (exampleHome != null) {
+    sourceSets {
+        example {
+            java.srcDirs = [new File(exampleHome, 'common/java'), new File(exampleHome, '26.2/fabric/java')]
+            resources.srcDirs = [new File(exampleHome, 'common/resources'), new File(exampleHome, '26.2/fabric/resources')]
+            compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        }
+    }
+
+    def exampleJar = tasks.register('exampleJar', Jar) {
+        description = 'The TRMTR API example mod, for the development runs only.'
+        from(sourceSets.example.output)
+        archiveFileName.set('example-26.2-fabric.jar')
+        destinationDirectory.set(layout.buildDirectory.dir('example'))
+    }
+
+    // Nothing is remapped from 26.1 (the root build file), so this jar is under the names a real game runs with, Mojang's,
+    // on all three loaders, and needs no second one as 1.21.1's Fabric does.
+
+    // Loom's run tasks keep a classpath of their own, and classpath() adds to it whether the run goes by an argument
+    // file or a bare class path (architectury-loom 1.17's AbstractRunTask, getInternalClasspath).
+    ['runClient', 'runServer'].each { taskName ->
+        tasks.matching { it.name == taskName }.configureEach { JavaExec task ->
+            task.dependsOn(exampleJar)
+            task.classpath(exampleJar)
+        }
+    }
+}
+

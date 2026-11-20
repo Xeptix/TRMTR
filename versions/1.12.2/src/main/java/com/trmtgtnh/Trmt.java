@@ -44,15 +44,14 @@ import com.trmtgtnh.util.Support;
     // same version on both sides, so a client carrying this mod could not join a server without it.
     // See checkRemoteVersions.
     acceptableRemoteVersions = "*",
-    // The mixin loader, named so that a pack without it is told rather than left to wonder. This is
-    // something the other edition cannot do: UniMixins is a tweaker, with no mod id to require, so
-    // there the only place a player is told is the download page's relations block. MixinBooter
-    // registers itself as an ordinary mod, so Forge can refuse the launch and say why.
-    //
-    // required-after rather than required-before: what the config needs is to be read, which happens
-    // at the loader's own stage long before anything here runs, and the ordering only says that this
-    // mod loads after it.
-    dependencies = "required-after:mixinbooter",
+    // The mixin loader, ordered before this mod and no longer required of Forge (G17 R5, 2026-11-11;
+    // Xep: "Make it cope (Recommended)"). Required until then, which stopped every pack that boots an
+    // older Mixin of its own, RLCraft among them: Forge would not start without MixinBooter, and
+    // MixinBooter 11.13 cannot start under that Mixin. A pack without it is still told: where there is
+    // no Mixin at all, TrmtLoadingPlugin hands Forge MixinBooterWanted, whose one requirement is
+    // MixinBooter, and Forge refuses the launch on the same screen as before. Elsewhere the plugin
+    // registers the mixin config itself, under the Mixin the pack booted.
+    dependencies = "after:mixinbooter",
     guiFactory = "com.trmtgtnh.client.gui.TrmtGuiFactory")
 public class Trmt {
 
@@ -132,9 +131,9 @@ public class Trmt {
         LOG.warn(
             "{} was never registered, so none of this mod's mixins apply: snow and carpet do not settle on worn ground,"
                 + " a chunk the server rewrites is not repainted at once, librarians sell no wear books, and worn"
-                + " ground does not shade its neighbours. Another mod booted Mixin before MixinBooter - see the"
-                + " compatibility notes.",
-            com.trmtgtnh.core.TrmtLoadingPlugin.CONFIG);
+                + " ground does not shade its neighbours. {}",
+            com.trmtgtnh.core.TrmtLoadingPlugin.CONFIG,
+            com.trmtgtnh.core.TrmtLoadingPlugin.whyNotRegistered());
     }
 
     @Mod.EventHandler
@@ -147,6 +146,12 @@ public class Trmt {
         TrmtConfig.load(event.getSuggestedConfigurationFile());
         com.trmtgtnh.network.TrmtNetwork.init();
         proxy.preInit();
+        // The data files (W3 spec 2.2): after the config, whose folder holds config/trmtr, and after the client proxy
+        // has read the enabled resource packs; before the first resolve in init, which T5 feeds from this table.
+        com.trmtgtnh.dataload.DataLoad.read();
+        // trmtr-api (W3 spec 2.5): TRMTR installed, the shading check, and every plugin the read listed loaded - after
+        // the data read, which lists them from mod jars' plugin.json, and before the first resolve in init.
+        com.trmtgtnh.apiload.ApiLoad.start();
     }
 
     @Mod.EventHandler
@@ -180,6 +185,9 @@ public class Trmt {
      */
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
+        // Every mod's blocks and entities are registered now, so the pre-init data read's summary can count the names
+        // its files give that are not installed.
+        com.trmtgtnh.dataload.DataLoad.registered();
         SurfaceRegistry.resolve();
         // Which blocks can ever sink, stamped once the surfaces they belong to are known - so the
         // collision path, which runs for every moving thing every tick, can dismiss the rest with one
@@ -229,7 +237,12 @@ public class Trmt {
         // client's disconnect, which in single player ran while this server was still shutting
         // down and could discard a reload it had queued; the client's queue is its own business.
         com.trmtgtnh.util.MainThread.clearServer();
+        // And the changes a last chunk load left for a tick that will not come: the world they name has gone.
+        com.trmtgtnh.apiload.ApiHooks.dropHeld();
         com.trmtgtnh.compat.QuestbookCompat.forgetWorld();
+        // The wear mirror's last writes and the backups' record, before the store forgets the world (0.9.229).
+        com.trmtgtnh.server.WearBackups.get()
+            .serverStopped();
         com.trmtgtnh.erosion.ErosionStore.get()
             .clearMemory();
         com.trmtgtnh.erosion.ErosionEngine.get()

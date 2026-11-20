@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "_": "TerraFirmaCraft draws each grass from parts, and the first part is the soil's own underside, so the top read from it is the soil's earth. Every grass of the mod wears the mod's own grass top, the picture its top parts draw over the soil; its underside is still its own soil.",
+  "entries": [
+    {
+      "blocks": [
+        "tfc:grass/silt", "tfc:grass/loam", "tfc:grass/sandy_loam", "tfc:grass/silty_loam",
+        "tfc:clay_grass/silt", "tfc:clay_grass/loam", "tfc:clay_grass/sandy_loam", "tfc:clay_grass/silty_loam",
+        "tfc:peat_grass", "tfc:kaolin_clay_grass"
+      ],
+      "face": "tfc:block/grass_top"
+    }
+  ]
+}

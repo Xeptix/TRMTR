@@ -57,7 +57,7 @@ public class GhostModelFabric extends WrapperBlockStateModel {
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), com.trmtgtnh.erosion.ErosionState.sinkOf(record));
+        int rotation = com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin);
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
 
@@ -82,21 +82,63 @@ public class GhostModelFabric extends WrapperBlockStateModel {
             : null;
         if (optifine != null) OptiFineMaterial.pushClaim(GhostQuads.claimOf(record, origin, rotation), optifine);
         try {
-            emit(
-                context,
-                GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
-                null,
-                cullTest);
+            // Through the level-aware build, where trmtr-api's render hook is asked for a ghost over a block a plugin
+            // draws (W3 T8). The six faces first and the faces with no side last, the order vanilla's renderer asks a
+            // model in, which is what lets the hook's one drawing serve all seven asks and be forgotten after them.
+            //
+            // A hooked square draws flat, as 1.7.10's (ApiDraw, "Light"): Indigo's FlatLighter and Sodium's take a quad's
+            // light from its cull face's cell, which is what a cut's walls are filed under the top for.
+            //
+            // A worn stair is lit as the game lights the real stair (1.0.0): with smooth lighting, and by vanilla's own
+            // shading - the mode Fabric encodes a vanilla model's quads in, which Indigo hands to the game's own
+            // BlockModelLighter - so its riser and lower tread are shaded exactly as the real stair's beside it. From
+            // 0.9.228 to 1.0.0 a worn stair drew flat here, after Indigo's enhanced shading darkened its riser; flat, it
+            // drew with no shading at all on Indigo and, under Sodium, black (see MixinWornStairLightSodium), where the
+            // stairlight part's photographs of the same stairs unworn show the game's own shading on every renderer.
+            boolean stair = stairs != null && !stairs.isEmpty();
+            TriState smooth = GhostQuads.drawnByHook(level, pos)
+                ? TriState.FALSE : TriState.DEFAULT;
+            ShadeMode shade = stair ? ShadeMode.VANILLA : ShadeMode.ENHANCED;
             for (Direction side : Direction.values()) {
                 emit(
                     context,
-                    GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
+                    GhostQuads.build(level, pos, record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
                     side,
-                    cullTest);
+                    cullTest,
+                    smooth,
+                    shade);
+                emitGlow(context, GhostQuads.glow(record, origin, outline, rotation, fringeTurn, snowed, side, stairs), side, cullTest,
+                    smooth, shade);
             }
+            emit(
+                context,
+                GhostQuads.build(level, pos, record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
+                null,
+                cullTest,
+                smooth,
+                shade);
+            emitGlow(context, GhostQuads.glow(record, origin, outline, rotation, fringeTurn, snowed, null, stairs), null, cullTest,
+                smooth, shade);
         } finally {
             if (optifine != null) OptiFineMaterial.popClaim(optifine);
         }
+    }
+
+    /**
+     * Hands the glow overlays of a square to the emitter (0.9.228, real glow), each over the picture it goes with and
+     * culled with it, and with the very smooth lighting that picture goes out with, so it is shaded exactly as the
+     * picture is: the same ambient occlusion and face shade. Each quad carries its own cutout pass and the light it
+     * gives off ({@code GhostQuads.glow}), which {@code fromBakedQuad} copies into the quad's lightmap; Indigo then
+     * multiplies the same ambient occlusion into its color and keeps, channel by channel, the brighter of the light it
+     * works out and the quad's own (read from fabric-renderer-indigo 9.1.4, AltModelBlockRendererImpl.shadeQuad:
+     * ExtraLightCoordsUtil.smoothMax on the smooth path, minLightmap on the flat), and the Sodium family keeps the
+     * brighter too. Emitted with smooth lighting off at first, as 1.21.1's first version was, the overlay lost the
+     * picture's ambient occlusion and drew brighter than the picture beside a rut's walls by day (1.21.1 073614f).
+     * Nothing is emitted where a square has no glow.
+     */
+    private static void emitGlow(QuadEmitter context, List<BakedQuad> quads, Direction cull,
+        Predicate<Direction> cullTest, TriState smooth, ShadeMode shade) {
+        emit(context, quads, cull, cullTest, smooth, shade);
     }
 
     /**
@@ -152,13 +194,14 @@ public class GhostModelFabric extends WrapperBlockStateModel {
      * cells the blast part's light census found as bright as the open air above them. Faces flush with the block's
      * edge are lit alike either way.
      */
-    private static void emit(QuadEmitter context, List<BakedQuad> quads, Direction cull, Predicate<Direction> cullTest) {
+    private static void emit(QuadEmitter context, List<BakedQuad> quads, Direction cull, Predicate<Direction> cullTest,
+        TriState smooth, ShadeMode shade) {
         if (cull != null && cullTest.test(cull)) return;
         for (BakedQuad quad : quads) {
             context.cullFace(cull);
             context.fromBakedQuad(quad);
-            context.ambientOcclusion(TriState.DEFAULT);
-            context.shadeMode(ShadeMode.ENHANCED);
+            context.ambientOcclusion(smooth);
+            context.shadeMode(shade);
             context.emit();
         }
     }

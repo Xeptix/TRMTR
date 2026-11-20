@@ -52,9 +52,9 @@ import com.trmtgtnh.client.OverlayPainter;
  * The painter still says once in the log, the first time one of these runs, that they are in place.
  *
  * <p>
- * Nothing here catches a missing loader: with no MixinBooter there is nothing reading this config, so
- * {@code require} is never consulted. That is what the {@code required-after:mixinbooter} dependency
- * on {@code Trmt} is for.
+ * Nothing here catches a missing loader: with no Mixin there is nothing reading this config, so
+ * {@code require} is never consulted. That is what {@code com.trmtgtnh.core.MixinBooterWanted} is for,
+ * which asks Forge for MixinBooter in exactly that game.
  */
 @Mixin(NetHandlerPlayClient.class)
 public class MixinBlockArrivals {

@@ -1,5 +1,34 @@
 // Extra build configuration, applied on top of the GTNH convention.
 
+// The version stamp says "-dirty" only for a change to what goes into the jar (0.9.229, W1).
+//
+// The convention's git version (its GitVersionModule, over palantir's git-version) calls the tree dirty for any
+// change at all, so the rig's own records - docs/cell-catalogue.json and docs/shot-catalogue.json, written by every
+// sweep and committed after it - stamped a development game "0.9.220-master.899+3ba2dd5a0e-dirty", and the
+// protocol-update photograph showed it. Nothing under docs/ goes into the jar, so a stamp that says dirty is asked
+// again with docs/ left out, and the "-dirty" comes off when that answer is clean. The two shapes are the
+// convention's own: <tag>-<branch>.<distance>+<hash>-dirty after a tag, and <tag>-<branch>+<hash>-dirty on the
+// tag itself, which is plain <tag> when clean. A git that does not answer leaves the stamp as it was. Guarded by
+// the_version_stamp_ignores_docs in tools/check_tools.py.
+String stampedVersion = project.version.toString()
+if (stampedVersion.endsWith('-dirty')) {
+    def outsideDocs = providers.exec {
+        commandLine 'git', 'status', '--porcelain', '--', '.', ':(exclude,glob)docs/**'
+        workingDir = rootDir
+        ignoreExitValue = true
+    }
+    boolean onlyDocsChanged = outsideDocs.result.get().exitValue == 0 &&
+        outsideDocs.standardOutput.asText.get().trim().isEmpty()
+    def afterTag = stampedVersion =~ /^(.+-[A-Za-z0-9-]+\.\d+\+[0-9a-fA-F]+)-dirty$/
+    def onTag = stampedVersion =~ /^(.+)-[A-Za-z0-9-]+\+[0-9a-fA-F]+-dirty$/
+    String cleanVersion = afterTag.matches() ? afterTag.group(1) : (onTag.matches() ? onTag.group(1) : null)
+    if (onlyDocsChanged && cleanVersion != null) {
+        logger.lifecycle("Version stamp: only docs/ differs from the commit, so ${stampedVersion} is ${cleanVersion}")
+        project.version = cleanVersion
+        project.ext.modVersion = cleanVersion
+    }
+}
+
 // The storage-layer tests are JUnit 5. Without this the platform is never engaged and the
 // test task reports "no tests discovered" rather than running them.
 tasks.named('test', Test) {
@@ -18,6 +47,12 @@ tasks.named('test', Test) {
         fileTree(rootProject.projectDir) {
             include 'README.md'
             include 'docs/*.md'
+            // trmtr-api's surface records, which ApiSurfaceTest holds the compiled package to (0.9.229, W3).
+            include 'api/*.txt'
+            // The census goldens, which DetectionReplayTest puts through the rules (W4 spec 3.2).
+            include 'docs/census/*/registry.tsv'
+            // Which packs ship no TRMT data of their own, whose data lines the test holds to the shipped files.
+            include 'docs/census/pack-data.tsv'
             include 'src/main/java/**'
             include 'src/main/resources/**'
         })
@@ -74,6 +109,62 @@ reobfJar {
     archiveClassifier.set('forge')
 }
 
+// The TRMTR API's example mod (api/example/; 0.9.229, W3 spec 2.8, task T12): its portable plugin and data, and this
+// edition's one registration class, built as a mod of its own into the development runs and nowhere else. It is a
+// source set of its own so that nothing the shipped jars take - `jar`, `reobfJar`, `sourcesJar`, all of them the main
+// source set's - can reach it, and its jar is written to build/example/, outside build/libs, where staging and the
+// jar checks look. It compiles against the game and TRMTR's classes because the dev run needs both on one classpath;
+// that it uses nothing of TRMTR's but trmtr-api, and that no shipped jar holds it, are checked by guards of their own.
+// The folder is private, so a tree without it (the public repository) builds exactly as before.
+if (file('api/example').isDirectory()) {
+    sourceSets {
+        example {
+            java.srcDirs = ['api/example/common/java', 'api/example/1.7.10/forge/java']
+            resources.srcDirs = ['api/example/common/resources', 'api/example/1.7.10/forge/resources']
+            compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        }
+    }
+
+    tasks.named('compileExampleJava', JavaCompile).configure {
+        // The dev run's Java is 8, so the example is compiled for it, as a mod built against trmtr-api would be.
+        options.release = 8
+        // The convention hands every compile Jabel as a compiler plugin; without the main source set's processor
+        // path javac finds Jabel on the class path, where the libraries it needs are not, and stops.
+        options.annotationProcessorPath = configurations.annotationProcessor
+    }
+
+    def exampleJar = tasks.register('exampleJar', Jar) {
+        description = 'The TRMTR API example mod, for the development runs only.'
+        from(sourceSets.example.output)
+        archiveFileName.set('example-1.7.10-forge.jar')
+        destinationDirectory.set(layout.buildDirectory.dir('example'))
+    }
+
+    // The same example reobfuscated, for a real game: exampleJar is compiled against the dev run's deobfuscated names
+    // (`Blocks.grass`), which a released 1.7.10 does not have (there it is `field_150349_c`), so the rig's copy, a
+    // real 1.7.10, crashed in the example's preInit (W3 R3, 2026-11-03). RetroFuturaGradle's own rule makes
+    // reobf<JarTask> from a Jar task with the mappings reobfJar uses; it is written beside the dev jar under its own
+    // name, and the dev runs keep the deobfuscated one. TRMTR's classes are on its reference path because the example
+    // compiles against them. runServer builds it so that api_server.py, which plays that task, always finds it fresh.
+    def exampleReobf = tasks.named('reobfExampleJar') {
+        description = 'The TRMTR API example mod reobfuscated, for the rig\'s real games only.'
+        archiveFileName.set('example-1.7.10-forge-reobf.jar')
+        destinationDirectory.set(layout.buildDirectory.dir('example'))
+        referenceClasspath.from(sourceSets.main.output)
+    }
+    tasks.named('runServer') {
+        dependsOn(exampleReobf)
+    }
+
+    // FML finds a mod in any jar on a development run's classpath, so the example is loaded as the separate mod it
+    // is, with its own jar as its source: TRMTR reads its plugin.json and data from that jar as it would a player's.
+    ['runClient', 'runServer'].each { taskName ->
+        tasks.named(taskName, JavaExec).configure { JavaExec task ->
+            task.classpath(exampleJar)
+        }
+    }
+}
+
 // The verification harness is off in a plain run and has to be asked for, which is the whole point of
 // its being gated: it opens a world, drives the player and shuts the game down, and none of that may
 // happen to somebody who merely launched the game. `-Pspike` sets the walking gate and `-Pshots` adds
@@ -95,6 +186,11 @@ reobfJar {
         // refreshed on its own. Nothing given means all of them. See the harness's wanted().
         if (project.hasProperty('only')) {
             task.systemProperty('trmt.spike.only', project.property('only').toString())
+        }
+        // A saved walk, by its folder's name, opened instead of walking (0.9.229, W1 T8): the run script copies
+        // the folder into saves/trmt-walk. See the harness's WORLD.
+        if (project.hasProperty('world')) {
+            task.systemProperty('trmt.spike.world', project.property('world').toString())
         }
         // The size this run photographs at, so one comparison sheet never tiles two of them.
         //

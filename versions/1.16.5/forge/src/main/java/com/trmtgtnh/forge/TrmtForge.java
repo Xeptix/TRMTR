@@ -81,7 +81,9 @@ public final class TrmtForge {
         com.trmtgtnh.util.Machines.use(player -> player instanceof net.minecraftforge.common.util.FakePlayer);
         // A block keeps a tile entity on Forge when any of its states says so through IForgeBlockState - how a mod
         // at this version declares one without being an EntityBlock - and detection must never stand a ghost in
-        // for it (spec SD6). Fabric's mods declare theirs as EntityBlock, which the shared module already asks.
+        // for it (spec SD6). It is the gate Forge's own LevelChunk asks, whose answer for a state no mod overrode is
+        // EntityBlock, so it stands in for vanilla's: an EntityBlock whose every state says no holds nothing and
+        // wears (Xep, 2026-11-09, "Fix it, per-value rule"). Fabric's is vanilla's, which the shared module holds.
         com.trmtgtnh.surface.SurfaceRegistry.useEntityTest(
             block -> block.getStateDefinition()
                 .getPossibleStates()
@@ -133,6 +135,21 @@ public final class TrmtForge {
             .addListener(
                 (net.minecraftforge.fml.event.lifecycle.FMLModIdMappingEvent moved) -> com.trmtgtnh.server.ServerEvents
                     .idsMoved());
+
+        // The data files and trmtr-api (W3 spec 2.2 and 2.5, carried in T17): where Forge's mods are and which packs
+        // are its own packs of their files, then the first read and the plugins, at common setup - once every mod has
+        // been constructed and registered its blocks, so an example mod has set what its plugin needs, and never in
+        // this constructor, which Forge may run beside another mod's. On the main thread (enqueueWork), one at a time.
+        com.trmtgtnh.dataload.DataLoad.useMods(ForgeData::modFiles);
+        com.trmtgtnh.dataload.DataFiles.useModPacks(ForgeData::modPack);
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get()
+            .getModEventBus()
+            .addListener((net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent setup) -> setup.enqueueWork(() -> {
+                com.trmtgtnh.dataload.DataLoad.read();
+                com.trmtgtnh.apiload.ApiLoad.start();
+                // Forge's registry events have all fired by common setup, so the summary can count names now.
+                com.trmtgtnh.dataload.DataLoad.registered();
+            }));
 
         // The One Probe takes its API through a message sent while mods enqueue theirs, and only when it is
         // installed: OneProbeTooltip is the only class that names it, and nothing loads that class otherwise.

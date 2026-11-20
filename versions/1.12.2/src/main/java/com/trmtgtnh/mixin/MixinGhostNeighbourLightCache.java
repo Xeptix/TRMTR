@@ -23,9 +23,11 @@ import com.trmtgtnh.block.BlockGhost;
  * reads the flag here and nowhere else - vanilla's chunk build, Forge's light pipeline, and OptiFine's ChunkCacheOF, which
  * takes its light from this class (javap of OptiFine 1.12.2 HD U G5, 2026-10-09) - so the read is answered here, by
  * position, the state's own answer chained so another mod wrapping the same call still has its say. Wrapped rather than
- * redirected for the same reason; a version whose method does not hold the call loses the fix, never the game.
+ * redirected for the same reason; a version whose method does not hold the call loses the fix, never the game. Above
+ * the default priority, so a mod that overwrites this read does not stop the game either, as Alfheim's did at the
+ * default: see {@link OculusGate#ABOVE_OVERWRITES}.
  */
-@Mixin(ChunkCache.class)
+@Mixin(value = ChunkCache.class, priority = OculusGate.ABOVE_OVERWRITES)
 public abstract class MixinGhostNeighbourLightCache {
 
     @WrapOperation(

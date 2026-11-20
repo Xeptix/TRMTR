@@ -77,6 +77,12 @@ public final class ClientSide implements Client.Side {
     }
 
     @Override
+    public void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {
+        ClientRules.get()
+            .applyClientRules(rules);
+    }
+
+    @Override
     public void setMayEditFamilies(boolean allowed) {
         ClientRules.get()
             .setMayEditFamilies(allowed);
@@ -152,6 +158,53 @@ public final class ClientSide implements Client.Side {
             .requestRestitch("Your wear look changed.");
     }
 
+    /**
+     * Turns classic wear on or off for this client, for one family or (family null) for every family with a classic
+     * look, and remembers it: the switch written to the config, every family's look worked out again from what its
+     * file names ({@link com.trmtgtnh.config.FamilySettings#effectiveLook}), and the atlas rebuilt, as a look chosen in
+     * the wear table is. Carried from the other edition's proxy, beside {@link #setWearLook}.
+     */
+    @Override
+    public void setClassicWear(com.trmtgtnh.surface.SurfaceFamily family, boolean on) {
+        com.trmtgtnh.config.ConfigFile config = com.trmtgtnh.config.TrmtConfig.raw();
+        String category = family == null ? com.trmtgtnh.config.TrmtConfig.CATEGORY_CLIENT
+            : com.trmtgtnh.config.TrmtConfig.CATEGORY_FAMILIES + com.trmtgtnh.config.ConfigFile.CATEGORY_SPLITTER
+                + family.key();
+        if (family == null) {
+            com.trmtgtnh.config.TrmtConfig.classicWear = on;
+        } else {
+            com.trmtgtnh.config.FamilySettings settings = com.trmtgtnh.config.TrmtConfig.family(family);
+            if (settings == null || com.trmtgtnh.config.FamilySettings.classicLook(family) == null) return;
+            settings.classicWear = on;
+        }
+        for (com.trmtgtnh.surface.SurfaceFamily each : com.trmtgtnh.surface.SurfaceFamily.values()) {
+            com.trmtgtnh.config.FamilySettings settings = com.trmtgtnh.config.TrmtConfig.family(each);
+            if (settings == null || com.trmtgtnh.config.FamilySettings.classicLook(each) == null) continue;
+            String chosen = settings.wearPattern;
+            if (config != null) {
+                com.trmtgtnh.config.ConfigFile.Setting look = config
+                    .getCategory(
+                        com.trmtgtnh.config.TrmtConfig.CATEGORY_FAMILIES
+                            + com.trmtgtnh.config.ConfigFile.CATEGORY_SPLITTER
+                            + each.key())
+                    .get("wearPattern");
+                if (look != null) chosen = look.getString();
+            }
+            settings.wearPattern = com.trmtgtnh.config.FamilySettings
+                .effectiveLook(each, chosen, com.trmtgtnh.config.TrmtConfig.classicWear, settings.classicWear);
+        }
+        if (config != null) {
+            com.trmtgtnh.config.ConfigFile.Setting property = config.getCategory(category)
+                .get("classicWear");
+            if (property != null) {
+                property.set(on);
+                com.trmtgtnh.config.TrmtConfig.save();
+            }
+        }
+        WearRestitch.get()
+            .requestRestitch("Classic wear " + (on ? "on." : "off."));
+    }
+
     @Override
     public void setServerPricing(WearMath.Pricing pricing) {
         ClientRules.get()
@@ -202,6 +255,13 @@ public final class ClientSide implements Client.Side {
         OlderServerNotice.considered(net.minecraft.client.Minecraft.getInstance(), sent, protocol, build);
     }
 
+    /** The world's own server has found wear lost: its question, shown once the player is in the world (0.9.229). */
+    @Override
+    public void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+        boolean dataPutBack) {
+        com.trmtgtnh.client.gui.GuiWearRestore.offer(chunks, newestBackupMillis, newerWorld, mirrorHolds, dataPutBack);
+    }
+
     @Override
     public void openSnapshotScreen(int flags) {
         net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
@@ -223,6 +283,13 @@ public final class ClientSide implements Client.Side {
      * a later gesture's open it. The 1.7.10 edition's {@code ClientProxy.snapshotScreenAsked}.
      */
     private static boolean snapshotScreenAsked;
+
+    /** Whether this is the client's own thread, where its world is read (trmtr-api's position queries, W3 T7). */
+    @Override
+    public boolean onClientThread() {
+        return net.minecraft.client.Minecraft.getInstance()
+            .isSameThread();
+    }
 
     @Override
     public void askedForSnapshotScreen() {
@@ -391,6 +458,7 @@ public final class ClientSide implements Client.Side {
      */
     public static void idleTick() {
         com.trmtgtnh.util.MainThread.drainClient();
+        com.trmtgtnh.client.texture.WearTextures.resolveAfterStartup();
         WearRestitch.get()
             .serviceRestitch();
     }
@@ -454,6 +522,8 @@ public final class ClientSide implements Client.Side {
         // The hold a ghost takes while its dust is spawned, let go of here, as the 1.7.10 edition's is: a tick is the
         // smallest window that covers the spawn (0.9.223, spec GF19).
         com.trmtgtnh.client.model.GhostDust.release();
+        // At the end of the client's tick, after its clicks: whether a chunk tamper's press is still held (RL19).
+        followTheAttackKey();
         sayHello();
         tellAboutTheModifier();
         tellAboutTheProbe();
@@ -464,8 +534,27 @@ public final class ClientSide implements Client.Side {
         com.trmtgtnh.util.MainThread.drainClient();
         OverlayPainter.get()
             .tick();
+        com.trmtgtnh.client.texture.WearTextures.resolveAfterStartup();
         WearRestitch.get()
             .serviceRestitch();
+    }
+
+    /**
+     * Tells a chunk tamper's press, each client tick, whether the attack key is still held on a block (RL19, 0.9.229).
+     *
+     * <p>
+     * The game's own reading of a held key for digging, which is what continues or stops a dig: no screen, the mouse
+     * taken and the key down, and the crosshair on a block. The left-clicks alone cannot say it, since the game's dig
+     * delay sends none for several ticks of a held key; see {@code ReinforceGestures.heldThrough}.
+     */
+    private static void followTheAttackKey() {
+        net.minecraft.client.Minecraft game = net.minecraft.client.Minecraft.getInstance();
+        if (game == null || game.player == null) return;
+        net.minecraft.world.phys.HitResult target = game.hitResult;
+        com.trmtgtnh.item.ReinforceGestures.clientTicked(
+            game.screen == null && game.mouseHandler.isMouseGrabbed() && game.options.keyAttack.isDown(),
+            target != null && target.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK,
+            game.player.tickCount);
     }
 
     /**
@@ -645,6 +734,8 @@ public final class ClientSide implements Client.Side {
         ServerRules.release();
         // The older server's line is said once a visit, and this is where a visit's rules are dropped (0.9.228).
         OlderServerNotice.left();
+        // And the server's protocol, so the next server is sent no message before its own rules say it reads it (RL19).
+        com.trmtgtnh.network.TrmtNetwork.leftServer();
         // And a snapshot screen asked for and never answered opens on nothing that comes later (0.9.228).
         snapshotScreenAsked = false;
         // The table a server named is the server's answer to what erodes, and a client that kept it
@@ -669,6 +760,13 @@ public final class ClientSide implements Client.Side {
         if (appearancesHandedBack) {
             WearRestitch.get()
                 .requestRestitch("Back on the materials your own config draws.");
+        }
+        // The server's rules for this player's own settings last (0.9.229): let go and read again on their own, after
+        // the hand-back above, so what the read moves is theirs alone and a rebuild of the pictures is asked for only
+        // where a setting they are built from actually changes - as a server clearing its list does.
+        if (com.trmtgtnh.config.ClientSettingsHeld.held()) {
+            com.trmtgtnh.config.ClientSettingsHeld.release();
+            com.trmtgtnh.config.ConfigReload.fromClientRules();
         }
         // And the map's coalescing, so the first square painted in the next world is told about
         // whatever the last one in this world happened to be.
@@ -700,7 +798,15 @@ public final class ClientSide implements Client.Side {
      */
     public static void chunkLoaded(int chunkX, int chunkZ) {
         if (ClientErosionCache.get()
-            .overlay(chunkX, chunkZ) == null) return;
+            .overlay(chunkX, chunkZ) == null) {
+            // No record: the server sends none for a chunk with no wear, so Distant Horizons' far terrain is told that
+            // whatever it remembered worn here healed while away (0.9.229 W6 T17; see DistantColors).
+            if (DistantColors.pluginRegistered()) {
+                net.minecraft.client.multiplayer.ClientLevel level = net.minecraft.client.Minecraft.getInstance().level;
+                DistantColors.arrivedBare(level, ClientOverlay.heldChunk(level, chunkX, chunkZ), chunkX, chunkZ);
+            }
+            return;
+        }
         OverlayPainter.get()
             .queueChunk(chunkX, chunkZ);
     }

@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "_": [
+    "Ad Astra, from All the Mods 10's census (W4 R9, judged 2026-11-12), as 1.20.1's file has them from All the Mods 9's. Named one by one, only the blocks that census saw as ground and judged, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Their bricks, polished forms, pillars, tiles, slabs, stairs and walls were not judged and are left to the rules, and the planets' stones and sands that detection already places are left to it.",
+    "Stone: conglomerate of Mars, the infernal spire of Venus and Venus sandstone are the natural rock of those planets, and permafrost the frozen rock of Glacio. The rules leave them out for having no stone word, or for the decorative word in sandstone."
+  ],
+  "entries": [
+    { "blocks": ["ad_astra:conglomerate", "ad_astra:infernal_spire_block", "ad_astra:permafrost", "ad_astra:venus_sandstone"], "family": "stone" }
+  ]
+}

@@ -20,6 +20,11 @@ import net.minecraft.world.level.block.state.BlockState;
  * Named by string and gated by {@link OculusGate}, so a client without one of them never sees it; both
  * descriptors are named, Forge's for Rubidium and Embeddium and Fabric's intermediary one for Sodium,
  * because the target is never remapped.
+ *
+ * <p>
+ * <strong>GF1's hide of covered faces is not asked here</strong>: it is kept for vanilla's mesher alone (Xep,
+ * 2026-11-09: "Keep, vanilla only"), where it measured cheaper, and the Sodium family measured no gain. See
+ * {@code client.render.GhostHide}.
  */
 @Pseudo
 @Mixin(targets = { OculusGate.SODIUM_FACES, OculusGate.EMBEDDIUM_FACES }, remap = false)

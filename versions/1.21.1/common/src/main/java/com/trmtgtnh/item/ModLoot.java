@@ -142,6 +142,18 @@ public final class ModLoot {
     /** Whether that line has been said; a world reload files everything again and need not say so twice. */
     private static boolean announced;
 
+    /**
+     * Each unlock's switch as the last table load read it, and whether its book was filed then - "on, filed", "off, not
+     * filed" - by the unlock's name. What the harness walk's unlocks part says of the chest finds; "off, filed" is the
+     * fault it looks for.
+     */
+    private static final Map<String, String> unlockBooks = new java.util.concurrent.ConcurrentHashMap<String, String>();
+
+    /** {@link #unlockBooks}, in name order. */
+    public static Map<String, String> unlockBooks() {
+        return new java.util.TreeMap<String, String>(unlockBooks);
+    }
+
     // ------------------------------------------------------------------
     // The one hook
     // ------------------------------------------------------------------
@@ -299,11 +311,14 @@ public final class ModLoot {
      */
     private static void enchantBook(LootSack pool, ResourceLocation name, TamperEnchantment enchantment,
         boolean enabled) {
-        if (!enabled || enchantment == null || !wanted(name, LIBRARY, DUNGEON)) return;
+        if (enchantment == null || !wanted(name, LIBRARY, DUNGEON)) return;
         // Written by the enchantment's name rather than as a stack: an enchantment is data at this version, and the
         // book that would carry it cannot be made before a world has loaded the enchantment. The entry names it, and
         // the game finds it as the table is read - the same book, an enchanted book teaching it at level one.
-        if (pool.addBook(enchantment.key.location(), TrmtConfig.lootWeightEnchantBook)) added++;
+        boolean filed = enabled && pool.addBook(enchantment.key.location(), TrmtConfig.lootWeightEnchantBook);
+        if (filed) added++;
+        unlockBooks.put(enchantment.key.location()
+            .getPath(), (enabled ? "on" : "off") + (filed ? ", filed" : ", not filed"));
     }
 
     // ------------------------------------------------------------------

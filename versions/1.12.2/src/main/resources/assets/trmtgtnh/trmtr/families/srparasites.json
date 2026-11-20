@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "From RLCraft 2.9.3's census of 1.12.2 (W4 R5, judged 2026-11-12). The parasite stain is living parasite ground that spreads as a biome's top, and its nearest family is flesh, where the rules read its ground material as dirt. The census judged the whole block, so it is named whole; its flesh stairs and the parasites' rubble were not judged and stay as the rules leave them."
+  ],
+  "entries": [
+    { "blocks": ["srparasites:parasitestain"], "family": "flesh" }
+  ]
+}

@@ -23,8 +23,12 @@ import com.trmtgtnh.block.BlockGhost;
  * square ({@code getCombinedLight} through {@code getLightFromNeighborsFor}) - and what the game asks of a square's light
  * level ({@code getLight}). A ghost exists only in a client's world, so on any other world the block is never a ghost
  * and the state's own answer stands.
+ *
+ * <p>
+ * Above the default priority, so a lighting engine that overwrites these reads, as Alfheim does, does not stop the
+ * game: see {@link OculusGate#ABOVE_OVERWRITES}.
  */
-@Mixin(World.class)
+@Mixin(value = World.class, priority = OculusGate.ABOVE_OVERWRITES)
 public abstract class MixinGhostNeighbourLightWorld {
 
     @WrapOperation(

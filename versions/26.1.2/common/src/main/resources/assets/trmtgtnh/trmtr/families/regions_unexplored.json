@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "_": [
+    "Regions Unexplored's muds wear as dirt, as the families' table has mud: they are built as the game's own mud is, short of their cell with mud's sound, which the rules refuse. Its ash and volcanic ash wear as sand: they fall as sand does with gravel's sound, which one build of the mod makes a sand of and another a gravel, so they are named to be the same on every edition and loader. Argillite and chalk, the rock under its own turfs, wear as stone: neither name carries a word the rules read as rock. The rest of the mod is detection's where detection places it: its other grass blocks and turfs wear as grass and its dirts and podzols as dirt by their sounds, its paths and farmland are refused by their words, and its leaves are leaves by detection.",
+    "From the modded census of 26.1.2 (W4 R12, judged 2026-11-13), as 1.20.1's file has them from Prominence's census and 1.21.1's from All the Mods 10's. Named one by one, only the blocks that census judged; the deepslate grass block was not judged by it, nor by any edition's census, and is left to the rules, as are the chalk's and cobalt's made blocks, slabs and stairs. The argillite and chalk grass blocks were judged in the same census in W4 R13 (2026-11-13), as those editions' censuses ruled them, so the editions match.",
+    "Grass: the alpha, argillite, chalk and stone grass blocks are turfs, judged by their living top, and prismoss and deepslate prismoss are a living moss top as the moss block is; detection gave the alpha grass block dirt by its ground material, and the rest nothing on a material no rule reads. Nether: the brimsprout, cobalt, glistering, mycotoxic, viridescent and deepslate viridescent nyliums are nylium ground, nether by what they are wherever they lie, and cobalt obsidian is natural rock found only in the Nether; all are on a material no rule reads. Stone: the ash vent is the rock of its volcanic ground, with no stone word."
+  ],
+  "entries": [
+    { "blocks": ["regions_unexplored:peat_mud", "regions_unexplored:silt_mud"], "family": "dirt" },
+    { "blocks": ["regions_unexplored:ash", "regions_unexplored:volcanic_ash"], "family": "sand" },
+    { "blocks": ["regions_unexplored:argillite", "regions_unexplored:chalk"], "family": "stone" },
+    { "blocks": ["regions_unexplored:alpha_grass_block", "regions_unexplored:argillite_grass_block", "regions_unexplored:chalk_grass_block", "regions_unexplored:deepslate_prismoss", "regions_unexplored:prismoss", "regions_unexplored:stone_grass_block"], "family": "grass" },
+    { "blocks": ["regions_unexplored:brimsprout_nylium", "regions_unexplored:cobalt_nylium", "regions_unexplored:cobalt_obsidian", "regions_unexplored:deepslate_viridescent_nylium", "regions_unexplored:glistering_nylium", "regions_unexplored:mycotoxic_nylium", "regions_unexplored:viridescent_nylium"], "family": "nether" },
+    { "blocks": ["regions_unexplored:ash_vent"], "family": "stone" }
+  ]
+}

@@ -205,8 +205,8 @@ public final class SettingsGeometry {
 
         /** Every rectangle the frame holds, nulls left out, for a test to walk. */
         public Rect[] all() {
-            Rect[] parts = { header, wordmark, help, headerSlots[0], headerSlots[1], headerSlots[2], tabs, subTabs,
-                search, changedOnly, banner, panel, footer, done, cancel, undoAll, resetTab };
+            Rect[] parts = { header, wordmark, help, headerSlots[0], headerSlots[1], headerSlots[2], headerSlots[3],
+                tabs, subTabs, search, changedOnly, banner, panel, footer, done, cancel, undoAll, resetTab };
             int count = 0;
             for (Rect part : parts) {
                 if (part != null) count++;
@@ -260,8 +260,9 @@ public final class SettingsGeometry {
         int slot = compact ? 18 : 20;
         int slotRight = width - (compact ? 22 : 26);
         int slotY = compact ? 3 : 10;
-        frame.headerSlots = new Rect[3];
-        for (int i = 0; i < 3; i++) {
+        // Four from 0.9.229: the fourth is the wear backups' "Restore a backup", in a world of one's own.
+        frame.headerSlots = new Rect[4];
+        for (int i = 0; i < 4; i++) {
             frame.headerSlots[i] = Rect.sized(slotRight - i * (slot + 4), slotY, slot, slot);
         }
 

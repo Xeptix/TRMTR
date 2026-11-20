@@ -21,6 +21,7 @@ import net.minecraftforge.event.world.ChunkWatchEvent;
 import net.minecraftforge.event.world.ExplosionEvent;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.config.FaithfulProfile;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ChunkErosionData;
 import com.trmtgtnh.erosion.ErosionEngine;
@@ -87,10 +88,12 @@ public final class ServerEvents {
         // paths the moment led animals were told not to. Skipped only when none could answer, which keeps this event
         // costing nothing on a pack that uses none of them.
         MobWear.Switches groups = TrmtConfig.mobSwitches;
+        // A mod's wearer rule (trmtr-api) can answer for any mob, so it is a way in as well.
         if (!TrmtConfig.erodeFromLeashedMobs && TrmtConfig.mobMultipliers.isEmpty()
             && !groups.hostile
             && !groups.passive
-            && !groups.villagers) return;
+            && !groups.villagers
+            && !com.trmtgtnh.apiload.ApiHooks.rulesWearers()) return;
         EntityLivingBase entity = event.entityLiving;
         if (entity == null || entity.worldObj == null || entity.worldObj.isRemote) return;
         if (entity instanceof net.minecraft.entity.player.EntityPlayer) return; // handled above
@@ -142,6 +145,12 @@ public final class ServerEvents {
         if (event.phase != TickEvent.Phase.END) return;
         sampleCounter++;
         MainThread.drainServer();
+        // trmtr-api: what a chunk's load changed, now the load is over and the chunk whole, after the queue above so a
+        // listener hears of a catch-up once its chunk has gone to whoever watches it.
+        com.trmtgtnh.apiload.ApiHooks.deliverHeld();
+        // Wear backups' schedule, and the mirror's writes handed to their own thread (0.9.229).
+        WearBackups.get()
+            .tick();
         if ((sampleCounter % 20) == 0) advanceHealClock();
         ErosionEngine.get()
             .onServerTick();
@@ -201,8 +210,19 @@ public final class ServerEvents {
     public void onWorldLoad(net.minecraftforge.event.world.WorldEvent.Load event) {
         World world = event.world;
         if (world == null || world.isRemote || world.provider == null || world.provider.dimensionId != 0) return;
+        // Wear backups first (0.9.229): a heal clock missing from data/ is put back from the newest backup before it is
+        // read below, and the backup before a mod update is queued before anything touches the wear.
+        WearBackups.get()
+            .worldLoading(world);
         HealClockData clock = HealClockData.get(world);
         if (clock != null) ErosionEngine.setHealPause((int) clock.idleSeconds());
+    }
+
+    /** The overworld has saved: the wear mirror goes to disk, and the save is this mod's last (0.9.229). */
+    @SubscribeEvent
+    public void onWorldSave(net.minecraftforge.event.world.WorldEvent.Save event) {
+        WearBackups.get()
+            .worldSaved(event.world);
     }
 
     @SubscribeEvent
@@ -232,6 +252,9 @@ public final class ServerEvents {
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         SpawnGrants.onLogin(event.player);
+        // An operator is told of the wear a server put back by itself (wear backups, 0.9.229).
+        if (event.player instanceof EntityPlayerMP) WearBackups.get()
+            .playerJoined((EntityPlayerMP) event.player);
         tellAboutQuests(event.player);
         if (event.player instanceof EntityPlayerMP) UpdateNotice.onLogin((EntityPlayerMP) event.player);
     }
@@ -392,8 +415,14 @@ public final class ServerEvents {
         if (com.trmtgtnh.item.ModPotions.treadsLightly(entity, entity.ridingEntity)) return;
         multiplier *= com.trmtgtnh.item.ModPotions.wearFactor(entity, entity.ridingEntity);
 
-        ErosionEngine.get()
-            .impact(entity.worldObj, entity.posX, entity.posY - 1.0D, entity.posZ, event.distance, multiplier);
+        // trmtr-api: the landing's wear carries its cause and who landed (W3 T7).
+        com.trmtgtnh.apiload.ApiHooks.enter(com.trmtgtnh.api.WearContext.Cause.IMPACT, entity);
+        try {
+            ErosionEngine.get()
+                .impact(entity.worldObj, entity.posX, entity.posY - 1.0D, entity.posZ, event.distance, multiplier);
+        } finally {
+            com.trmtgtnh.apiload.ApiHooks.leave();
+        }
     }
 
     /**
@@ -502,6 +531,11 @@ public final class ServerEvents {
 
         SurfaceFamily aimed = SurfaceRegistry.familyOf(event.block, world.getBlockMetadata(event.x, event.y, event.z));
         if (aimed == null || !aimed.staged) return;
+        // Faithful Mode's sand takes no bone meal, as the original's did not; vanilla does what it does with it.
+        if (FaithfulProfile.refusesBoneMeal(aimed)) return;
+        // Faithful Mode's grass and dirt take bone meal as the original's did (spec 2.6): the aimed square alone,
+        // one stage back along the healing chain, free of any block, and worth no experience.
+        boolean faithful = FaithfulProfile.mendsOneStage(aimed);
 
         // Creative pays nothing, and has to: the game puts back only the stack in the hand after a
         // right click, so a block taken from any other slot would be gone for good.
@@ -509,14 +543,18 @@ public final class ServerEvents {
         boolean fromHand = player != null && !(player instanceof FakePlayer)
             && isBoneMeal(player.getHeldItem())
             && clickedWithBoneMeal(player, world, event.x, event.y, event.z);
-        MendLedger ledger = creative || !TrmtConfig.bonemealCostsABlock ? MendLedger.free() : MendLedger.perGesture(1);
+        MendLedger ledger = faithful || creative || !TrmtConfig.bonemealCostsABlock ? MendLedger.free()
+            : MendLedger.perGesture(1);
         MendPurse purse = new MendPurse(player, ledger, MendPurse.byOwnBlock(player));
         // Asked before the patch is mended, because afterwards the answer is about what is left.
         boolean aimedWorn = ErosionEngine.get()
             .restorable(world, event.x, event.y, event.z);
 
-        int mended = ErosionEngine.get()
-            .mendPatch(world, event.x, event.y, event.z, TrmtConfig.bonemealRadius, purse.patchWork());
+        // The step the heal would take, so worn plain dirt goes on into grass while dirtHealsToGrass is on, as the
+        // original's eroded dirt 0 went to eroded grass 4.
+        int mended = faithful ? purse.mendSquare(world, event.x, event.y, event.z, 1, true, true)
+            : ErosionEngine.get()
+                .mendPatch(world, event.x, event.y, event.z, TrmtConfig.bonemealRadius, purse.patchWork());
         if (mended <= 0) {
             // Quieter than the tools. A handful on unworn ground is somebody growing grass, and only
             // a worn square under the crosshair is a mend the player was actually trying to make.
@@ -524,8 +562,10 @@ public final class ServerEvents {
             return;
         }
 
-        // Bone meal has nothing to repair, so every point of this reaches the player.
-        if (!creative) {
+        // Bone meal has nothing to repair, so every point of this reaches the player. Faithful bone meal pays none:
+        // the original's BoneMealItemMixin writes the block and the record, spends the handful and plays the
+        // particles, and awards no experience (read from its 0.5.1 bytecode).
+        if (!creative && !faithful) {
             HealingXp
                 .award(player, null, ledger.isFree() ? (fromHand ? ledger.gradations() : 0) : ledger.paidGradations());
         }

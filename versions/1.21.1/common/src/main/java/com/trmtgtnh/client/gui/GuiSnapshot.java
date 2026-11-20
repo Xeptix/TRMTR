@@ -190,7 +190,8 @@ public class GuiSnapshot extends Screen {
 
     @Override
     public void render(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partial) {
-        super.renderBackground(graphics, mouseX, mouseY, partial);
+        // Over the world, the world dimmed as in 1.7.10, not the game's blur (ScreenBackdrop).
+        ScreenBackdrop.behind(this, graphics, () -> super.renderBackground(graphics, mouseX, mouseY, partial));
         int midX = width / 2;
         int top = top();
         int body = body();

@@ -77,7 +77,7 @@ public class GhostBakedModel implements IBakedModel {
      * path OptiFine instruments and expands for itself. Nothing reads a stride that something else
      * can change underneath it.
      */
-    private static final int INTS_PER_VERTEX = 7;
+    static final int INTS_PER_VERTEX = 7;
 
     /**
      * The tint index a square's one color goes through - the 1.7.10 edition's {@code GhostRendering.colorFor}: the
@@ -126,6 +126,8 @@ public class GhostBakedModel implements IBakedModel {
             if (held != null) origin = held.intValue();
             held = extended.getValue(BlockGhost.ROTATION);
             if (held != null) rotation = held.intValue();
+            held = extended.getValue(BlockGhost.GAME_TURN);
+            GAME_TURN.get()[0] = held == null ? 0 : held.intValue();
             held = extended.getValue(BlockGhost.FRINGE_TURN);
             if (held != null) fringeTurn = held.intValue();
             held = extended.getValue(BlockGhost.SNOWED);
@@ -143,11 +145,28 @@ public class GhostBakedModel implements IBakedModel {
         //
         // Null outside a chunk rebuild, which is an item or a particle asking; those are drawn.
         net.minecraft.util.BlockRenderLayer drawing = net.minecraftforge.client.MinecraftForgeClient.getRenderLayer();
+        // The glow overlay alone, in a cutout pass the square itself does not draw in (0.9.228, real glow): see glow().
+        if (drawing != null && drawing == glowLayer(origin)) {
+            return glow(record, origin, outline, rotation, fringeTurn, snowed, side, stair);
+        }
         if (drawing != null && drawing != BlockGhost.layerOf(origin)) return Collections.emptyList();
+
+        // trmtr-api's render hook (W3 T8): a ghost over a block a plugin registered a renderer for is drawn as the
+        // plugin asks, in place of everything below - its shape, its boxes, its one-box ground - and the model's own
+        // drawing where the plugin declines, fails or has none. After the layer test, and the shader pack is told
+        // what the square is made of before any of its quads, as on every other path. See ApiDraw.
+        List<BakedQuad> hooked = hooked(state, record, origin, rotation, fringeTurn, snowed, outline, stair, side);
+        if (hooked != null) return hooked;
 
         // A stair is a shape rather than a height, so nothing below this line applies to one: it is
         // drawn as the boxes its own shape is made of and handed back whole. See stairs().
         if (stair >= 0) return stairs(record, origin, rotation, fringeTurn, snowed, side, stair);
+
+        // A data file's boxes (W3 spec 2.4, T6): drawn box by box, the walked boxes' tops lowered by the drawn depth,
+        // with the ghost's own worn pictures on every face, after the render hook so a plugin that draws its block
+        // still does. The 1.7.10 edition's GhostBoxes. See boxes().
+        double[][] boxes = BlockGhost.boxesAt(record, origin, false);
+        if (boxes != null) return boxes(record, origin, rotation, fringeTurn, snowed, side, boxes);
 
         SurfaceFamily appearance = ErosionState.familyOf(record);
         // The other edition's GhostLogic.bottomAt and heightAt, drawn: a slab from its own floor and never below
@@ -158,6 +177,7 @@ public class GhostBakedModel implements IBakedModel {
         float height = (float) BlockGhost.heightAt(record, origin, outline, false);
 
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
+        int turn = top == null ? 0 : topTurn(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
         // Said before any of this square's vertices are written, and only ever heard while the seat is a ghost's:
         // the block underneath while the square still wears as that block's own family, and the block of the
@@ -185,10 +205,10 @@ public class GhostBakedModel implements IBakedModel {
         boolean paned = floor <= 0F && height >= 1F && GhostWindows.windowOf(origin);
         if (side == null) {
             return paned ? Collections.<BakedQuad>emptyList()
-                : Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F));
+                : Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F, turn));
         }
         if (side == EnumFacing.UP) {
-            return paned ? Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F))
+            return paned ? Collections.singletonList(quad(EnumFacing.UP, floor, height, top, tint, 0F, turn))
                 : Collections.<BakedQuad>emptyList();
         }
         // The underside goes through the same rule as the flanks rather than being dirt by decree.
@@ -210,6 +230,166 @@ public class GhostBakedModel implements IBakedModel {
         both.add(quad(side, floor, height, flank, flankTint, shift));
         both.add(quad(side, floor, height, face.overlay, GRASS_TINT, shift));
         return both;
+    }
+
+    // ------------------------------------------------------------------
+    // Real glow (0.9.228)
+    // ------------------------------------------------------------------
+
+    /**
+     * The pass a glow overlay is drawn in: cutout, so the pixels that do not glow are discarded, and the atlas is drawn
+     * there without its smaller copies, so a glow's few lit pixels are never averaged away into the clear ones around
+     * them. A square that itself draws in the cutout pass has its overlay in the mipped cutout pass instead, so an
+     * overlay is always alone in its pass and the model's own drawing in its own pass is left exactly as it was. The
+     * ghost is offered to both already (BlockGhost.canRenderInLayer).
+     */
+    static net.minecraft.util.BlockRenderLayer glowLayer(int origin) {
+        return BlockGhost.layerOf(origin) == net.minecraft.util.BlockRenderLayer.CUTOUT
+            ? net.minecraft.util.BlockRenderLayer.CUTOUT_MIPPED
+            : net.minecraft.util.BlockRenderLayer.CUTOUT;
+    }
+
+    /**
+     * Whether the overlays are drawn. Always, but for the walk harness's glow part, which withholds them for one
+     * photograph of each pair and builds the chunks again, so the pair differs in the glow alone; nothing in this mod
+     * clears it.
+     */
+    public static volatile boolean glowShown = true;
+
+    /**
+     * The glow overlay of this square's wear picture, the pixels of it that shine in the dark, or null where the
+     * picture has none (0.9.228, real glow). The end's purple cracks and the nether's ash are the looks that have them.
+     * Asked as {@link #topOf} asks for the picture, so it goes over exactly the picture drawn.
+     *
+     * @param level receives the light level, out of fifteen, the overlay is baked with
+     */
+    private static TextureAtlasSprite glowTopOf(short record, SurfaceFamily appearance, int origin, int rotation,
+        int[] level) {
+        if (appearance == null || !WearTextures.glows(appearance) || !BlockGhost.shows(record)) return null;
+        net.minecraft.block.Block block = null;
+        int meta = 0;
+        SurfaceFamily family = null;
+        if (origin >= 0) {
+            try {
+                IBlockState under = net.minecraft.block.Block.getStateById(origin);
+                block = under.getBlock();
+                meta = block.getMetaFromState(under);
+                family = com.trmtgtnh.surface.SurfaceRegistry.familyOf(block, meta);
+            } catch (RuntimeException awkwardBlock) {
+                block = null;
+            }
+        }
+        if (family == null) family = appearance;
+        int step = WearSteps.topLayer(appearance, record);
+        TextureAtlasSprite glow = WearTextures.glowIcon(block, meta, family, appearance, step, rotation);
+        if (glow == null) return null;
+        level[0] = WearTextures.glowLevelAt(block, meta, family, appearance, step, rotation);
+        return level[0] > 0 ? glow : null;
+    }
+
+    /**
+     * Whether any face of this square has a glow overlay to draw: its top, or a side or the underside drawn from the same
+     * wear set.
+     */
+    public static boolean hasGlow(short record, int origin, int rotation, int fringeTurn, boolean snowed) {
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        if (appearance == null || !WearTextures.glows(appearance)) return false;
+        if (glowTopOf(record, appearance, origin, rotation, new int[1]) != null) return true;
+        for (int face = 0; face < 6; face++) {
+            if (face == EnumFacing.UP.getIndex()) continue;
+            if (GhostSides.of(record, origin, face, rotation, fringeTurn, snowed).glow != null) return true;
+        }
+        return false;
+    }
+
+    /** One glow overlay quad: the picture's own place, white, baked with the light the glow is given. */
+    static BakedQuad glowQuad(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
+        TextureAtlasSprite sprite, int level, float shiftRows) {
+        return glowQuad(side, x0, y0, z0, x1, y1, z1, sprite, level, shiftRows, 0);
+    }
+
+    /** The same, turned as its picture is: a top {@code turn} quarters, held inside its edges as every quad here is. */
+    static BakedQuad glowQuad(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
+        TextureAtlasSprite sprite, int level, float shiftRows, int turn) {
+        HookQuad quad = new HookQuad(vertices(side, x0, y0, z0, x1, y1, z1, sprite, shiftRows, turn), -1, side, sprite);
+        quad.lit(com.trmtgtnh.client.texture.TailoredGround.glowLight(level));
+        return quad;
+    }
+
+    /**
+     * The glow overlays for one face of one worn square, drawn over what the model draws for the same arguments
+     * (0.9.228, real glow; Xep, 2026-11-15: "I'd prefer a true glow"). Wherever the model lays a wear picture whose look
+     * has glowing pixels - the end's cracks, the nether's ash - this lays the picture's overlay at the same place and
+     * the same shift: the top, every side, the underside, every box of a stair and of a data file's shape. Each is the
+     * picture's own pixels again, lit as brightly as the glow says, so by day it adds nothing and in the dark it
+     * shines. Nothing is laid where the picture is not a wear one (a mended side, a grass wall, the block's own face).
+     */
+    static List<BakedQuad> glow(short record, int origin, int outline, int rotation, int fringeTurn, boolean snowed,
+        @Nullable EnumFacing side, int stair) {
+        if (!glowShown) return Collections.emptyList();
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        if (appearance == null || !WearTextures.glows(appearance)) return Collections.emptyList();
+        int[] level = new int[1];
+        java.util.List<net.minecraft.util.math.AxisAlignedBB> boxes = stair >= 0 ? BlockGhost.stairBoxes(stair) : null;
+        double[][] shaped = boxes != null && !boxes.isEmpty() ? null : BlockGhost.boxesAt(record, origin, false);
+        if (boxes != null && !boxes.isEmpty() || shaped != null) {
+            // Every face of every box, with no side, as stairs and data boxes are drawn.
+            if (side != null) return Collections.emptyList();
+            int count = boxes != null && !boxes.isEmpty() ? boxes.size() : shaped.length;
+            TextureAtlasSprite top = glowTopOf(record, appearance, origin, rotation, level);
+            int topLevel = level[0];
+            // Turned as the picture under it is (0.9.229, the worn turn).
+            int turn = top == null ? 0 : topTurn(record, appearance, origin, rotation);
+            List<BakedQuad> out = new java.util.ArrayList<BakedQuad>();
+            for (int at = 0; at < count; at++) {
+                float x0, y0, z0, x1, y1, z1;
+                if (shaped == null) {
+                    net.minecraft.util.math.AxisAlignedBB box = boxes.get(at);
+                    x0 = (float) box.minX;
+                    y0 = (float) box.minY;
+                    z0 = (float) box.minZ;
+                    x1 = (float) box.maxX;
+                    y1 = (float) box.maxY;
+                    z1 = (float) box.maxZ;
+                } else {
+                    double[] box = shaped[at];
+                    x0 = (float) box[0];
+                    y0 = (float) box[1];
+                    z0 = (float) box[2];
+                    x1 = (float) box[3];
+                    y1 = (float) box[4];
+                    z1 = (float) box[5];
+                }
+                if (top != null) out.add(glowQuad(EnumFacing.UP, x0, y0, z0, x1, y1, z1, top, topLevel, 0F, turn));
+                GhostSides.Face below = GhostSides.of(record, origin, EnumFacing.DOWN.getIndex(), rotation, fringeTurn, snowed);
+                if (below.glow != null) {
+                    out.add(glowQuad(EnumFacing.DOWN, x0, y0, z0, x1, y1, z1, below.glow, below.glowLevel, 0F));
+                }
+                for (EnumFacing compass : EnumFacing.HORIZONTALS) {
+                    GhostSides.Face face = GhostSides.of(record, origin, compass.getIndex(), rotation, fringeTurn, snowed);
+                    if (face.glow != null) {
+                        out.add(glowQuad(compass, x0, y0, z0, x1, y1, z1, face.glow, face.glowLevel, 0F));
+                    }
+                }
+            }
+            return out;
+        }
+        float floor = (float) BlockGhost.bottomAt(origin);
+        float height = (float) BlockGhost.heightAt(record, origin, outline, false);
+        boolean paned = floor <= 0F && height >= 1F && GhostWindows.windowOf(origin);
+        if (side == null || side == EnumFacing.UP) {
+            // The top's own side, as the model files it: none, or up for a whole window.
+            if (paned ? side != EnumFacing.UP : side != null) return Collections.emptyList();
+            TextureAtlasSprite glow = glowTopOf(record, appearance, origin, rotation, level);
+            if (glow == null) return Collections.emptyList();
+            int turn = topTurn(record, appearance, origin, rotation);
+            return Collections.singletonList(glowQuad(EnumFacing.UP, 0F, floor, 0F, 1F, height, 1F, glow, level[0], 0F, turn));
+        }
+        // A side or the underside, from the same wear set as the picture drawn there.
+        GhostSides.Face face = GhostSides.of(record, origin, side.getIndex(), rotation, fringeTurn, snowed);
+        if (face.glow == null) return Collections.emptyList();
+        return Collections.singletonList(
+            glowQuad(side, 0F, floor, 0F, 1F, height, 1F, face.glow, face.glowLevel, shiftFor(face.slid, outline, height)));
     }
 
     /**
@@ -234,6 +414,7 @@ public class GhostBakedModel implements IBakedModel {
 
         SurfaceFamily appearance = ErosionState.familyOf(record);
         TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
+        int turn = top == null ? 0 : topTurn(record, appearance, origin, rotation);
         TextureAtlasSprite earth = earth();
         com.trmtgtnh.client.render.ShaderMaterial.claim(origin, appearance);
         // No wear picture: the family's own stock top, as the 1.7.10 edition's fallbackIcon draws it - grass's top
@@ -256,7 +437,7 @@ public class GhostBakedModel implements IBakedModel {
             float y1 = (float) box.maxY;
             float z1 = (float) box.maxZ;
 
-            out.add(quad(EnumFacing.UP, x0, y0, z0, x1, y1, z1, top, tint, 0F));
+            out.add(quad(EnumFacing.UP, x0, y0, z0, x1, y1, z1, top, tint, 0F, turn));
 
             // The stair's own underside, by the same rule as its flanks. A stair is made of boxes
             // stacked within one cell, so most of these faces are the undersides of its steps -
@@ -291,6 +472,341 @@ public class GhostBakedModel implements IBakedModel {
     }
 
     /**
+     * Worn ground over a block a data file gives boxes (W3 spec 2.4, T6), every face of every box, uncullable as a
+     * stair's are and for the same reason: a face of a box is not a face of the cell. Each box takes the ghost's
+     * own pictures - its wear picture on top, whatever {@code GhostSides} says for each side and the underside -
+     * and its own tints, so a boxes block wears as the ground around it does. Faces where two boxes touch are
+     * drawn inside the other box, where nothing can see them, as the 1.7.10 edition's {@code GhostBoxes} leaves
+     * them.
+     */
+    private static List<BakedQuad> boxes(short record, int origin, int rotation, int fringeTurn, boolean snowed,
+        @Nullable EnumFacing side, double[][] boxes) {
+        if (side != null) return Collections.emptyList();
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        TextureAtlasSprite top = topOf(record, appearance, origin, rotation);
+        int turn = top == null ? 0 : topTurn(record, appearance, origin, rotation);
+        TextureAtlasSprite earth = earth();
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, appearance);
+        if (top == null) top = stockTop(appearance, earth);
+        int flankTint = GhostSides.tintsAsGrass(origin, appearance) ? LIGHT_TINT : GRASS_TINT;
+        List<BakedQuad> out = new java.util.ArrayList<BakedQuad>(boxes.length * 6);
+        for (double[] box : boxes) {
+            float x0 = (float) box[0], y0 = (float) box[1], z0 = (float) box[2];
+            float x1 = (float) box[3], y1 = (float) box[4], z1 = (float) box[5];
+            out.add(quad(EnumFacing.UP, x0, y0, z0, x1, y1, z1, top, GRASS_TINT, 0F, turn));
+            GhostSides.Face below = GhostSides
+                .of(record, origin, EnumFacing.DOWN.getIndex(), rotation, fringeTurn, snowed);
+            out.add(
+                quad(
+                    EnumFacing.DOWN,
+                    x0,
+                    y0,
+                    z0,
+                    x1,
+                    y1,
+                    z1,
+                    below.sprite == null ? earth : below.sprite,
+                    flankTint,
+                    0F));
+            for (EnumFacing compass : EnumFacing.HORIZONTALS) {
+                GhostSides.Face face = GhostSides.of(record, origin, compass.getIndex(), rotation, fringeTurn, snowed);
+                TextureAtlasSprite flank = face.sprite == null ? earth : face.sprite;
+                out.add(quad(compass, x0, y0, z0, x1, y1, z1, flank, flankTint, 0F));
+                if (face.overlay != null) out.add(quad(compass, x0, y0, z0, x1, y1, z1, face.overlay, GRASS_TINT, 0F));
+            }
+        }
+        return out;
+    }
+
+    // ------------------------------------------------------------------
+    // trmtr-api's render hook (W3 T8)
+    // ------------------------------------------------------------------
+
+    /**
+     * One block's hooked drawing, kept while the renderer asks the model for it face by face: the renderer asks for
+     * each of the six faces and then for the faces with no side, and the hook is asked once for all seven. Per thread,
+     * as chunk builds are, and forgotten after the last ask, so the next build of the same square asks the hook again.
+     */
+    private static final ThreadLocal<Object[]> HOOKED = new ThreadLocal<Object[]>();
+
+    /** The hook's answer kept for a square it declined, so the model draws it without asking seven times. */
+    private static final Object DECLINED = new Object();
+
+    /**
+     * The quads a plugin's renderer gives this face of this square (W3 T8), or null where no renderer drew it and the
+     * model draws it itself.
+     */
+    @Nullable
+    private static List<BakedQuad> hooked(@Nullable IBlockState state, short record, int origin, int rotation,
+        int fringeTurn, boolean snowed, int outline, int stair, @Nullable EnumFacing side) {
+        if (!(state instanceof IExtendedBlockState) || origin < 0) return null;
+        IExtendedBlockState extended = (IExtendedBlockState) state;
+        Long at = extended.getValue(BlockGhost.POS);
+        // No position: no renderer was registered when the square's facts were read, so none is asked.
+        if (at == null) return null;
+        Object[] kept = HOOKED.get();
+        Object result;
+        if (kept != null && ((Long) kept[0]).longValue() == at.longValue()
+            && ((Integer) kept[1]).intValue() == record
+            && ((Integer) kept[2]).intValue() == origin) {
+            result = kept[3];
+        } else {
+            result = drawHooked(extended, at.longValue(), record, origin, rotation, fringeTurn, snowed, outline, stair);
+            HOOKED.set(new Object[] { at, Integer.valueOf(record), Integer.valueOf(origin), result });
+        }
+        // The faces with no side are the renderer's last ask of a block, so the drawing is forgotten after them.
+        if (side == null) HOOKED.remove();
+        if (!(result instanceof com.trmtgtnh.apiload.ApiDraw.Drawn)) return null;
+        com.trmtgtnh.apiload.ApiDraw.Drawn drawn = (com.trmtgtnh.apiload.ApiDraw.Drawn) result;
+        // Told before any of the square's quads, as on every other path; the plugin's own pictures are its own.
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        com.trmtgtnh.client.render.ShaderMaterial.claim(origin, appearance);
+        return side == null ? drawn.general : drawn.byFace.get(side.getIndex());
+    }
+
+    /** Asks the renderer registered for the covered block, once for the square; {@link #DECLINED} where none drew. */
+    private static Object drawHooked(IExtendedBlockState extended, long at, short record, int origin, int rotation,
+        int fringeTurn, boolean snowed, int outline, int stair) {
+        IBlockState covered;
+        try {
+            covered = net.minecraft.block.Block.getStateById(origin);
+        } catch (RuntimeException awkwardBlock) {
+            return DECLINED;
+        }
+        net.minecraft.block.Block block = covered.getBlock();
+        int meta;
+        try {
+            meta = block.getMetaFromState(covered);
+        } catch (RuntimeException awkwardBlock) {
+            meta = 0;
+        }
+        Integer light = extended.getValue(BlockGhost.HOOK_LIGHT);
+        Integer tint = extended.getValue(BlockGhost.HOOK_TINT);
+        Integer open = extended.getValue(BlockGhost.HOOK_OPEN);
+        net.minecraft.util.math.BlockPos pos = net.minecraft.util.math.BlockPos.fromLong(at);
+        // The space the ghost is drawn in, which a hook's units are laid over: the whole cell for a stair or a file's
+        // boxes, which are not one height, and otherwise the floor and drawn top the model's own ground has.
+        float floor = 0F;
+        float height = 1F;
+        if (stair < 0 && BlockGhost.boxesAt(record, origin, false) == null) {
+            floor = (float) BlockGhost.bottomAt(origin);
+            height = (float) BlockGhost.heightAt(record, origin, outline, false);
+        }
+        Painter painter = new Painter(
+            record,
+            origin,
+            rotation,
+            fringeTurn,
+            snowed,
+            covered,
+            floor,
+            height,
+            light == null ? 0 : light.intValue(),
+            open != null && open.intValue() != 0);
+        com.trmtgtnh.apiload.ApiDraw.Drawn drawn = com.trmtgtnh.apiload.ApiDraw.drawn(
+            pos.getX(),
+            pos.getY(),
+            pos.getZ(),
+            block,
+            meta,
+            record,
+            light == null ? 0 : light.intValue(),
+            tint == null ? 0xFFFFFF : tint.intValue(),
+            painter);
+        return drawn == null ? DECLINED : drawn;
+    }
+
+    /**
+     * The model's half of a hooked block (W3 T8): the ghost's own pictures and tints, the covered block's own from its
+     * model, the pictures a cut opens at a box's stage, and the quads built as the model builds its own.
+     */
+    static final class Painter implements com.trmtgtnh.apiload.ApiDraw.Painter {
+
+        /** The highest layer a record can carry: five bits, biased by one, as 1.7.10's GhostRendering.atStage holds. */
+        private static final int MOST_LAYER = 30;
+
+        private final short record;
+        private final int origin;
+        private final int rotation;
+        private final int fringeTurn;
+        private final boolean snowed;
+        private final IBlockState covered;
+        private final float floor;
+        private final float height;
+        private final SurfaceFamily appearance;
+        private final int light;
+        private final boolean open;
+
+        Painter(short record, int origin, int rotation, int fringeTurn, boolean snowed, IBlockState covered,
+            float floor, float height, int light, boolean open) {
+            this.record = record;
+            this.origin = origin;
+            this.rotation = rotation;
+            this.fringeTurn = fringeTurn;
+            this.snowed = snowed;
+            this.covered = covered;
+            this.floor = floor;
+            this.height = height;
+            this.appearance = ErosionState.familyOf(record);
+            this.light = light;
+            this.open = open;
+        }
+
+        /**
+         * The record as a cut at {@code stage} shows it (Codex review R21): its own depth, with the stage as its
+         * layer, held to the layers a record can carry - the 1.7.10 edition's {@code GhostRendering.atStage}.
+         */
+        static short atStage(SurfaceFamily appearance, short record, int stage) {
+            int layer = stage < 0 ? 0 : stage > MOST_LAYER ? MOST_LAYER : stage;
+            return ErosionState.pack(appearance, layer, ErosionState.sinkOf(record));
+        }
+
+        private TextureAtlasSprite picture(short shown, int face) {
+            if (face == EnumFacing.UP.getIndex()) {
+                TextureAtlasSprite top = topOf(shown, appearance, origin, rotation);
+                return top != null ? top : stockTop(appearance, earth());
+            }
+            GhostSides.Face side = GhostSides.of(shown, origin, face, rotation, fringeTurn, snowed);
+            return side.sprite != null ? side.sprite : earth();
+        }
+
+        private TextureAtlasSprite fringe(short shown, int face) {
+            if (face < 2) return null;
+            return GhostSides.of(shown, origin, face, rotation, fringeTurn, snowed).overlay;
+        }
+
+        @Override
+        public TextureAtlasSprite outer(int face) {
+            return picture(record, face);
+        }
+
+        @Override
+        public TextureAtlasSprite outerOverlay(int face) {
+            return fringe(record, face);
+        }
+
+        /** A cut's wall or floor at a box's stage: the ghost's picture for that stage, at the ground's own depth. */
+        @Override
+        public TextureAtlasSprite atStage(int face, int stage) {
+            return picture(atStage(appearance, record, stage), face);
+        }
+
+        @Override
+        public TextureAtlasSprite overlayAtStage(int face, int stage) {
+            return fringe(atStage(appearance, record, stage), face);
+        }
+
+        /** The covered block's own picture on a face: the first quad its own model gives there. */
+        @Override
+        public TextureAtlasSprite own(int face) {
+            List<BakedQuad> quads = ownQuads(face);
+            return quads.isEmpty() ? null : quads.get(0)
+                .getSprite();
+        }
+
+        /**
+         * The fringe the covered block's own model lays over a grass side: a tinted second quad over a face whose
+         * picture is vanilla's grass side, as vanilla's grass model draws its overlay (Codex review R21).
+         */
+        @Override
+        public TextureAtlasSprite ownOverlay(int face) {
+            if (face < 2) return null;
+            List<BakedQuad> quads = ownQuads(face);
+            if (quads.size() < 2 || !"minecraft:blocks/grass_side".equals(
+                quads.get(0)
+                    .getSprite()
+                    .getIconName()))
+                return null;
+            for (int i = 1; i < quads.size(); i++) {
+                if (quads.get(i)
+                    .hasTintIndex())
+                    return quads.get(i)
+                        .getSprite();
+            }
+            return null;
+        }
+
+        private List<BakedQuad> ownQuads(int face) {
+            if (covered == null) return Collections.emptyList();
+            IBakedModel model = Minecraft.getMinecraft()
+                .getBlockRendererDispatcher()
+                .getModelForState(covered);
+            if (model == null) return Collections.emptyList();
+            List<BakedQuad> quads = model.getQuads(covered, EnumFacing.byIndex(face), 0L);
+            return quads == null ? Collections.<BakedQuad>emptyList() : quads;
+        }
+
+        /** The top takes the square's one color; every other face as the model's own flanks take theirs. */
+        @Override
+        public int tintIndex(int face) {
+            if (face == EnumFacing.UP.getIndex()) return GRASS_TINT;
+            return GhostSides.tintsAsGrass(origin, appearance) ? LIGHT_TINT : GRASS_TINT;
+        }
+
+        @Override
+        public int overlayTintIndex() {
+            return GRASS_TINT;
+        }
+
+        @Override
+        public float floor() {
+            return floor;
+        }
+
+        @Override
+        public float height() {
+            return height;
+        }
+
+        @Override
+        public BakedQuad face(int face, float x0, float y0, float z0, float x1, float y1, float z1,
+            TextureAtlasSprite sprite, int tintIndex) {
+            EnumFacing side = EnumFacing.byIndex(face);
+            return new HookQuad(vertices(side, x0, y0, z0, x1, y1, z1, sprite, 0F), tintIndex, side, sprite);
+        }
+
+        @Override
+        public BakedQuad free(float[] corners, float[] uv, int face, TextureAtlasSprite sprite, int rgb) {
+            return freeQuad(corners, uv, EnumFacing.byIndex(face), sprite, rgb);
+        }
+
+        @Override
+        public boolean openAbove() {
+            return open;
+        }
+
+        /** The light baked into the vertices: see {@link HookQuad}. */
+        @Override
+        public BakedQuad overhead(BakedQuad quad) {
+            ((HookQuad) quad).lit(light);
+            return quad;
+        }
+    }
+
+    /**
+     * A quad a plugin placed itself (W3 T8): its four corners in the cell's frame, in its order, uv 0 to 1 across the
+     * sprite, and its color written into the vertices rather than through a tint slot, since a plugin's color is its
+     * own. Packed as every quad here is, seven ints a vertex in the block format.
+     */
+    static BakedQuad freeQuad(float[] corners, float[] uv, EnumFacing side, TextureAtlasSprite sprite, int rgb) {
+        int[] data = new int[4 * INTS_PER_VERTEX];
+        // The block format's color is ABGR: red in the lowest byte, alpha whole.
+        int abgr = 0xFF000000 | ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF);
+        int at = 0;
+        for (int v = 0; v < 4; v++) {
+            data[at] = Float.floatToRawIntBits(corners[v * 3]);
+            data[at + 1] = Float.floatToRawIntBits(corners[v * 3 + 1]);
+            data[at + 2] = Float.floatToRawIntBits(corners[v * 3 + 2]);
+            data[at + 3] = abgr;
+            data[at + 4] = Float.floatToRawIntBits(sprite.getInterpolatedU(uv[v * 2] * 16.0D));
+            data[at + 5] = Float.floatToRawIntBits(sprite.getInterpolatedV(uv[v * 2 + 1] * 16.0D));
+            data[at + 6] = 0;
+            at += INTS_PER_VERTEX;
+        }
+        return new HookQuad(data, -1, side, sprite);
+    }
+
+    /**
      * The wear picture for this square's top, or null where there is none.
      *
      * <p>
@@ -307,6 +823,109 @@ public class GhostBakedModel implements IBakedModel {
         if (top instanceof com.trmtgtnh.client.texture.WearSprite
             && ((com.trmtgtnh.client.texture.WearSprite) top).moves()) {
             com.trmtgtnh.client.texture.InnerLayers.noteSeen(top, x, y, z);
+        }
+    }
+
+    /**
+     * The turn the game itself gives the unworn block at the square being drawn, on this thread (0.9.229; the rotation
+     * spec's "When the turn starts"): read from the square's BlockGhost.GAME_TURN as its quads are asked, and read by
+     * {@link #topTurn}, so the square's top and its glow overlay keep the game's turn before the first sink.
+     */
+    private static final ThreadLocal<int[]> GAME_TURN = new ThreadLocal<int[]>() {
+
+        @Override
+        protected int[] initialValue() {
+            return new int[1];
+        }
+    };
+
+    /**
+     * The quarter turns the game draws the unworn block's top at this position by: its model asked for its top face
+     * as BlockModelRenderer asks it, with MathHelper.getPositionRandom of the position, so a weighted model picks the
+     * variant the game draws there, and read for how its picture is laid. Nought where the block's model has no
+     * turns, no top or nothing readable. vanilla_turns.py lists the blocks the game turns, from this edition's jars.
+     */
+    public static int gameTurn(net.minecraft.util.math.BlockPos pos, int origin) {
+        if (origin < 0 || pos == null) return 0;
+        try {
+            IBlockState state = net.minecraft.block.Block.getStateById(origin);
+            IBakedModel model = Minecraft.getMinecraft()
+                .getBlockRendererDispatcher()
+                .getModelForState(state);
+            if (model == null) return 0;
+            List<BakedQuad> quads = model
+                .getQuads(state, EnumFacing.UP, net.minecraft.util.math.MathHelper.getPositionRandom(pos));
+            if (quads != null && !quads.isEmpty()) return turnOf(quads.get(0));
+        } catch (RuntimeException awkward) {
+            return 0;
+        }
+        return 0;
+    }
+
+    /** The turn a top quad is laid at, from the picture corner its north-west vertex samples (WearTurns.turnOfCorner). */
+    static int turnOf(BakedQuad quad) {
+        TextureAtlasSprite sprite = quad.getSprite();
+        int[] data = quad.getVertexData();
+        int stride = data.length / 4;
+        int corner = 0;
+        float least = Float.MAX_VALUE;
+        for (int v = 0; v < 4; v++) {
+            float at = Float.intBitsToFloat(data[v * stride]) + Float.intBitsToFloat(data[v * stride + 2]);
+            if (at < least) {
+                least = at;
+                corner = v;
+            }
+        }
+        float width = sprite.getMaxU() - sprite.getMinU();
+        float height = sprite.getMaxV() - sprite.getMinV();
+        if (width == 0F || height == 0F) return 0;
+        return com.trmtgtnh.client.texture.WearTurns.turnOfCorner(
+            (Float.intBitsToFloat(data[corner * stride + 4]) - sprite.getMinU()) / width,
+            (Float.intBitsToFloat(data[corner * stride + 5]) - sprite.getMinV()) / height);
+    }
+
+    /**
+     * How many quarter turns clockwise, seen from above with north up, this square's worn top is drawn turned by
+     * (0.9.229, docs/goals/0.9.229-rotation-spec.md): asked of WearTextures with exactly what {@link #topOf} asks it,
+     * so the turn is the drawn set's, and none where the square draws no wear picture.
+     */
+    private static int topTurn(short record, SurfaceFamily appearance, int origin, int rotation) {
+        if (appearance == null || !BlockGhost.shows(record)) return 0;
+        net.minecraft.block.Block block = null;
+        int meta = 0;
+        SurfaceFamily family = null;
+        if (origin >= 0) {
+            try {
+                IBlockState under = net.minecraft.block.Block.getStateById(origin);
+                block = under.getBlock();
+                meta = block.getMetaFromState(under);
+                family = com.trmtgtnh.surface.SurfaceRegistry.familyOf(block, meta);
+            } catch (RuntimeException awkwardBlock) {
+                block = null;
+            }
+        }
+        if (family == null) family = appearance;
+        int step = WearSteps.topLayer(appearance, record);
+        return WearTextures.quarterTurns(block, meta, family, appearance, step, rotation, ErosionState.sinkOf(record),
+            GAME_TURN.get()[0]);
+    }
+
+    /**
+     * A top's texture coordinates, in sixteenths, at a point of the cell turned {@code turn} quarters clockwise seen
+     * from above: the picture's top row laid down the east edge for one, upside down for two, down the west edge for
+     * three. The 1.7.10 edition's renderFaceYPos lays it so for uvRotateTop 1, 3 and 2, which is what it draws these
+     * with, so a position turns the same way in both.
+     */
+    public static float[] turnedTop(float x, float z, int turn) {
+        switch (turn & 3) {
+            case 1:
+                return new float[] { z * 16F, (1F - x) * 16F };
+            case 2:
+                return new float[] { (1F - x) * 16F, (1F - z) * 16F };
+            case 3:
+                return new float[] { (1F - z) * 16F, x * 16F };
+            default:
+                return new float[] { x * 16F, z * 16F };
         }
     }
 
@@ -361,6 +980,14 @@ public class GhostBakedModel implements IBakedModel {
                 return "blocks/snow";
             case ICE:
                 return "blocks/ice";
+            case FLESH:
+                return "blocks/soul_sand";
+            case TAINT:
+                return "blocks/mycelium_top";
+            case SCULK:
+                return "blocks/obsidian";
+            case CLOUD:
+                return "blocks/wool_colored_white";
             default:
                 return null;
         }
@@ -383,6 +1010,12 @@ public class GhostBakedModel implements IBakedModel {
     private static BakedQuad quad(EnumFacing side, float floor, float height, TextureAtlasSprite sprite, int tint,
         float shiftRows) {
         return quad(side, 0F, floor, 0F, 1F, height, 1F, sprite, tint, shiftRows);
+    }
+
+    /** The same, its top turned {@code turn} quarters (see {@link #turnedTop}). */
+    private static BakedQuad quad(EnumFacing side, float floor, float height, TextureAtlasSprite sprite, int tint,
+        float shiftRows, int turn) {
+        return quad(side, 0F, floor, 0F, 1F, height, 1F, sprite, tint, shiftRows, turn);
     }
 
     /**
@@ -416,6 +1049,30 @@ public class GhostBakedModel implements IBakedModel {
      */
     private static BakedQuad quad(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
         TextureAtlasSprite sprite, int tint, float shiftRows) {
+        return quad(side, x0, y0, z0, x1, y1, z1, sprite, tint, shiftRows, 0);
+    }
+
+    /** The same, an upward face's picture turned {@code turn} quarters (see {@link #turnedTop}). */
+    private static BakedQuad quad(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
+        TextureAtlasSprite sprite, int tint, float shiftRows, int turn) {
+        return new BakedQuad(
+            vertices(side, x0, y0, z0, x1, y1, z1, sprite, shiftRows, turn),
+            tint,
+            side,
+            sprite,
+            true,
+            DefaultVertexFormats.BLOCK);
+    }
+
+    /** {@link #quad}'s four vertices, seven ints each, for the quad classes that take them: this and {@link HookQuad}. */
+    static int[] vertices(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
+        TextureAtlasSprite sprite, float shiftRows) {
+        return vertices(side, x0, y0, z0, x1, y1, z1, sprite, shiftRows, 0);
+    }
+
+    /** The same, an upward face's picture turned {@code turn} quarters (see {@link #turnedTop}). */
+    static int[] vertices(EnumFacing side, float x0, float y0, float z0, float x1, float y1, float z1,
+        TextureAtlasSprite sprite, float shiftRows, int turn) {
         float[][] corners;
         switch (side) {
             case UP:
@@ -446,6 +1103,12 @@ public class GhostBakedModel implements IBakedModel {
             if (side.getAxis() == EnumFacing.Axis.Y) {
                 u = c[0] * 16F;
                 v = c[2] * 16F;
+                // A worn top turned with its position, in the cell's frame as u and v are (0.9.229).
+                if (side == EnumFacing.UP && (turn & 3) != 0) {
+                    float[] turned = turnedTop(c[0], c[2], turn);
+                    u = turned[0];
+                    v = turned[1];
+                }
             } else {
                 u = (side.getAxis() == EnumFacing.Axis.X ? c[2] : c[0]) * 16F;
                 // The renderer nails a side face's texture to the bottom of the cell: the window is
@@ -467,19 +1130,58 @@ public class GhostBakedModel implements IBakedModel {
             data[at + 2] = Float.floatToRawIntBits(c[2]);
             // White, so that a tint multiplies cleanly and an untinted face is left alone.
             data[at + 3] = -1;
+            // Held a hair inside the picture's edge (0.9.229, EdgeInset): exactly on it, a block edge falling on a row
+            // of pixel centres drew that row from the picture beside this one in the atlas.
+            u = com.trmtgtnh.client.texture.EdgeInset.clamp(u, sprite.getIconWidth());
+            v = com.trmtgtnh.client.texture.EdgeInset.clamp(v, sprite.getIconHeight());
             data[at + 4] = Float.floatToRawIntBits(sprite.getInterpolatedU(u));
             data[at + 5] = Float.floatToRawIntBits(sprite.getInterpolatedV(v));
             // The lightmap, which the renderer fills in; a model that guessed here would be arguing
-            // with the lighting it is about to be given.
+            // with the lighting it is about to be given. A hooked block's quad alone says otherwise: HookQuad.lit.
             data[at + 6] = 0;
             at += INTS_PER_VERTEX;
         }
-        return new BakedQuad(data, tint, side, sprite, true, DefaultVertexFormats.BLOCK);
+        return data;
     }
 
     @Override
     public boolean isAmbientOcclusion() {
         return true;
+    }
+
+    /**
+     * No smooth lighting on a hooked square, as 1.7.10's (ApiDraw, "Light"). The renderer asks this of the state
+     * {@code BlockGhost.getExtendedState} filled, before it asks for the square's quads, and BlockModelRenderer's
+     * {@code renderModel} and OptiFine's alike choose their path by the answer; the drawing asked for here is the one
+     * those quads are. Only in the pass the square draws in, as the model's own drawing is. This is the first ask of a
+     * draw on every path, and Forge's pipeline asks for the faces with no side first, so a drawing kept from the last
+     * draw of this square would serve those faces with the last draw's light: it is forgotten here.
+     */
+    @Override
+    public boolean isAmbientOcclusion(@Nullable IBlockState state) {
+        if (!(state instanceof IExtendedBlockState)) return true;
+        IExtendedBlockState extended = (IExtendedBlockState) state;
+        int origin = number(extended, BlockGhost.ORIGIN, -1);
+        net.minecraft.util.BlockRenderLayer drawing = net.minecraftforge.client.MinecraftForgeClient.getRenderLayer();
+        if (drawing != null && drawing != BlockGhost.layerOf(origin)) return true;
+        HOOKED.remove();
+        GAME_TURN.get()[0] = number(extended, BlockGhost.GAME_TURN, 0);
+        return hooked(
+            state,
+            (short) number(extended, BlockGhost.RECORD, ErosionState.NONE),
+            origin,
+            number(extended, BlockGhost.ROTATION, 0),
+            number(extended, BlockGhost.FRINGE_TURN, 0),
+            number(extended, BlockGhost.SNOWED, 0) != 0,
+            number(extended, BlockGhost.OUTLINE, BlockGhost.WHOLE_CUBE),
+            number(extended, BlockGhost.STAIR, -1),
+            EnumFacing.UP) == null;
+    }
+
+    private static int number(IExtendedBlockState state, net.minecraftforge.common.property.IUnlistedProperty<Integer> what,
+        int otherwise) {
+        Integer held = state.getValue(what);
+        return held == null ? otherwise : held.intValue();
     }
 
     @Override

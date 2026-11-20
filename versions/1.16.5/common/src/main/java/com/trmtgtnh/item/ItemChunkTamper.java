@@ -173,13 +173,15 @@ public class ItemChunkTamper extends Item implements TamperTool {
      * <p>
      * Written server-side and carried to the client on the stack itself, which is the only
      * copy either side needs. It is a name rather than a position: what the editor changes is
-     * a kind of block, not a spot.
+     * a kind of block, not a spot. Read as this version names it: a tamper carried from 1.12.2 holds that edition's
+     * spelling, where {@code minecraft:grass} was the block, and the editor would offer the plant ({@code OldNames}).
      */
     public static String targetOf(ItemStack stack) {
         if (stack == null || !stack.hasTag()) return "";
-        return stack.getTag()
-            .getCompound(TAG_ROOT)
-            .getString(TAG_TARGET);
+        return com.trmtgtnh.util.OldNames.savedBlock(
+            stack.getTag()
+                .getCompound(TAG_ROOT)
+                .getString(TAG_TARGET));
     }
 
     public static void setTarget(ItemStack stack, String name) {

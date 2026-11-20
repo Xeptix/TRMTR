@@ -130,6 +130,21 @@ public final class TrmtForge {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener(
             (net.minecraftforge.registries.IdMappingEvent moved) -> com.trmtgtnh.server.ServerEvents.idsMoved());
 
+        // The data files and trmtr-api (W3 spec 2.2 and 2.5, carried in T18): where Forge's mods are and which packs
+        // are its own packs of their files, then the first read and the plugins, at common setup - once every mod has
+        // been constructed and registered its blocks, so an example mod has set what its plugin needs, and never in
+        // this constructor, which Forge may run beside another mod's. On the main thread (enqueueWork), one at a time.
+        com.trmtgtnh.dataload.DataLoad.useMods(ForgeData::modFiles);
+        com.trmtgtnh.dataload.DataFiles.useModPacks(ForgeData::modPack);
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get()
+            .getModEventBus()
+            .addListener((net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent setup) -> setup.enqueueWork(() -> {
+                com.trmtgtnh.dataload.DataLoad.read();
+                com.trmtgtnh.apiload.ApiLoad.start();
+                // Forge's registry events have all fired by common setup, so the summary can count names now.
+                com.trmtgtnh.dataload.DataLoad.registered();
+            }));
+
         // No block tooltip mod but WTHIT is built for Forge at 1.21.1 - The One Probe and Jade are NeoForge's and
         // Fabric's - and WTHIT finds its plugin through waila_plugins.json, so nothing is asked for here.
 

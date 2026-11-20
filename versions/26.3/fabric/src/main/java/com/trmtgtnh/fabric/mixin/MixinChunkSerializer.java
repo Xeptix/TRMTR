@@ -19,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.trmtgtnh.erosion.ErosionStore;
 import com.trmtgtnh.fabric.ChunkErosionCarrier;
+import com.trmtgtnh.original.OriginalChunk;
 
 /**
  * Wear going to and coming back from a chunk's own NBT.
@@ -74,12 +75,41 @@ public abstract class MixinChunkSerializer implements ChunkErosionCarrier {
         trmt$erosion = wear;
     }
 
+    /** The original mod's squares converted as this record's tag was parsed, or null when nothing was converted. */
+    @Unique
+    private java.util.List<com.trmtgtnh.original.OriginalWorld.Square> trmt$converted;
+
+    @Override
+    public java.util.List<com.trmtgtnh.original.OriginalWorld.Square> trmt$converted() {
+        return trmt$converted;
+    }
+
+    @Override
+    public void trmt$converted(java.util.List<com.trmtgtnh.original.OriginalWorld.Square> squares) {
+        trmt$converted = squares;
+    }
+
+    /**
+     * The original mod's blocks, converted before vanilla decodes the palette, while it still holds their stage
+     * (0.9.229 W5, spec 2.9). {@code parse} has no level and the rewrite needs none; what it found rides on the record
+     * from the return below to {@code read}.
+     */
+    @Inject(method = "parse", at = @At("HEAD"))
+    private static void trmt$convert(LevelHeightAccessor levelHeight, PalettedContainerFactory containers,
+        CompoundTag tag, CallbackInfoReturnable<SerializableChunkData> callback) {
+        if (tag == null) return;
+        OriginalChunk.convert(tag.getIntOr("xPos", 0), tag.getIntOr("zPos", 0), tag);
+    }
+
     /** The tag's wear, kept on the copy it is parsed into until the copy is built into a chunk. */
     @Inject(method = "parse", at = @At("RETURN"))
     private static void trmt$parsed(LevelHeightAccessor height, PalettedContainerFactory containers, CompoundTag tag,
         CallbackInfoReturnable<SerializableChunkData> callback) {
+        // Taken first, whatever follows, so a parse that converted is never mistaken by the next on this thread.
+        java.util.List<com.trmtgtnh.original.OriginalWorld.Square> converted = OriginalChunk.takeConverted();
         SerializableChunkData data = callback.getReturnValue();
         if (data == null || tag == null) return;
+        ((ChunkErosionCarrier) (Object) data).trmt$converted(converted);
         // From 1.21.5 the getter answers in an Optional; anything but a byte array reads as none.
         tag.getByteArray(ErosionStore.NBT_KEY)
             .ifPresent(bytes -> ((ChunkErosionCarrier) (Object) data).trmt$erosion(bytes));
@@ -97,10 +127,15 @@ public abstract class MixinChunkSerializer implements ChunkErosionCarrier {
     private void trmt$read(ServerLevel level, PoiManager poi, RegionStorageInfo region, ChunkPos pos,
         CallbackInfoReturnable<ProtoChunk> callback) {
         byte[] bytes = trmt$erosion;
-        if (level == null || pos == null || bytes == null) return;
+        java.util.List<com.trmtgtnh.original.OriginalWorld.Square> converted = trmt$converted;
+        if (level == null || pos == null) return;
+        // Every chunk, with this mod's tag or without it, and the save's stamp beside it: the wear backups ask
+        // about a chunk read without the wear the mirror holds for it (0.9.229; until then a chunk with no
+        // tag never got here).
         // The store reads the key off a tag, as 1.21.1 handed it the chunk's own; this hands it that key alone.
         CompoundTag tag = new CompoundTag();
-        tag.putByteArray(ErosionStore.NBT_KEY, bytes);
+        if (bytes != null) tag.putByteArray(ErosionStore.NBT_KEY, bytes);
+        tag.putLong("LastUpdate", ((SerializableChunkData) (Object) this).lastUpdateTime());
         // ResourceKey.location() is identifier() by 26.1, where ResourceLocation is Identifier; the same name.
         ErosionStore.get()
             .chunkDataLoaded(
@@ -108,7 +143,13 @@ public abstract class MixinChunkSerializer implements ChunkErosionCarrier {
                     .identifier(),
                 pos.x(),
                 pos.z(),
-                tag);
+                tag,
+                converted);
+        // A chunk the parse converted is marked unsaved as it is handed back, so it is written with no block of the
+        // original's in it and its records beside it at the next save, and converted once (spec 2.9, "Saved, once").
+        if (converted == null) return;
+        ProtoChunk chunk = callback.getReturnValue();
+        if (chunk != null) chunk.markUnsaved();
     }
 
     /**

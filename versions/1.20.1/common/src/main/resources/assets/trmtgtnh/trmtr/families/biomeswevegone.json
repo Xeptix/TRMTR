@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "_": "Oh The Biomes We've Gone's own rock wears as stone: dacite and red rock are whole biomes' ground, built as the game's stone is, and neither name carries a word the rules read as rock. The rest of the mod is detection's, read from its jars: its grass blocks and the turfs over its rock wear as grass and its dirts and peat as dirt by their sounds, its sands as sand by their class, its paths and farmland are refused by their words, and its quicksand, which has no collision, is short of its cell and never wears.",
+  "entries": [
+    { "blocks": ["biomeswevegone:dacite", "biomeswevegone:red_rock"], "family": "stone" }
+  ]
+}

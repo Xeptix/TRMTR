@@ -221,6 +221,16 @@ public final class GhostInherit {
     }
 
     /**
+     * Flesh's and crusted taint's own hardness where a square answers through their stand-in, or NaN: soul sand and
+     * mycelium are the nearest vanilla ground, and softer than the real blocks (0.9.229, W4 T17; see
+     * {@link GhostFamily#ownHardness}).
+     */
+    static float standInHardness(Block ghost, IBlockAccess world, BlockPos pos) {
+        if (coveredAt(ghost, pos) != null) return Float.NaN;
+        return GhostFamily.ownHardness(GhostFamily.familyAt(world, pos));
+    }
+
+    /**
      * The real block under a ghost at a square, or null when nothing trustworthy is recorded - the 1.7.10 edition's
      * {@code GhostLogic.coveredAt}: never the ghost itself, never another ghost.
      */
@@ -247,6 +257,9 @@ public final class GhostInherit {
     public static float blockHardness(Block ghost, World world, BlockPos pos) {
         IBlockState covered = answeringFor(ghost, world, pos);
         if (covered == null) return Float.NaN;
+        // Flesh and crusted taint answer through a stand-in softer than the real block (0.9.229, W4 T17).
+        float own = standInHardness(ghost, world, pos);
+        if (!Float.isNaN(own)) return own;
         if (!enter()) return Float.NaN;
         try {
             return covered.getBlockHardness(world, pos);
@@ -278,11 +291,16 @@ public final class GhostInherit {
         if (!enter()) return Float.NaN;
         try {
             float hardness = covered.getBlockHardness(world, pos);
+            // Flesh and crusted taint answer through a stand-in softer than the real block (0.9.229, W4 T17).
+            float own = standInHardness(ghost, world, pos);
+            if (!Float.isNaN(own)) hardness = own;
+            // And sculk, which stands in as obsidian here, is dug as a block that needs no tool (0.9.229, W4).
+            IBlockState dug = Float.isNaN(own) ? covered : GhostFamily.dugAs(GhostFamily.familyAt(world, pos), covered);
             // Unbreakable underneath means unbreakable here. Nought rather than a negative, because this is a rate.
             if (hardness < 0F) return 0F;
             boolean canHarvest = net.minecraftforge.common.ForgeHooks
-                .canHarvestBlock(covered.getBlock(), player, new OriginView(world, pos, covered), pos);
-            return player.getDigSpeed(covered, pos) / hardness / (canHarvest ? 30F : 100F);
+                .canHarvestBlock(dug.getBlock(), player, new OriginView(world, pos, dug), pos);
+            return player.getDigSpeed(dug, pos) / hardness / (canHarvest ? 30F : 100F);
         } catch (RuntimeException awkwardBlock) {
             return Float.NaN;
         } finally {

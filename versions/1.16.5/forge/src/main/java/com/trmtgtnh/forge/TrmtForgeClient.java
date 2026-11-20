@@ -39,6 +39,16 @@ public final class TrmtForgeClient {
     /** Whether there is a world to leave, so leaving happens once rather than every idle tick. */
     private static boolean left;
 
+    /**
+     * The client logged in to a server, as the game handles its login - a proxy moving it to another server included,
+     * which reaches no tick without a world: the last server's protocol is forgotten before this one's rules name its
+     * own (review R30, 0.9.229, TrmtNetwork.joinedServer).
+     */
+    @SubscribeEvent
+    public static void joined(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggedInEvent event) {
+        com.trmtgtnh.network.TrmtNetwork.joinedServer();
+    }
+
     private TrmtForgeClient() {}
 
     @SubscribeEvent
@@ -60,6 +70,8 @@ public final class TrmtForgeClient {
 
         // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
         com.trmtgtnh.client.gui.SettingsAccess.tick(client);
+        // The wear backups' question in single player, once the world is in view and nothing else is open (0.9.229).
+        com.trmtgtnh.client.gui.GuiWearRestore.tick(client);
     }
 
     /**

@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "_": [
+    "From GT New Horizons' census (W4 R3 run, T13 judged, T14 corrected, 2026-11-09). Each planet and moon of GalaxySpace is one block whose low values are its open ground and the rock under it, as the census found them on each. All are natural rock on rock material, and grunt, the mod's word for ground, is no word the rules read, so none wore. Only the values the census saw and judged are named; a block's other values are its ores and made forms, or not yet seen, and a later sighting judges them.",
+    "Barnarda C's dirt, value 0, is the bare earth under that planet's grass. Its grass material made it grass to the rules; it wears as dirt, and its other values were not seen and stay as detection has them.",
+    "Named one by one because a word that reached them, such as grunt or blocks, would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not."
+  ],
+  "entries": [
+    { "blocks": ["GalaxySpace:barnardaCdirt:0"], "family": "dirt" },
+    {
+      "blocks": [
+        "GalaxySpace:acentauribbgrunt:0", "GalaxySpace:acentauribbsubgrunt:0",
+        "GalaxySpace:barnardaEgrunt:0", "GalaxySpace:barnardaEsubgrunt:0", "GalaxySpace:barnardaFgrunt:0",
+        "GalaxySpace:callistoblocks:0", "GalaxySpace:callistoblocks:1",
+        "GalaxySpace:ceresblocks:0", "GalaxySpace:ceresblocks:1",
+        "GalaxySpace:deimosblocks:0", "GalaxySpace:deimosblocks:1",
+        "GalaxySpace:enceladusblocks:0",
+        "GalaxySpace:europageyser:0", "GalaxySpace:europagrunt:0", "GalaxySpace:europagrunt:1",
+        "GalaxySpace:ganymedeblocks:0", "GalaxySpace:ganymedeblocks:1",
+        "GalaxySpace:haumeablocks:0",
+        "GalaxySpace:ioblocks:0", "GalaxySpace:ioblocks:1", "GalaxySpace:ioblocks:2",
+        "GalaxySpace:makemakegrunt:0", "GalaxySpace:makemakegrunt:1",
+        "GalaxySpace:mercuryblocks:0", "GalaxySpace:mercuryblocks:1", "GalaxySpace:mercuryblocks:2",
+        "GalaxySpace:mirandablocks:0", "GalaxySpace:mirandablocks:1", "GalaxySpace:mirandablocks:2",
+        "GalaxySpace:oberonblocks:0", "GalaxySpace:oberonblocks:1", "GalaxySpace:oberonblocks:2",
+        "GalaxySpace:phobosblocks:0",
+        "GalaxySpace:plutoblocks:0", "GalaxySpace:plutoblocks:1", "GalaxySpace:plutoblocks:2",
+        "GalaxySpace:plutoblocks:3", "GalaxySpace:plutoblocks:4", "GalaxySpace:plutoblocks:5",
+        "GalaxySpace:proteusblocks:0",
+        "GalaxySpace:tcetieblocks:0",
+        "GalaxySpace:titanblocks:0", "GalaxySpace:titanblocks:1", "GalaxySpace:titanblocks:2",
+        "GalaxySpace:tritonblocks:0", "GalaxySpace:tritonblocks:1", "GalaxySpace:tritonblocks:2",
+        "GalaxySpace:vegabgrunt:0",
+        "GalaxySpace:venusblocks:0", "GalaxySpace:venusblocks:1"
+      ],
+      "family": "stone"
+    }
+  ]
+}

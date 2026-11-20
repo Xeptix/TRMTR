@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "Astral Sorcery, from ATM6's census (W4 R6, judged 2026-11-11). Raw marble is natural rock its worlds lay in the ground, on a material no rule reads. Named alone, the one block that census judged, because a word a rule could read would take other mods' blocks with it. Its bricks, arches, pillars and the rest are made and were not judged."
+  ],
+  "entries": [
+    { "blocks": ["astralsorcery:marble_raw"], "family": "stone" }
+  ]
+}

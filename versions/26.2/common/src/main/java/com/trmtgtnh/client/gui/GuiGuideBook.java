@@ -399,6 +399,12 @@ public class GuiGuideBook extends Screen {
 
     // ------------------------------------------------------------------ drawing
 
+    /** Over the world, the world dimmed as in 1.7.10, not the game's blur (ScreenBackdrop). */
+    @Override
+    public boolean isInGameUi() {
+        return ScreenBackdrop.overWorld();
+    }
+
     /**
      * The panel, then the buttons over it. From 26.1 the game draws a screen's background itself, in a layer of its
      * own before this one: the blur and the menu background that 1.21.1 drew by calling {@code super.renderBackground}

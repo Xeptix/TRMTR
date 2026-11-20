@@ -27,6 +27,10 @@ public abstract class MixinTextureAtlas {
     @Inject(method = "upload", at = @At("TAIL"))
     private void trmt$resolveWearSprites(SpriteLoader.Preparations prepared, CallbackInfo callback) {
         if (!TextureAtlas.LOCATION_BLOCKS.equals(((TextureAtlas) (Object) this).location())) return;
+        // Under Canvas, the sprite finder of the stitch just uploaded, in place of the one Canvas kept from the stitch
+        // it first drew with (1.0.0, canvas-120; see CanvasKeptFinder). Nothing where Canvas is not installed.
+        com.trmtgtnh.client.render.CanvasKeptFinder.refresh(((TextureAtlas) (Object) this).location(), this,
+            TextureAtlas.class);
         WearTextures.endStitch((TextureAtlas) (Object) this);
     }
 }

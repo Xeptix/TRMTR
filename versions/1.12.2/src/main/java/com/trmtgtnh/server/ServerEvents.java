@@ -26,6 +26,7 @@ import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.config.FaithfulProfile;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ChunkErosionData;
 import com.trmtgtnh.erosion.ErosionEngine;
@@ -109,13 +110,15 @@ public final class ServerEvents {
 
     /**
      * Whether any loose or led mob can wear the ground at all (0.9.228): every way {@code multiplierFor} can count one -
-     * the lead switch, the curated list, and the three groups' switches. Skipped only when none could answer.
+     * the lead switch, the curated list, and the three groups' switches. Skipped only when none could answer. A mod's
+     * wearer rule (trmtr-api) can answer for any mob, so it is a way in as well.
      */
     static boolean mobsCanWear() {
         return TrmtConfig.erodeFromLeashedMobs || !TrmtConfig.mobMultipliers.isEmpty()
             || TrmtConfig.fromHostileMobs
             || TrmtConfig.fromPassiveMobs
-            || TrmtConfig.fromVillagers;
+            || TrmtConfig.fromVillagers
+            || com.trmtgtnh.apiload.ApiHooks.rulesWearers();
     }
 
     /**
@@ -248,8 +251,14 @@ public final class ServerEvents {
         if (ModPotions.treadsLightly(entity, entity.getRidingEntity())) return;
         multiplier *= ModPotions.wearFactor(entity, entity.getRidingEntity());
 
-        ErosionEngine.get()
-            .impact(entity.world, entity.posX, entity.posY - 1.0D, entity.posZ, event.getDistance(), multiplier);
+        // trmtr-api: the landing's wear carries its cause and who landed (W3 T7).
+        com.trmtgtnh.apiload.ApiHooks.enter(com.trmtgtnh.api.WearContext.Cause.IMPACT, entity);
+        try {
+            ErosionEngine.get()
+                .impact(entity.world, entity.posX, entity.posY - 1.0D, entity.posZ, event.getDistance(), multiplier);
+        } finally {
+            com.trmtgtnh.apiload.ApiHooks.leave();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -261,6 +270,12 @@ public final class ServerEvents {
         if (event.phase != TickEvent.Phase.END) return;
         sampleCounter++;
         MainThread.drainServer();
+        // trmtr-api: what a chunk's load changed, now the load is over and the chunk whole, after the queue above so a
+        // listener hears of a catch-up once its chunk has gone to whoever watches it.
+        com.trmtgtnh.apiload.ApiHooks.deliverHeld();
+        // Wear backups' schedule, and the mirror's writes handed to their own thread (0.9.229).
+        WearBackups.get()
+            .tick();
         if ((sampleCounter % 20) == 0) advanceHealClock();
         ErosionEngine.get()
             .onServerTick();
@@ -315,8 +330,19 @@ public final class ServerEvents {
     public void onWorldLoad(WorldEvent.Load event) {
         World world = event.getWorld();
         if (world == null || world.isRemote || world.provider == null || world.provider.getDimension() != 0) return;
+        // Wear backups first (0.9.229): a heal clock missing from data/ is put back from the newest backup before it is
+        // read below, and the backup before a mod update is queued before anything touches the wear.
+        WearBackups.get()
+            .worldLoading(world);
         HealClockData clock = HealClockData.get(world);
         if (clock != null) ErosionEngine.setHealPause((int) clock.idleSeconds());
+    }
+
+    /** The overworld has saved: the wear mirror goes to disk, and the save is this mod's last (0.9.229). */
+    @SubscribeEvent
+    public void onWorldSave(WorldEvent.Save event) {
+        WearBackups.get()
+            .worldSaved(event.getWorld());
     }
 
     // ------------------------------------------------------------------
@@ -491,6 +517,11 @@ public final class ServerEvents {
             .familyOf(aimedState.getBlock(), aimedState.getBlock()
                 .getMetaFromState(aimedState));
         if (aimed == null || !aimed.staged) return;
+        // Faithful Mode's sand takes no bone meal, as the original's did not; vanilla does what it does with it.
+        if (FaithfulProfile.refusesBoneMeal(aimed)) return;
+        // Faithful Mode's grass and dirt take bone meal as the original's did (spec 2.6): the aimed square alone,
+        // one stage back along the healing chain, free of any block, and worth no experience.
+        boolean faithful = FaithfulProfile.mendsOneStage(aimed);
 
         // Creative pays nothing, and has to: the game puts back only the stack in the hand after a
         // right click, so a block taken from any other slot would be gone for good.
@@ -498,7 +529,7 @@ public final class ServerEvents {
         boolean fromHand = player != null && !(player instanceof net.minecraftforge.common.util.FakePlayer)
             && isBoneMeal(event.getStack())
             && clickedWithBoneMeal(player, world, pos);
-        com.trmtgtnh.erosion.MendLedger ledger = creative || !TrmtConfig.bonemealCostsABlock
+        com.trmtgtnh.erosion.MendLedger ledger = faithful || creative || !TrmtConfig.bonemealCostsABlock
             ? com.trmtgtnh.erosion.MendLedger.free()
             : com.trmtgtnh.erosion.MendLedger.perGesture(1);
         MendPurse purse = new MendPurse(player, ledger, MendPurse.byOwnBlock(player));
@@ -506,8 +537,11 @@ public final class ServerEvents {
         boolean aimedWorn = ErosionEngine.get()
             .restorable(world, pos.getX(), pos.getY(), pos.getZ());
 
-        int mended = ErosionEngine.get()
-            .mendPatch(world, pos.getX(), pos.getY(), pos.getZ(), TrmtConfig.bonemealRadius, purse.patchWork());
+        // The step the heal would take, so worn plain dirt goes on into grass while dirtHealsToGrass is on, as the
+        // original's eroded dirt 0 went to eroded grass 4.
+        int mended = faithful ? purse.mendSquare(world, pos.getX(), pos.getY(), pos.getZ(), 1, true, true)
+            : ErosionEngine.get()
+                .mendPatch(world, pos.getX(), pos.getY(), pos.getZ(), TrmtConfig.bonemealRadius, purse.patchWork());
         if (mended <= 0) {
             // Quieter than the tools. A handful on unworn ground is somebody growing grass, and only
             // a worn square under the crosshair is a mend the player was actually trying to make.
@@ -515,8 +549,10 @@ public final class ServerEvents {
             return;
         }
 
-        // Bone meal has nothing to repair, so every point of this reaches the player.
-        if (!creative) {
+        // Bone meal has nothing to repair, so every point of this reaches the player. Faithful bone meal pays none:
+        // the original's BoneMealItemMixin writes the block and the record, spends the handful and plays the
+        // particles, and awards no experience (read from its 0.5.1 bytecode).
+        if (!creative && !faithful) {
             HealingXp.award(player, null, ledger.isFree() ? (fromHand ? ledger.gradations() : 0) : ledger.paidGradations());
         }
         purse.reportShort(player, true);
@@ -685,6 +721,9 @@ public final class ServerEvents {
     @SubscribeEvent
     public void onPlayerLoggedIn(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent event) {
         SpawnGrants.onLogin(event.player);
+        // An operator is told of the wear a server put back by itself (wear backups, 0.9.229).
+        if (event.player instanceof EntityPlayerMP) WearBackups.get()
+            .playerJoined((EntityPlayerMP) event.player);
         tellAboutQuests(event.player);
         if (event.player instanceof EntityPlayerMP) UpdateNotice.onLogin((EntityPlayerMP) event.player);
     }

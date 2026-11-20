@@ -20,7 +20,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.IIcon;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.dataload.BlockLooks;
 import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
@@ -75,6 +77,19 @@ public final class WearTextures {
      */
     private static int rotations = 2;
 
+    /**
+     * client.wearTurns as this stitch read it ({@link WearTurns}), held for the whole stitch like the rotations,
+     * because under turn only it decides how many patterns a set that turns is planned with.
+     */
+    private static String turnsMode = WearTurns.BOTH;
+
+    /**
+     * Which sets this stitch turns, by set index: the family fallbacks at their family's ordinal, then each surface set
+     * as the real walk makes it ({@link FaceDirection}, read in {@link FacePricing#turns}). Stitch thread only;
+     * published to the lookup as a copy.
+     */
+    private static final java.util.BitSet TURNED = new java.util.BitSet();
+
     /** The first {@code FAMILIES} sets are the vanilla-derived fallbacks, one per family. */
     private static final int FIRST_SURFACE_SET = FAMILIES;
 
@@ -84,6 +99,13 @@ public final class WearTextures {
     // holder published once registration is done, so they see either the old table or the whole
     // new one, never a half-filled one, nor one table measured by another stitch's ramp.
     private static IIcon[] icons = new IIcon[0];
+
+    /**
+     * The glow overlay of each wear picture this stitch is registering, indexed as {@link #icons} is, or null where the
+     * surface's look has no glow (real glow). Every overlay is also in {@link #REGISTERED}, so it is composed with the
+     * rest; one that has nothing to light is never offered the atlas.
+     */
+    private static IIcon[] glowIcons = new IIcon[0];
 
     private static int setCount = FIRST_SURFACE_SET;
 
@@ -101,6 +123,7 @@ public final class WearTextures {
         static final Lookup EMPTY = new Lookup(
             new IIcon[0],
             new IIcon[0],
+            new IIcon[0],
             8,
             2,
             StateFiling.<Block, Integer>empty(),
@@ -108,9 +131,15 @@ public final class WearTextures {
             StateFiling.<Block, IIcon>empty(),
             null,
             StateFiling.<Block, Boolean>empty(),
-            new int[0]);
+            new int[0],
+            AtlasPlan.pictureMap(WearScale.COUNTED_STEPS, 8, 8),
+            new java.util.BitSet(),
+            WearTurns.RESEED);
 
         final IIcon[] icons;
+
+        /** The glow overlay of each of {@link #icons}, null where it has none (real glow). */
+        final IIcon[] glowIcons;
 
         /** The receding grass-side fringes, indexed {@code stage * rotations + rotation}. */
         final IIcon[] fringes;
@@ -141,10 +170,21 @@ public final class WearTextures {
 
         final int[] filedNumbers;
 
-        Lookup(IIcon[] icons, IIcon[] fringes, int layers, int rotations, StateFiling<Block, Integer> sets,
-            StateFiling<Block, IIcon> mended, StateFiling<Block, IIcon> walls, IIcon wallFallback,
-            StateFiling<Block, Boolean> filed, int[] filedNumbers) {
+        /** The picture each counted stage draws; see AtlasPlan.pictureMap. */
+        final int[] stages;
+
+        /** Which sets turn, by set index; see {@link #TURNED}. */
+        final java.util.BitSet turned;
+
+        /** client.wearTurns as the stitch read it. */
+        final String mode;
+
+        Lookup(IIcon[] icons, IIcon[] glowIcons, IIcon[] fringes, int layers, int rotations,
+            StateFiling<Block, Integer> sets, StateFiling<Block, IIcon> mended, StateFiling<Block, IIcon> walls,
+            IIcon wallFallback, StateFiling<Block, Boolean> filed, int[] filedNumbers, int[] stages,
+            java.util.BitSet turned, String mode) {
             this.icons = icons;
+            this.glowIcons = glowIcons;
             this.fringes = fringes;
             this.layers = layers;
             this.rotations = rotations;
@@ -154,10 +194,20 @@ public final class WearTextures {
             this.wallFallback = wallFallback;
             this.filed = filed;
             this.filedNumbers = filedNumbers;
+            this.stages = stages;
+            this.turned = turned;
+            this.mode = mode;
         }
     }
 
     private static volatile Lookup lookup = Lookup.EMPTY;
+
+    /** No safe block-atlas plan kept every face; draw each covered block's own icon instead. */
+    private static volatile boolean capacityDisabled;
+
+    public static boolean capacityDisabled() {
+        return capacityDisabled;
+    }
 
     /**
      * How the ids in force number a block, and which block an id names. The one place this class
@@ -302,6 +352,9 @@ public final class WearTextures {
             return;
         }
         Trmt.LOG.info(LINE_SIZED, Integer.valueOf(loaded), Long.valueOf(loadMillis));
+        // A stitch that loaded this mod's sprites composes from here: nought until the pass says how many it built, so
+        // a pass that stops part way is judged as having built none (PicturesComposed).
+        builtThisStitch = 0;
 
         // Every cache a worker could otherwise write to, filled here instead. After these two lines
         // the pattern orders and the fracture fields are read-only for the rest of the pass, and the
@@ -403,6 +456,7 @@ public final class WearTextures {
             new Object[] { Integer.valueOf(tally.built), Long.valueOf((System.nanoTime() - began) / 1000000L),
                 Integer.valueOf(tally.surfaces), Integer.valueOf(tally.guessed), Integer.valueOf(tally.unreadable),
                 Integer.valueOf(tally.failed) });
+        builtThisStitch = tally.built;
         if (!tally.improvised.isEmpty()) {
             // Counted and sampled rather than handed over whole.
             //
@@ -434,6 +488,165 @@ public final class WearTextures {
         // After the pass rather than as the stitch is planned, because only now is a fallback that could not be built
         // unusable, which is half of what this looks for.
         reportFallbackGaps();
+        shareIdenticalPictures();
+    }
+
+    /**
+     * Each picture this stitch made, mapped to the earlier one with the same pixels whose place in the atlas it takes
+     * (0.9.229, public issue #3: "Each distinct picture is stored once"). Stitch thread only.
+     */
+    private static final Map<TextureAtlasSprite, TextureAtlasSprite> TWINS = new IdentityHashMap<TextureAtlasSprite, TextureAtlasSprite>();
+
+    /**
+     * The glow overlays this stitch composed with nothing to light, which are never offered the atlas (real glow).
+     * Stitch thread only.
+     */
+    private static final Set<TextureAtlasSprite> EMPTY_GLOWS = java.util.Collections
+        .newSetFromMap(new IdentityHashMap<TextureAtlasSprite, Boolean>());
+
+    static final String LINE_SHARED = "Stored {} of this mod's {} block-atlas pictures once each: {} had the same pixels as another and share its place.";
+
+    static final String LINE_HOLDERS = "Going to the stitcher for the block atlas: this mod's {} holders take {} pixels and everything else's {} take {}, together {}% of a 16384-pixel square's pixels before the packer's slack.";
+
+    static final String LINE_GLOWS = "Registered {} glow overlays beside the worn faces of the looks that glow, end_bleached's cracks drawn at light {} and nether_charred's ash at light {} of 15 wherever the world is darker; the plan prices each as large as its picture, and one with nothing to light is never stitched.";
+
+    /** How many glow siblings this stitch registered; written by registration, said once it is done. */
+    private static int glowsRegistered;
+
+    static final String LINE_LEFT_OUT = "Left {} of this mod's pictures that share another's place out of the block atlas's stitch.";
+
+    static final String LINE_GUTTER = "Gave {} of this mod's block-atlas sprites a {}-pixel Angelica gutter rather than Angelica's {}, so each sixteen-pixel picture takes a {}-pixel holder rather than {}; and left {} pictures that share another's place out of the stitch.";
+
+    /**
+     * Finds the pictures whose pixels are another's, once every picture is composed, so only the first of each goes
+     * to the stitcher. A moving layer is never shared, because it is redrawn in its own place, and nor is a picture
+     * that could not be built. Their mip levels are made from their pixels, so the same pixels are the same picture
+     * at every level.
+     */
+    private static void shareIdenticalPictures() {
+        TWINS.clear();
+        EMPTY_GLOWS.clear();
+        List<TextureAtlasSprite> sprites = new ArrayList<TextureAtlasSprite>(REGISTERED.size() + overlaySprites.length);
+        for (WearSprite sprite : REGISTERED) {
+            // A glow overlay with nothing to light is neither offered nor shared: it is left out of the stitch whole.
+            if (sprite.isGlow() && !sprite.isUsable()) {
+                EMPTY_GLOWS.add(sprite);
+                continue;
+            }
+            sprites.add(sprite);
+        }
+        for (IIcon fringe : overlaySprites) {
+            if (fringe instanceof FringeSprite) sprites.add((FringeSprite) fringe);
+        }
+        int count = sprites.size();
+        int[][] pictures = new int[count][];
+        int[] widths = new int[count];
+        int[] heights = new int[count];
+        boolean[] eligible = new boolean[count];
+        for (int i = 0; i < count; i++) {
+            TextureAtlasSprite sprite = sprites.get(i);
+            widths[i] = sprite.getIconWidth();
+            heights[i] = sprite.getIconHeight();
+            boolean usable = sprite instanceof WearSprite
+                ? ((WearSprite) sprite).isUsable() && !((WearSprite) sprite).moves()
+                : ((FringeSprite) sprite).isUsable();
+            eligible[i] = usable && widths[i] > 0 && !sprite.hasAnimationMetadata() && sprite.getFrameCount() == 1;
+            if (eligible[i]) {
+                int[][] levels = sprite.getFrameTextureData(0);
+                pictures[i] = levels == null || levels.length == 0 ? null : levels[0];
+                // A glow overlay is compared with the other overlays and with nothing else: one more value than any
+                // picture of the same pixels, so it is never filed as a wear picture's twin, or the other way about.
+                if (pictures[i] != null && sprite instanceof WearSprite && ((WearSprite) sprite).isGlow()) {
+                    pictures[i] = glowKey(pictures[i]);
+                }
+            }
+        }
+        int[] canonical = SmallGutter.canonical(pictures, widths, heights, eligible);
+        for (int i = 0; i < count; i++) {
+            if (canonical[i] != i) TWINS.put(sprites.get(i), sprites.get(canonical[i]));
+        }
+        Trmt.LOG.info(
+            LINE_SHARED,
+            new Object[] { Integer.valueOf(count - TWINS.size()), Integer.valueOf(count),
+                Integer.valueOf(TWINS.size()) });
+    }
+
+    /**
+     * Called at the head of the block atlas's stitch, after Angelica has given every sprite its gutter and before
+     * the stitcher reads a holder's size: gives this mod's sprites the small gutter, and takes out of the stitch every
+     * picture that shares another's place. The holder's size is read live from the sprite's gutter (Angelica's
+     * MixinStitcherHolder), so the gutter set here is the one the stitcher, the UV inset and the padded upload use.
+     */
+    public static void beforeStitch(java.util.Set<?> stitching) {
+        if (stitching == null || stitching.isEmpty()) return;
+        int gutter = ownGutter();
+        boolean angelica = holderGutter > 0;
+        int bordered = 0;
+        int left = 0;
+        boolean ours = false;
+        for (java.util.Iterator<?> holders = stitching.iterator(); holders.hasNext();) {
+            Object each = holders.next();
+            if (!(each instanceof net.minecraft.client.renderer.texture.Stitcher.Holder)) continue;
+            TextureAtlasSprite sprite = ((net.minecraft.client.renderer.texture.Stitcher.Holder) each).getAtlasSprite();
+            if (!(sprite instanceof WearSprite || sprite instanceof FringeSprite)) continue;
+            ours = true;
+            if (TWINS.containsKey(sprite) || EMPTY_GLOWS.contains(sprite)) {
+                holders.remove();
+                left++;
+                continue;
+            }
+            if (angelica && AngelicaGutter.set(sprite, gutter)) bordered++;
+        }
+        if (!ours) return;
+        if (angelica && gutter < holderGutter) {
+            // What the stitcher will place, read from each holder as it will read it: the sprite's edge at the mip
+            // stride plus the gutter now set on it (Angelica's MixinStitcherHolder adds it live).
+            long ownPixels = 0L;
+            long otherPixels = 0L;
+            int own = 0;
+            int other = 0;
+            for (Object each : stitching) {
+                if (!(each instanceof net.minecraft.client.renderer.texture.Stitcher.Holder)) continue;
+                net.minecraft.client.renderer.texture.Stitcher.Holder holder = (net.minecraft.client.renderer.texture.Stitcher.Holder) each;
+                long pixels = (long) holder.getWidth() * holder.getHeight();
+                TextureAtlasSprite sprite = holder.getAtlasSprite();
+                if (sprite instanceof WearSprite || sprite instanceof FringeSprite) {
+                    own++;
+                    ownPixels += pixels;
+                } else {
+                    other++;
+                    otherPixels += pixels;
+                }
+            }
+            long square = (long) AtlasPlan.LARGER_SIDE * AtlasPlan.LARGER_SIDE;
+            Trmt.LOG.info(
+                LINE_HOLDERS,
+                new Object[] { Integer.valueOf(own), Long.valueOf(ownPixels), Integer.valueOf(other),
+                    Long.valueOf(otherPixels), Long.valueOf((ownPixels + otherPixels) * 100L / square) });
+        }
+        if (!angelica) {
+            // No Angelica, no gutter to speak of: only the pictures left out for sharing another's place.
+            Trmt.LOG.info(LINE_LEFT_OUT, Integer.valueOf(left));
+            return;
+        }
+        Trmt.LOG.info(
+            LINE_GUTTER,
+            new Object[] { Integer.valueOf(bordered), Integer.valueOf(gutter), Integer.valueOf(holderGutter),
+                Integer.valueOf(16 + 2 * gutter), Integer.valueOf(16 + 2 * holderGutter), Integer.valueOf(left) });
+    }
+
+    /**
+     * Called once the block atlas is stitched and uploaded: every picture that shared another's place takes that
+     * place, and lets go of its own pixels, which nothing will upload. Vanilla has by then given each of them
+     * missingno's place, as it does every sprite that was not stitched.
+     */
+    public static void afterStitch() {
+        if (TWINS.isEmpty()) return;
+        for (Map.Entry<TextureAtlasSprite, TextureAtlasSprite> pair : TWINS.entrySet()) {
+            TextureAtlasSprite twin = pair.getKey();
+            twin.copyFrom(pair.getValue());
+            twin.clearFramesTextureData();
+        }
     }
 
     /**
@@ -460,7 +673,8 @@ public final class WearTextures {
         int askedMeta = 0;
         boolean layered = false;
         for (WearSprite sprite : REGISTERED) {
-            if (sprite.getIconWidth() <= 0) continue;
+            // A glow holds no layer: it is drawn over its base, whose shell the layer moves under.
+            if (sprite.getIconWidth() <= 0 || sprite.isGlow()) continue;
             Block origin = sprite.origin();
             // A fallback set has no block, so nothing can name a layer behind it.
             if (origin == null) continue;
@@ -567,6 +781,12 @@ public final class WearTextures {
     /** Whether the injection that builds every worn picture reached it. */
     private static boolean buildHookRan;
 
+    /**
+     * The pictures the sprite pass composed this stitch, or PicturesComposed.SKIPPED for a stitch that loaded none of
+     * this mod's sprites (Forge's skipped first stitch at start-up) or never reached the pass.
+     */
+    private static int builtThisStitch = PicturesComposed.SKIPPED;
+
     /** Whether the injection that counts what went to the stitcher reached this class during the current stitch. */
     private static boolean stitchCounted;
 
@@ -626,6 +846,10 @@ public final class WearTextures {
             }
         }
         if (buildHookRan && !stitchCounted) Trmt.LOG.warn(LINE_I);
+        // Kept for the harness, which judges the walk by it: the line above is said to a log, and the flags it reads
+        // are cleared below (0.9.229, the walk that passed under FastCraft with no picture composed).
+        if (!REGISTERED.isEmpty()) PicturesComposed.stitchEnded(buildHookRan, builtThisStitch);
+        builtThisStitch = PicturesComposed.SKIPPED;
         roomHookRan = false;
         buildHookRan = false;
         stitchCounted = false;
@@ -636,6 +860,7 @@ public final class WearTextures {
         packReadMillis = 0L;
         glMaximum = 0;
         packAnisotropic = false;
+        holderGutter = 0;
         stitcherLevels = -1;
         WearPatterns.clearHeaderWidths();
         lastPlan = null;
@@ -665,7 +890,7 @@ public final class WearTextures {
 
     private static final String LINE_SEARCH_UNSPARED = "The stitcher placed the block atlas's {} sprites in {} ms without turning back a single search, so this mod's shortcut through its slot search never ran: another mod has replaced Stitcher.Slot.addSlot, or this mod's mixins did not apply - look earlier in this log for a mixin config that failed to load. Nothing is wrong with the atlas. With many sprites of mixed sizes it is only slow, because vanilla's search walks every filled slot for every sprite.";
 
-    private static final String LINE_I = "The injection that counts what went to the stitcher never ran, although the one that builds the wear textures did, so this stitch cannot say what went to the stitcher against what the plan priced. Both wait for the same call to Stitcher.doStitch in the same mixin, so this should not happen, and an optional injection writes nothing to this log when it does not run, so no earlier line will say why.";
+    private static final String LINE_I = "The injection that counts what went to the stitcher never ran, although the one that builds the wear textures did, so this stitch cannot say what went to the stitcher against what the plan priced. Both wait for the same call to Stitcher.doStitch, or to FastCraft's hook where FastCraft has put it in doStitch's place, in the same mixin, so this should not happen, and an optional injection writes nothing to this log when it does not run, so no earlier line will say why.";
 
     /** Line J, one placeholder, ended by exactly one of the three tails below or a full stop. */
     private static final String LINE_J = "The injection that measures the atlas never ran, so the wear textures were planned as though the rest of the pack had taken half of a {}-pixel square, rather than from what it had actually taken. The ramp may be coarser than it needed to be, or, on a pack that fills more than half, the atlas may not fit; the line from planning above gives the figures";
@@ -691,6 +916,9 @@ public final class WearTextures {
 
     private static volatile boolean packAnisotropic;
 
+    /** Per-side block-sprite gutter assigned by Angelica at stitch time, zero in older packs. */
+    private static volatile int holderGutter;
+
     /**
      * How many of the atlas's textures had a readable header, the slots those came to, and how long reading them took.
      */
@@ -708,6 +936,24 @@ public final class WearTextures {
      * 4096; asked only so the ceiling line names a figure the setting will take.
      */
     private static final int MOST_TEXTURED_SURFACES = 4096;
+
+    /** Count and area budgets below the 8192 atlas's packing cliff measured in GTNH. */
+
+    /**
+     * Which texturable surfaces are natural ground, offered the textured-surface places first: vanilla's own, by the
+     * namespace of the registry name. Vanilla's texturable faces are its generated ground and few, 36 on 1.7.10 to 62
+     * on 26.2 in the rig's plain games (2026-11-08), so they never take more than a few dozen of the places. A mod's
+     * natural ground has no mark at the stitch that every edition can read alike: biomes name their top and filler
+     * blocks to 1.16.5, and from 1.18 the surface rules that replaced them arrive with a world, after this stitch. It
+     * keeps its place by the ceiling's default, which holds the largest pack measured whole.
+     */
+    private static final AtlasPlan.Ground<SurfaceRegistry.SurfaceState> NATURAL_GROUND = new AtlasPlan.Ground<SurfaceRegistry.SurfaceState>() {
+
+        @Override
+        public boolean natural(SurfaceRegistry.SurfaceState state) {
+            return AtlasPlan.vanilla(SurfaceRegistry.registryName(state.block));
+        }
+    };
 
     /**
      * Reported by {@code MixinTextureMap} from the call that fires the stitch event, which lands
@@ -738,6 +984,7 @@ public final class WearTextures {
         roomHookRan = true;
         glMaximum = maximum;
         packAnisotropic = anisotropic;
+        holderGutter = angelicaHolderGutter(mipmapLevels);
         stitcherLevels = mipmapLevels;
         WearPatterns.clearHeaderWidths();
         long began = System.nanoTime();
@@ -751,7 +998,7 @@ public final class WearTextures {
                 int width = WearPatterns.headerWidth(manager, (String) name);
                 if (width <= 0) continue;
                 read++;
-                cells += AtlasPlan.spriteCells(width, anisotropic);
+                cells += AtlasPlan.spriteCells(width + 2 * holderGutter, anisotropic);
             }
         } catch (RuntimeException awkwardPack) {
             // This runs inside the stitch itself, and one resource pack refusing a question must not
@@ -763,6 +1010,56 @@ public final class WearTextures {
         packRead = read;
         packReadCells = cells;
         packReadMillis = (System.nanoTime() - began) / 1000000L;
+    }
+
+    /**
+     * The gutter this mod's own sprites take under Angelica at this stitch, chosen as it was planned (registerAll,
+     * SmallGutter.candidates): never more than Angelica's own, none without it.
+     */
+    private static volatile int chosenGutter;
+
+    static int ownGutter() {
+        return SmallGutter.ownGutter(holderGutter, chosenGutter);
+    }
+
+    /**
+     * client.angelicaWearGutter as read: {@link SmallGutter#AUTO} or a fixed gutter. -Dtrmt.wearGutter lets the rig
+     * force one without touching the shared settings fixture, as -Dtrmt.dumpStitchRects lets it capture the holders;
+     * a player's game never sets it.
+     */
+    private static String gutterSetting() {
+        String forced = System.getProperty("trmt.wearGutter");
+        return forced != null ? forced : TrmtConfig.angelicaWearGutter;
+    }
+
+    static final String LINE_CHOSEN_GUTTER = "Angelica gutter for this mod's sprites: {} pixels, {}.";
+
+    static final String LINE_STITCHER_SHARE = "Planned this mod's sprites and the pack's into {}% of the {}-pixel block atlas, priced in exact pixels, because {}.";
+
+    /** The gutter a stitched sprite is counted at: this mod's own at the small one, everything else at Angelica's. */
+    private static int gutterOf(TextureAtlasSprite sprite) {
+        return sprite instanceof WearSprite || sprite instanceof FringeSprite ? ownGutter() : holderGutter;
+    }
+
+    /** The mip levels the stitcher rounds holders at, as measured, or the game's four where nothing measured. */
+    static int pricedLevels() {
+        return stitcherLevels >= 0 ? stitcherLevels : 4;
+    }
+
+    private static int angelicaHolderGutter(int mipmapLevels) {
+        try {
+            Class<?> sprite = Class.forName("com.gtnewhorizons.angelica.rendering.celeritas.SpriteExtension");
+            sprite.getMethod("angelica$getGutterWidth");
+            Class<?> padding = Class.forName("com.gtnewhorizons.angelica.utils.SpritePadding");
+            return Math.max(
+                0,
+                ((Integer) padding.getMethod("gutterFor", int.class, boolean.class)
+                    .invoke(null, Integer.valueOf(mipmapLevels), Boolean.TRUE)).intValue());
+        } catch (ReflectiveOperationException unavailable) {
+            return 0;
+        } catch (LinkageError unavailable) {
+            return 0;
+        }
     }
 
     /**
@@ -785,19 +1082,65 @@ public final class WearTextures {
         if (plan == null) return;
         boolean stitcherLevelsKnown = roomHookRan && stitcherLevels >= 0;
         AtlasPlan.Stitched stitched = new AtlasPlan.Stitched(stitcherLevelsKnown ? stitcherLevels : mipmapLevels);
+        int widest = 0;
+        int tallest = 0;
+        double longestAspect = 0.0D;
+        int nonSquare = 0;
+        String widestName = "";
+        String tallestName = "";
+        String aspectName = "";
+        int aspectWidth = 0;
+        int aspectHeight = 0;
         for (Object value : registered.values()) {
             if (!(value instanceof TextureAtlasSprite)) continue;
             TextureAtlasSprite sprite = (TextureAtlasSprite) value;
+            int width = sprite.getIconWidth();
+            int height = sprite.getIconHeight();
+            if (width > widest) {
+                widest = width;
+                widestName = sprite.getIconName();
+            }
+            if (height > tallest) {
+                tallest = height;
+                tallestName = sprite.getIconName();
+            }
+            if (width > 0 && height > 0) {
+                if (width != height) nonSquare++;
+                double aspect = (double) Math.max(width, height) / Math.min(width, height);
+                if (aspect > longestAspect) {
+                    longestAspect = aspect;
+                    aspectWidth = width;
+                    aspectHeight = height;
+                    aspectName = sprite.getIconName();
+                }
+            }
             stitched.add(
                 sprite instanceof WearSprite || sprite instanceof FringeSprite,
-                sprite.getIconWidth(),
-                sprite.getIconHeight());
+                width > 0 ? width + 2 * gutterOf(sprite) : width,
+                height > 0 ? height + 2 * gutterOf(sprite) : height);
         }
         if (stitched.ownSprites() == 0) return;
+        Trmt.LOG.warn(
+            "Raw block-atlas sprite sizes before the {}-pixel Angelica gutter: widest {} pixels ({}), tallest {} pixels ({}), {} non-square, largest aspect {}:1 at {}x{} ({}).",
+            Integer.valueOf(holderGutter),
+            Integer.valueOf(widest),
+            widestName,
+            Integer.valueOf(tallest),
+            tallestName,
+            Integer.valueOf(nonSquare),
+            Double.valueOf(longestAspect),
+            Integer.valueOf(aspectWidth),
+            Integer.valueOf(aspectHeight),
+            aspectName);
         int missing = WearPatterns.ART_SIZE + (plan.measure.anisotropic ? AtlasPlan.ANISOTROPIC_GROWTH : 0);
-        stitched.add(false, missing, missing);
+        stitched.add(false, missing + 2 * holderGutter, missing + 2 * holderGutter);
         int late = plan.measure.taken ? Math.max(0, registered.size() - plan.measure.packSprites - registeredThisStitch)
             : 0;
+        // Under the small gutter this count is not the stitch's: the pictures that share another's place leave the
+        // stitch after it, and AtlasPlan.Stitched rounds a whole holder, gutter and all, to the mip stride, which
+        // makes a 24-pixel holder 32. The holders themselves are counted at the head of the stitch instead
+        // (beforeStitch, LINE_HOLDERS), where they are what the stitcher will place.
+        if (ownGutter() < holderGutter) return;
         reportStitched(plan, stitched, late, stitcherLevelsKnown);
     }
 
@@ -904,7 +1247,7 @@ public final class WearTextures {
     private static int fallbackAppearances() {
         int total = 0;
         for (SurfaceFamily family : SurfaceFamily.values()) {
-            if (family.staged) total += appearancesFor(null, family).size();
+            if (family.staged) total += pricedAppearances(appearancesFor(null, family));
         }
         return total;
     }
@@ -936,6 +1279,11 @@ public final class WearTextures {
         return lookup.layers;
     }
 
+    /** Rotations actually stitched, which may be fewer than the requested count. */
+    public static int drawnRotations() {
+        return lookup.rotations;
+    }
+
     /** Called from {@code TextureStitchEvent.Pre} for the block atlas. */
     public static void registerAll(final TextureMap map) {
         // First, before a single wear sprite of this stitch is registered or loaded, so none of them has yet been
@@ -946,6 +1294,8 @@ public final class WearTextures {
         // Left alone, a pack tried once at a large edge would keep that edge's chains for the rest of the session. A
         // sprite still holding an old placeholder keeps its own reference to the array, so nothing drawn changes.
         WearSprite.forgetPlaceholders();
+        TWINS.clear();
+        EMPTY_GLOWS.clear();
         sideSpritesNamed = 0;
 
         // Taken once, here, and held for the whole stitch. It sizes the icon table and every
@@ -957,6 +1307,8 @@ public final class WearTextures {
         // fewer than sixteen until the config is next read.
         spriteLayers = Math.max(2, Math.min(WearScale.COUNTED_STEPS, TrmtConfig.wearGradations));
         rotations = Math.max(1, Math.min(4, TrmtConfig.wearRotations));
+        turnsMode = WearTurns.mode(TrmtConfig.wearTurns);
+        TURNED.clear();
 
         // Dropped before anything is measured rather than after it. This method runs again on
         // every re-stitch now, and the pre-flight below reads dirt and stone back through the very
@@ -966,6 +1318,10 @@ public final class WearTextures {
         // which case whatever they hold is an earlier stitch's.
         WearPatterns.clearCaches();
         if (!roomHookRan) WearPatterns.clearHeaderWidths();
+        // The enabled packs' looks files, read again before anything is planned (W3 T5): the game stitches this atlas
+        // before any mod's reload listener runs, so the pack reader's own listener would hand this stitch the looks of
+        // the packs before the change. A reload that changed no pack's data re-merges nothing.
+        com.trmtgtnh.client.PackData.beforeStitch();
         // This stitch's layers behind blocks, before the sets are planned: a set is keyed on the layer as well
         // as the face and the family. See planSurfaceSets.
         InnerLayers.readTable();
@@ -974,11 +1330,19 @@ public final class WearTextures {
             .getResourceManager();
         AtlasPlan.Measure measure = measureThisStitch();
         int edge = wearEdge(manager);
-        FacePricing pricing = new FacePricing(manager, edge);
+        // Automatic, Automatic at least 2 pixels, or a fixed border (Xep, 2026-11-18): each walks the narrower gutters
+        // after its own, and chooses down to its floor before a narrower one is a fallback (SmallGutter.floorIndex).
+        int gutterMode = SmallGutter.fixedGutter(gutterSetting());
+        int[] gutters = SmallGutter.candidates(holderGutter, gutterMode);
+        int floor = SmallGutter.floorIndex(gutters, gutterMode);
+        chosenGutter = gutters[0];
+        FacePricing pricing = new FacePricing(manager, edge, chosenGutter);
         // Read once, and every walk below takes this one list. The surface table is rebuilt whenever
         // the ids move, on whichever thread moved them, and walks that each read it afresh could hand
-        // the census one table and the gate another.
-        List<SurfaceRegistry.SurfaceState> surfaces = SurfaceRegistry.texturableStates();
+        // the census one table and the gate another. Natural ground first (AtlasPlan.naturalFirst), so
+        // a limit that cuts faces cuts decorative variants before the ground a path is worn across.
+        List<SurfaceRegistry.SurfaceState> surfaces = AtlasPlan
+            .naturalFirst(SurfaceRegistry.texturableStates(), NATURAL_GROUND);
         StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(surfaces);
         StateFiling.Builder<Block, Boolean> wallsWanted = grassWallsWanted(surfaces);
         // Every edge worked out once, here, and used both to price the plan and to register the sprites, so what goes
@@ -999,32 +1363,216 @@ public final class WearTextures {
         // the ceiling would keep; the plan prices none past it, so what that costs is the walk and a
         // header already read. The walk asks nothing but block icons, the registry and those headers,
         // and the second walk below is held by its gate to what this one recorded.
-        AtlasPlan.Census census = new AtlasPlan.Census();
-        if (TrmtConfig.perSurfaceTextures) {
-            planSurfaceSets(surfaces, StateFiling.<Block, Integer>builder(), null, FIRST_SURFACE_SET, census, pricing);
-        }
-
-        // Before a single sprite is planned, because when there is not room it is the fineness of
-        // every ramp that gives first. Only once the ramp is held at sixteen gradations, or at a lower
-        // count a hand-edited presets.remembered string asked for, do the faces last in registry-name
-        // order give way.
-        AtlasPlan plan = AtlasPlan.plan(
-            measure,
-            new AtlasPlan.Wish(
+        // Under Angelica the gutter gives way first (Xep, 2026-11-15: "higher where it can be, and lower as it needs
+        // to be"): each candidate, largest first, is priced and walked, and the first at which the plain plan keeps
+        // every face at every rotation and gradation asked for, with the holders predicted inside nine tenths of the
+        // target square, is the gutter. Where none is, the smallest is, and the plan below gives way in its own
+        // order. Without Angelica, or with a gutter set by hand, there is one candidate and nothing is tried.
+        // Every candidate is walked and planned, and SmallGutter.choose takes the widest whose plan keeps as much as
+        // the
+        // narrowest's (2026-11-17): a limit every gutter meets alike, client.maxWearSprites, had taken GT New Horizons
+        // 2.9.0 to 0 pixels with the atlas 42% full. The six walks of that pack take under a second together.
+        AtlasPlan.Census census = null;
+        AtlasPlan.Wish wish = null;
+        AtlasPlan[] gutterPlans = new AtlasPlan[gutters.length];
+        long[] predicted = new long[gutters.length];
+        FacePricing[] pricings = new FacePricing[gutters.length];
+        AtlasPlan.Census[] censuses = new AtlasPlan.Census[gutters.length];
+        AtlasPlan.Wish[] wishes = new AtlasPlan.Wish[gutters.length];
+        String gutterWhy = gutters.length == 1 ? (holderGutter > 0 ? "set by client.angelicaWearGutter" : null)
+            : "the smallest tried, because every wider gutter keeps less than it does or takes more than "
+                + SmallGutter.fillPerMille(measure.fillPerMille) / 10
+                + "% of the "
+                + SmallGutter.target(glMaximum)
+                + "-pixel atlas for "
+                + stitcher.said
+                + ", so the plan gives way after it";
+        for (int tried = 0; tried < gutters.length; tried++) {
+            chosenGutter = gutters[tried];
+            pricing = new FacePricing(manager, edge, chosenGutter);
+            census = new AtlasPlan.Census();
+            if (TrmtConfig.perSurfaceTextures) {
+                planSurfaceSets(
+                    surfaces,
+                    StateFiling.<Block, Integer>builder(),
+                    null,
+                    FIRST_SURFACE_SET,
+                    census,
+                    pricing);
+            }
+            long setPixels = pricing.pricedPixels();
+            long setOnePixels = pricing.pricedOnePixels();
+            // The family fallbacks client.wearTurns' turn only draws with one pattern: those whose own face turns.
+            int fallbackOneAppearances = 0;
+            long fallbackOneCells = 0L;
+            long fallbackOnePixels = 0L;
+            if (WearTurns.TURN.equals(turnsMode)) {
+                for (SurfaceFamily family : SurfaceFamily.values()) {
+                    if (!family.staged || !pricing.fallbackTurns(family)) continue;
+                    int[] row = fallbackEdges[family.ordinal()];
+                    for (int each : row) if (each > 0) fallbackOneAppearances++;
+                    fallbackOneCells += pricing.holderCellsOf(new int[][] { row });
+                    fallbackOnePixels += pricing.pixelsOf(row);
+                }
+            }
+            wish = new AtlasPlan.Wish(
                 edge,
                 spriteLayers,
                 MIN_GRADATIONS,
                 rotations,
                 fallbackAppearances(),
-                FacePricing.cellsOf(fallbackEdges),
-                AtlasPlan.cellsFor(fringeEdge),
+                pricing.holderCellsOf(fallbackEdges),
+                pricing.singleHolderCells(fringeEdge),
                 mendsWanted.states() + wallsWanted.states() + 1, // + the fallback wall
-                FacePricing.cellsOf(mendEdges) + FacePricing.cellsOf(wallEdges) + AtlasPlan.cellsFor(fallbackWallEdge),
+                pricing.holderCellsOf(mendEdges) + pricing.holderCellsOf(wallEdges)
+                    + pricing.singleHolderCells(fallbackWallEdge),
                 census.sets(),
                 census.cells(),
                 TrmtConfig.maxTexturedSurfaces,
-                TrmtConfig.maxWearSprites));
+                TrmtConfig.maxWearSprites,
+                fallbackOneAppearances,
+                fallbackOneCells,
+                census.ones(),
+                census.glows(),
+                census.glowLit(),
+                census.glowCells(),
+                fallbackGlows(),
+                fallbackGlowLit(),
+                pricing.glowCellsOf(fallbackEdges))
+                    // The same prices in exact pixels, which the plan uses where the measure names a measured
+                    // stitcher (0.9.229, glow-pixels; StitcherKind), and ignores otherwise.
+                    .withPixels(
+                        census.pixels(),
+                        census.glowPixels(),
+                        pricing.pixelsOf(fallbackEdges),
+                        fallbackOnePixels,
+                        pricing.glowPixelsOf(fallbackEdges),
+                        pricing.pixelsOf(new int[] { fringeEdge }),
+                        pricing.pixelsOf(mendEdges) + pricing.pixelsOf(wallEdges)
+                            + pricing.pixelsOf(new int[] { fallbackWallEdge }));
+            if (gutters.length == 1) break;
+            // The plan the stitch would make at this gutter, which gives way in its own order where anything is short.
+            AtlasPlan whole = AtlasPlan.planForBorderBudget(measure, wish);
+            gutterPlans[tried] = whole;
+            pricings[tried] = pricing;
+            censuses[tried] = census;
+            wishes[tried] = wish;
+            if (whole == null) continue;
+            // Judged on exact pixels at that plan's gradations and rotations: the plan's slots round each set's
+            // one-gradation unit up to whole slots before multiplying it by every gradation and rotation, which is
+            // right for its budget and too much for a fit the real packer is held to
+            // (SmallGutterTest.the_prediction_sums_exact_holder_pixels).
+            predicted[tried] = SmallGutter.ownPixels(
+                setPixels,
+                setOnePixels,
+                pricing.pixelsOf(fallbackEdges),
+                fallbackOnePixels,
+                pricing.pixelsOf(new int[] { fringeEdge }),
+                pricing.pixelsOf(mendEdges) + pricing.pixelsOf(wallEdges)
+                    + pricing.pixelsOf(new int[] { fallbackWallEdge }),
+                whole.gradations,
+                whole.wish.rotations) + whole.packCells * AtlasPlan.CELL * AtlasPlan.CELL;
+        }
+        if (gutters.length > 1) {
+            int at = SmallGutter
+                .choose(gutterPlans, predicted, SmallGutter.target(glMaximum), measure.fillPerMille, floor);
+            chosenGutter = gutters[at];
+            pricing = pricings[at];
+            census = censuses[at];
+            wish = wishes[at];
+            AtlasPlan kept = gutterPlans[at];
+            long pixels = predicted[at];
+            String share = pixels + " holder pixels predicted, "
+                + (pixels * 100L / ((long) SmallGutter.target(glMaximum) * SmallGutter.target(glMaximum)))
+                + "% of the "
+                + SmallGutter.target(glMaximum)
+                + "-pixel atlas, at most "
+                + SmallGutter.fillPerMille(measure.fillPerMille) / 10
+                + "%"
+                + (measure.fillPerMille > 0 ? " for " + stitcher.said + ", priced in exact pixels"
+                    : " for " + stitcher.said + ", priced in whole slots");
+            String widest = java.util.Arrays.toString(java.util.Arrays.copyOf(gutters, floor + 1));
+            String how = gutterMode == SmallGutter.AUTO ? "chosen automatically as the widest of "
+                : "chosen automatically, at least " + SmallGutter.FLOOR + " pixels, as the widest of ";
+            if (SmallGutter.fellBack(at, floor)) {
+                // The border asked cannot keep every face even at one rotation and one gradation, or its holders are
+                // past the stitcher's share: the widest narrower one that can (2026-11-18).
+                gutterWhy = "narrower than the " + gutters[floor]
+                    + " pixels client.angelicaWearGutter asks, because at "
+                    + gutters[floor]
+                    + " not every textured face fits even at one rotation and one gradation, or the holders take more than "
+                    + SmallGutter.fillPerMille(measure.fillPerMille) / 10
+                    + "% of the atlas: the widest of "
+                    + java.util.Arrays.toString(java.util.Arrays.copyOfRange(gutters, floor + 1, gutters.length))
+                    + " that keeps them, or the smallest; "
+                    + keptSaid(kept, wish)
+                    + "; "
+                    + share;
+            } else if (gutterMode >= 0) {
+                gutterWhy = "set by client.angelicaWearGutter, rotations giving way first and then gradations: "
+                    + keptSaid(kept, wish)
+                    + "; "
+                    + share;
+            } else if (SmallGutter.keepsEverything(kept, wish.gradations, wish.rotations, wish.surfaceCeiling)
+                && SmallGutter.fits(pixels, SmallGutter.target(glMaximum), measure.fillPerMille)) {
+                    gutterWhy = how + widest
+                        + " at which all "
+                        + kept.surfaceSetsConsidered
+                        + " textured faces, "
+                        + wish.rotations
+                        + " rotations and "
+                        + wish.gradations
+                        + " gradations fit: "
+                        + share;
+                } else if (at < floor) {
+                    gutterWhy = how + widest
+                        + " that keeps as much as the smallest does, since the plan gives way alike at every gutter: "
+                        + keptSaid(kept, wish)
+                        + "; "
+                        + share;
+                } else if (gutterMode == SmallGutter.AT_LEAST_TWO) {
+                    gutterWhy = how + widest
+                        + ", the narrowest it takes while every face fits, rotations giving way first and then gradations: "
+                        + keptSaid(kept, wish)
+                        + "; "
+                        + share;
+                }
+        }
+        if (gutterWhy != null) Trmt.LOG.info(LINE_CHOSEN_GUTTER, Integer.valueOf(chosenGutter), gutterWhy);
+
+        // Price every Holder before registration. The safety cap reduces rotations, then gradations
+        // down to one while retaining every face; shared family art is the last resort.
+        AtlasPlan plan = AtlasPlan.planForBorderBudget(measure, wish);
+        if (plan == null) {
+            capacityDisabled = true;
+            lookup = Lookup.EMPTY;
+            REGISTERED.clear();
+            fringesRegistered = 0;
+            registeredThisStitch = 0;
+            lastPlan = null;
+            Trmt.error(
+                "Worn art cannot fit even its shared family tier in the {}-pixel block atlas with Angelica's {}-pixel gutters; covered blocks keep their own icons.",
+                Integer.valueOf(Math.min(glMaximum > 0 ? glMaximum : AtlasPlan.LARGEST_SIDE, AtlasPlan.LARGER_SIDE)),
+                Integer.valueOf(holderGutter));
+            return;
+        }
+        capacityDisabled = false;
+        // Without Angelica's gutter the gutter line above is not written, so a plan held to the stitcher's own share
+        // says so here (0.9.229, stitch-cap).
+        if (plan.pixels && holderGutter <= 0) {
+            Trmt.LOG.info(
+                LINE_STITCHER_SHARE,
+                Integer.valueOf(measure.fillPerMille / 10),
+                Integer.valueOf(measure.stitchSide),
+                stitcher.why);
+        }
+        if (plan.wish.surfaceCeiling == 0 && TrmtConfig.maxTexturedSurfaces > 0 && census.sets().length > 0) {
+            Trmt.LOG.warn(
+                "Atlas room cannot hold all {} textured faces even at one gradation and one rotation; using one shared worn look per family.",
+                Integer.valueOf(census.sets().length));
+        }
         spriteLayers = plan.gradations;
+        rotations = plan.wish.rotations;
         if (!plan.measure.taken) warnUnmeasured(plan);
 
         StateFiling.Builder<Block, Integer> states = StateFiling.<Block, Integer>builder();
@@ -1051,7 +1599,9 @@ public final class WearTextures {
         // else in the atlas depends on them, which is why the plan prices them first and never cuts them.
         for (SurfaceFamily family : SurfaceFamily.values()) {
             if (!family.staged) continue;
-            planChain(plans, family.ordinal(), null, 0, family, fallbackEdges[family.ordinal()]);
+            boolean turns = pricing.fallbackTurns(family);
+            if (turns) TURNED.set(family.ordinal());
+            planChain(plans, family.ordinal(), null, 0, family, fallbackEdges[family.ordinal()], turns);
         }
 
         int nextSet = FIRST_SURFACE_SET;
@@ -1059,12 +1609,19 @@ public final class WearTextures {
 
         setCount = nextSet;
         icons = new IIcon[setCount * FAMILIES * spriteLayers * rotations];
+        glowIcons = new IIcon[icons.length];
         overlaySprites = new IIcon[spriteLayers * rotations];
         final StateFiling.Builder<Block, IIcon> walls = StateFiling.<Block, IIcon>builder();
 
+        glowsRegistered = 0;
         for (SpritePlan planned : plans) {
             register(map, planned);
         }
+        Trmt.LOG.info(
+            LINE_GLOWS,
+            Integer.valueOf(glowsRegistered),
+            Integer.valueOf(TailoredGround.END_GLOW_LEVEL),
+            Integer.valueOf(TailoredGround.NETHER_GLOW_LEVEL));
 
         // One more per covered block that draws itself and cuts its own side away for a pass
         // underneath. Cheap - a handful of blocks in a pack, one sprite each - and it is the
@@ -1105,6 +1662,7 @@ public final class WearTextures {
         StateFiling<Block, Boolean> filed = everyStateFiled(sets, mendedBuilt, wallsBuilt);
         lookup = new Lookup(
             icons,
+            glowIcons,
             overlaySprites,
             spriteLayers,
             rotations,
@@ -1113,8 +1671,12 @@ public final class WearTextures {
             wallsBuilt,
             fallbackWall,
             filed,
-            filed.numbersNow(BLOCK_NUMBERING));
+            filed.numbersNow(BLOCK_NUMBERING),
+            plan.pictureMap(WearScale.COUNTED_STEPS),
+            (java.util.BitSet) TURNED.clone(),
+            turnsMode);
         reportFiling(sets, mendedBuilt, wallsBuilt);
+        reportTurns(setCount, pricing);
 
         registeredThisStitch = REGISTERED.size() + fringesRegistered;
         lastPlan = plan;
@@ -1122,15 +1684,39 @@ public final class WearTextures {
     }
 
     /**
+     * The stitcher this stitch's plan was made for (0.9.229, glow-pixels). Under Angelica's gutter the plan prices
+     * this mod's holders in exact pixels against the share of the square that stitcher was measured to fill; without
+     * that gutter, or for a stitcher nobody measured, in whole slots as before.
+     */
+    private static volatile StitcherKind stitcher = StitcherKind.UNMEASURED;
+
+    /**
      * What the measuring injection noted this stitch or, when it never ran, the card's size and the filtering setting
      * and nothing else, which AtlasPlan then treats as half taken. Filtering is read either way, because the line
      * written as the atlas goes to the stitcher adds missingno at the size filtering gives it, and the sprite pass
      * warns by it where not one face read out of the atlas was marked as loaded with the border, measured or not.
      * Gated on the flag rather than on the figures, because an earlier stitch's figures are not this one's.
+     *
+     * <p>
+     * No bound on the atlas's sprites is passed ({@code Measure.spriteRoom}, 1.0.0, canvas-sprites): that bound is for
+     * Canvas for 1.16.5, which keeps a texture with a row for every sprite of the atlas and cannot upload one taller
+     * than the card addresses. None of this edition's renderers, vanilla, OptiFine and Angelica, keeps such a texture.
      */
     private static AtlasPlan.Measure measureThisStitch() {
         if (roomHookRan) {
-            return new AtlasPlan.Measure(true, packDemand, packRead, packReadCells, glMaximum, packAnisotropic);
+            int maximum = glMaximum > 0 ? glMaximum : AtlasPlan.LARGEST_SIDE;
+            int stitchSide = holderGutter > 0 ? Math.min(maximum, AtlasPlan.LARGER_SIDE) : AtlasPlan.side(glMaximum);
+            stitcher = StitcherKind.detect();
+            return new AtlasPlan.Measure(
+                true,
+                packDemand,
+                packRead,
+                packReadCells,
+                glMaximum,
+                packAnisotropic,
+                stitchSide,
+                holderGutter,
+                stitcher.fillPerMille(glMaximum, stitchSide, holderGutter > 0));
         }
         Minecraft game = Minecraft.getMinecraft();
         return new AtlasPlan.Measure(
@@ -1230,12 +1816,48 @@ public final class WearTextures {
         args.add(Integer.valueOf(plan.wish.wearEdge));
         Trmt.LOG.info(text.toString(), args.toArray());
 
+        if (plan.wish.surfaceCeiling == 0 && TrmtConfig.maxTexturedSurfaces > 0) {
+            if (plan.mandatoryOverruns()) warnFallbacksPastRoom(plan, perSurface);
+            return;
+        }
+
         if (plan.mandatoryOverruns()) {
             warnFallbacksPastRoom(plan, perSurface);
         } else if (plan.stoppedBy == AtlasPlan.Limit.ROOM) {
             warnRoomStopped(plan);
         }
-        if (plan.gradations < plan.wish.gradations && !plan.floorHeld()) warnRampCoarsened(plan, perSurface);
+        int requestedRotations = Math.max(1, Math.min(4, TrmtConfig.wearRotations));
+        boolean safetyTurned = plan.wish.rotations < requestedRotations;
+        if (holderGutter > 0 && plan.wish.surfaceCeiling > 0 && plan.gradations < TrmtConfig.wearGradations) {
+            Trmt.LOG.warn(
+                "Atlas room reduced worn gradations from {} to {} and rotations from {} to {}; all {} textured faces retain their own colors.",
+                Integer.valueOf(TrmtConfig.wearGradations),
+                Integer.valueOf(plan.gradations),
+                Integer.valueOf(requestedRotations),
+                Integer.valueOf(plan.wish.rotations),
+                Integer.valueOf(plan.surfaceSetsKept));
+        } else if (safetyTurned && plan.wish.surfaceCeiling > 0 && holderGutter == 0) {
+            Trmt.LOG.warn(
+                "Drawing {} rotations rather than {} to keep every textured face inside the {}-pixel block atlas; {} textured faces keep their own colors at {} gradations.",
+                Integer.valueOf(plan.wish.rotations),
+                Integer.valueOf(requestedRotations),
+                Integer.valueOf(plan.side),
+                Integer.valueOf(plan.surfaceSetsKept),
+                Integer.valueOf(plan.gradations));
+        } else if (safetyTurned && plan.wish.surfaceCeiling > 0) {
+            Trmt.LOG.warn(
+                "Drawing {} rotations rather than {} to keep this mod's sprites, at a {}-pixel Angelica gutter (client.angelicaWearGutter; the pack's own keep Angelica's {}), inside the {}-pixel block atlas; {} textured faces keep their own colors at {} gradations.",
+                Integer.valueOf(plan.wish.rotations),
+                Integer.valueOf(requestedRotations),
+                Integer.valueOf(ownGutter()),
+                Integer.valueOf(holderGutter),
+                Integer.valueOf(plan.side),
+                Integer.valueOf(plan.surfaceSetsKept),
+                Integer.valueOf(plan.gradations));
+        }
+        if (plan.gradations < plan.wish.gradations && !plan.floorHeld() && !safetyTurned) {
+            warnRampCoarsened(plan, perSurface);
+        }
         if (plan.stoppedBy == AtlasPlan.Limit.CEILING) reportCeiling(plan);
         if (plan.stoppedBy == AtlasPlan.Limit.SPRITES) warnSpriteCeiling(plan);
     }
@@ -1357,8 +1979,8 @@ public final class WearTextures {
         args.add(Long.valueOf(plan.room));
         text.append(
             belowFloor
-                ? "Below sixteen the plan never draws fewer pictures than that setting asks for, so it is the faces last in registry-name order that gave way rather than the ramp. "
-                : "Sixteen is the fewest pictures a run can be drawn with before consecutive gradations share one again, so it is the faces last in registry-name order that gave way rather than the ramp, and client.wearGradations cannot take it lower. ");
+                ? "Below sixteen the plan never draws fewer pictures than that setting asks for, so it is the faces last in the plan's order, vanilla's ground first and the rest by registry name, that gave way rather than the ramp. "
+                : "Sixteen is the fewest pictures a run can be drawn with before consecutive gradations share one again, so it is the faces last in the plan's order, vanilla's ground first and the rest by registry name, that gave way rather than the ramp, and client.wearGradations cannot take it lower. ");
         AtlasPlan fewer = plan.fewerRotations();
         if (fewer != null && fewer.surfaceSetsKept > plan.surfaceSetsKept) {
             // Named against every textured face, because the figure is every face kept at that count,
@@ -1420,7 +2042,7 @@ public final class WearTextures {
             AtlasPlan bare = plan.withSettings(plan.wish.gradations, plan.wish.rotations, 0, plan.wish.spriteCeiling);
             if (bare.gradations > plan.gradations) {
                 text.append(
-                    " Lowering surfaces.maxTexturedSurfaces buys gradations back for fewer faces, the last in registry-name order, up to {} at zero, which is also what switching client.perSurfaceTextures off gives after a restart, with every face on its family's generic art.");
+                    " Lowering surfaces.maxTexturedSurfaces buys gradations back for fewer faces, the last in the plan's order, which puts vanilla's ground first, up to {} at zero, which is also what switching client.perSurfaceTextures off gives after a restart, with every face on its family's generic art.");
                 args.add(Integer.valueOf(bare.gradations));
             }
         }
@@ -1575,10 +2197,8 @@ public final class WearTextures {
         StringBuilder gaps = new StringBuilder();
         for (SurfaceFamily base : SurfaceFamily.values()) {
             if (!base.staged) continue;
-            int length = ErosionChain.length(base);
-            for (int index = 0; index < length; index++) {
-                SurfaceFamily appearance = ErosionChain.familyAt(base, index);
-                if (appearance == null) continue;
+            // Every chain of the family's ground, the blocks' own as well (W3 T9).
+            for (SurfaceFamily appearance : ErosionChain.appearancesOf(base)) {
                 int at = slot(base.ordinal(), appearance, 0, 0);
                 if (at >= 0 && at < table.length && usable(table[at])) continue;
                 String pair = base.key() + "->" + appearance.key();
@@ -1693,6 +2313,22 @@ public final class WearTextures {
     }
 
     /** Renumbered blocks as {@code chisel:marble 2001 -> 2002}, one after another. */
+    /** What a gutter's plan keeps of what was asked, for the gutter line: or that not even the shared tier fits. */
+    private static String keptSaid(AtlasPlan kept, AtlasPlan.Wish wish) {
+        if (kept == null) return "not even one shared look per family fits there";
+        return kept.gradations + " of "
+            + wish.gradations
+            + " gradations at "
+            + kept.wish.rotations
+            + " of "
+            + wish.rotations
+            + " rotations, with "
+            + kept.surfaceSetsKept
+            + " of "
+            + kept.surfaceSetsConsidered
+            + " textured faces";
+    }
+
     private static String movedExamples(List<StateFiling.Moved<Block>> moved) {
         StringBuilder out = new StringBuilder();
         for (StateFiling.Moved<Block> example : moved) {
@@ -1791,18 +2427,32 @@ public final class WearTextures {
                     // on an undeclared metadata - a common enough shape - and the sprite would
                     // then fail the same call at build time and draw the family stand-in anyway.
                     String raw = FaceSource.iconName(state.block, meta, 1);
+                    // Unless a looks file supplies the face, or its own pictures (Codex review R18): then the file's
+                    // face is what the set is filed and drawn by, and the block's silence does not matter.
+                    if (raw == null) raw = FaceSource.lookOf(state.block, meta)
+                        .planFace();
                     if (raw == null) continue;
 
                     // And by the underside where the pictures are made of it (FaceRules.setKey, 0.9.223): keyed on the
                     // top alone, vanilla grass shared Biomes O' Plenty's loamy grass's set and wore into its loamy
                     // dirt.
                     String behind = InnerLayers.textureFor(state.block, meta);
+                    // And by the block's own look where a looks file gives one (W3 T5): its look, strength, face and
+                    // authored pictures are painted into every picture of the set, so only blocks with the same look
+                    // share. Empty for a block no file names, which keys every set as before.
                     String face = FaceRules.setKey(
                         family,
                         raw,
                         FaceSource.iconName(state.block, meta, 0),
                         behind,
-                        FaceSource.coverLook(TrmtConfig.family(family)));
+                        FaceSource.coverLook(TrmtConfig.family(family), state.block, meta))
+                        + FaceSource.lookOf(state.block, meta)
+                            .setKey();
+                    // And by whether the face turns (0.9.229): two blocks drawing one face share its pixels whether or
+                    // not they turn, but under turn only one is planned with one pattern and the other with all of
+                    // them, and a name hint or a looks file can part blocks the pixels alone would not.
+                    boolean turns = pricing.turns(state.block, meta, family);
+                    if (turns) face += " turns";
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);
@@ -1818,13 +2468,23 @@ public final class WearTextures {
                     // coarser, rather than a stranger's texture.
                     Set<SurfaceFamily> appearances = appearancesFor(state.block, family);
                     int[] edges = pricing.setEdges(state.block, meta, family, appearances);
-                    if (!gate.take(appearances.size(), FacePricing.cellsOf(edges))) {
+                    boolean one = WearTurns.seeds(turnsMode, turns, rotations) == 1 && rotations > 1;
+                    if (!gate.take(
+                        pricedAppearances(appearances),
+                        pricing.holderCellsOf(edges, one),
+                        one,
+                        glowCount(appearances),
+                        glowLit(appearances),
+                        pricing.glowCellsOf(edges),
+                        pricing.setPixels(edges),
+                        pricing.setGlowPixels(edges))) {
                         full = true;
                         break;
                     }
                     states.file(state.block, meta, Integer.valueOf(nextSet));
                     byFace.put(face, Integer.valueOf(nextSet));
-                    if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges);
+                    if (turns && plans != null) TURNED.set(nextSet);
+                    if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges, turns);
                     nextSet++;
                 }
             }
@@ -1850,12 +2510,24 @@ public final class WearTextures {
                 if (firstOfFamily[family.ordinal()] != null) continue;
                 Set<SurfaceFamily> appearances = appearancesFor(state.block, family);
                 int[] edges = pricing.setEdges(state.block, meta, family, appearances);
-                if (!gate.take(appearances.size(), FacePricing.cellsOf(edges))) {
+                // A block that names no face: nothing to read, so its names, a looks file and its family decide.
+                boolean turns = pricing.turns(state.block, meta, family);
+                boolean one = WearTurns.seeds(turnsMode, turns, rotations) == 1 && rotations > 1;
+                if (!gate.take(
+                    pricedAppearances(appearances),
+                    pricing.holderCellsOf(edges, one),
+                    one,
+                    glowCount(appearances),
+                    glowLit(appearances),
+                    pricing.glowCellsOf(edges),
+                    pricing.setPixels(edges),
+                    pricing.setGlowPixels(edges))) {
                     full = true;
                     break;
                 }
                 states.file(state.block, meta, Integer.valueOf(nextSet));
-                if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges);
+                if (turns && plans != null) TURNED.set(nextSet);
+                if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges, turns);
                 firstOfFamily[family.ordinal()] = Integer.valueOf(nextSet);
                 nextSet++;
             }
@@ -1902,8 +2574,10 @@ public final class WearTextures {
      * and rendered as flat black cubes.
      */
     private static void planChain(List<SpritePlan> plans, int set, Block origin, int meta, SurfaceFamily originFamily,
-        int[] edges) {
+        int[] edges, boolean turns) {
         Set<SurfaceFamily> appearances = appearancesFor(origin, originFamily);
+        // One pattern for a set that turns under client.wearTurns' turn only, which the plan priced (WearTurns.seeds).
+        int seeds = WearTurns.seeds(turnsMode, turns, rotations);
 
         // A full run of gradations for each, rather than only the ones the chain visits. What is
         // drawn is not tied to a step any more: a sunken block is shown further along its run
@@ -1911,7 +2585,7 @@ public final class WearTextures {
         for (SurfaceFamily appearance : appearances) {
             for (int stage = 0; stage < spriteLayers; stage++) {
                 int stageCount = spriteLayers;
-                for (int rotation = 0; rotation < rotations; rotation++) {
+                for (int rotation = 0; rotation < seeds; rotation++) {
                     plans.add(
                         new SpritePlan(
                             set,
@@ -1922,7 +2596,8 @@ public final class WearTextures {
                             stage,
                             stageCount,
                             rotation,
-                            edges == null || appearance.ordinal() >= edges.length ? 0 : edges[appearance.ordinal()]));
+                            edges == null || appearance.ordinal() >= edges.length ? 0 : edges[appearance.ordinal()],
+                            turns));
                 }
             }
         }
@@ -1935,12 +2610,9 @@ public final class WearTextures {
      * the plan and the price cannot come apart.
      */
     private static Set<SurfaceFamily> appearancesFor(Block origin, SurfaceFamily originFamily) {
-        int length = ErosionChain.length(originFamily);
-        Set<SurfaceFamily> onChain = new HashSet<SurfaceFamily>();
-        for (int index = 0; index < length; index++) {
-            SurfaceFamily appearance = ErosionChain.familyAt(originFamily, index);
-            if (appearance != null) onChain.add(appearance);
-        }
+        // Every chain of the family's ground, its blocks' own as well (W3 T9): a block a data file gives a list of its
+        // own may wear through to a surface the family's chain never reaches, and its fallback is planned here.
+        Set<SurfaceFamily> onChain = new HashSet<SurfaceFamily>(ErosionChain.appearancesOf(originFamily));
 
         // A surface set is built from one block's own pixels, and a successor is a different
         // material: there is nothing in a granite block to make cobble out of. So a set for a
@@ -1977,15 +2649,219 @@ public final class WearTextures {
      * name and width FaceSource's. Anisotropic filtering grows none of them: the game widens the pack's own textures,
      * and a wear sprite is made from the face with that border taken off.
      */
-    private static final class FacePricing {
+    static final class FacePricing {
 
         private final IResourceManager manager;
 
         private final int wearEdge;
 
-        FacePricing(IResourceManager manager, int wearEdge) {
+        private final int gutter;
+
+        FacePricing(IResourceManager manager, int wearEdge, int gutter) {
             this.manager = manager;
             this.wearEdge = wearEdge;
+            this.gutter = gutter;
+        }
+
+        /**
+         * Under Angelica's gutter, this mod's holders are priced by the pixels they really take, the edge rounded to
+         * the stitcher's mip stride and the small gutter on each side, summed and then rounded up to whole slots once:
+         * AtlasPlan.cellsForHolder rounds each holder up to whole sixteen-pixel slots, which priced a 24-pixel holder
+         * at 32 (four slots for 2.25) and would have planned the small gutter into fewer rotations than fit. Without
+         * Angelica's gutter the pricing is exactly what it was.
+         */
+        int holderCellsOf(int[] set) {
+            // A set's glow overlays priced beside its pictures, each as large as its picture (real glow).
+            int[] edges = pricedEdges(set);
+            long exact = pixelsOf(edges);
+            priced += exact;
+            if (gutter > 0) {
+                long pixels = 0L;
+                for (int edge : edges) if (edge > 0) pixels += SmallGutter.holderPixels(edge, pricedLevels(), gutter);
+                return (int) Math.min(Integer.MAX_VALUE, SmallGutter.slots(pixels));
+            }
+            int cells = 0;
+            for (int edge : edges) if (edge > 0) cells += AtlasPlan.cellsForHolder(edge, gutter);
+            return cells;
+        }
+
+        /**
+         * The exact holder pixels of every set priced through {@link #holderCellsOf(int[])} so far: what the census
+         * walk costs at one gradation and one rotation, without the slot rounding the plan's budget uses (auto's fit
+         * test, SmallGutter.fits).
+         */
+        private long priced;
+
+        long pricedPixels() {
+            return priced;
+        }
+
+        /** Of {@link #pricedPixels}, those of sets drawn with one pattern (client.wearTurns' turn only). */
+        private long pricedOne;
+
+        long pricedOnePixels() {
+            return pricedOne;
+        }
+
+        /** {@link #holderCellsOf(int[])}, noting the set's pixels as drawn with one pattern where {@code one}. */
+        int holderCellsOf(int[] edges, boolean one) {
+            if (one) pricedOne += pixelsOf(edges);
+            return holderCellsOf(edges);
+        }
+
+        /** Each face's three measures, read once a stitch by its name ({@link FaceDirection}). */
+        private final Map<String, FaceDirection.Reading> readings = new HashMap<String, FaceDirection.Reading>();
+
+        /** A face's measures from its file, or UNREAD where the file cannot be read or decoded. */
+        FaceDirection.Reading reading(String face) {
+            if (face == null) return FaceDirection.UNREAD;
+            FaceDirection.Reading known = readings.get(face);
+            if (known != null) return known;
+            FaceDirection.Reading read = FaceDirection.UNREAD;
+            try {
+                java.awt.image.BufferedImage image = WearPatterns.readIcon(manager, face);
+                if (image != null) {
+                    int width = image.getWidth();
+                    int height = image.getHeight();
+                    read = FaceDirection.read(image.getRGB(0, 0, width, height, null, 0, width), width, height);
+                }
+            } catch (RuntimeException unreadable) {
+                read = FaceDirection.UNREAD;
+            }
+            readings.put(face, read);
+            return read;
+        }
+
+        /**
+         * Whether a block state's worn top turns with its position (0.9.229): a looks file's {@code turns}, else no
+         * where the block's or its face's name holds a hint, else the face's own pixels, else, for a face that cannot
+         * be read, its family's default (FamilySettings.turnsByDefault). The face is the looks file's where it gives
+         * one, as the set is drawn from it, else the block's own top.
+         */
+        boolean turns(Block block, int meta, SurfaceFamily family) {
+            BlockLooks.Look look = FaceSource.lookOf(block, meta);
+            String face = look.face != null ? look.face : FaceSource.iconName(block, meta, 1);
+            if (face == null) face = look.planFace();
+            String registry;
+            try {
+                registry = SurfaceRegistry.registryName(block);
+            } catch (RuntimeException unregistrable) {
+                registry = null;
+            }
+            if (Boolean.FALSE.equals(look.turns) || look.turns == null && FaceDirection.hinted(registry, face))
+                vetoed.add(registry + ":" + (meta & 0xF));
+            return FaceDirection
+                .turns(look.turns, reading(face), FamilySettings.turnsByDefault(family), registry, face);
+        }
+
+        /**
+         * Block states kept still by a looks file or a name hint, each once however many walks ask, for the line
+         * reportTurns writes.
+         */
+        final Set<String> vetoed = new HashSet<String>();
+
+        /** Whether a family's fallback set turns: the vanilla face it is made of, judged as any other face. */
+        boolean fallbackTurns(SurfaceFamily family) {
+            String face = FaceSource.readable(manager, FaceRules.vanillaName(family, 1));
+            return FaceDirection.turns(null, reading(face), FamilySettings.turnsByDefault(family), face);
+        }
+
+        /** Exact holder pixels of these edges at this pricing's gutter, an edge of nought holding nothing. */
+        long pixelsOf(int[] set) {
+            long pixels = 0L;
+            for (int edge : pricedEdges(set))
+                if (edge > 0) pixels += SmallGutter.holderPixels(edge, pricedLevels(), gutter);
+            return pixels;
+        }
+
+        /**
+         * The slots one gradation of a set's glow overlays takes at one rotation at this pricing's gutter, rounded
+         * down (GlowRoomTest): the planner takes these off for the stages that cannot light, and rounded down it never
+         * takes off more than they hold.
+         */
+        int glowCellsOf(int[] set) {
+            return (int) (glowPixelsOf(set) / ((long) AtlasPlan.CELL * AtlasPlan.CELL));
+        }
+
+        /**
+         * The exact holder pixels one gradation of a set's glow overlays takes at one rotation at this pricing's
+         * gutter (0.9.229, glow-pixels): what a plan priced in pixels takes off for the stages that cannot light.
+         */
+        long glowPixelsOf(int[] set) {
+            if (set.length != FAMILIES) return 0L;
+            SurfaceFamily[] families = SurfaceFamily.values();
+            long pixels = 0L;
+            for (int at = 0; at < set.length; at++) {
+                if (set[at] > 0 && glows(families[at]))
+                    pixels += SmallGutter.holderPixels(set[at], pricedLevels(), gutter);
+            }
+            return pixels;
+        }
+
+        /** The same over every fallback appearance. */
+        long glowCellsOf(int[][] rows) {
+            long cells = 0L;
+            for (int[] row : rows) cells += glowCellsOf(row);
+            return cells;
+        }
+
+        /** The glow pixels over every fallback appearance. */
+        long glowPixelsOf(int[][] rows) {
+            long pixels = 0L;
+            for (int[] row : rows) pixels += glowPixelsOf(row);
+            return pixels;
+        }
+
+        /** A set's exact holder pixels, glows and all, as one figure a census takes. */
+        int setPixels(int[] set) {
+            return (int) Math.min(Integer.MAX_VALUE, pixelsOf(set));
+        }
+
+        /** A set's glow overlays' exact holder pixels, as one figure a census takes. */
+        int setGlowPixels(int[] set) {
+            return (int) Math.min(Integer.MAX_VALUE, glowPixelsOf(set));
+        }
+
+        long pixelsOf(int[][] edges) {
+            long pixels = 0L;
+            for (int[] row : edges) pixels += pixelsOf(row);
+            return pixels;
+        }
+
+        long pixelsOf(StateFiling.Builder<Block, Integer> edges) {
+            final long[] pixels = { 0L };
+            edges.forEach(new StateFiling.Visitor<Block, Integer>() {
+
+                @Override
+                public void visit(Block block, int meta, Integer edge) {
+                    pixels[0] += SmallGutter.holderPixels(edge.intValue(), pricedLevels(), gutter);
+                }
+            });
+            return pixels[0];
+        }
+
+        /** One holder of this edge, priced as {@link #holderCellsOf(int[])} prices a set. */
+        int singleHolderCells(int edge) {
+            return holderCellsOf(new int[] { edge });
+        }
+
+        long holderCellsOf(int[][] edges) {
+            long cells = 0L;
+            for (int[] row : edges) cells += holderCellsOf(row);
+            return cells;
+        }
+
+        long holderCellsOf(StateFiling.Builder<Block, Integer> edges) {
+            final long[] cells = { 0L };
+            edges.forEach(new StateFiling.Visitor<Block, Integer>() {
+
+                @Override
+                public void visit(Block block, int meta, Integer edge) {
+                    cells[0] += gutter > 0 ? SmallGutter.holderPixels(edge.intValue(), pricedLevels(), gutter)
+                        : AtlasPlan.cellsForHolder(edge.intValue(), gutter);
+                }
+            });
+            return gutter > 0 ? SmallGutter.slots(cells[0]) : cells[0];
         }
 
         /**
@@ -1999,7 +2875,9 @@ public final class WearTextures {
             int top = FaceSource.pricedWidth(manager, block, meta, 1, family);
             boolean wantsBottom = top <= 0;
             for (SurfaceFamily appearance : appearances) {
-                if (cover(family, appearance) || FaceRules.revealsEarth(family, appearance)) wantsBottom = true;
+                if (cover(family, appearance, block, meta) || FaceRules.revealsEarth(family, appearance)) {
+                    wantsBottom = true;
+                }
             }
             int bottom = wantsBottom ? FaceSource.pricedWidth(manager, block, meta, 0, family) : 0;
             int topEdge = FaceRules.faceEdge(top, bottom, wearEdge);
@@ -2007,7 +2885,7 @@ public final class WearTextures {
             int[] edges = new int[FAMILIES];
             for (SurfaceFamily appearance : appearances) {
                 edges[appearance.ordinal()] = FaceRules.appearanceEdge(
-                    cover(family, appearance),
+                    cover(family, appearance, block, meta),
                     FaceRules.revealsEarth(family, appearance),
                     topEdge,
                     bottomEdge);
@@ -2063,13 +2941,9 @@ public final class WearTextures {
             return edges;
         }
 
-        /** The slots one gradation of a set takes at one rotation. */
+        /** The slots one gradation of a set takes at one rotation, its glow overlays' included. */
         static int cellsOf(int[] edges) {
-            int cells = 0;
-            for (int edge : edges) {
-                if (edge > 0) cells += AtlasPlan.cellsFor(edge);
-            }
-            return cells;
+            return pricedCells(edges);
         }
 
         /** The slots one gradation of every fallback appearance takes at one rotation. */
@@ -2097,6 +2971,12 @@ public final class WearTextures {
         /** Whether an appearance is drawn as a cover, asked of its look as it stands while the stitch is planned. */
         private static boolean cover(SurfaceFamily family, SurfaceFamily appearance) {
             return FaceRules.drawsCover(family, appearance, FaceSource.coverLook(TrmtConfig.family(appearance)));
+        }
+
+        /** The same, for one block, whose own look a looks file may give (W3 T5), as its sprite will ask it. */
+        private static boolean cover(SurfaceFamily family, SurfaceFamily appearance, Block block, int meta) {
+            return FaceRules
+                .drawsCover(family, appearance, FaceSource.coverLook(TrmtConfig.family(appearance), block, meta));
         }
     }
 
@@ -2169,7 +3049,7 @@ public final class WearTextures {
     private static void registerFringe(TextureMap map, int stage, int rotation) {
         int index = stage * rotations + rotation;
         if (index < 0 || index >= overlaySprites.length) return;
-        String name = Trmt.MODID + ":wear/fringe_" + stage + "_" + rotation;
+        String name = fringeSpriteName(stage, rotation);
         FringeSprite sprite = new FringeSprite(name, stage, spriteLayers, rotation);
         if (map.setTextureEntry(name, sprite)) {
             overlaySprites[index] = sprite;
@@ -2243,7 +3123,7 @@ public final class WearTextures {
         IIcon[] table = current.fringes;
         if (table.length == 0) return null;
         // The counted gradation maps onto a drawn one, exactly as icon() does for the faces.
-        int stage = layer * current.layers / WearScale.COUNTED_STEPS;
+        int stage = current.stages[Math.max(0, Math.min(WearScale.COUNTED_STEPS - 1, layer))];
         if (stage < 0) stage = 0;
         if (stage >= current.layers) stage = current.layers - 1;
         int index = stage * current.rotations + (rotation % current.rotations);
@@ -2276,15 +3156,29 @@ public final class WearTextures {
         return usable(icon) ? icon : null;
     }
 
+    /**
+     * A wear texture's sprite name: set, appearance, rotation, then the stage padded to three digits, so that names
+     * sort a face's stages one after another within each rotation. Vanilla's stitcher sorts holders of one size by
+     * name, and lwjgl3ify's STB packer keeps that order, so a face's stages are stitched side by side and a distant
+     * one that blends past its small Angelica gutter blends into its own next stage (0.9.229, public issue #3;
+     * StagesStitchSideBySideTest). A name is only ever registered, never looked up.
+     */
+    static String wearSpriteName(int set, String appearance, int stage, int rotation) {
+        return Trmt.MODID + ":wear/" + set + "_" + appearance + "_r" + rotation + "_" + padded(stage);
+    }
+
+    /** A fringe's sprite name, ordered as {@link #wearSpriteName} orders a face's. */
+    static String fringeSpriteName(int stage, int rotation) {
+        return Trmt.MODID + ":wear/fringe_r" + rotation + "_" + padded(stage);
+    }
+
+    private static String padded(int stage) {
+        String digits = Integer.toString(stage);
+        return digits.length() >= 3 ? digits : "000".substring(digits.length()) + digits;
+    }
+
     private static void register(TextureMap map, SpritePlan plan) {
-        String name = Trmt.MODID + ":wear/"
-            + plan.set
-            + "_"
-            + plan.appearance.key()
-            + "_"
-            + plan.stage
-            + "_"
-            + plan.rotation;
+        String name = wearSpriteName(plan.set, plan.appearance.key(), plan.stage, plan.rotation);
 
         WearSprite sprite = new WearSprite(
             name,
@@ -2296,6 +3190,7 @@ public final class WearTextures {
             plan.stageCount,
             plan.rotation,
             plan.edge);
+        sprite.markTurns(plan.turns);
 
         // The return value matters. A name already in the atlas is refused, and the sprite we
         // just built is then one nothing will ever stitch - it has no coordinates, so anything
@@ -2307,10 +3202,224 @@ public final class WearTextures {
         if (map.setTextureEntry(name, sprite)) {
             icons[index] = sprite;
             REGISTERED.add(sprite);
+            // The glow overlay of the end's and the nether's wear (real glow; Xep, 2026-11-15), composed beside it from
+            // the same source. Named like the picture it goes with, ordered the same way, so a face's overlays stitch
+            // side by side too; its own entry, and never shared with a picture (glowKey).
+            if (glows(plan.appearance) && glowLights(plan.appearance, plan.stage, plan.stageCount)
+                || ownLookGlows(plan)) {
+                String glowName = wearSpriteName(plan.set, plan.appearance.key() + "_glow", plan.stage, plan.rotation);
+                WearSprite glow = WearSprite.glowOf(sprite, glowName);
+                if (map.setTextureEntry(glowName, glow)) {
+                    glowIcons[index] = glow;
+                    REGISTERED.add(glow);
+                    glowsRegistered++;
+                }
+            }
         } else if (icons[index] == null) {
             // Refused because something already holds the name; use whatever that is.
             icons[index] = map.getTextureExtry(name);
         }
+    }
+
+    /**
+     * Whether the look this appearance's family draws with has a glow: the end's, the nether's and sculk's shipped
+     * looks
+     * (real glow), and any family a player has given one of them. A family in a look with no glow, its classic look
+     * included, has no overlay registered, priced or counted.
+     */
+    public static boolean glows(SurfaceFamily appearance) {
+        com.trmtgtnh.config.FamilySettings look = appearance == null ? null : TrmtConfig.family(appearance);
+        // Before the settings are read, the family's shipped look.
+        if (look == null && appearance != null) look = com.trmtgtnh.config.FamilySettings.shipped(appearance);
+        return glows(appearance, look == null ? null : look.wearPattern);
+    }
+
+    /**
+     * The same, for the look given. Only where that look has a glow: under client.classicWear the end and the nether
+     * draw classic looks with none, and GT New Horizons 2.9.0 registered 26,544 overlays that all came out empty and
+     * still counted against client.maxWearSprites, which cost it a gradation (2026-11-17).
+     */
+    static boolean glows(SurfaceFamily appearance, String look) {
+        // Glowing wear off (client.glowingWear): no overlay is registered, priced or drawn.
+        if (!TrmtConfig.glowingWear || appearance == null) return false;
+        return WearSprite.glowLevel(look) > 0;
+    }
+
+    /**
+     * Whether the glow overlay of this appearance at this stage can light at all (GlowStagesTest). One that cannot is
+     * never registered, and the plan does not count it against client.maxWearSprites.
+     */
+    static boolean glowLights(SurfaceFamily appearance, int stage, int stageCount) {
+        return WearSprite.glowCanLight(lookOf(appearance), stage, stageCount);
+    }
+
+    /** How many of these appearances have a glow overlay. */
+    static int glowCount(java.util.Collection<SurfaceFamily> appearances) {
+        int count = 0;
+        for (SurfaceFamily appearance : appearances) if (glows(appearance)) count++;
+        return count;
+    }
+
+    /**
+     * These appearances' glow sprites at one rotation, indexed by the gradations drawn: at each count, the stages whose
+     * overlay can light, summed over the appearances that glow. Null where none glows.
+     */
+    static int[] glowLit(java.util.Collection<SurfaceFamily> appearances) {
+        int[] out = null;
+        for (SurfaceFamily appearance : appearances) {
+            if (!glows(appearance)) continue;
+            int[] one = litTable(lookOf(appearance));
+            if (out == null) out = new int[one.length];
+            for (int g = 0; g < one.length; g++) out[g] += one[g];
+        }
+        return out;
+    }
+
+    /** The family fallbacks' glow overlays: one for each staged family's appearance that glows. */
+    static int fallbackGlows() {
+        int total = 0;
+        for (SurfaceFamily family : SurfaceFamily.values()) {
+            if (family.staged) total += glowCount(appearancesFor(null, family));
+        }
+        return total;
+    }
+
+    /** The family fallbacks' glow sprites at one rotation, indexed by the gradations drawn. */
+    static int[] fallbackGlowLit() {
+        int[] out = new int[WearScale.COUNTED_STEPS + 1];
+        for (SurfaceFamily family : SurfaceFamily.values()) {
+            if (!family.staged) continue;
+            int[] lit = glowLit(appearancesFor(null, family));
+            if (lit != null) for (int g = 0; g < out.length && g < lit.length; g++) out[g] += lit[g];
+        }
+        return out;
+    }
+
+    /** At each count of gradations up to the most there can be, how many stages of this look's overlay can light. */
+    static int[] litTable(String look) {
+        int[] table = new int[WearScale.COUNTED_STEPS + 1];
+        for (int g = 1; g < table.length; g++) {
+            for (int stage = 0; stage < g; stage++) if (WearSprite.glowCanLight(look, stage, g)) table[g]++;
+        }
+        return table;
+    }
+
+    /** The look a family draws with: its shipped look before the settings are read. */
+    private static String lookOf(SurfaceFamily appearance) {
+        com.trmtgtnh.config.FamilySettings look = appearance == null ? null : TrmtConfig.family(appearance);
+        if (look == null && appearance != null) look = com.trmtgtnh.config.FamilySettings.shipped(appearance);
+        return look == null ? null : look.wearPattern;
+    }
+
+    /** Whether a looks file gives this planned sprite's own block a look that glows (W3 T5), on its own surface. */
+    private static boolean ownLookGlows(SpritePlan plan) {
+        if (!TrmtConfig.glowingWear || plan.origin == null || plan.appearance != plan.originFamily) return false;
+        return WearSprite.glowLevel(
+            FaceSource.lookOf(plan.origin, plan.meta)
+                .patternOr(null))
+            > 0;
+    }
+
+    /**
+     * The slots one gradation of a set takes at one rotation, given the edge of each of its appearances by ordinal: the
+     * pictures, and, for each appearance that glows, the overlay beside its picture, priced as large as the picture is.
+     * The price is of the most that can be stitched: an overlay with nothing to light is never offered, so the room is
+     * only ever more than enough (real glow).
+     */
+    static int pricedCells(int[] edges) {
+        int cells = 0;
+        for (int edge : pricedEdges(edges)) {
+            if (edge > 0) cells += AtlasPlan.cellsFor(edge);
+        }
+        return cells;
+    }
+
+    /**
+     * The edges a set is priced at: each appearance's, and once more for each appearance that glows, its overlay's.
+     * Only
+     * a set's edges by ordinal are widened; a single holder's are its own.
+     */
+    static int[] pricedEdges(int[] edges) {
+        if (edges.length != FAMILIES) return edges;
+        SurfaceFamily[] families = SurfaceFamily.values();
+        int[] out = java.util.Arrays.copyOf(edges, edges.length * 2);
+        for (int at = 0; at < edges.length; at++) {
+            out[edges.length + at] = glows(families[at]) ? edges[at] : 0;
+        }
+        return out;
+    }
+
+    /** How many sprites a set of appearances is priced at, one gradation at one rotation: each, and each overlay. */
+    static int pricedAppearances(java.util.Collection<SurfaceFamily> appearances) {
+        int count = appearances.size();
+        for (SurfaceFamily appearance : appearances) {
+            if (glows(appearance)) count++;
+        }
+        return count;
+    }
+
+    /**
+     * An overlay's picture as it is compared for sharing: one more value than the picture, so no overlay is ever the
+     * same picture as a wear picture, whatever the pixels, and two overlays of the same pixels are the same.
+     */
+    static int[] glowKey(int[] pixels) {
+        int[] own = java.util.Arrays.copyOf(pixels, pixels.length + 1);
+        own[pixels.length] = 1;
+        return own;
+    }
+
+    /**
+     * The overlay drawn over a picture where it is drawn, or null: 1.7.10's face methods are handed the picture and
+     * nothing else (GhostGlow). See {@link WearSprite#glowIcon()}.
+     */
+    public static IIcon glowIcon(IIcon worn) {
+        return worn instanceof WearSprite ? ((WearSprite) worn).glowIcon() : null;
+    }
+
+    /**
+     * The glow overlay that goes over the wear texture {@link #icon} answers for the same arguments, or null where that
+     * one has none: the look has no glow, or nothing in this gradation glows (real glow). Drawn over the picture a
+     * second time lit at {@link #glowLevelAt}, so by day it is the picture's own pixels again and in the dark it
+     * shines.
+     */
+    public static IIcon glowIcon(Block origin, int originMeta, SurfaceFamily originFamily, SurfaceFamily appearance,
+        int stage, int rotation) {
+        Lookup current = lookup;
+        int at = glowSlot(current, origin, originMeta, originFamily, appearance, stage, rotation);
+        if (at < 0) return null;
+        IIcon glow = current.glowIcons[at];
+        return usable(glow) ? glow : null;
+    }
+
+    /** The light level, out of fifteen, the overlay {@link #glowIcon} answers for the same arguments is baked with. */
+    public static int glowLevelAt(Block origin, int originMeta, SurfaceFamily originFamily, SurfaceFamily appearance,
+        int stage, int rotation) {
+        IIcon glow = glowIcon(origin, originMeta, originFamily, appearance, stage, rotation);
+        return glow instanceof WearSprite ? ((WearSprite) glow).glowLevelOf() : 0;
+    }
+
+    /**
+     * The slot of the overlay that goes with the picture {@link #icon} would draw, found as it finds that picture: the
+     * block's own set, then the family's. Negative where the arguments name no picture at all.
+     */
+    private static int glowSlot(Lookup current, Block origin, int originMeta, SurfaceFamily originFamily,
+        SurfaceFamily appearance, int stage, int rotation) {
+        if (appearance == null || stage < 0 || stage >= WearScale.COUNTED_STEPS) return -1;
+        IIcon[] table = current.icons;
+        int layers = current.layers;
+        int turn = rotation % current.rotations;
+        stage = current.stages[stage];
+        if (stage >= layers) stage = layers - 1;
+        int set = fallbackSet(originFamily, null);
+        if (origin != null) {
+            Integer own = current.sets.get(origin, originMeta);
+            if (own != null) set = own.intValue();
+        }
+        int index = slot(set, appearance, stage, turn, layers, current.rotations);
+        if (index >= 0 && index < table.length && usable(table[index])) return index;
+        int fallback = slot(fallbackSet(originFamily, appearance), appearance, stage, turn, layers, current.rotations);
+        if (fallback < 0 || fallback >= table.length || !usable(table[fallback])) return -1;
+        return fallback;
     }
 
     /**
@@ -2381,16 +3490,18 @@ public final class WearTextures {
         Lookup current = lookup;
         IIcon[] table = current.icons;
         int layers = current.layers;
-        int turn = rotation % current.rotations;
         // The counted position maps onto a drawn one. The identity at eighty pictures, which is the
         // whole point of the default; a fifth of the way at sixteen, which is what it always did.
-        stage = stage * layers / WearScale.COUNTED_STEPS;
+        stage = current.stages[stage];
         if (stage >= layers) stage = layers - 1;
         int set = fallbackSet(originFamily, null);
         if (origin != null) {
             Integer own = current.sets.get(origin, originMeta);
             if (own != null) set = own.intValue();
         }
+        // Which seeded pattern: the rotation folded onto the patterns drawn, or the one a set that turns has under
+        // client.wearTurns' turn only (WearTurns.seed); the quarter turn itself is the renderer's (quarterTurns).
+        int turn = WearTurns.seed(current.mode, current.turned.get(set), rotation, current.rotations);
         int index = slot(set, appearance, stage, turn, layers, current.rotations);
         if (index < 0 || index >= table.length) return null;
         IIcon icon = table[index];
@@ -2398,10 +3509,59 @@ public final class WearTextures {
 
         // A surface set can be missing an appearance the chain has since gained, e.g. after a
         // config change without a resource reload. The family fallback always has it.
-        int fallback = slot(fallbackSet(originFamily, appearance), appearance, stage, turn, layers, current.rotations);
+        int fallbackSet = fallbackSet(originFamily, appearance);
+        int fallbackTurn = WearTurns.seed(current.mode, current.turned.get(fallbackSet), rotation, current.rotations);
+        int fallback = slot(fallbackSet, appearance, stage, fallbackTurn, layers, current.rotations);
         if (fallback < 0 || fallback >= table.length) return null;
         IIcon generic = table[fallback];
         return usable(generic) ? generic : null;
+    }
+
+    static final String LINE_TURNS = "Worn tops turn with their position on {} of this stitch's {} wear sets (client.wearTurns is {}): {} faces read with no direction turn, {} read with lines or a grain keep still, {} block states keep still by a name hint or a looks file, and {} that could not be read follow their family. Kept still, for example: {}.";
+
+    /**
+     * Says which sets turn, and why the rest keep still (0.9.229). Every face judged is also written at debug, with its
+     * two measures, which is what a face misjudged is checked against.
+     */
+    private static void reportTurns(int sets, FacePricing pricing) {
+        int turning = TURNED.cardinality();
+        int read = 0;
+        int lined = 0;
+        int unread = 0;
+        List<String> still = new ArrayList<String>();
+        for (Map.Entry<String, FaceDirection.Reading> each : pricing.readings.entrySet()) {
+            FaceDirection.Reading reading = each.getValue();
+            if (!reading.read) {
+                unread++;
+            } else if (reading.directional()) {
+                lined++;
+                if (still.size() < 12) still.add(each.getKey());
+            } else {
+                read++;
+            }
+            Trmt.LOG.debug("Face {} for the worn turn: {}", each.getKey(), reading);
+        }
+        int vetoed = pricing.vetoed.size();
+        Trmt.LOG.info(
+            LINE_TURNS,
+            new Object[] { Integer.valueOf(turning), Integer.valueOf(sets), turnsMode, Integer.valueOf(read),
+                Integer.valueOf(lined), Integer.valueOf(vetoed), Integer.valueOf(unread),
+                still.isEmpty() ? "none" : String.join(", ", still) });
+    }
+
+    /**
+     * How many quarter turns clockwise, seen from above with north up, a worn top drawing this icon is turned by at a
+     * position of this rotation (0.9.229, docs/goals/0.9.229-rotation-spec.md): the position's own rotation where the
+     * icon is one of this mod's worn pictures whose set turns and client.wearTurns turns anything, and none otherwise -
+     * a face with a direction, a block's own unworn icon, a mended side, or reseed. Asked by the renderer with the icon
+     * {@link #icon} gave, so the turn is the drawn set's whichever set the lookup fell through to.
+     */
+    public static int quarterTurns(IIcon drawn, int rotation, int depth) {
+        if (!(drawn instanceof WearSprite) || !((WearSprite) drawn).turns()) return 0;
+        // Told when the turn starts (client.wearTurnStart) and how far the square has sunk. This edition's game turns
+        // no block's top, so the game's own turn of the unworn block is none, and matching it leaves the stages before
+        // the first sink unturned, as the sink start does.
+        return WearTurns.quarterTurns(lookup.mode, true, rotation, TrmtConfig.wearTurnStart, depth, 0);
     }
 
     /**
@@ -2438,9 +3598,12 @@ public final class WearTextures {
         final int stageCount;
         final int rotation;
         final int edge;
+        /** Whether the set turns with its position where it is drawn (FaceDirection). */
+        final boolean turns;
 
         SpritePlan(int set, Block origin, int meta, SurfaceFamily originFamily, SurfaceFamily appearance, int stage,
-            int stageCount, int rotation, int edge) {
+            int stageCount, int rotation, int edge, boolean turns) {
+            this.turns = turns;
             this.set = set;
             this.origin = origin;
             this.meta = meta;

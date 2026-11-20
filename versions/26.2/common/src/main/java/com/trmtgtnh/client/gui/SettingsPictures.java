@@ -383,17 +383,23 @@ public final class SettingsPictures {
     /**
      * A fluid's own color, opaque, as the game's fluid renderer reads it: from 26.1 the fluid's model carries a
      * {@code BlockTintSource} ({@code FluidRenderer.tesselate} asks its {@code colorInWorld} at the fluid's square, white
-     * where the model has none). A picture stands in no world, so it asks {@code color}, the source's answer for the
-     * fluid's block without one - water's default blue. White where the game has no model or no tint for it.
+     * where the model has none). In a world the picture asks the same at the player's square, so it is the color the
+     * fluid is drawn in where they stand. Outside one it asks {@code color}, the answer for a block in no world, which
+     * for water is white: 26.x's {@code BlockTintSources.water()} answers {@code -1} there and its biome's color only in
+     * a world (0.9.229, read from 26.1.2's, 26.2's and 26.3's jars; until then water was a grey square in the fluid
+     * picker on every 26.x loader, where 1.16.5 to 1.21.1 draw it blue). White where the game has no model or no tint.
      */
     static int stillTint(Fluid fluid) {
         try {
             net.minecraft.client.renderer.block.FluidModel model = fluidModel(fluid);
             if (model == null || model.tintSource() == null) return 0xFFFFFFFF;
+            net.minecraft.world.level.block.state.BlockState state = fluid.defaultFluidState()
+                .createLegacyBlock();
+            Minecraft client = Minecraft.getInstance();
+            if (client.level != null && client.player != null) return 0xFF000000 | model.tintSource()
+                .colorInWorld(state, client.level, client.player.blockPosition());
             return 0xFF000000 | model.tintSource()
-                .color(
-                    fluid.defaultFluidState()
-                        .createLegacyBlock());
+                .color(state);
         } catch (Throwable hostile) {
             // A mod's tint that throws draws the texture as it is.
             return 0xFFFFFFFF;
@@ -968,7 +974,10 @@ public final class SettingsPictures {
             SurfaceFamily family = SurfaceFamily.byKey(key);
             if (family == null) return null;
             try {
-                return blockPicture(CommandTrmt.roadBlock(family));
+                // Its own block, the pack's first block of it, or its stand-in, which may be an item (0.9.229).
+                Object shown = WearIcons.familyPicture(family);
+                if (shown instanceof Block) return blockPicture((Block) shown);
+                return shown instanceof Item ? new Stack(new ItemStack((Item) shown)) : null;
             } catch (Throwable hostile) {
                 return null;
             }

@@ -3,6 +3,7 @@ package com.trmtgtnh.client.model;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ErosionState;
+import com.trmtgtnh.original.FaithfulChains;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.WearScale;
 
@@ -77,6 +78,9 @@ public final class WearSteps {
      */
     public static int topLayer(SurfaceFamily appearance, short record) {
         int layer = ErosionState.layerOf(record);
+        // Asked first, so chainPicture, which comes here, places Faithful Mode's stages the same way (0.9.229 W5 T4).
+        int faithful = faithfulPicture(appearance, layer);
+        if (faithful >= 0) return faithful;
         FamilySettings settings = TrmtConfig.family(appearance);
         if (settings == null || TrmtConfig.wearCarriesWithDepth <= 0f) return counted(layer, settings);
         if (record == ErosionState.NONE) return counted(layer, settings);
@@ -101,6 +105,36 @@ public final class WearSteps {
         int blended = Math.round((overall * carry + withinRun * (1f - carry)) * last);
         if (blended < 0) return 0;
         return blended > last ? last : blended;
+    }
+
+    /**
+     * The picture a grass or sand surface layer shows under Faithful Mode, or -1 where Faithful Mode does not decide
+     * it (0.9.229 W5 T4; docs/goals/0.9.229-w5-spec.md, 2.2 "Which picture", question 7). 1.7.10's
+     * {@code GhostRendering.faithfulPicture}.
+     *
+     * <p>
+     * The original drew five pictures for each and its first is already worn. This mod's first picture of a run is a
+     * worn one as well, not clean ground (R2, 2026-11-03: grass's first shows a twentieth of its earth against the
+     * original's tenth, and sand's first is the original's own {@code eroded_sand_0}), so layer k of five goes at k/4
+     * of the run: the first stage on the first picture, the last on the last. At (k+1)/5, as the spec first proposed
+     * for a clean first picture, sand's five stages would land on the original's pictures 1, 2, 2, 3 and 4.
+     *
+     * <p>
+     * Placed by the layer alone, not by the depth the step is drawn at or the player's depth, gradation and blending
+     * settings: sand's stages sink 0, 2, 2, 4 and 6 pixels, and placed by depth as this mod's own sand is, stages 1 and
+     * 2 shared a picture and the first sunken stage jumped half the run (R2: pictures 0, 41, 42, 67, 76); grass keeps
+     * the player's depth under Faithful Mode, and any depth on grass squeezed its turf into the first two fifths of
+     * its pictures. Dirt is not decided here: its stages are drawn as they always were, the original's bare earth at
+     * the start of the dirt run.
+     */
+    static int faithfulPicture(SurfaceFamily appearance, int layer) {
+        if (appearance != SurfaceFamily.GRASS && appearance != SurfaceFamily.SAND) return -1;
+        if (!FaithfulChains.wears(appearance)) return -1;
+        int runLast = FaithfulChains.stages(appearance) - 1;
+        if (layer <= 0 || runLast <= 0) return 0;
+        int last = WearScale.COUNTED_STEPS - 1;
+        int placed = Math.round(layer / (float) runLast * last);
+        return placed > last ? last : placed;
     }
 
     /**

@@ -82,10 +82,17 @@ public final class ConfigScreen {
         ConfigFile config = TrmtConfig.raw();
         if (config == null) return null;
 
+        // Solid (1.0.0): the dark dirt behind the list and the lighter dirt above and below it, opaque, as Forge's screen
+        // draws it in the 1.7.10 edition and Cloth 11 draws it at 1.20.1. Cloth for 26.x starts every builder
+        // transparent (ConfigBuilderImpl's constructor, read in 26.1.154, 26.2.155 and 26.3.159), and a transparent
+        // Cloth screen draws only the game's blur and its quarter-dark in-world menu texture, so the world showed
+        // through every word, as on 1.21.1. Solid, it draws its default background, the game's own
+        // textures/block/dirt.png, at 1.20.1's two shades.
         ConfigBuilder builder = ConfigBuilder.create()
             .setParentScreen(parent)
             .setTitle(Component.literal(Trmt.NAME))
-            .setSavingRunnable(ConfigScreen::saved);
+            .setSavingRunnable(ConfigScreen::saved)
+            .solidBackground();
         ConfigEntryBuilder entries = builder.entryBuilder();
 
         boolean first = true;

@@ -132,6 +132,19 @@ public final class TrmtNeoForge {
                     com.trmtgtnh.server.ServerEvents.idsMoved();
             });
 
+        // The data files and trmtr-api (W3 spec 2.2 and 2.5, carried in T19): where NeoForge's mods are and which packs
+        // are its own packs of their files, then the first read and the plugins, at common setup - once every mod has
+        // been constructed and registered its blocks, so an example mod has set what its plugin needs, and never in
+        // this constructor, which NeoForge may run beside another mod's. On the main thread (enqueueWork), one at a time.
+        com.trmtgtnh.dataload.DataLoad.useMods(NeoForgeData::modFiles);
+        com.trmtgtnh.dataload.DataFiles.useModPacks(NeoForgeData::modPack);
+        modBus.addListener((net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent setup) -> setup.enqueueWork(() -> {
+            com.trmtgtnh.dataload.DataLoad.read();
+            com.trmtgtnh.apiload.ApiLoad.start();
+            // NeoForge's registries are full by common setup, so the summary can count names now.
+            com.trmtgtnh.dataload.DataLoad.registered();
+        }));
+
         // The One Probe takes its API through a message sent while mods enqueue theirs, and only when it is installed,
         // as 1.20.1's Forge jar asked: OneProbeTooltip is the only class that names it, and nothing loads that class
         // otherwise. Jade and WTHIT find their plugins in the common module by themselves, so they need nothing here.

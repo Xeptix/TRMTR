@@ -12,15 +12,19 @@
     "MixinOculusBlockContext",
     "MixinOptiFineShaderSeat",
     "MixinPackRepository",
-    "MixinPlayerArrives"
+    "MixinPlayerArrives",
+    "MixinPistonCarriesWear",
+    "MixinFaithfulBrush"
   ],
   "client": [
     "MixinJadeHarvestLine",
     "MixinWthitHarvestLine",
     "MixinSettledFacesSodium",
+    "MixinWornStairLightSodium",
     "MixinGhostBlockLight",
     "MixinGhostSkyLight",
-    "MixinGhostSkySources"
+    "MixinGhostSkySources",
+    "MixinSavingIndicator"
   ],
   "injectors": {
     "defaultRequire": 1

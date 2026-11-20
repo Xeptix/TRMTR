@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "The Twilight Forest, from ATM6's census (W4 R6, judged 2026-11-11). Deadrock and weathered deadrock are the natural rock of the Final Plateau, and trollsteinn the natural rock of the troll caves, which no recipe makes; the rules leave all three out for having no stone word. Named one by one, only the blocks that census saw and judged, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Cracked deadrock was not judged and is left to the rules.",
+    "Fluffy cloud, the floor of the cloud castles over the Highlands, is its own family (Xep, 2026-11-11: Add both families; 0.9.229, W4). Its packed ice gives the rules ice, and a config that recorded it there still wears it as cloud, as this file is heard over a line that only repeats detection. Judged by ATM6's census and named here."
+  ],
+  "entries": [
+    { "blocks": ["twilightforest:deadrock", "twilightforest:deadrock_weathered", "twilightforest:trollsteinn"], "family": "stone" },
+    { "blocks": ["twilightforest:fluffy_cloud"], "family": "cloud" }
+  ]
+}

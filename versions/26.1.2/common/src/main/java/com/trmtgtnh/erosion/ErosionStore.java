@@ -83,6 +83,18 @@ public final class ErosionStore {
 
     private static volatile CatchUp engine;
 
+    /**
+     * What places a loaded chunk's records on the chains in force when they were last placed on the others (Faithful
+     * Mode switched while the chunk was loaded, or while it was saved; Codex review R17). A seam for the same reason as
+     * {@link CatchUp}: the store does not reach for the engine.
+     */
+    public interface Placing {
+
+        void placeChunk(long key, ChunkErosionData data);
+    }
+
+    private static volatile Placing placer;
+
     /** Loaded chunks only, keyed by level index and chunk coordinate. */
     private final Map<Long, ChunkErosionData> loaded = new HashMap<Long, ChunkErosionData>();
 
@@ -95,6 +107,16 @@ public final class ErosionStore {
      * is needed or wanted on a path this hot.
      */
     private final Map<Long, ChunkErosionData> pending = new ConcurrentHashMap<Long, ChunkErosionData>();
+
+    /**
+     * The original mod's worn squares, converted from its blocks as a chunk was read and not yet placed as records
+     * (0.9.229 W5, spec 2.9). Concurrent for the same reason as {@link #pending}.
+     */
+    private final Map<Long, List<com.trmtgtnh.original.OriginalWorld.Square>> converted =
+        new ConcurrentHashMap<Long, List<com.trmtgtnh.original.OriginalWorld.Square>>();
+
+    /** Each level's clock as a chunk last arrived in it, for converted squares placed as a chunk is written. */
+    private final Map<Integer, Integer> clocks = new ConcurrentHashMap<Integer, Integer>();
 
     /**
      * Chunks that have unloaded but have not yet been written.
@@ -134,6 +156,12 @@ public final class ErosionStore {
     /** Forgets it again. For tests, which must not leak an engine into the next one. */
     public static void forgetEngine() {
         engine = null;
+        placer = null;
+    }
+
+    /** Tells the store what places a chunk found on the other chains. Called once as the mod starts. */
+    public static void usePlacing(Placing placing) {
+        placer = placing;
     }
 
     // ------------------------------------------------------------------
@@ -199,21 +227,39 @@ public final class ErosionStore {
 
     /** The chunk's erosion data, or null when that chunk has none loaded. */
     public ChunkErosionData getChunk(int levelIndex, int chunkX, int chunkZ) {
-        return loaded.get(Long.valueOf(chunkKey(levelIndex, chunkX, chunkZ)));
+        long key = chunkKey(levelIndex, chunkX, chunkZ);
+        return placed(key, loaded.get(Long.valueOf(key)));
     }
 
     public ChunkErosionData getChunk(long key) {
-        return loaded.get(Long.valueOf(key));
+        return placed(key, loaded.get(Long.valueOf(key)));
     }
 
     /** The chunk's erosion data, creating an empty map if absent. */
     public ChunkErosionData getOrCreateChunk(int levelIndex, int chunkX, int chunkZ) {
-        Long key = Long.valueOf(chunkKey(levelIndex, chunkX, chunkZ));
+        long packed = chunkKey(levelIndex, chunkX, chunkZ);
+        Long key = Long.valueOf(packed);
         ChunkErosionData data = loaded.get(key);
         if (data == null) {
             data = new ChunkErosionData();
+            // A new chunk's records are made on the chains in force.
+            data.setPlacedOn(ErosionChain.placing());
             loaded.put(key, data);
+            return data;
         }
+        return placed(packed, data);
+    }
+
+    /**
+     * A chunk's data, its records first placed on the chains in force when they were last placed on the others (Codex
+     * review R17): Faithful Mode was switched while the chunk was loaded, or while it was saved. Every way to a loaded
+     * chunk's records passes here, so nothing reads one of its records before the whole chunk is placed, and a record
+     * is never placed twice. One comparison when nothing has switched.
+     */
+    private ChunkErosionData placed(long key, ChunkErosionData data) {
+        if (data == null || data.placedOn() == ErosionChain.placing()) return data;
+        Placing asking = placer;
+        if (asking != null) asking.placeChunk(key, data);
         return data;
     }
 
@@ -315,6 +361,8 @@ public final class ErosionStore {
     public void clearMemory() {
         loaded.clear();
         pending.clear();
+        converted.clear();
+        clocks.clear();
         unloading.clear();
         sweepCursor = 0;
     }
@@ -343,15 +391,47 @@ public final class ErosionStore {
      * the main thread, and the healing catch-up it needs to do next wants a live level.
      */
     public void chunkDataLoaded(Identifier levelName, int chunkX, int chunkZ, CompoundTag tag) {
-        if (tag == null || levelName == null || !tag.contains(NBT_KEY)) return;
+        if (tag == null || levelName == null) return;
 
         // From 1.21.5 the getter answers in an Optional; anything but a byte array reads as 1.21.1's empty one.
-        ChunkErosionData data = ChunkErosionData.read(tag.getByteArray(NBT_KEY)
-            .orElse(new byte[0]));
-        sayIfUpgrading();
-        if (data.isEmpty()) return;
+        byte[] blob = tag.contains(NBT_KEY) ? tag.getByteArray(NBT_KEY)
+            .orElse(new byte[0]) : null;
+        ChunkErosionData data = blob == null ? null : ChunkErosionData.read(blob);
+        if (blob != null) sayIfUpgrading();
+        // Wear backups (0.9.229): a chunk read without the wear the mirror holds for it, or with damaged records, is
+        // noticed here - asked even with no tag at all, which is the chunk that most needs asking - and the wear it is
+        // to load with comes back: its own, put back from the mirror, or filled by a restore waiting for it.
+        data = com.trmtgtnh.server.WearBackups.get()
+            .chunkRead(levelName, chunkX, chunkZ, tag, blob, data);
+        if (data == null || data.isEmpty()) return;
 
         pending.put(Long.valueOf(chunkKey(indexOf(levelName), chunkX, chunkZ)), data);
+    }
+
+    /**
+     * The same, with the squares the original mod had worn in this chunk, converted from its blocks as the chunk was
+     * read (0.9.229 W5, spec 2.9). Parked beside the wear, never resolved here: this runs off the main thread, and the
+     * chain a square is placed on is the one in force when the chunk arrives.
+     */
+    public void chunkDataLoaded(Identifier levelName, int chunkX, int chunkZ, CompoundTag tag,
+        List<com.trmtgtnh.original.OriginalWorld.Square> squares) {
+        chunkDataLoaded(levelName, chunkX, chunkZ, tag);
+        if (levelName == null || squares == null || squares.isEmpty()) return;
+        converted.put(Long.valueOf(chunkKey(indexOf(levelName), chunkX, chunkZ)), squares);
+    }
+
+    /**
+     * Puts a chunk's converted squares into its wear, creating the wear when it had none. Called on the server thread:
+     * when the chunk arrives, or when it is written first, as a chunk read only to a lower status can be.
+     */
+    private int placeConverted(Long key, ChunkErosionData data, List<com.trmtgtnh.original.OriginalWorld.Square> squares,
+        int nowSeconds) {
+        int placed = com.trmtgtnh.original.OriginalChunk.place(data, squares,
+            com.trmtgtnh.original.FaithfulChains.on(), nowSeconds, ErosionEngine::thresholdAt);
+        Trmt.LOG.info("[S1] Placed {} of {} converted squares in chunk {},{} on {} chains.", placed, squares.size(),
+            chunkXOf(key.longValue()), chunkZOf(key.longValue()),
+            com.trmtgtnh.original.FaithfulChains.on() ? "Faithful Mode's" : "this mod's own");
+        return placed;
     }
 
     /**
@@ -403,10 +483,32 @@ public final class ErosionStore {
         } else {
             data = loaded.get(Long.valueOf(key));
         }
-        if (data == null || data.isEmpty()) return;
+        // Wear put back as the chunk was read (wear backups, 0.9.229), or upgraded from an older format, is written at
+        // the next save rather than only when the chunk unloads: nothing else marks a chunk whose only change is that.
+        if (data != null && !data.isEmpty() && data.isDirty()) {
+            if (chunk != null) chunk.markUnsaved();
+            else markModified(level, chunkX, chunkZ);
+        }
+        int now = ErosionEngine.nowSeconds(level);
+        clocks.put(Integer.valueOf(indexOf(level)), Integer.valueOf(now));
+        if (data != null && !data.isEmpty()) {
+            CatchUp asking = engine;
+            if (asking != null && chunk != null) asking.catchUpChunk(level, chunk, data);
+        }
 
-        CatchUp asking = engine;
-        if (asking != null && chunk != null) asking.catchUpChunk(level, chunk, data);
+        // The original mod's worn squares, converted as this chunk was read, placed after the catch-up so they owe
+        // nothing for the time before today (0.9.229 W5, spec 2.9).
+        List<com.trmtgtnh.original.OriginalWorld.Square> squares = converted.remove(Long.valueOf(key));
+        if (squares == null) return;
+        if (data == null) {
+            data = new ChunkErosionData();
+            data.setPlacedOn(ErosionChain.placing());
+            loaded.put(Long.valueOf(key), data);
+        }
+        if (placeConverted(Long.valueOf(key), data, squares, now) > 0) {
+            if (chunk != null) chunk.markUnsaved();
+            else markModified(level, chunkX, chunkZ);
+        }
     }
 
     /**
@@ -423,8 +525,25 @@ public final class ErosionStore {
         // Last, and the reason that map exists: a chunk that has already unloaded is saved
         // immediately afterwards, and its record has to still be here to be written.
         if (data == null) data = unloading.get(key);
+
+        // A converted chunk written before it arrived, as one read only to a lower status can be: its squares go into
+        // the wear now, or the chunk would be saved as vanilla blocks with nothing to say how worn they were.
+        List<com.trmtgtnh.original.OriginalWorld.Square> squares = converted.remove(key);
+        if (squares != null) {
+            if (data == null) {
+                data = new ChunkErosionData();
+                data.setPlacedOn(ErosionChain.placing());
+                pending.put(key, data);
+            }
+            Integer clock = clocks.get(Integer.valueOf(levelIndexOf(key.longValue())));
+            placeConverted(key, data, squares, clock == null ? 0 : clock.intValue());
+        }
+
         if (data == null) {
             unloading.remove(key);
+            // Saved with no wear: the mirror hears it too, so wear that healed away is not put back later.
+            com.trmtgtnh.server.WearBackups.get()
+                .chunkSaved(levelName, chunkX, chunkZ, null);
             return null;
         }
 
@@ -432,6 +551,9 @@ public final class ErosionStore {
         byte[] blob = data.write();
         data.clearDirty();
         unloading.remove(key);
+        // And the same blob to the wear mirror (wear backups, 0.9.229): one more small write, off this thread.
+        com.trmtgtnh.server.WearBackups.get()
+            .chunkSaved(levelName, chunkX, chunkZ, blob);
         return blob;
     }
 

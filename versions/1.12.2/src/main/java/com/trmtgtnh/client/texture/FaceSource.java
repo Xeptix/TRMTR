@@ -13,7 +13,9 @@ import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
 
 import com.trmtgtnh.config.FamilySettings;
+import com.trmtgtnh.dataload.BlockLooks;
 import com.trmtgtnh.surface.SurfaceFamily;
+import com.trmtgtnh.surface.SurfaceRegistry;
 
 /**
  * Where a wear sprite's faces come from, for the plan that prices them and the pass that builds them.
@@ -106,6 +108,31 @@ final class FaceSource {
     }
 
     /**
+     * Whether a block's own look takes a cover off: a looks file's {@code look} for this very block where it gives one
+     * (W3 T5), else its family's. Asked by the plan, which keys and prices the block's set by it, and by the sprite
+     * that draws it, so both answer alike.
+     */
+    static boolean coverLook(FamilySettings look, Block block, int meta) {
+        String pattern = lookOf(block, meta).patternOr(look == null ? null : look.wearPattern);
+        return FamilySettings.PATTERN_GRASS.equals(pattern);
+    }
+
+    /**
+     * What the looks files say of a block state (W3 T5), or none: by its registry name, its metadata and the properties
+     * of the state it takes there, so a {@code [prop=value]} selector matches. Never throws.
+     */
+    static BlockLooks.Look lookOf(Block block, int meta) {
+        if (block == null) return BlockLooks.Look.NONE;
+        try {
+            String name = SurfaceRegistry.registryName(block);
+            return name == null ? BlockLooks.Look.NONE
+                : BlockLooks.of(name, meta, SurfaceRegistry.propertiesOf(block, meta));
+        } catch (RuntimeException unregistrable) {
+            return BlockLooks.Look.NONE;
+        }
+    }
+
+    /**
      * What a block draws on one side, as a name, or null when it will not say. Asked of the top to tell subtypes apart,
      * and by the plan for every face it prices. Says nothing when a block refuses, because the census and the planner's
      * own walk both ask every block, and one refusal is worth no more than the line the build writes for it.
@@ -153,12 +180,26 @@ final class FaceSource {
      */
     static String faceName(IResourceManager manager, Block block, int meta, int side, SurfaceFamily made) {
         if (block != null) {
+            // A looks file's face, worn in place of the block's own top (W3 T5): priced and read as the top.
+            String authored = side == 1 ? lookOf(block, meta).face : null;
+            if (authored != null && WearPatterns.headerWidth(manager, authored) > 0) return authored;
             String icon = iconName(block, meta, side);
             if (icon != null) return icon;
             String suffixed = suffixedName(manager, block, side);
             if (suffixed != null) return suffixed;
         }
-        return FaceRules.vanillaName(made, side);
+        return readable(manager, FaceRules.vanillaName(made, side));
+    }
+
+    /**
+     * A vanilla name as it can be read here: the name itself where its file can be, else its second choice where that
+     * one can (sculk's obsidian, deepslate's stone: FaceRules.secondChoice, 0.9.229 W4), else the name, which reads as
+     * nothing, as it always did. The plan prices the file the pass then reads.
+     */
+    static String readable(IResourceManager manager, String name) {
+        if (name == null || WearPatterns.headerWidth(manager, name) > 0) return name;
+        String second = FaceRules.secondChoice(name);
+        return second != null && WearPatterns.headerWidth(manager, second) > 0 ? second : name;
     }
 
     /** The width of the file a face is read from, from its header, or nought where it cannot be read. */
@@ -167,14 +208,15 @@ final class FaceSource {
     }
 
     /**
-     * The width of the vanilla file a fallback sprite reads for one side: the material it is made of, then, where that
-     * cannot be read, the family's own. The same two reads {@link #read} makes for a sprite with no block.
+     * The width of the vanilla file a fallback sprite reads for one side: the material it is made of (sculk worn into
+     * stone, deepslate: FaceRules.fallbackName), each with its second choice, then, where none of that can be read, the
+     * family's own. The same reads {@link #read} makes for a sprite with no block.
      */
     static int vanillaWidth(IResourceManager manager, SurfaceFamily family, SurfaceFamily appearance, int side) {
         int width = WearPatterns
-            .headerWidth(manager, FaceRules.vanillaName(FaceRules.madeOf(family, appearance), side));
+            .headerWidth(manager, readable(manager, FaceRules.fallbackName(family, appearance, side)));
         if (width <= 0 && appearance != family) {
-            width = WearPatterns.headerWidth(manager, FaceRules.vanillaName(family, side));
+            width = WearPatterns.headerWidth(manager, readable(manager, FaceRules.vanillaName(family, side)));
         }
         return width;
     }
@@ -191,8 +233,14 @@ final class FaceSource {
      * at the pass: a connected-texture tile Chisel cuts only after stitching, or a loader that keeps none.
      */
     Face read(Block origin, int meta, int side, SurfaceFamily originFamily, SurfaceFamily appearance) {
-        SurfaceFamily made = FaceRules.madeOf(originFamily, appearance);
         String name = null;
+        if (origin != null && side == 1) {
+            // A looks file's face in place of the block's own top (W3 T5). Its own pixels by the file's choice, so not
+            // counted as improvised; a face that will not read falls through to the block's own.
+            String authored = lookOf(origin, meta).face;
+            int[] pixels = authored == null ? null : fileFace(authored);
+            if (pixels != null) return new Face(pixels, true);
+        }
         if (origin != null) {
             name = iconName(origin, meta, side);
             TextureAtlasSprite sprite = atlasSprite(name);
@@ -206,15 +254,20 @@ final class FaceSource {
             // stock texture.
             if (name == null) name = suffixedName(manager, origin, side);
         }
-        if (name == null) name = FaceRules.vanillaName(made, side);
+        // Sculk worn into stone reads deepslate (FaceRules.fallbackName, 0.9.229 W4), and a vanilla name whose file is
+        // not here its second choice: sculk's obsidian before 1.19, and in the 1.7.10 edition without Et Futurum.
+        if (name == null) name = FaceRules.fallbackName(originFamily, appearance, side);
         int[] pixels = fileFace(name);
+        if (pixels == null) pixels = fileFace(FaceRules.secondChoice(name));
         if (pixels == null && appearance != originFamily && originFamily != null) {
             // A sprite drawn as a surface this one wears THROUGH into is made of that surface's material, which is why
             // the name above is the appearance's. If the pack cannot produce that material's texture, the honest second
             // choice is the material this block actually is - worn stone put through cobble's pattern is a poor cobble
             // and still an enormous improvement on nothing at all, which is what an unusable sprite leaves on the
             // ground.
-            pixels = fileFace(FaceRules.vanillaName(originFamily, side));
+            String familyName = FaceRules.vanillaName(originFamily, side);
+            pixels = fileFace(familyName);
+            if (pixels == null) pixels = fileFace(FaceRules.secondChoice(familyName));
         }
         return new Face(pixels, false);
     }

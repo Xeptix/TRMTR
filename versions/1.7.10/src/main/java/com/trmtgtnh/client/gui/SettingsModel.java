@@ -22,9 +22,16 @@ import com.trmtgtnh.client.settings.SettingsIndex;
 import com.trmtgtnh.client.settings.SettingsKeys;
 import com.trmtgtnh.client.settings.TabStrip;
 import com.trmtgtnh.client.settings.Takes;
+import com.trmtgtnh.config.ClientSettingsHeld;
+import com.trmtgtnh.config.FaithfulProfile;
+import com.trmtgtnh.config.FamilySettings;
+import com.trmtgtnh.config.OriginalFile;
 import com.trmtgtnh.config.Presets;
 import com.trmtgtnh.config.ServerRules;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.erosion.CostCurve;
+import com.trmtgtnh.original.FaithfulChains;
+import com.trmtgtnh.original.OriginalSettings;
 import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
@@ -111,6 +118,19 @@ public final class SettingsModel {
         ADVANCED,
         /** The fold's rows, opened. */
         REMEMBERED,
+        /**
+         * Faithful Mode's fold, under its row (0.9.229 W5, spec 2.7): opened, what it runs in place of the player's own
+         * numbers, then the {@code faithful} heading's settings, editable there - it has no tab of its own.
+         */
+        FAITHFUL,
+        /** One line of Faithful Mode's detail, opened under its fold. */
+        DETAIL,
+        /**
+         * "Use your TRMT settings" (0.9.229 W5 T9, spec 2.8): shown only where the original mod's {@code trmt.json} was
+         * found, and chosen as a preset's rung is, from a dropdown whose detail panel lists what choosing it changes
+         * and what could not be matched ({@link #originalChanges}).
+         */
+        ORIGINAL,
         /** A line in the panel's middle saying there is nothing: no search result, nothing changed. */
         EMPTY
     }
@@ -177,6 +197,9 @@ public final class SettingsModel {
 
     public static final String HEADER_PUSH = "push";
 
+    /** The wear backups' restore screen (0.9.229), in a world of one's own: its icon is the undo arrow. */
+    public static final String HEADER_BACKUPS = "backups";
+
     private final Configuration config;
 
     private final Words words;
@@ -226,6 +249,14 @@ public final class SettingsModel {
                     }
                 }
             }
+            // Faithful Mode's numbers are the presets tab's, under its fold, rather than a tab of their own (spec 2.7).
+            if (pages.containsKey(Presets.CATEGORY) && config.hasCategory(FaithfulProfile.CATEGORY)) {
+                ConfigCategory faithful = config.getCategory(FaithfulProfile.CATEGORY);
+                add(faithful, Presets.CATEGORY, Presets.CATEGORY, opening, defaults, entries);
+                for (ConfigCategory inside : faithful.getChildren()) {
+                    add(inside, Presets.CATEGORY, Presets.CATEGORY, opening, defaults, entries);
+                }
+            }
         }
         this.edits = new Edits(opening, defaults);
         this.index = new SettingsIndex(entries);
@@ -239,7 +270,11 @@ public final class SettingsModel {
             Setting setting = new Setting(name, property.getName(), property, tab, page, settings.size());
             settings.add(setting);
             byId.put(setting.id, setting);
-            opening.put(setting.id, fileValue(setting, property.isList() ? null : property.getString(), false));
+            // A setting a server holds opens at the value it is held at this visit, not the file's (0.9.229).
+            String held = property.isList() ? null : ClientSettingsHeld.effective(name, property.getName());
+            opening.put(
+                setting.id,
+                fileValue(setting, held != null ? held : property.isList() ? null : property.getString(), false));
             defaults.put(setting.id, fileValue(setting, property.isList() ? null : property.getDefault(), true));
             if (setting.editor != ConfigLayout.Editor.REMEMBERED) {
                 entries.add(
@@ -344,6 +379,16 @@ public final class SettingsModel {
      * (M16.1), opened with {@code advancedOpen}.
      */
     public List<Row> rows(String page, boolean advancedOpen) {
+        return rows(page, advancedOpen, false);
+    }
+
+    /**
+     * The rows of a page, and on the presets tab Faithful Mode's fold under its row (spec 2.7), opened with
+     * {@code faithfulOpen}: its detail a line a row, then the {@code faithful} heading's settings, each surface's
+     * under its own folder; then, where the original mod's file was found, "Use your TRMT settings" (spec 2.8), a row
+     * chosen as a preset's rung is.
+     */
+    public List<Row> rows(String page, boolean advancedOpen, boolean faithfulOpen) {
         List<Row> out = new ArrayList<Row>();
         if (config == null || !config.hasCategory(page)) return out;
         ConfigCategory category = config.getCategory(page);
@@ -352,6 +397,12 @@ public final class SettingsModel {
             if (!first.isEmpty()) out.add(new Row(RowType.NOTE, null, first, null, null));
         }
         addSettings(out, category.getQualifiedName());
+        if (Presets.CATEGORY.equals(page)) {
+            int end = addFaithful(out, faithfulOpen);
+            if (end >= 0 && originalFound()) {
+                out.add(end, new Row(RowType.ORIGINAL, null, words.words(ORIGINAL_ROW), null, null));
+            }
+        }
         for (ConfigCategory inside : category.getChildren()) {
             String name = inside.getQualifiedName();
             if (name.equals(ConfigLayout.REMEMBERED)) {
@@ -364,12 +415,23 @@ public final class SettingsModel {
             addSettings(out, name);
             if (out.size() == before + 1) out.remove(before);
         }
+        // The page's Advanced folder, last (0.9.229; Xep, 2026-11-18): settings most players never need, kept where
+        // the file has them, so a setting moved here keeps its key.
+        int before = out.size();
+        out.add(new Row(RowType.FOLDER, null, words.words(SettingsKeys.FOLDER_ADVANCED), null, null));
+        for (Setting setting : settings) {
+            if (setting.category.equals(category.getQualifiedName()) && SettingsKeys.inAdvanced(setting.id)) {
+                out.add(new Row(RowType.SETTING, setting, null, null, null));
+            }
+        }
+        if (out.size() == before + 1) out.remove(before);
         return out;
     }
 
     private void addSettings(List<Row> out, String category) {
         for (Setting setting : settings) {
-            if (setting.category.equals(category) && setting.editor != ConfigLayout.Editor.REMEMBERED) {
+            if (setting.category.equals(category) && setting.editor != ConfigLayout.Editor.REMEMBERED
+                && !SettingsKeys.inAdvanced(setting.id)) {
                 out.add(new Row(RowType.SETTING, setting, null, null, null));
             }
         }
@@ -553,6 +615,13 @@ public final class SettingsModel {
         this.world = world;
     }
 
+    /** Whether the world open is one's own, with its wear backups running: the restore screen is offered there. */
+    private boolean ownWorld;
+
+    public void ownWorld(boolean own) {
+        this.ownWorld = own;
+    }
+
     public boolean world() {
         return world;
     }
@@ -567,13 +636,23 @@ public final class SettingsModel {
     }
 
     /**
-     * The value a server holds a setting at, or null (spec S4). A client setting is never locked, but the one a
-     * server's rules carry ({@link ServerRules#serverCarries}).
+     * The value a server holds a setting at, or null (spec S4). A client setting is locked where the server forces
+     * it (0.9.229; Xep, 2026-11-18: "lock + one chat line"), and the one a server's own rules carry
+     * ({@link ServerRules#serverCarries}).
      */
     public String locked(Setting setting) {
+        String forced = ClientSettingsHeld.forced(setting.category, setting.key);
+        if (forced != null) return fileValue(setting, forced, false);
         if (!ServerRules.serverCarries(setting.category, setting.key)) return null;
         if (lockedHandedIn != null) return lockedHandedIn.get(setting.id);
         return ServerRules.lockedValue(setting.category, setting.key);
+    }
+
+    /** The value a server suggests for a setting, where it suggests one: the player may change it, for the visit. */
+    public String suggested(Setting setting) {
+        if (!ClientSettingsHeld.suggested(setting.category, setting.key)) return null;
+        String value = ClientSettingsHeld.suggestion(setting.category, setting.key);
+        return value == null ? null : fileValue(setting, value, false);
     }
 
     /** The switch a setting waits on, where it is off (spec S6), or null. */
@@ -755,6 +834,7 @@ public final class SettingsModel {
     public Map<String, String> presetValues(String axis, String rung) {
         Map<String, String> out = new LinkedHashMap<String, String>();
         if (rung == null || Presets.CUSTOM.equals(rung)) return out;
+        if (FaithfulProfile.SWITCH.equals(axis)) return Boolean.parseBoolean(rung) ? keepKnown(faithfulValues()) : out;
         if ("quality".equals(axis)) {
             int[] q = Presets.quality(rung);
             out.put(TrmtConfig.CATEGORY_CLIENT + ".wearGradations", String.valueOf(q[0]));
@@ -803,6 +883,22 @@ public final class SettingsModel {
      * change - its plain title, the value now and the rung's - at most twelve, or "Choosing Default changes nothing".
      */
     public List<String> presetChanges(Setting preset, String rung) {
+        if (FaithfulProfile.SWITCH.equals(preset.key)) {
+            return Boolean.parseBoolean(rung) ? faithfulChanges() : new ArrayList<String>();
+        }
+        List<String> out = tuningChanges(preset, rung);
+        // While Faithful Mode is on, the four tuning choosers still write their figures for every family, but the five
+        // it owns run by its numbers until it is off again, and the detail says so (spec 2.1).
+        if (TUNING.contains(preset.key) && faithfulOn())
+            out.add(Math.min(1, out.size()), words.words(FAITHFUL_CHOOSER));
+        return out;
+    }
+
+    /** The four choosers that tune wear, whose figures Faithful Mode overrides for the five it owns (spec 2.1). */
+    static final List<String> TUNING = Collections
+        .unmodifiableList(java.util.Arrays.asList("wear", "healing", "phases", "depth"));
+
+    private List<String> tuningChanges(Setting preset, String rung) {
         List<String> out = new ArrayList<String>();
         Map<String, String> wanted = presetValues(preset.key, rung);
         if (wanted.isEmpty()) return out;
@@ -825,12 +921,13 @@ public final class SettingsModel {
                     said(change.from),
                     said(change.to)));
         }
-        if (changes.size() > PRESET_LINES) out.add("...");
+        if (changes.size() > PRESET_LINES)
+            out.add(words.words(SettingsKeys.PRESET_MORE, changes.size() - PRESET_LINES));
         return out;
     }
 
     /** A setting named with its family where it is a family's: "Grass - Wear starts at". */
-    private String named(Setting setting) {
+    String named(Setting setting) {
         SurfaceFamily family = familyOf(setting.category);
         return family == null ? title(setting) : pageLabel(setting.category) + " - " + title(setting);
     }
@@ -839,6 +936,522 @@ public final class SettingsModel {
         if ("true".equals(value)) return words.words(SettingsKeys.OPTIONS_ON);
         if ("false".equals(value)) return words.words(SettingsKeys.OPTIONS_OFF);
         return value == null ? "" : value;
+    }
+
+    // ------------------------------------------------------------------
+    // Faithful Mode (0.9.229 W5, spec 2.1, 2.3 and 2.7)
+    // ------------------------------------------------------------------
+
+    /** The switch, by its id. */
+    static final String FAITHFUL = Presets.CATEGORY + "." + FaithfulProfile.SWITCH;
+
+    /** The fold's own words, and its detail's (this edition's own keys; their English is in settings_ui.tsv). */
+    static final String FAITHFUL_FOLD = SettingsKeys.OWN + "faithful.fold";
+
+    static final String FAITHFUL_OFF = SettingsKeys.OWN + "faithful.off";
+
+    static final String FAITHFUL_CHANGES_ONE = SettingsKeys.OWN + "faithful.changes.one";
+
+    static final String FAITHFUL_CHANGES_MANY = SettingsKeys.OWN + "faithful.changes.many";
+
+    static final String FAITHFUL_NONE = SettingsKeys.OWN + "faithful.none";
+
+    static final String FAITHFUL_NOTHING = SettingsKeys.OWN + "faithful.nothing";
+
+    static final String FAITHFUL_SPEEDS = SettingsKeys.OWN + "faithful.speeds";
+
+    static final String FAITHFUL_KEPT = SettingsKeys.OWN + "faithful.kept";
+
+    static final String FAITHFUL_EVERY = SettingsKeys.OWN + "faithful.every";
+
+    static final String FAITHFUL_CHOOSER = SettingsKeys.OWN + "faithful.chooser";
+
+    /** Every key above, for the test that holds the language file to them. */
+    static final List<String> FAITHFUL_WORDS = Collections.unmodifiableList(
+        java.util.Arrays.asList(
+            FAITHFUL_FOLD,
+            FAITHFUL_OFF,
+            FAITHFUL_CHANGES_ONE,
+            FAITHFUL_CHANGES_MANY,
+            FAITHFUL_NONE,
+            FAITHFUL_NOTHING,
+            FAITHFUL_SPEEDS,
+            FAITHFUL_KEPT,
+            FAITHFUL_EVERY,
+            FAITHFUL_CHOOSER));
+
+    /** The three dials that still apply over Faithful Mode, which is the original's pace with each at 1 (spec 2.3). */
+    static final List<String> SPEEDS = Collections.unmodifiableList(
+        java.util.Arrays.asList(
+            Configuration.CATEGORY_GENERAL + ".globalSpeed",
+            Configuration.CATEGORY_GENERAL + ".erosionSpeed",
+            TrmtConfig.CATEGORY_HEALING + ".healingRate"));
+
+    /** Whether Faithful Mode is on, as the screen holds the switch now. */
+    public boolean faithfulOn() {
+        return Boolean.parseBoolean(edits.value(FAITHFUL));
+    }
+
+    /**
+     * The fold under Faithful Mode's row; opened, its detail a line a row and the heading's settings. Answers where the
+     * fold ends, or -1 where there is no fold.
+     */
+    private int addFaithful(List<Row> out, boolean open) {
+        int at = -1;
+        for (int i = 0; i < out.size(); i++) {
+            Setting setting = out.get(i).setting;
+            if (setting != null && FAITHFUL.equals(setting.id)) at = i;
+        }
+        if (at < 0 || !config.hasCategory(FaithfulProfile.CATEGORY)) return -1;
+        List<Row> fold = new ArrayList<Row>();
+        fold.add(new Row(RowType.FAITHFUL, null, words.words(FAITHFUL_FOLD), null, null));
+        if (open) {
+            for (String line : faithfulDetail()) fold.add(new Row(RowType.DETAIL, null, line, null, null));
+            ConfigCategory heading = config.getCategory(FaithfulProfile.CATEGORY);
+            addFolder(fold, words.words(FAITHFUL_EVERY), heading.getQualifiedName());
+            for (ConfigCategory inside : heading.getChildren()) {
+                addFolder(fold, surfaceWords(inside.getName()), inside.getQualifiedName());
+            }
+        }
+        out.addAll(at + 1, fold);
+        return at + 1 + fold.size();
+    }
+
+    private void addFolder(List<Row> out, String title, String category) {
+        int before = out.size();
+        out.add(new Row(RowType.FOLDER, null, title, null, null));
+        addSettings(out, category);
+        if (out.size() == before + 1) out.remove(before);
+    }
+
+    /** A surface's name as its sub-tab reads, "Plants" for vegetation; the key spaced out where there is none. */
+    private String surfaceWords(String surface) {
+        String key = SettingsKeys.OWN + "family." + surface;
+        return words.has(key) ? words.words(key) : ConfigWords.title(surface);
+    }
+
+    /**
+     * Faithful Mode's detail, as its fold opens with it: that it waits while off, what it runs in place of the
+     * player's own numbers ({@link #presetChanges}), the speed dials still applied where any is not 1, and that the
+     * player's numbers are kept.
+     */
+    public List<String> faithfulDetail() {
+        List<String> out = new ArrayList<String>();
+        if (!faithfulOn()) out.add(words.words(FAITHFUL_OFF));
+        out.addAll(faithfulChanges());
+        String speeds = speedsApplied();
+        if (speeds != null) out.add(speeds);
+        out.add(words.words(FAITHFUL_KEPT));
+        return out;
+    }
+
+    /** Every setting Faithful Mode runs by its numbers in place of the value the screen holds, a line each. */
+    private List<String> faithfulChanges() {
+        List<String> out = new ArrayList<String>();
+        // Leaves and plants keep their break figures in no setting of the file, only in their shipped settings, so
+        // what Faithful Mode runs in place of those is said against the shipped figures.
+        Map<String, String> current = new LinkedHashMap<String, String>(edits.values());
+        Map<String, String> wanted = faithfulValues();
+        for (String id : wanted.keySet()) {
+            if (!byId.containsKey(id)) current.put(id, shippedFigure(id));
+        }
+        List<PresetDiff.Change> changes = PresetDiff.diff(current, wanted, new ArrayList<String>(byId.keySet()));
+        if (changes.isEmpty()) {
+            out.add(words.words(FAITHFUL_NONE));
+            return out;
+        }
+        out.add(
+            changes.size() == 1 ? words.words(FAITHFUL_CHANGES_ONE)
+                : words.words(FAITHFUL_CHANGES_MANY, changes.size()));
+        for (PresetDiff.Change change : changes) {
+            out.add(
+                words
+                    .words(SettingsKeys.PRESET_LINE, faithfulNamed(change.id), listed(change.from), listed(change.to)));
+        }
+        return out;
+    }
+
+    /**
+     * A setting Faithful Mode runs, named as the list names it: a setting of the file by its own name, and a family's
+     * figure the file has no setting for by its family and the {@code faithful} setting that fills it.
+     */
+    private String faithfulNamed(String id) {
+        Setting setting = byId.get(id);
+        if (setting != null) return named(setting);
+        String family = TrmtConfig.CATEGORY_FAMILIES + ".";
+        String rest = id.startsWith(family) ? id.substring(family.length()) : id;
+        Setting filler = byId.get(FaithfulProfile.CATEGORY + "." + rest);
+        int dot = rest.indexOf('.');
+        return dot < 0 || filler == null ? id : surfaceWords(rest.substring(0, dot)) + " - " + title(filler);
+    }
+
+    /** A family's shipped figure for an id the file holds no setting for: {@code families.leaves.thresholdMin}. */
+    private static String shippedFigure(String id) {
+        String family = TrmtConfig.CATEGORY_FAMILIES + ".";
+        if (!id.startsWith(family)) return null;
+        String rest = id.substring(family.length());
+        int dot = rest.indexOf('.');
+        SurfaceFamily surface = dot < 0 ? null : SurfaceFamily.byKey(rest.substring(0, dot));
+        if (surface == null) return null;
+        FamilySettings shipped = FamilySettings.shipped(surface);
+        String key = rest.substring(dot + 1);
+        if ("thresholdMin".equals(key)) return decimal(shipped.thresholdMin);
+        if ("thresholdMax".equals(key)) return decimal(shipped.thresholdMax);
+        return null;
+    }
+
+    /** A value on one line: a list's lines joined by commas, an empty one as "nothing". */
+    private String listed(String value) {
+        if (value == null || value.isEmpty()) return words.words(FAITHFUL_NOTHING);
+        // A figure of a list of numbers is read as the file writes it, 5.0; said as the screen says a number, 5.
+        String trimmed = value.trim();
+        if (trimmed.matches("-?[0-9]+\\.0+")) return trimmed.substring(0, trimmed.indexOf('.'));
+        return said(value.replace("\n", ", "));
+    }
+
+    /** "Overall speed 2, Healing speed 0.5" for the dials not at 1, or null where all three are. */
+    private String speedsApplied() {
+        List<String> off = new ArrayList<String>();
+        for (String id : SPEEDS) {
+            Setting setting = byId.get(id);
+            String value = edits.value(id);
+            if (setting == null || value == null || PresetDiff.same(value, "1")) continue;
+            off.add(title(setting) + " " + value);
+        }
+        if (off.isEmpty()) return null;
+        StringBuilder joined = new StringBuilder();
+        for (String one : off) {
+            if (joined.length() > 0) joined.append(", ");
+            joined.append(one);
+        }
+        return words.words(FAITHFUL_SPEEDS, joined.toString());
+    }
+
+    /**
+     * What Faithful Mode runs in place of the player's own figures while it is on, by id, as the screen holds values:
+     * what {@code FaithfulProfile.write} writes into the live settings, from the {@code faithful} values held now, so
+     * an edit there shows at once ({@code FaithfulDetailTest} holds the two to each other).
+     */
+    Map<String, String> faithfulValues() {
+        Map<String, String> out = new LinkedHashMap<String, String>();
+        for (SurfaceFamily base : new SurfaceFamily[] { SurfaceFamily.GRASS, SurfaceFamily.DIRT, SurfaceFamily.SAND }) {
+            String category = ConfigLayout.familyCategory(base);
+            String from = FaithfulProfile.CATEGORY + "." + base.key();
+            out.put(category + ".stages", String.valueOf(FaithfulChains.stages(base)));
+            put(out, category + ".thresholdMin", edits.value(from + ".thresholdMin"));
+            put(out, category + ".thresholdMax", edits.value(from + ".thresholdMax"));
+            out.put(category + ".costCurve", CostCurve.FLAT.key());
+            out.put(category + ".maxWear", "1");
+            out.put(category + ".wearsThroughTo", base == SurfaceFamily.GRASS ? SurfaceFamily.DIRT.key() : "");
+            String heal = base == SurfaceFamily.DIRT ? edits.value("faithful.dirtHealDays")
+                : firstLine(
+                    edits.value(base == SurfaceFamily.GRASS ? "faithful.grassHealDays" : "faithful.sandHealDays"));
+            put(out, category + ".healDaysPerStage", heal);
+            if (base == SurfaceFamily.SAND) {
+                out.put(category + ".maxSinkPixels", String.valueOf(FaithfulChains.deepest(base)));
+            }
+        }
+        for (SurfaceFamily target : new SurfaceFamily[] { SurfaceFamily.LEAVES, SurfaceFamily.VEGETATION }) {
+            String category = ConfigLayout.familyCategory(target);
+            String from = FaithfulProfile.CATEGORY + "." + target.key();
+            put(out, category + ".thresholdMin", edits.value(from + ".thresholdMin"));
+            put(out, category + ".thresholdMax", edits.value(from + ".thresholdMax"));
+        }
+        String trampling = TrmtConfig.CATEGORY_TRAMPLING + ".";
+        put(out, trampling + "leaves", edits.value("faithful.leaves.wears"));
+        put(out, trampling + "vegetation", edits.value("faithful.vegetation.wears"));
+        put(out, trampling + "leavesDropChance", edits.value("faithful.leaves.dropChance"));
+        put(out, trampling + "vegetationDropChance", edits.value("faithful.vegetation.dropChance"));
+        return out;
+    }
+
+    private static void put(Map<String, String> out, String id, String value) {
+        if (value != null) out.put(id, value);
+    }
+
+    private static String firstLine(String lines) {
+        if (lines == null) return null;
+        int end = lines.indexOf('\n');
+        return end < 0 ? lines : lines.substring(0, end);
+    }
+
+    // ------------------------------------------------------------------
+    // "Use your TRMT settings" (0.9.229 W5 T9, spec 2.8)
+    // ------------------------------------------------------------------
+
+    /** The original mod's settings file, as {@link OriginalFile} looks for it in this mod's own config folder. */
+    public static final String ORIGINAL_FILE = OriginalFile.NAME;
+
+    /** The row's words (this edition's own keys; their English is in settings_ui.tsv). */
+    static final String ORIGINAL_ROW = SettingsKeys.OWN + "original.row";
+
+    /** The rung that leaves the settings as they are, and the one that uses the file, as the dropdown lists them. */
+    public static final String ORIGINAL_OFF = "off";
+
+    public static final String ORIGINAL_ON = "on";
+
+    /** Where a rung's title is filed; its line and its detail follow it, as a chooser value's do. */
+    static String originalWords(String rung) {
+        return SettingsKeys.OWN + "original." + rung;
+    }
+
+    static final String ORIGINAL_UNMATCHED = SettingsKeys.OWN + "original.unmatched";
+
+    static final String ORIGINAL_UNREAD = SettingsKeys.OWN + "original.unread";
+
+    static final String ORIGINAL_PLANT = SettingsKeys.OWN + "original.plant";
+
+    static final String ORIGINAL_RANGE = SettingsKeys.OWN + "original.range";
+
+    static final String ORIGINAL_ABSENT = SettingsKeys.OWN + "original.absent";
+
+    static final String ORIGINAL_ABSENT_LIST = SettingsKeys.OWN + "original.absent.list";
+
+    static final String ORIGINAL_BROKEN = SettingsKeys.OWN + "original.broken";
+
+    /** Every key of the row, for the test that holds the language file to them. */
+    static final List<String> ORIGINAL_WORDS = Collections.unmodifiableList(
+        java.util.Arrays.asList(
+            ORIGINAL_ROW,
+            originalWords(ORIGINAL_OFF),
+            originalWords(ORIGINAL_OFF) + ".line",
+            originalWords(ORIGINAL_OFF) + ".detail",
+            originalWords(ORIGINAL_ON),
+            originalWords(ORIGINAL_ON) + ".line",
+            originalWords(ORIGINAL_ON) + ".detail",
+            ORIGINAL_UNMATCHED,
+            ORIGINAL_UNREAD,
+            ORIGINAL_PLANT,
+            ORIGINAL_RANGE,
+            ORIGINAL_ABSENT,
+            ORIGINAL_ABSENT_LIST,
+            ORIGINAL_BROKEN));
+
+    /** What the original's file gave when the screen opened, or null where there was no file. */
+    private OriginalSettings.Reading original;
+
+    /** The original's file as last looked for ({@link OriginalFile#look}); null where there is none. */
+    public void original(String text) {
+        original = text == null ? null : OriginalSettings.read(text, FaithfulProfile.EDITION);
+    }
+
+    /** Whether the row is shown: the original's file was found, readable or not. */
+    public boolean originalFound() {
+        return original != null && config != null && config.hasCategory(FaithfulProfile.CATEGORY);
+    }
+
+    /** The row's two rungs, in the order its dropdown lists them. */
+    public List<String> originalChoices() {
+        return java.util.Arrays.asList(ORIGINAL_OFF, ORIGINAL_ON);
+    }
+
+    /**
+     * The rung the row shows, as a preset's chooser shows the rung whose numbers are there: "In use" while Faithful
+     * Mode is on and the screen holds every value of the file, "Not in use" otherwise.
+     */
+    public String originalChosen() {
+        Map<String, String> wanted = originalValues();
+        if (wanted.isEmpty()) return ORIGINAL_OFF;
+        for (Map.Entry<String, String> one : wanted.entrySet()) {
+            String held = edits.value(one.getKey());
+            if (held == null || !sameLines(held, one.getValue())) return ORIGINAL_OFF;
+        }
+        return ORIGINAL_ON;
+    }
+
+    /**
+     * What a rung sets, by id: "In use" the file's values ({@link #originalValues}); "Not in use", where the file's
+     * values are in use, Faithful Mode off, the file's numbers left in its settings; nothing otherwise.
+     */
+    Map<String, String> originalRung(String rung) {
+        if (ORIGINAL_ON.equals(rung)) return originalValues();
+        Map<String, String> out = new LinkedHashMap<String, String>();
+        if (ORIGINAL_ON.equals(originalChosen())) out.put(FAITHFUL, "false");
+        return keepKnown(out);
+    }
+
+    /**
+     * A rung's detail panel (spec 2.8), as a preset's lists what its rung would change: for "In use",
+     * {@link #originalDetail}; for "Not in use", Faithful Mode switched off where the file's values are in use, or that
+     * it changes nothing.
+     */
+    public List<String> originalChanges(String rung) {
+        if (ORIGINAL_ON.equals(rung)) return originalDetail();
+        List<String> out = new ArrayList<String>();
+        String named = words.words(originalWords(ORIGINAL_OFF));
+        List<PresetDiff.Change> changes = PresetDiff
+            .diff(edits.values(), originalRung(rung), new ArrayList<String>(byId.keySet()));
+        if (changes.isEmpty()) {
+            out.add(words.words(SettingsKeys.PRESET_NONE, named));
+            return out;
+        }
+        out.add(
+            changes.size() == 1 ? words.words(SettingsKeys.PRESET_CHANGES_ONE, named)
+                : words.words(SettingsKeys.PRESET_CHANGES_MANY, named, changes.size()));
+        for (PresetDiff.Change change : changes) {
+            Setting setting = byId.get(change.id);
+            out.add(
+                words.words(
+                    SettingsKeys.PRESET_LINE,
+                    setting == null ? change.id : named(setting),
+                    said(change.from),
+                    said(change.to)));
+        }
+        return out;
+    }
+
+    /**
+     * The line under the row's title: where the file cannot be read, the refusal (spec 2.8: "the row says so and
+     * changes nothing"); null otherwise, so the chosen rung's own line is shown, as a preset row's is.
+     */
+    public String originalSummary() {
+        if (!originalFound() || original.readable()) return null;
+        return originalDetail().get(0);
+    }
+
+    /**
+     * A rung chosen (spec 2.8): "In use" turns Faithful Mode on and sets the file's values through the same edit path a
+     * preset's rung takes, as one step, so Ctrl+Z, Cancel and Save treat it as any choice; "Not in use" takes Faithful
+     * Mode off again by that path. Nothing where the file cannot be read.
+     */
+    public void chooseOriginal(String rung) {
+        Map<String, String> wanted = originalRung(rung);
+        if (!wanted.isEmpty()) edits.group(wanted);
+    }
+
+    /**
+     * What choosing the row sets, by id, as the screen holds values: Faithful Mode on, and each {@code faithful}
+     * setting the file's value, one key to one key ({@code OriginalSettings.KEYS}). A value the screen already holds is
+     * given in the screen's own text, so it is no change. Empty where there is no file, or it cannot be read.
+     */
+    Map<String, String> originalValues() {
+        Map<String, String> out = new LinkedHashMap<String, String>();
+        if (!originalFound() || !original.readable()) return out;
+        out.put(FAITHFUL, "true");
+        for (Map.Entry<String, Object> one : original.values()
+            .entrySet()) {
+            String id = one.getKey();
+            String held = edits.value(id);
+            String wanted = screenText(one.getValue());
+            out.put(id, held != null && sameLines(held, wanted) ? held : wanted);
+        }
+        return keepKnown(out);
+    }
+
+    /** A value of {@code OriginalSettings.Reading.values} as the screen holds it: a list a line a value. */
+    private static String screenText(Object value) {
+        if (value instanceof double[]) {
+            double[] figures = (double[]) value;
+            String[] lines = new String[figures.length];
+            for (int i = 0; i < figures.length; i++) lines[i] = NumberWords.number(figures[i]);
+            return join(lines);
+        }
+        if (value instanceof String[]) return join((String[]) value);
+        if (value instanceof Double) return NumberWords.number((Double) value);
+        return String.valueOf(value);
+    }
+
+    /** Whether two values hold the same lines, a number by its value: "5.0" and "5" are the same figure. */
+    private static boolean sameLines(String one, String other) {
+        List<String> a = lines(one);
+        List<String> b = lines(other);
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            if (!PresetDiff.same(a.get(i), b.get(i))) return false;
+        }
+        return true;
+    }
+
+    /**
+     * The row's detail (spec 2.8): "Choosing Use your TRMT settings changes N settings:" with a line a change, then
+     * "Could not be matched:" with a line for each value that has no counterpart here, then each key the file did not
+     * hold with the default used for it. A file that cannot be read is one line saying so, and nothing else.
+     */
+    public List<String> originalDetail() {
+        List<String> out = new ArrayList<String>();
+        if (!originalFound()) return out;
+        if (!original.readable()) {
+            OriginalSettings.Problem broken = original.refusal();
+            out.add(words.words(ORIGINAL_BROKEN, broken.line, broken.column, broken.why));
+            return out;
+        }
+        String named = words.words(ORIGINAL_ROW);
+        List<PresetDiff.Change> changes = PresetDiff
+            .diff(edits.values(), originalValues(), new ArrayList<String>(byId.keySet()));
+        List<PresetDiff.Change> real = new ArrayList<PresetDiff.Change>();
+        for (PresetDiff.Change change : changes) {
+            if (!sameLines(change.from == null ? "" : change.from, change.to == null ? "" : change.to))
+                real.add(change);
+        }
+        if (real.isEmpty()) {
+            out.add(words.words(SettingsKeys.PRESET_NONE, named));
+        } else {
+            out.add(
+                real.size() == 1 ? words.words(SettingsKeys.PRESET_CHANGES_ONE, named)
+                    : words.words(SettingsKeys.PRESET_CHANGES_MANY, named, real.size()));
+            for (PresetDiff.Change change : real) {
+                Setting setting = byId.get(change.id);
+                out.add(
+                    words.words(
+                        SettingsKeys.PRESET_LINE,
+                        setting == null ? change.id : named(setting),
+                        originalSaid(change.from),
+                        originalSaid(change.to)));
+            }
+        }
+        if (!original.unmatched()
+            .isEmpty()) {
+            out.add(words.words(ORIGINAL_UNMATCHED));
+            for (OriginalSettings.Problem problem : original.unmatched()) out.add(unmatchedLine(problem));
+        }
+        for (OriginalSettings.Problem problem : original.absent()) out.add(unmatchedLine(problem));
+        return out;
+    }
+
+    /** One line about a value of the file, in this edition's words. */
+    private String unmatchedLine(OriginalSettings.Problem problem) {
+        switch (problem.what) {
+            case NOTHING_READS_IT:
+                return words.words(ORIGINAL_UNREAD, problem.key);
+            case NO_SUCH_PLANT:
+                return words.words(ORIGINAL_PLANT, problem.key);
+            case OUT_OF_RANGE:
+                return words.words(
+                    ORIGINAL_RANGE,
+                    problem.key,
+                    NumberWords.number(problem.given),
+                    NumberWords.number(problem.applied));
+            case NOT_IN_FILE:
+                for (OriginalSettings.Key key : OriginalSettings.KEYS) {
+                    if (!key.original.equals(problem.key)) continue;
+                    if (key.kind == OriginalSettings.Kind.PLANTS) return words.words(ORIGINAL_ABSENT_LIST, problem.key);
+                    if (key.kind == OriginalSettings.Kind.SWITCH) {
+                        return words.words(ORIGINAL_ABSENT, problem.key, said(String.valueOf(problem.applied != 0d)));
+                    }
+                }
+                return words.words(ORIGINAL_ABSENT, problem.key, NumberWords.number(problem.applied));
+            default:
+                return words.words(ORIGINAL_BROKEN, problem.line, problem.column, problem.why);
+        }
+    }
+
+    /** A value on one line: a switch as On or Off, each figure of a list by its value, an empty one as "nothing". */
+    private String originalSaid(String value) {
+        if (value == null || value.trim()
+            .isEmpty()) return words.words(FAITHFUL_NOTHING);
+        List<String> out = new ArrayList<String>();
+        for (String line : lines(value)) {
+            String trimmed = line.trim();
+            out.add(
+                trimmed.matches("-?[0-9]+(\\.[0-9]+)?") ? NumberWords.number(Double.parseDouble(trimmed))
+                    : said(trimmed));
+        }
+        StringBuilder joined = new StringBuilder();
+        for (String one : out) {
+            if (joined.length() > 0) joined.append(", ");
+            joined.append(one);
+        }
+        return joined.toString();
     }
 
     // ------------------------------------------------------------------
@@ -895,6 +1508,11 @@ public final class SettingsModel {
         if (locked != null) {
             out.add(new Line(words.words(SettingsKeys.LOCKED, locked), Canvas.GREY));
             out.add(new Line(words.words(SettingsKeys.LOCKED_NOTE), Canvas.GREY));
+        }
+        String suggested = suggested(setting);
+        if (suggested != null) {
+            out.add(new Line(words.words(SettingsKeys.SUGGESTED, suggested), Canvas.GREY));
+            out.add(new Line(words.words(SettingsKeys.SUGGESTED_NOTE), Canvas.GREY));
         }
         Greying.Rule rule = greyedBy(setting);
         if (rule != null) {
@@ -1017,6 +1635,8 @@ public final class SettingsModel {
         if (world) {
             out.add(HEADER_WEARTABLE);
             out.add(HEADER_PUSH);
+            // "Restore a backup" sits in the world's settings (wear backups, 0.9.229), in single player.
+            if (ownWorld) out.add(HEADER_BACKUPS);
         }
         return out;
     }
@@ -1033,6 +1653,9 @@ public final class SettingsModel {
         } else if (HEADER_PUSH.equals(action)) {
             out.add(new Line(words.words(SettingsKeys.HEADER_PUSH), Canvas.GOLD));
             out.add(new Line(words.words(SettingsKeys.HEADER_PUSH_TIP), Canvas.BODY));
+        } else if (HEADER_BACKUPS.equals(action)) {
+            out.add(new Line(words.words(SettingsKeys.HEADER_BACKUPS), Canvas.GOLD));
+            out.add(new Line(words.words(SettingsKeys.HEADER_BACKUPS_TIP), Canvas.BODY));
         }
         return out;
     }
@@ -1079,6 +1702,14 @@ public final class SettingsModel {
         for (String id : edits.changedIds()) {
             Setting setting = byId.get(id);
             if (setting == null || skip.contains(id)) continue;
+            // A setting a server suggests is the player's to change for the visit alone: their choice goes to the
+            // visit, never into the file (0.9.229). A forced one is locked and cannot be edited at all.
+            if (ClientSettingsHeld.choose(setting.category, setting.key, edits.value(id))) {
+                written++;
+                restart |= setting.takes == Takes.RESTART;
+                reload |= setting.takes == Takes.RELOAD;
+                continue;
+            }
             write(setting.property, edits.value(id));
             written++;
             restart |= setting.takes == Takes.RESTART;

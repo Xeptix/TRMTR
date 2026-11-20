@@ -90,11 +90,12 @@ public abstract class MixinBlockCollision implements ISinkableBlock, ISettlingBl
         }
         if (!trmt$sinkable) return;
 
-        AxisAlignedBB box = PhysicalDecay.boxAt(world, x, y, z);
-        if (box == null) return;
+        // Boxes rather than one box (W3 T6): a data file's boxes collide one by one, as the client's ghost does.
+        AxisAlignedBB[] boxes = PhysicalDecay.boxesAt(world, x, y, z);
+        if (boxes == null) return;
 
-        if (mask.intersectsWith(box)) {
-            list.add(box);
+        for (AxisAlignedBB box : boxes) {
+            if (mask.intersectsWith(box)) list.add(box);
         }
         ci.cancel();
     }

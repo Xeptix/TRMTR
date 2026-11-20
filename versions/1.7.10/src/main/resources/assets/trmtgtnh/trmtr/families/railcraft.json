@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "_": "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). Values 6 and 7 of Railcraft's cube are Abyssal Stone and Quarried Stone by the mod's own words, natural rock it generates; the cube's other values are made blocks and stay as they were. The rules read no stone word in the name cube.",
+  "entries": [
+    { "blocks": ["Railcraft:cube:6", "Railcraft:cube:7"], "family": "stone" }
+  ]
+}

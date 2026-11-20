@@ -51,6 +51,11 @@ dependencies {
     // through its message as 1.20.1's Forge jar asked, so a pack without it never touches them.
     compileOnly "maven.modrinth:the-one-probe:${rootProject.top_neoforge_version}"
 
+    // Distant Horizons' API, compile only and never shipped (0.9.229 W6 T17): that mod is LGPL-3.0, and the plugin
+    // that names it (com.trmtgtnh.neoforge.dh) is loaded only where a player has it installed. From Modrinth's Maven; 7.2.0 is
+    // the API inside DistantHorizons-3.3.3-26.2-fabric-neoforge.jar, one jar for Fabric and NeoForge.
+    compileOnly "maven.modrinth:distanthorizonsapi:${rootProject.distanthorizons_api_version}"
+
     common(project(path: ":common")) { transitive = false }
     shadowBundle project(path: ":common", configuration: "transformProductionNeoForge")
 }
@@ -77,3 +82,77 @@ shadowJar {
 }
 
 assemble.dependsOn shadowJar
+
+// ---------------------------------------------------------------------------
+// The TRMTR API's example mod, on the development runs only
+// ---------------------------------------------------------------------------
+//
+// The example mod (0.9.229, W3 spec 2.8, carried in T19 and T20, as Forge's module has it) lives in the 1.7.10 tree's api/example/: its portable plugin
+// and data in common/, and this loader's one registration class in 26.2/neoforge/. That tree is found through the
+// untracked sibling.properties at the root: its apiHome line where one is given (a worktree names its own 1.7.10
+// worktree there), otherwise by following otherEdition to the tree each names in turn. Where neither leads to the folder, this tree and its public repository build exactly as before. It is a source
+// set of its own so that nothing a shipped jar takes - shadowJar and remapJar read the main source set and the common
+// module alone - can reach it, and its jar is written to build/example/, outside build/libs, where staging and the jar
+// checks look. It compiles against the game and TRMTR's classes because the dev run needs both on one classpath; that
+// it uses nothing of TRMTR's but trmtr-api, and that no shipped jar holds it, are checked by guards in the 1.7.10
+// tree's tools.
+//
+// NeoForge loads a second mod in development from the run's classpath: FML 11.0.16's InDevJarLocator takes every jar on
+// the class path holding META-INF/neoforge.mods.toml (ClasspathResourceUtils.findFileSystemRootsOfFileOnClasspath, read
+// with javap) as a mod file of its own. TRMTR then reads its plugin.json and data from that jar as it would a player's.
+def exampleHome = null
+def exampleTrees = []
+def exampleFirst = rootProject.file('sibling.properties')
+if (exampleFirst.exists()) {
+    Properties heldForExample = new Properties()
+    exampleFirst.withInputStream { heldForExample.load(it) }
+    String apiTree = heldForExample.getProperty('apiHome', '').trim()
+    if (!apiTree.isEmpty()) exampleTrees << new File(apiTree)
+    // otherEdition, then the tree each one names in turn, a few steps at most: this tree names 1.7.10.
+    String olderTree = heldForExample.getProperty('otherEdition', '').trim()
+    for (int step = 0; step < 3 && !olderTree.isEmpty(); step++) {
+        File older = rootProject.file(olderTree)
+        exampleTrees << older
+        File olderSibling = new File(older, 'sibling.properties')
+        olderTree = ''
+        if (olderSibling.exists()) {
+            Properties olderHeld = new Properties()
+            olderSibling.withInputStream { olderHeld.load(it) }
+            olderTree = olderHeld.getProperty('otherEdition', '').trim()
+        }
+    }
+}
+for (File tree : exampleTrees) {
+    if (exampleHome == null && new File(tree, 'api/example/26.2/neoforge').isDirectory()) {
+        exampleHome = new File(tree, 'api/example')
+    }
+}
+if (exampleHome != null) {
+    sourceSets {
+        example {
+            java.srcDirs = [new File(exampleHome, 'common/java'), new File(exampleHome, '26.2/neoforge/java')]
+            resources.srcDirs = [new File(exampleHome, 'common/resources'), new File(exampleHome, '26.2/neoforge/resources')]
+            compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        }
+    }
+
+    def exampleJar = tasks.register('exampleJar', Jar) {
+        description = 'The TRMTR API example mod, for the development runs only.'
+        from(sourceSets.example.output)
+        archiveFileName.set('example-26.2-neoforge.jar')
+        destinationDirectory.set(layout.buildDirectory.dir('example'))
+    }
+
+    // Nothing is remapped from 26.1 (the root build file), so this jar is under the names a real game runs with, Mojang's,
+    // on all three loaders, and needs no second one as 1.21.1's Fabric does.
+
+    // Loom's run tasks keep a classpath of their own, and classpath() adds to it whether the run goes by an argument
+    // file or a bare class path (architectury-loom 1.17's AbstractRunTask, getInternalClasspath).
+
+    ['runClient', 'runServer'].each { taskName ->
+        tasks.matching { it.name == taskName }.configureEach { JavaExec task ->
+            task.dependsOn(exampleJar)
+            task.classpath(exampleJar)
+        }
+    }
+}

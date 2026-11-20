@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "_": [
+    "Sandwichable, from All of Fabric 3's census (W4 R6, judged 2026-11-11). Named one by one, only the blocks that census saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Salty sand is sand by detection already.",
+    "Stone: salty rocks and salty stone are solid natural rock the mod lays in the overworld's ground. Their material is clay's, which no rule reads, so detection left them out."
+  ],
+  "entries": [
+    { "blocks": ["sandwichable:salty_rocks", "sandwichable:salty_stone"], "family": "stone" }
+  ]
+}

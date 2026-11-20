@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "Fluffy cloud, the floor of the cloud castles over the Highlands, is its own family (Xep, 2026-11-11: Add both families; 0.9.229, W4). Its packed ice gives the rules ice, and a config that recorded it there still wears it as cloud, as this file is heard over a line that only repeats detection. Named before any census of this edition has seen it (Xep: Name them now), so the same block answers the same in every edition. Read from Twilight Forest 3.11.1021's jar in the 1.12.2 E2E copy: one state, packed ice's material, 0.8 to dig and cloth's sound, so the whole block is named.",
+    "From Enigmatica 2 Expert 1.93a's census of 1.12.2 (W4 R8, judged 2026-11-12). Deadrock, plain, cracked or weathered (values 0 to 2), and trollsteinn (value 0) are the natural rock of the Highlands and the Thornlands, with no stone word for the rules to read, so stone. Named at the values the census judged and no others; the castle bricks, underbricks, giant obsidian and the nagastones and maze stone the rules already place stay as they are."
+  ],
+  "entries": [
+    { "blocks": ["twilightforest:fluffy_cloud"], "family": "cloud" },
+    { "blocks": ["twilightforest:deadrock:0", "twilightforest:deadrock:1", "twilightforest:deadrock:2", "twilightforest:trollsteinn:0"], "family": "stone" }
+  ]
+}

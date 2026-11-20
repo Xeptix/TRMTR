@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import com.trmtgtnh.block.GhostLight;
 import com.trmtgtnh.client.model.GhostQuads;
+import com.trmtgtnh.client.model.HookTints;
 
 /**
  * What color a ghost is at a place.
@@ -51,8 +52,17 @@ public final class GhostTint {
 
     private GhostTint() {}
 
-    /** The three slots the quads ask for, in slot order, as one source each. */
-    private static final List<BlockTintSource> SOURCES = List.of(new Slot(0), new Slot(1), new Slot(2));
+    /**
+     * The three slots the quads ask for, in slot order, as one source each, then the slots a plugin's own quads ask
+     * for (W3 T8, HookTints), which is why the list is longer than three from the API's carry.
+     */
+    private static final List<BlockTintSource> SOURCES = slots();
+
+    private static List<BlockTintSource> slots() {
+        java.util.ArrayList<BlockTintSource> all = new java.util.ArrayList<BlockTintSource>();
+        for (int slot = 0; slot < HookTints.FIRST_SLOT + HookTints.SLOTS; slot++) all.add(new Slot(slot));
+        return List.copyOf(all);
+    }
 
     /**
      * The handlers, which every loader registers against the ghost blocks - one tint source per slot from 26.1, where
@@ -78,6 +88,7 @@ public final class GhostTint {
 
         @Override
         public int colorInWorld(BlockState state, BlockAndTintGetter level, BlockPos pos) {
+            if (index >= HookTints.FIRST_SLOT) return opaque(HookTints.colorOf(pos.asLong(), index));
             return opaque(INSTANCE.getColor(state, level, pos, index));
         }
 
@@ -117,9 +128,11 @@ public final class GhostTint {
      * anything but a lawn (spec GS11, GS12, GT14, GT17).
      *
      * <p>
-     * That edition gives a block one color for all its faces; this version asks a color per tint slot, and slot nought
-     * is the one a block that tints at all answers on - grass, leaves, vines. White where the block answers nothing, as
-     * a block with no color of its own answers white there.
+     * That edition gives a block one color for all its faces; this version asks a color per tint slot, so the block's
+     * one color is the one it gives its own top: asked at the slot its own model tints its top with ({@link #topSlot}).
+     * Slot nought for vanilla's grass, leaves and vines, and for a block whose top takes no tint, which answers white
+     * there. Not slot nought for every block: TerraFirmaCraft colors its grass at slot one and answers nothing at
+     * nought, so asking nought alone drew its worn grass top in the grey of the picture as stored (0.9.229 W6 R9).
      */
     public static int coveredTint(BlockAndTintGetter world, BlockPos pos, BlockColors colors) {
         if (world == null || pos == null || colors == null) return 0xFFFFFF;
@@ -139,18 +152,107 @@ public final class GhostTint {
             own = null;
         }
         if (!takesCoveredTint(own, com.trmtgtnh.erosion.ErosionState.familyOf(record))) return 0xFFFFFF;
-        if (untintedHollow(own, com.trmtgtnh.erosion.ErosionState.sinkOf(record),
+        // Sunk only where the block's shape sinks (W3 T6 follow-up): a "sinks": false lawn is drawn as unsunk turf.
+        if (untintedHollow(own,
+            com.trmtgtnh.surface.SurfaceShape.sinks(covered) ? com.trmtgtnh.erosion.ErosionState.sinkOf(record) : 0,
             com.trmtgtnh.surface.SurfaceShape.of(covered) == com.trmtgtnh.surface.SurfaceShape.STAIR)) {
             return 0xFFFFFF;
         }
+        final BlockState asked = covered;
         try {
-            // Slot nought of the covered block's tint sources, asked in the world - 1.21.1's getColor(state, world, pos,
-            // 0). A block with no source there answers -1, as a block with no handler did, which is white below.
-            BlockTintSource source = colors.getTintSource(covered, 0);
-            return source == null ? 0xFFFFFF
-                : opaqueTint(source.colorInWorld(covered, new OriginTintView(world, pos, covered), pos));
+            // The covered block's tint source at the slot its own top is tinted at, asked in the world - 1.21.1's
+            // getColor(state, world, pos, slot). A block with no source there answers -1, as a block with no handler
+            // did, which is white.
+            return ownColor(slot -> {
+                BlockTintSource source = colors.getTintSource(asked, slot);
+                return source == null ? -1 : source.colorInWorld(asked, new OriginTintView(world, pos, asked), pos);
+            }, topTints(asked));
         } catch (RuntimeException awkwardBlock) {
             return 0xFFFFFF;
+        }
+    }
+
+    /**
+     * A covered block's one color: its color handler's answer at the slot its own top is tinted at, as a tint.
+     *
+     * @param answerAt the block's color handler at its square, by tint slot
+     * @param topTints the tint slot of each quad the block's own model draws on its top, in order, -1 for none
+     */
+    static int ownColor(java.util.function.IntUnaryOperator answerAt, int[] topTints) {
+        return opaqueTint(answerAt.applyAsInt(topSlot(topTints)));
+    }
+
+    /**
+     * The slot a block tints its own top at: its first tinted top quad's, and nought where none is tinted, the slot
+     * every block was asked at before (0.9.229 W6 R9). TerraFirmaCraft's grass draws its top from a part whose one face
+     * is {@code tintindex} 1, and its color handler answers only there: read from TerraFirmaCraft-Forge-1.20.1-3.2.28
+     * ({@code ClientEventHandler}, the grass handler {@code snowy || tintIndex != 1 ? -1 : grassColor}) and the same in
+     * TerraFirmaCraft-NeoForge-1.21.1-4.2.13.
+     */
+    static int topSlot(int[] topTints) {
+        if (topTints != null) {
+            for (int tint : topTints) {
+                if (tint >= 0) return tint;
+            }
+        }
+        return 0;
+    }
+
+    /** What each top quad of a model is tinted at, kept per state with the model it was read from. */
+    private static final java.util.Map<BlockState, Top> TOPS = new java.util.concurrent.ConcurrentHashMap<BlockState, Top>();
+
+    private static final class Top {
+
+        final net.minecraft.client.renderer.block.dispatch.BlockStateModel model;
+
+        final int[] tints;
+
+        Top(net.minecraft.client.renderer.block.dispatch.BlockStateModel model, int[] tints) {
+            this.model = model;
+            this.tints = tints;
+        }
+    }
+
+    /**
+     * The tint slot of each quad a block's own model draws on its top, from its model as the game draws it - every
+     * part's quads on the up side, else the unculled quads that face up, as {@code WearTextures.drawnFace} asks them,
+     * with its seed. By 26.1 a model hands out parts ({@code collectParts}) and a quad's slot is its material's
+     * ({@code materialInfo().tintIndex()}), where 1.21.1 asked the baked model its quads and each quad its slot. Kept
+     * per state and read again once the models are baked anew. Empty where the model will not say; never throws.
+     */
+    static int[] topTints(BlockState covered) {
+        try {
+            net.minecraft.client.renderer.block.dispatch.BlockStateModel model = net.minecraft.client.Minecraft
+                .getInstance()
+                .getModelManager()
+                .getBlockStateModelSet()
+                .get(covered);
+            if (model == null) return new int[0];
+            Top known = TOPS.get(covered);
+            if (known != null && known.model == model) return known.tints;
+            List<net.minecraft.client.renderer.block.dispatch.BlockStateModelPart> parts = new java.util.ArrayList<net.minecraft.client.renderer.block.dispatch.BlockStateModelPart>();
+            model.collectParts(net.minecraft.util.RandomSource.create(42L), parts);
+            List<net.minecraft.client.resources.model.geometry.BakedQuad> up = new java.util.ArrayList<net.minecraft.client.resources.model.geometry.BakedQuad>();
+            for (net.minecraft.client.renderer.block.dispatch.BlockStateModelPart part : parts) {
+                List<net.minecraft.client.resources.model.geometry.BakedQuad> quads = part
+                    .getQuads(net.minecraft.core.Direction.UP);
+                if (quads != null) up.addAll(quads);
+            }
+            if (up.isEmpty()) {
+                for (net.minecraft.client.renderer.block.dispatch.BlockStateModelPart part : parts) {
+                    for (net.minecraft.client.resources.model.geometry.BakedQuad quad : part.getQuads(null)) {
+                        if (quad.direction() == net.minecraft.core.Direction.UP) up.add(quad);
+                    }
+                }
+            }
+            int[] tints = new int[up.size()];
+            for (int i = 0; i < tints.length; i++) tints[i] = up.get(i)
+                .materialInfo()
+                .tintIndex();
+            TOPS.put(covered, new Top(model, tints));
+            return tints;
+        } catch (RuntimeException | LinkageError awkwardModel) {
+            return new int[0];
         }
     }
 

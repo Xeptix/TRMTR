@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "EvilCraft, from All the Mods 10's census (W4 R9, judged 2026-11-12). Infested nether soul sand is the Nether's soul sand as EvilCraft lays it, seen in the soul sand valleys, and wears as the game's soul sand does, as sand; it is on a material no rule reads, and the rules refuse every block called soul. Named alone, the one block that census judged, because a file reaches a config that already holds detection's line where a changed rule does not. Its infested netherrack and nether bricks were not judged and are left to the rules.",
+    "Bloody cobblestone is broken rock, a form of cobblestone, on a material no rule reads, as 1.20.1's census ruled it from All the Mods 9's, so the editions match (W4 R14, 2026-11-13)."
+  ],
+  "entries": [
+    { "blocks": ["evilcraft:bloody_cobblestone"], "family": "cobble" },
+    { "blocks": ["evilcraft:infested_nether_soul_sand"], "family": "sand" }
+  ]
+}

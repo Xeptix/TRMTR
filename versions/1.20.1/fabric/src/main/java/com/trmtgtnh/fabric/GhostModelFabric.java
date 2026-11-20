@@ -60,7 +60,7 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), com.trmtgtnh.erosion.ErosionState.sinkOf(record));
+        int rotation = com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin);
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
 
@@ -84,21 +84,103 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
             ? OptiFabricEntry.bufferOf(context, com.trmtgtnh.client.GhostLayers.of(origin))
             : null;
         if (optifine != null) OptiFineMaterial.pushClaim(GhostQuads.claimOf(record, origin, rotation), optifine);
+        boolean stair = stairs != null && !stairs.isEmpty();
+        // A worn stair is lit as the game lights the real stair (1.0.0): its quads go to the renderer as a vanilla model's
+        // ({@code bakedModelConsumer}, fabric-renderer-indigo 1.5.3, read from its jar), which is the only way this renderer API has to
+        // say "shade these as vanilla shades": Indigo lights them with isVanilla set, by vanilla's own corner sampling
+        // (calcFastVanilla in its default HYBRID mode), and Indium alike, as the real stair beneath. 0.9.228 drew a worn
+        // stair flat after the enhanced shading every FRAPI quad otherwise takes darkened its riser; flat, it drew with no
+        // shading at all, where the stairlight part photographs the same stairs unworn with the game's own. The glow
+        // overlays go with the picture, so they are shaded as it is. Not under Canvas, whose claimed material would be
+        // lost (its own smooth lighting draws the material below), nor under OptiFabric, whose vertex stride the
+        // vanilla encoder does not read (see BY_ATTRIBUTE), nor for a square a plugin draws, which is drawn flat.
         try {
-            emit(
-                context,
-                GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
-                null,
-                material);
+            if (stair && material != null && !FrexMaterial.active() && !BY_ATTRIBUTE && !GhostQuads.drawnByHook(level, pos)) {
+                java.util.List<BakedQuad> quads = new java.util.ArrayList<BakedQuad>(
+                    GhostQuads.build(level, pos, record, origin, outline, rotation, fringeTurn, snowed, null, stairs));
+                quads.addAll(GhostQuads.glow(record, origin, outline, rotation, fringeTurn, snowed, null, stairs));
+                context.bakedModelConsumer().accept(new VanillaStair(fallback, quads), state);
+                return;
+            }
+            // Through the level-aware build, where trmtr-api's render hook is asked for a ghost over a block a plugin
+            // draws (W3 T8). The six faces first and the faces with no side last, the order vanilla's renderer asks a
+            // model in, which is what lets the hook's one drawing serve all seven asks and be forgotten after them.
             for (Direction side : Direction.values()) {
                 emit(
                     context,
-                    GhostQuads.build(record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
+                    GhostQuads.build(level, pos, record, origin, outline, rotation, fringeTurn, snowed, side, stairs),
                     side,
                     material);
+                emitGlow(context, GhostQuads.glow(record, origin, outline, rotation, fringeTurn, snowed, side, stairs), side,
+                    material);
             }
+            emit(
+                context,
+                GhostQuads.build(level, pos, record, origin, outline, rotation, fringeTurn, snowed, null, stairs),
+                null,
+                material);
+            emitGlow(context, GhostQuads.glow(record, origin, outline, rotation, fringeTurn, snowed, null, stairs), null,
+                material);
         } finally {
             if (optifine != null) OptiFineMaterial.popClaim(optifine);
+        }
+    }
+
+    /**
+     * A worn stair's quads as a vanilla model hands them over (1.0.0): every quad under no side, as the stair's boxes
+     * are never culled, with smooth lighting on as the real stair's model has it, and everything else the ghost's own
+     * model. Handed to the renderer's vanilla-model door for one square, so the renderer shades them as it shades the
+     * real stair; drawn in the ghost's registered pass, as a vanilla model's quads are.
+     */
+    private static final class VanillaStair implements BakedModel {
+
+        private final BakedModel ghost;
+
+        private final List<BakedQuad> quads;
+
+        VanillaStair(BakedModel ghost, List<BakedQuad> quads) {
+            this.ghost = ghost;
+            this.quads = quads;
+        }
+
+        @Override
+        public List<BakedQuad> getQuads(BlockState state, Direction side, net.minecraft.util.RandomSource random) {
+            return side == null ? quads : java.util.Collections.<BakedQuad>emptyList();
+        }
+
+        @Override
+        public boolean useAmbientOcclusion() {
+            return true;
+        }
+
+        @Override
+        public boolean isGui3d() {
+            return ghost.isGui3d();
+        }
+
+        @Override
+        public boolean usesBlockLight() {
+            return ghost.usesBlockLight();
+        }
+
+        @Override
+        public boolean isCustomRenderer() {
+            return false;
+        }
+
+        @Override
+        public TextureAtlasSprite getParticleIcon() {
+            return ghost.getParticleIcon();
+        }
+
+        @Override
+        public net.minecraft.client.renderer.block.model.ItemTransforms getTransforms() {
+            return ghost.getTransforms();
+        }
+
+        @Override
+        public ItemOverrides getOverrides() {
+            return ghost.getOverrides();
         }
     }
 
@@ -125,6 +207,41 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
         return renderer.materialFinder()
             .clear()
             .blendMode(0, com.trmtgtnh.client.GhostLayers.of(origin))
+            .find();
+    }
+
+    /**
+     * Hands the glow overlays of a square to the emitter (0.9.228, real glow): cutout, so the pixels that do not glow
+     * are clear, and otherwise the very material the picture under them is drawn with - its smooth lighting or its
+     * flatness, its Canvas claim - so the overlay is shaded exactly as the picture is. Indigo and the Sodium family
+     * multiply the same ambient occlusion and face shade into it and take, channel by channel, the brighter of the light
+     * they work out and the light baked into each quad, which {@code fromVanilla} copies in. With smooth lighting off
+     * (the first version) the overlay lost the picture's ambient occlusion and drew up to half as bright again beside a
+     * rut's walls by day. Nothing is emitted where a square has no glow, and where a renderer ignores the baked light
+     * the cracks are still the purple the picture already draws them in.
+     */
+    private static void emitGlow(RenderContext context, List<BakedQuad> quads, Direction cull,
+        net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial under) {
+        if (quads.isEmpty() || under == null) return;
+        net.fabricmc.fabric.api.renderer.v1.Renderer renderer = net.fabricmc.fabric.api.renderer.v1.RendererAccess.INSTANCE
+            .getRenderer();
+        if (renderer == null) return;
+        net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial material = renderer.materialFinder()
+            .copyFrom(under)
+            .blendMode(0, net.fabricmc.fabric.api.renderer.v1.material.BlendMode.CUTOUT)
+            .find();
+        // Through the same emit as the picture's quads, so they are handed over the same way, the OptiFabric switch
+        // included; each is a smooth hook quad, which emit leaves on this material.
+        emit(context, quads, cull, material);
+    }
+
+    /** The same material with smooth lighting off, for a hooked block's quads. */
+    private static net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial flat(
+        net.fabricmc.fabric.api.renderer.v1.material.RenderMaterial material) {
+        return net.fabricmc.fabric.api.renderer.v1.RendererAccess.INSTANCE.getRenderer()
+            .materialFinder()
+            .copyFrom(material)
+            .ambientOcclusion(net.fabricmc.fabric.api.util.TriState.FALSE)
             .find();
     }
 
@@ -199,7 +316,11 @@ public class GhostModelFabric implements BakedModel, FabricBakedModel {
             emitter.nominalFace(quad.getDirection());
             emitter.colorIndex(quad.getTintIndex());
             // Before emit, like everything else here, and after fromVanilla, which does not touch it.
-            if (material != null) emitter.material(material);
+            // A hooked block's quads go without smooth lighting, as 1.7.10's (ApiDraw, "Light"): Indigo and the Sodium family
+            // then take the brighter of the cell they read and the light baked into the quad, which fromVanilla copied.
+            // A hooked block's quad is flat; a glow overlay's, smooth, keeps the material it was handed (0.9.228).
+            if (material != null) emitter.material(quad instanceof com.trmtgtnh.client.model.HookQuad
+                && !((com.trmtgtnh.client.model.HookQuad) quad).hasAmbientOcclusion() ? flat(material) : material);
             emitter.emit();
         }
     }

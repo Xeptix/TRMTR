@@ -26,9 +26,10 @@ import com.trmtgtnh.client.settings.SettingsKeys;
  * <p>
  * Where a picture helps (spec M23.2, S3) each value carries one, drawn in its row, at 32 by 32 in its detail panel, and
  * the chosen value's at the button's left: a family's wear look on its road block, its cost curve, the depth a preset
- * sinks a rut to and the steps a quality preset wears grass through ({@link ChooserPictures}). {@link #details} is the
- * one seam beside the specification's fixed signature: the lines a preset's detail panel lists (spec S5), which the
- * screen works out.
+ * sinks a rut to and the steps a quality preset wears grass through ({@link ChooserPictures}). Two seams stand beside
+ * the specification's fixed signature, and both are needed: {@link #details}, the lines a preset's detail panel lists
+ * (spec S5), which the screen works out; and {@link #titles}, words filed under a chooser's own keys for a chooser
+ * that is no setting's (0.9.229 W5 T9).
  */
 public final class ChooserButton {
 
@@ -67,6 +68,19 @@ public final class ChooserButton {
     /** The lines a value's detail panel adds (spec S5): what choosing a preset would change. */
     public ChooserButton details(Function<String, List<String>> details) {
         this.details = details;
+        return this;
+    }
+
+    /** Where a value's title is filed, for a chooser that is no setting's; its line and detail follow it. */
+    private Function<String, String> titleKeys;
+
+    /**
+     * Words filed under keys of the chooser's own rather than a setting's (0.9.229 W5 T9, spec 2.8: "Use your TRMT
+     * settings" is chosen as a preset's rung is, and holds no setting): a value's title key, its line at
+     * {@code .line} and its detail at {@code .detail}, as {@link SettingsKeys#option} files them.
+     */
+    public ChooserButton titles(Function<String, String> titleKeys) {
+        this.titleKeys = titleKeys;
         return this;
     }
 
@@ -113,19 +127,19 @@ public final class ChooserButton {
 
     /** A value's words as the dropdown shows them. */
     private Dropdown.Option option(Canvas canvas, String value) {
-        String titleKey = SettingsKeys.option(setting, value);
+        String titleKey = titleKeys != null ? titleKeys.apply(value) : SettingsKeys.option(setting, value);
         String title = canvas.words(titleKey);
         boolean known = !titleKey.equals(title);
         if (!known) {
             return new Dropdown.Option(value, value, canvas.words(SettingsKeys.STATUS_NOT_HERE), null, picture(value));
         }
-        String detailKey = SettingsKeys.optionDetail(setting, value);
+        String detailKey = titleKey + ".detail";
         String detail = canvas.words(detailKey);
         List<String> more = details == null ? Collections.<String>emptyList() : details.apply(value);
         return new Dropdown.Option(
             value,
             title,
-            canvas.words(SettingsKeys.optionLine(setting, value)),
+            canvas.words(titleKey + ".line"),
             detailKey.equals(detail) ? null : detail,
             picture(value),
             more);

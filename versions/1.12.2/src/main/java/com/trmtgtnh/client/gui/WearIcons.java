@@ -29,6 +29,69 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 public final class WearIcons {
 
     /**
+     * A surface's road block, and for a family with none - flesh and taint, which no vanilla block is - the first block
+     * of it the running pack holds (0.9.229, W4 T17; the rig's settings-advanced-2 in FTB Infinity drew the Advanced
+     * fold's two rows with no picture). Null where the pack holds none. The settings screen asks
+     * {@link #familyPicture}, whose first two answers these are.
+     */
+    public static Block familyBlock(SurfaceFamily family) {
+        Block road = com.trmtgtnh.command.CommandTrmt.roadBlock(family);
+        return road != null ? road : heldBlock(family);
+    }
+
+    /** The first block of a family the running game holds - by detection, a data file or the player's list - or null. */
+    private static Block heldBlock(SurfaceFamily family) {
+        for (com.trmtgtnh.surface.SurfaceRegistry.SurfaceState state : com.trmtgtnh.surface.SurfaceRegistry
+            .texturableStates()) {
+            if (state.family == family) return state.block;
+        }
+        return null;
+    }
+
+    /**
+     * The picture a family is shown by in the settings screen - its Surfaces sub-tab (spec M1.2), its Advanced fold row
+     * (M16.2) and its chip in a list of families (C1) - and never nothing (0.9.229; Xep, from GT New Horizons: the
+     * Flesh sub-tab was an empty square, and Leaves and Vegetation were dirt). The sub-tabs drew the road block, which
+     * flesh, taint, cloud and, before 1.19, sculk have none of, and which for leaves and vegetation is dirt, the ground
+     * their yard is laid on. So: the family's own vanilla block where it is one; else the first block of it the running
+     * game holds; else its {@link #standIn}. A block or an item, as {@code SettingsCanvas.picture} takes either.
+     */
+    public static Object familyPicture(SurfaceFamily family) {
+        // Leaves and vegetation have no road of their own: roadBlock's dirt for them is the ground their yard is on.
+        Block road = family.staged ? com.trmtgtnh.command.CommandTrmt.roadBlock(family) : null;
+        if (road != null) return road;
+        Block held = heldBlock(family);
+        return held != null ? held : standIn(family);
+    }
+
+    /**
+     * What a family is pictured by where it is no vanilla block of the game and the game holds none of it, the same in
+     * every edition (0.9.229). Oak leaves and a poppy, the commonest of each. Rotten flesh, which says flesh at a
+     * glance; not soul sand, flesh's ghost twin, which was chosen for how it walks and looks like the Nether's ground.
+     * Mycelium, taint's ghost twin, a purple crust spread over the earth. Obsidian, sculk's ghost twin, the nearest
+     * vanilla face to it that every edition has (from 1.19 sculk is vanilla's own block, so this is never asked there).
+     * White wool, the cloud's twin. Null for a family that is a vanilla block.
+     */
+    static Object standIn(SurfaceFamily family) {
+        switch (family) {
+            case LEAVES:
+                return Blocks.LEAVES;
+            case VEGETATION:
+                return Blocks.RED_FLOWER;
+            case FLESH:
+                return net.minecraft.init.Items.ROTTEN_FLESH;
+            case TAINT:
+                return Blocks.MYCELIUM;
+            case SCULK:
+                return Blocks.OBSIDIAN;
+            case CLOUD:
+                return Blocks.WOOL;
+            default:
+                return null;
+        }
+    }
+
+    /**
      * How long each block in a family's cycle is shown for, in ticks.
      *
      * <p>
@@ -161,6 +224,13 @@ public final class WearIcons {
                 return Blocks.SNOW;
             case ICE:
                 return Blocks.ICE;
+            case FLESH:
+            case TAINT:
+            case SCULK:
+            case CLOUD:
+                // No vanilla block of this game is any of them (0.9.229, W4 T17; sculk and cloud, W4): a row with none
+                // of its own detected shows nothing rather than another family's block.
+                return null;
             default:
                 return Blocks.DIRT;
         }

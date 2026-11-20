@@ -60,6 +60,39 @@ public final class GroundCover {
     private GroundCover() {}
 
     /**
+     * Whether a solid block stands on this square, so that it is drawn and stood on at its full height whatever depth
+     * its record has reached (0.9.229; Xep, 2026-11-16: depth goes away while covered and comes back when the block is
+     * removed, and the texture keeps its stage). The record is never touched: take the block away and the rut is back.
+     *
+     * <p>
+     * The one rule for it. The picture asks it ({@code OverlayPainter}), the client's collision asks it
+     * ({@code GhostLogic.heldSink}) and the server's collision asks it ({@link PhysicalDecay#sinkAt}), so the three
+     * cannot disagree: until it existed the picture filled a covered rut in while both sides' collision stayed eight
+     * pixels down (found in play, 2026-11-16). It is asked of the world alone - no setting either side keeps for itself
+     * - so a client and its server always reach the same answer. Snow, carpets and covered stairs keep the rules they
+     * have: a snow layer and a carpet are not opaque cubes, and a full drift's shelter, a server setting no client is
+     * sent, stays the picture's question alone.
+     *
+     * <p>
+     * A solid block is an opaque cube. On a client a worn square above is a ghost, which stands in for the block the
+     * server has there: that block decides, and a square above whose own top is sunk is no roof on either side - the
+     * client draws it as a sunken ghost and the server stands it hollow.
+     */
+    public static boolean roofedAt(net.minecraft.world.IBlockAccess world, int x, int y, int z) {
+        if (world == null || y < 0 || y + 1 > 255) return false;
+        Block above = world.getBlock(x, y + 1, z);
+        if (above == null) return false;
+        if (above instanceof com.trmtgtnh.block.GhostBlock) {
+            Block origin = com.trmtgtnh.Trmt.proxy.originBlockAt(x, y + 1, z);
+            return origin != null && origin.isOpaqueCube() && !((com.trmtgtnh.block.GhostBlock) above).isSunken();
+        }
+        if (!above.isOpaqueCube()) return false;
+        if (world instanceof World && !((World) world).isRemote)
+            return PhysicalDecay.sinkAt((World) world, x, y + 1, z) == 0;
+        return true;
+    }
+
+    /**
      * Whether something planted is holding this square together.
      *
      * <p>

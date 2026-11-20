@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -75,11 +76,79 @@ public final class TrmtNetwork {
     public static void forget() {
         channel = null;
         complained = false;
+        serverProtocol = -1;
     }
 
     /** Whether a loader has given this a way to send yet. */
     public static boolean wired() {
         return channel != null;
+    }
+
+    /**
+     * Client side: the protocol the server this client is on named in its rules, or -1 until they name one and again
+     * once the client leaves it (RL19, 0.9.229). A client joins servers of other builds, and a server disconnects a
+     * client for a message it never registered: 1.7.10's channel for a number it does not know, the other loaders for
+     * a payload. So a message newer than a server's protocol is not sent to it. A server before 0.9.228 sends no
+     * server tail and names none, which leaves this -1. Volatile: a loader may read it on a thread other than the
+     * one that heard the rules.
+     */
+    private static volatile int serverProtocol = -1;
+
+    /** Client side: the server's rules named its protocol, or -1 where they carried no server tail. */
+    public static void heardServerProtocol(int protocol) {
+        serverProtocol = protocol;
+    }
+
+    /** Client side: this client left its server, whose protocol says nothing of the next one's, nor its clears. */
+    public static void leftServer() {
+        serverProtocol = -1;
+        owesNoClear();
+    }
+
+    /**
+     * Client side: the clears owed to this client's own hellos saying the overlay is off (0.9.229, the review of far
+     * terrain following the switch). A server answers such a hello with a clear-all ({@link #answerHello}), which is no
+     * heal, so Distant Horizons' far terrain keeps what it remembers across that clear and no other
+     * ({@code DistantColors.forgetAll}): a server unsubscribing this client after its mod or rules changed
+     * ({@link #reconcileNow}), or refusing it, has it forget everything, switched off or not. Counted rather than
+     * flagged, since each hello saying off is answered by a clear of its own. Let go of wherever no such answer will
+     * come: a hello saying on, answered with the ground; a server whose rules hold the overlay on, which answers no
+     * hello with a clear ({@code ServerRules.hold}); this client leaving the server ({@link #leftServer}); and far
+     * terrain asking of another world ({@code DistantColors}), whose remembered colors are forgotten anyway.
+     */
+    private static final AtomicInteger owedClears = new AtomicInteger();
+
+    /** Client side: takes one clear owed to a hello saying the overlay is off; true where one was owed. */
+    public static boolean takeClearOwed() {
+        for (;;) {
+            int owed = owedClears.get();
+            if (owed <= 0) return false;
+            if (owedClears.compareAndSet(owed, owed - 1)) return true;
+        }
+    }
+
+    /** Client side: how many such clears are still owed, for the harness's line. */
+    public static int clearsOwed() {
+        return owedClears.get();
+    }
+
+    /** Client side: no such clear will come (see {@link #owedClears}). */
+    public static void owesNoClear() {
+        owedClears.set(0);
+    }
+
+    /**
+     * Client side: this client joined a server, or was moved to another (review R30, 0.9.229). Leaving forgets the
+     * last server's protocol only on a client tick with no world, and a proxy moving a client between its servers
+     * (Velocity, BungeeCord) or a transfer can bring it to the next one with no such tick: it went on naming the last
+     * server's protocol, and sent the press to a server that may never have registered it. So each loader's login
+     * hook calls this as the game handles the server's login: the protocol is forgotten at once, and again behind
+     * whatever the last server sent that still waits in this mod's queue, its rules among them, so they do not name
+     * it to the next server. The next server's own rules name its own.
+     */
+    public static void joinedServer() {
+        serverProtocol = -1;
+        com.trmtgtnh.util.MainThread.onClient(TrmtNetwork::leftServer);
     }
 
     /**
@@ -150,9 +219,11 @@ public final class TrmtNetwork {
      * The protocol this build speaks on the wire: what a client and a server must agree on to read each other. 1 is
      * every build before 0.9.223, whose hello says nothing of it; 2 from 0.9.223 - the 1.16.5 surface table carries a
      * doubled slab in its spare nibble, and the rules carry {@code settleOnWornGround} and the chunk tamper's limits
-     * (Xep, 2026-10-10: "match with the protocol bump"). Moved only with Xep's permission, in every edition at once.
+     * (Xep, 2026-10-10: "match with the protocol bump"); 3 from 0.9.229 (Xep, 2026-11-03: "Step to 3"), taken once in
+     * every edition and shared by the rules' Faithful Mode tail (W5 spec 2.7) and the surface table's shapes (W3 spec
+     * 2.4). Moved only with Xep's permission, in every edition at once.
      */
-    public static final int PROTOCOL = 2;
+    public static final int PROTOCOL = 3;
 
     /** The protocol each player's hello said, 1 for a hello that said none. Forgotten with the player. */
     private static final java.util.Map<UUID, Integer> protocols = new ConcurrentHashMap<UUID, Integer>();
@@ -176,6 +247,15 @@ public final class TrmtNetwork {
     /** Client side: ask the server for the exact wear numbers at one position. */
     public static void requestInspection(int x, int y, int z) {
         if (wired()) sendToServer(new PacketInspect(x, y, z));
+    }
+
+    /**
+     * Client side: a press of the attack key began on this block, with a chunk tamper in reinforce mode (RL19). Sent
+     * only to a server whose rules named a protocol that carries it, since an older server would disconnect the player
+     * for using a tamper; a server that hears no press from this client keeps the two-tick rule for it.
+     */
+    public static void sendTamperPress(int x, int y, int z) {
+        if (wired() && serverProtocol >= PacketTamperPress.SINCE_PROTOCOL) sendToServer(new PacketTamperPress(x, y, z));
     }
 
     /** Client side: the modifier key went down or came up, which the tools read. */
@@ -267,6 +347,8 @@ public final class TrmtNetwork {
         probeLines.remove(player.getUUID());
         toldToUpdate.remove(player.getUUID());
         tableSent.remove(player.getUUID());
+        clientRuleFormats.remove(player.getUUID());
+        settingsAsks.remove(player.getUUID());
     }
 
     /**
@@ -425,6 +507,127 @@ public final class TrmtNetwork {
     public static void rememberProtocol(ServerPlayer player, int protocol) {
         UUID id = player == null ? null : player.getUUID();
         if (id != null) protocols.put(id, Integer.valueOf(protocol));
+    }
+
+    // ------------------------------------------------------------------
+    // A server's rules for its players' settings (0.9.229)
+    // ------------------------------------------------------------------
+
+    /** The client rules format each player's hello said it reads, 0 for none. Forgotten with the player. */
+    private static final java.util.Map<UUID, Integer> clientRuleFormats = new ConcurrentHashMap<UUID, Integer>();
+
+    /** The copy each operator asked for and has not been answered: the ask's number and the strength. */
+    private static final java.util.Map<UUID, int[]> settingsAsks = new ConcurrentHashMap<UUID, int[]>();
+
+    private static final AtomicInteger asks = new AtomicInteger((int) (System.nanoTime() & 0x7FFFFFFF));
+
+    private static volatile boolean unreadableRulesSaid;
+
+    /** Records the client rules format a player's hello said. */
+    public static void rememberClientRules(ServerPlayer player, int format) {
+        UUID id = player == null ? null : player.getUUID();
+        if (id != null) clientRuleFormats.put(id, Integer.valueOf(format));
+    }
+
+    /**
+     * Whether a player's game reads this server's client rules, and so can answer the copy command's ask. A client too
+     * old to say so has no type for the ask, so it is never sent one. NeoForge would refuse the send anyway (read from
+     * 26.2.0.88's NetworkRegistry: checkPacket throws for a payload the other end did not negotiate, and the channel
+     * asks hasChannel first), and refuses to decode a payload it has no registration for; on Forge and Fabric this
+     * test is the whole guard.
+     */
+    public static boolean readsClientRules(ServerPlayer player) {
+        UUID id = player == null ? null : player.getUUID();
+        Integer format = id == null ? null : clientRuleFormats.get(id);
+        return format != null && format.intValue() >= com.trmtgtnh.util.ClientSettingRules.FORMAT;
+    }
+
+    /**
+     * Client side: the rules a server's packet carried, or none. None for an older server, which sent no tail, and for
+     * bytes this build cannot read, which it says once and leaves alone rather than half applying.
+     */
+    public static java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> clientRulesIn(byte[] bytes) {
+        if (bytes == null) return java.util.Collections.emptyList();
+        java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules = com.trmtgtnh.util.ClientSettingRules
+            .decode(bytes);
+        if (rules != null) return rules;
+        if (!unreadableRulesSaid) {
+            unreadableRulesSaid = true;
+            Trmt.LOG.info(
+                "This server sets some of your TRMT settings in a form this build cannot read; your own settings stand");
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * Server side: asks an operator's game for its settings, for /trmt clientrules copy. Whether it was asked: not
+     * where the player's game cannot answer.
+     */
+    public static boolean askForSettings(ServerPlayer player, com.trmtgtnh.util.ClientSettingRules.Strength strength) {
+        if (!wired() || player == null || player.getUUID() == null || !readsClientRules(player)) return false;
+        int ask = asks.incrementAndGet();
+        settingsAsks.put(player.getUUID(), new int[] { ask, strength.ordinal() });
+        sendTo(new PacketClientSettingsAsk(ask), player);
+        return true;
+    }
+
+    /** Client side: answers a server's ask with this game's current settings. */
+    public static void answerSettingsAsk(int ask) {
+        if (!wired()) return;
+        java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> mine = com.trmtgtnh.util.ClientSettingRules
+            .answer(com.trmtgtnh.config.ClientSettingsHeld.current());
+        sendToServer(new PacketClientSettingsCopy(ask, com.trmtgtnh.util.ClientSettingRules.encode(mine)));
+    }
+
+    /**
+     * Server side: an operator's game answered. Taken only for the ask this server sent that player and has not seen
+     * answered, only while they are still an operator, and every setting checked against this server's own.
+     */
+    public static void takeSettingsCopy(ServerPlayer player, int ask, byte[] bytes) {
+        UUID id = player == null ? null : player.getUUID();
+        int[] asked = id == null ? null : settingsAsks.get(id);
+        if (asked == null || asked[0] != ask) {
+            Trmt.LOG.info(
+                "Ignored settings sent by {} that this server did not ask for",
+                player == null ? "?" : player.getGameProfile().name());
+            return;
+        }
+        settingsAsks.remove(id);
+        // Level 2, which from 1.21.11 is the game master's permission rather than a number; the same operators.
+        if (!player.permissions().hasPermission(net.minecraft.server.permissions.Permissions.COMMANDS_GAMEMASTER)) {
+            tellCopy(player, net.minecraft.ChatFormatting.RED, com.trmtgtnh.util.ClientSettingRules.COPY_NEEDS_AN_OPERATOR);
+            return;
+        }
+        java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> sent = com.trmtgtnh.util.ClientSettingRules
+            .decode(bytes);
+        if (sent == null) {
+            tellCopy(player, net.minecraft.ChatFormatting.RED, com.trmtgtnh.util.ClientSettingRules.COPY_UNREADABLE);
+            return;
+        }
+        java.util.Map<String, String> values = new java.util.LinkedHashMap<String, String>();
+        for (com.trmtgtnh.util.ClientSettingRules.Rule each : sent) {
+            values.put(each.id, each.value);
+        }
+        com.trmtgtnh.util.ClientSettingRules.Strength strength = com.trmtgtnh.util.ClientSettingRules.Strength
+            .values()[asked[1]];
+        java.util.List<String> problems = com.trmtgtnh.config.ClientSettingsBook.copy(values, strength);
+        tellCopy(
+            player,
+            net.minecraft.ChatFormatting.GREEN,
+            com.trmtgtnh.util.ClientSettingRules.copiedWords(com.trmtgtnh.config.ClientSettingsBook.size(), strength));
+        for (String problem : problems) {
+            tellCopy(player, net.minecraft.ChatFormatting.GRAY, "Left out: " + problem);
+        }
+        Trmt.LOG.info(
+            "{} copied their settings to this server's client rules: {} rule(s), {} left out",
+            player.getGameProfile().name(),
+            Integer.valueOf(com.trmtgtnh.config.ClientSettingsBook.size()),
+            Integer.valueOf(problems.size()));
+    }
+
+    private static void tellCopy(ServerPlayer player, net.minecraft.ChatFormatting color, String words) {
+        player.sendSystemMessage(Component.literal(words)
+            .withStyle(color));
     }
 
     /** The protocol a player's hello said, or 1 - every build before 0.9.223 - for one that has said none. */
@@ -722,6 +925,13 @@ public final class TrmtNetwork {
 
     /** Client side: announce this client and whether it wants overlays at all. */
     public static void sendHello(boolean wantsOverlays) {
+        // Owed before it is sent, so its answer is never heard first (see owedClears). A client is wired long before
+        // it says hello; where one is not, nothing answers, and the next hello saying on or the next server lets it go.
+        if (wantsOverlays) {
+            owesNoClear();
+        } else {
+            owedClears.incrementAndGet();
+        }
         if (wired()) sendToServer(new PacketHello(wantsOverlays));
     }
 

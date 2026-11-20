@@ -220,6 +220,16 @@ public final class GhostInherit {
     }
 
     /**
+     * Flesh's and crusted taint's own hardness where a square answers through their stand-in, or NaN: soul sand and
+     * mycelium are the nearest vanilla ground, and softer than the real blocks (0.9.229, W4 T17; see
+     * {@link GhostFamily#ownHardness}).
+     */
+    static float standInHardness(Block ghost, BlockGetter world, BlockPos pos) {
+        if (coveredAt(ghost, pos) != null) return Float.NaN;
+        return GhostFamily.ownHardness(GhostFamily.familyAt(world, pos));
+    }
+
+    /**
      * The real block under a ghost at a square, or null when nothing trustworthy is recorded - the 1.7.10 edition's
      * {@code GhostLogic.coveredAt}: never the ghost itself, never another ghost.
      */
@@ -259,6 +269,16 @@ public final class GhostInherit {
         if (covered == null) return Float.NaN;
         if (!enter()) return Float.NaN;
         try {
+            float own = standInHardness(ghost, world, pos);
+            if (!Float.isNaN(own)) {
+                // Flesh and crusted taint answer through a stand-in softer than the real block: its progress at
+                // the real block's hardness, as progress goes as one over hardness (0.9.229, W4 T17).
+                // And sculk, which stands in as obsidian here, is dug as a block that needs no tool (0.9.229, W4).
+                BlockState dug = GhostFamily.dugAs(GhostFamily.familyAt(world, pos), covered);
+                float its = dug.getDestroySpeed(world, pos);
+                float progress = dug.getDestroyProgress(player, new OriginView(world, pos, dug), pos);
+                return its > 0F ? progress * its / own : progress;
+            }
             return covered.getDestroyProgress(player, new OriginView(world, pos, covered), pos);
         } catch (RuntimeException awkwardBlock) {
             return Float.NaN;
@@ -305,6 +325,15 @@ public final class GhostInherit {
         if (ground == null || !(ground.getBlock() instanceof BlockGhost)) return ground;
         BlockState covered = coveredAt(ground.getBlock(), pos);
         return covered == null ? ground : covered;
+    }
+
+    /**
+     * {@link #soilFor} at the square below a plant, given the state read there - another mod's, where one redirects the
+     * read: what a cactus's and a reed's mixins answer on the Fabric jars without MixinExtras (0.9.229), the square worked
+     * out from the plant's own square as vanilla works it out, so no note is held between the read and the answer.
+     */
+    public static BlockState soilBelow(BlockState ground, BlockPos plant) {
+        return soilFor(ground, plant.below());
     }
 
     private static volatile boolean taggedSoilSaid;

@@ -3,13 +3,16 @@ package com.trmtgtnh.client.gui;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 
 import com.trmtgtnh.client.settings.Canvas;
 import com.trmtgtnh.client.settings.Edits;
+import com.trmtgtnh.client.settings.FoldFamilies;
 import com.trmtgtnh.client.settings.KeyedText;
 import com.trmtgtnh.client.settings.SettingsGeometry.Rect;
 import com.trmtgtnh.client.settings.SettingsKeys;
@@ -30,7 +33,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * quality its five controls: the two counts as sliders, the sprite ceiling and the textured surfaces as fields, the
  * per-surface switch. Every edit is written back through the shared {@link KeyedText} in the file's own form, so the
  * preset machinery reads it exactly as before; an empty value shows its rows empty, and the first number typed into
- * one starts it.
+ * one starts it. A number that cannot stand yet is kept here, on the field, until it can: see {@link #type}.
  *
  * <p>
  * Its own fields, drawn on the {@link Canvas} and typed into through {@link #keyTyped}, so a test can drive the whole
@@ -50,6 +53,9 @@ public final class RememberedRows {
 
     /** The settings it shows: {@code presets.remembered.*}. */
     static final String PREFIX = ConfigLayout.REMEMBERED + ".";
+
+    /** How many numbers quality's entry holds. */
+    private static final int QUALITY_PARTS = 5;
 
     /** The five presets, in the order the Presets tab shows them. */
     static final String[] AXES = { "quality", "wear", "healing", "phases", "depth" };
@@ -112,11 +118,39 @@ public final class RememberedRows {
 
     private final Slider[] sliders = new Slider[2];
 
-    public RememberedRows(Edits edits, int left, int width) {
+    /** What is typed in a field and cannot be written yet, by {@link #cell}: see {@link #type}. */
+    private final Map<String, String> drafts = new HashMap<String, String>();
+
+    /** The preset's kept text each preset's drafts were typed over: an undo under them lets them go. */
+    private final Map<String, String> draftedOver = new HashMap<String, String>();
+
+    /**
+     * The surfaces, by their first {@link #cell}, an entry that names others did not name when the fold opened: a
+     * config
+     * written before the surface was added, as flesh and taint are to one from before 0.9.229. Each shows what Custom
+     * brings back for it, its own numbers ({@code Presets.unremembered}), never an empty field (W4 T17; the rig's
+     * settings-advanced-2 in FTB Infinity drew them empty). Taken when the fold opens, so a named row emptied while it
+     * is
+     * open stays empty as typed; nothing remembered at all still opens its rows empty (M16.2).
+     */
+    private final java.util.Set<String> unnamed = new java.util.HashSet<String>();
+
+    /**
+     * {@code held} is what the running pack holds a block of ({@code SurfaceRegistry.familiesHeld}): a family's rows
+     * show only for those (0.9.229, W4 T17; see {@link FoldFamilies}).
+     */
+    public RememberedRows(Edits edits, int left, int width, Collection<SurfaceFamily> held) {
         this.edits = edits;
         this.left = left;
         this.width = width;
-        this.lines = lines();
+        this.lines = lines(held);
+        for (Line line : lines) {
+            if (line.kind != Kind.FAMILY) continue;
+            String text = edits.value(custom(line.axis));
+            Map<String, String> entries = KeyedText.keyed(text == null ? "" : text);
+            if (!entries.isEmpty() && !entries.containsKey(line.family.key()))
+                unnamed.add(cell(line.axis, line.family, 0));
+        }
         sliders[0] = new Slider(number(part("quality", 0), 80), 16, 80, 'I');
         sliders[1] = new Slider(number(part("quality", 1), 4), 1, 4, 'I');
     }
@@ -125,8 +159,12 @@ public final class RememberedRows {
     // What it shows - plain
     // ------------------------------------------------------------------
 
-    /** The rows, top to bottom: each preset's heading, its last choice, then its numbers. */
-    static List<Line> lines() {
+    /**
+     * The rows, top to bottom: each preset's heading, its last choice, then its numbers, a surface's only for a family
+     * the pack holds.
+     */
+    static List<Line> lines(Collection<SurfaceFamily> held) {
+        List<SurfaceFamily> families = FoldFamilies.shown(held);
         List<Line> out = new ArrayList<Line>();
         for (String axis : AXES) {
             out.add(new Line(Kind.HEADING, axis, null, 0, heading(axis)));
@@ -141,7 +179,7 @@ public final class RememberedRows {
                 continue;
             }
             if ("wear".equals(axis) || "phases".equals(axis)) out.add(new Line(Kind.COLUMNS, axis, null, 0, null));
-            for (SurfaceFamily family : SurfaceFamily.staged()) out.add(new Line(Kind.FAMILY, axis, family, 0, null));
+            for (SurfaceFamily family : families) out.add(new Line(Kind.FAMILY, axis, family, 0, null));
         }
         return out;
     }
@@ -175,10 +213,18 @@ public final class RememberedRows {
 
     /** What a field holds now, as the file holds it: empty where nothing is remembered. */
     String value(String axis, SurfaceFamily family, int part) {
+        settle(axis);
+        String draft = drafts.get(cell(axis, family, part));
+        return draft != null ? draft : written(axis, family, part);
+    }
+
+    /** What the file's form holds for a field, with no draft over it. */
+    private String written(String axis, SurfaceFamily family, int part) {
         if (family == null) return part(axis, part);
         String text = edits.value(custom(axis));
         String held = KeyedText.keyed(text == null ? "" : text)
             .get(family.key());
+        if (held == null && unnamed.contains(cell(axis, family, 0))) held = Presets.unremembered(axis, family);
         List<String> parts = KeyedText.commas(held == null ? "" : held);
         return part < parts.size() ? parts.get(part)
             .trim() : "";
@@ -194,20 +240,87 @@ public final class RememberedRows {
     /**
      * A number typed into a field, written back in the file's own form (spec M16.2): a surface's number into its
      * {@code key=value} entry, a quality number into its place in the comma list. One edit.
+     *
+     * <p>
+     * Only a whole entry is written. The presets read a pair by both its numbers and quality by all five, so until
+     * 0.9.229 the first number typed into an empty row of a pair went to the file alone: {@code grass=5} was passed
+     * over, and {@code grass=,80} (its second number typed first) or {@code dirt=} (a field emptied) stopped
+     * {@code Presets.restore} partway through, with the surfaces before it put back and the rest not. So a number that
+     * cannot stand yet stays on its field until the entry reads whole, and a row emptied of all its numbers leaves the
+     * file. A half typed row left behind on Save is not kept, which is what the row said: nothing whole was in it.
      */
     void type(String axis, SurfaceFamily family, int part, String typed) {
         String id = custom(axis);
+        settle(axis);
         String text = edits.value(id);
         if (text == null) text = "";
+        int parts = parts(axis, family);
+        boolean whole = true;
+        boolean empty = true;
+        for (int each = 0; each < parts; each++) {
+            String shown = each == part ? typed : value(axis, family, each);
+            whole &= reads(axis, shown);
+            empty &= shown.trim()
+                .isEmpty();
+        }
+        if (!whole && !empty) {
+            drafts.put(cell(axis, family, part), typed);
+            draftedOver.put(axis, text);
+            return;
+        }
         String written;
         if (family == null) {
-            written = KeyedText.withPart(text, part, typed);
+            written = empty ? "" : wholeEntry(axis, null, part, typed, text);
+        } else if (empty) {
+            written = KeyedText.without(text, family.key());
         } else {
             String held = KeyedText.keyed(text)
                 .get(family.key());
-            written = KeyedText.with(text, family.key(), KeyedText.withPart(held == null ? "" : held, part, typed));
+            written = KeyedText.with(text, family.key(), wholeEntry(axis, family, part, typed, held == null ? "" : held));
         }
+        for (int each = 0; each < parts; each++) drafts.remove(cell(axis, family, each));
         edits.set(id, written);
+    }
+
+    /** An entry's numbers in their places, over what it held: the fields' own and the one just typed. */
+    private String wholeEntry(String axis, SurfaceFamily family, int part, String typed, String held) {
+        String out = held;
+        for (int each = 0; each < parts(axis, family); each++) {
+            out = KeyedText.withPart(out, each, each == part ? typed : value(axis, family, each));
+        }
+        return out;
+    }
+
+    /** How many numbers an entry holds: quality's five, a pair's two, one otherwise. */
+    private static int parts(String axis, SurfaceFamily family) {
+        if (family == null) return QUALITY_PARTS;
+        return "wear".equals(axis) || "phases".equals(axis) ? 2 : 1;
+    }
+
+    /** Whether a number is one {@code Presets.restore} reads in this place: a whole number but for wear and healing. */
+    private static boolean reads(String axis, String value) {
+        try {
+            if ("wear".equals(axis)) Float.parseFloat(value.trim());
+            else if ("healing".equals(axis)) Double.parseDouble(value.trim());
+            else Integer.parseInt(value.trim());
+            return true;
+        } catch (NumberFormatException no) {
+            return false;
+        }
+    }
+
+    /** Lets a preset's drafts go once the text they were typed over has moved under them: an undo, a reset. */
+    private void settle(String axis) {
+        if (!draftedOver.containsKey(axis)) return;
+        String text = edits.value(custom(axis));
+        String over = draftedOver.get(axis);
+        if ((text == null ? "" : text).equals(over)) return;
+        draftedOver.remove(axis);
+        for (java.util.Iterator<String> each = drafts.keySet()
+            .iterator(); each.hasNext();) {
+            if (each.next()
+                .startsWith(axis + "/")) each.remove();
+        }
     }
 
     /** The preset a remembered record says was last applied, as its title's word key, or the value where unknown. */

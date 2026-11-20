@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "_": [
+    "Better Nether, from the modded census of 26.3 (W4 R11, judged 2026-11-12), as 26.2's and 26.1.2's betternether.json have it from those editions' and 1.20.1's from Prominence's census. Named one by one, only the blocks that census saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. The obsidians' bricks, tiles, slabs and stairs were not judged and are left to the rules, and the glass, the gloomsculk geode and the ores were excluded; nether mycelium and netherrack moss already wear as nether by detection.",
+    "Nether: jungle grass, mushroom grass, sepia mushroom grass and swampland grass are the living surface of the Nether's own ground, as nylium and mycelium are, and blue obsidian, blue crying obsidian, weeping obsidian and blue weeping obsidian are natural rock found only in the Nether. All are rock to the game, which the rules leave out for having no stone word. 26.2's file names blue weeping obsidian the same, as this census ruled it, so the editions match.",
+    "Sculk: bleached, molten and veined gloomsculk are the gloomwood's sculk-like living floor, sculk, the family Xep added on 2026-11-11 (Add both families; 0.9.229, W4); bleached and molten are on a material no rule reads, and veined on rock with no stone word. They lie in the Nether, whose rock is netherrack and not deepslate, so each wears its own face and sinks as itself (Each sinks as itself), as Deeper and Darker's sculk floors do in 1.20.1 and 1.21.1. Veined gloomsculk is judged here as 26.1.2's census ruled it (W4 R13, 2026-11-13), so the editions match."
+  ],
+  "entries": [
+    { "blocks": ["betternether:blue_crying_obsidian", "betternether:blue_obsidian", "betternether:blue_weeping_obsidian", "betternether:jungle_grass", "betternether:mushroom_grass", "betternether:sepia_mushroom_grass", "betternether:swampland_grass", "betternether:weeping_obsidian"], "family": "nether" },
+    { "blocks": ["betternether:bleached_gloomsculk", "betternether:molten_gloomsculk", "betternether:veined_gloomsculk"], "family": "sculk", "wearsThroughTo": ["none"] }
+  ]
+}

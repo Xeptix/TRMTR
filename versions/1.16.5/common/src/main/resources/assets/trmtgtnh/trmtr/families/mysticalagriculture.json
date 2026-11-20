@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "Mystical Agriculture, from ATM6's census (W4 R6, judged 2026-11-11). Soulstone is natural rock of the Nether's ground, as basalt and blackstone are, and detection gave it stone by the stone in its name. Named alone, the one block that census judged, because a file reaches a config that already holds detection's line where a changed rule does not. Its bricks, cobble, smooth form, slabs and stairs were not judged and are left to the rules.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.16.5 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["mysticalagriculture:soulstone"], "family": "nether" },
+    { "blocks": ["mysticalagriculture:soulstone_slab", "mysticalagriculture:soulstone_stairs"], "family": "nether" }
+  ]
+}

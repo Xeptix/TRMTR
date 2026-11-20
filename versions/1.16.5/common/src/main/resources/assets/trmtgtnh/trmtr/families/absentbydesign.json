@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.16.5 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was."
+  ],
+  "entries": [
+    { "blocks": ["absentbydesign:slab_coarse_dirt"], "family": "dirt" },
+    { "blocks": ["absentbydesign:slab_basalt", "absentbydesign:slab_magma", "absentbydesign:stairs_basalt", "absentbydesign:stairs_magma"], "family": "nether" },
+    { "blocks": ["absentbydesign:slab_obsidian", "absentbydesign:slab_terracotta", "absentbydesign:stairs_obsidian", "absentbydesign:stairs_terracotta"], "family": "stone" }
+  ]
+}

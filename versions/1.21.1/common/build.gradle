@@ -13,6 +13,11 @@ loom {
     accessWidenerPath = file("src/main/resources/trmtgtnh.accesswidener")
 }
 
+configurations {
+    secureJarForge
+    secureJarNeoForge
+}
+
 dependencies {
     // Compiled against Fabric's loader so the common module can be annotated for both sides; the produced classes
     // are loader-agnostic and are not shipped from here.
@@ -34,12 +39,26 @@ dependencies {
     modCompileOnly "maven.modrinth:jade:${rootProject.jade_fabric_version}"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    // The jars each loader reads every mod through, for the one test that lists the path shape it gives
+    // (ForgesRootPathListsTest, W3 T18, two loaders from T19): a listing that finds nothing is silent, so it is tried on
+    // the real thing. Never on the suite's class path: both hold cpw.mods.jarhandling.SecureJar, so the test starts a
+    // Java for each. Forge 52's version and NeoForge 21.1's, read from each module's compile class path with
+    // tools/mcsource.py.
+    secureJarForge 'net.minecraftforge:securemodules:2.2.24'
+    secureJarNeoForge 'cpw.mods:securejarhandler:3.0.8'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 // The portable core's tests run here as ordinary JUnit: not one of its classes names Minecraft.
 test {
     useJUnitPlatform()
+
+    // Handed over when the task runs, so a run of anything else resolves neither.
+    doFirst {
+        systemProperty 'trmt.securejar.forge', configurations.secureJarForge.asPath
+        systemProperty 'trmt.securejar.neoforge', configurations.secureJarNeoForge.asPath
+        systemProperty 'trmt.test.classpath', sourceSets.test.runtimeClasspath.asPath
+    }
 
     // Several tests read the tree rather than running it, and Gradle cannot see that from a classpath, so the trees
     // they read are inputs of this task - or a change to a loader module would leave the guard UP-TO-DATE and unrun.
@@ -52,6 +71,38 @@ test {
         })
         .withPropertyName('theSourceTheseTestsRead')
         .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // The census goldens DetectionReplayTest puts through the rules (W4 spec 3.2, T11, as 1.16.5's T9 and 1.20.1's
+    // T10). They live in the 1.7.10 tree's docs/census, which this tree has no copy of. tools/census.py --diff names
+    // the folder with -Dtrmt.census on Gradle's command line, and a -D there reaches Gradle and not the test worker, so
+    // it is handed on here. With none given, the trees this checkout's sibling.properties leads to are followed, a few at most, to the
+    // first that holds docs/census: this tree's sibling is 1.7.10 itself, so an ordinary suite run replays them too.
+    // Either way the goldens are inputs, or a changed golden would leave this task up to date and unread. With neither,
+    // the test says so and skips. Its replay is written to this tree's build/census-replay, where census.py reads it,
+    // not to this module's: the tests run in common/.
+    def census = System.getProperty('trmt.census') ?: (rootProject.findProperty('trmt.census') ?: null)
+    def tree = rootProject.projectDir
+    for (int hop = 0; hop < 3 && census == null && tree != null; hop++) {
+        def sibling = new File(tree, 'sibling.properties')
+        if (!sibling.isFile()) break
+        def held = new Properties()
+        sibling.withInputStream { held.load(it) }
+        def other = held.getProperty('otherEdition')
+        if (other == null || other.trim().isEmpty()) break
+        def next = new File(other.trim())
+        if (!next.isAbsolute()) next = new File(tree, other.trim())
+        if (new File(next, 'docs/census').isDirectory()) census = new File(next, 'docs/census').path
+        tree = next
+    }
+    systemProperty 'trmt.census.out', rootProject.file('build/census-replay').absolutePath
+    if (census != null) {
+        systemProperty 'trmt.census', census.toString()
+        // pack-data.tsv beside them: which packs ship no TRMT data of their own, whose data lines the test holds
+        // to the shipped files.
+        inputs.files(fileTree(census.toString()) { include '*/registry.tsv'; include 'pack-data.tsv' })
+            .withPropertyName('theCensusGoldens')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
 }
 
 // Where the specification is, for the drift check: read from an untracked file at the repository root, so a tree

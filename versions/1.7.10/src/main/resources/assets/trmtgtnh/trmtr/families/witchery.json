@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). The torment stone stands aside: it is built as Witchery's unbreakable force block and floors the Torment dimension, and the stone in its name made it stone to the rules.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). The snow stairs, which T14 stood aside as a shape cut by a builder, are cut from the snow block, which is snow, so they wear as snow on their own texture."
+  ],
+  "entries": [
+    { "blocks": ["witchery:tormentstone"], "family": "none" },
+    { "blocks": ["witchery:snowstairs"], "family": "snow" }
+  ]
+}

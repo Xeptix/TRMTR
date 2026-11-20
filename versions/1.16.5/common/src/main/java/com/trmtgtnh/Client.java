@@ -79,10 +79,34 @@ public final class Client {
         default void considerServerBuild(boolean sent, int protocol, String build) {}
 
         /**
+         * A server's rules for this player's own settings (0.9.229), at join and whenever the server's list changes.
+         * Only a client has settings of that kind; a default, so the test stand-ins of this seam need not answer it.
+         */
+        default void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {}
+
+        /**
+         * Whether the caller is on the client's own thread (W3 T7: trmtr-api answers a question about a client's world
+         * only there). A default, so the test stand-ins of this seam need not answer it.
+         */
+        default boolean onClientThread() {
+            return false;
+        }
+
+        /**
          * The snapshot tool asked the server for its screen (0.9.228, CF79, CF81): the next answer may open it. A
          * default, so the test stand-ins of this seam need not answer it.
          */
         default void askedForSnapshotScreen() {}
+
+        /**
+         * Offers the single-player screen that asks whether to restore lost wear (0.9.229, wear backups): how many
+         * chunks lost it, when the newest backup was taken (-1 with none), whether the world was last opened by a
+         * newer version of this mod, whether the mirror holds the newest copy, and whether this mod's world data was
+         * missing and was put back. Called on the world's own server's thread; a default, so the test stand-ins of
+         * this seam need not answer it.
+         */
+        default void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+            boolean dataPutBack) {}
 
         void openSnapshotScreen(int flags);
 
@@ -151,6 +175,12 @@ public final class Client {
          */
         void setWearLook(com.trmtgtnh.surface.SurfaceFamily family, String pattern);
 
+        /**
+         * Turns classic wear on or off for one family, or for every family when {@code family} is null (0.9.229). As
+         * cosmetic as a look, and as much this client's own: a config write and a restitch, as a look is.
+         */
+        void setClassicWear(com.trmtgtnh.surface.SurfaceFamily family, boolean on);
+
         /** Opens the chunk tamper's settings screen on this client, for the stack being held. */
         void openTamperScreen(net.minecraft.world.item.ItemStack stack);
 
@@ -209,6 +239,15 @@ public final class Client {
         if (at == null) return false;
         at.idsMoved();
         return true;
+    }
+
+    /**
+     * Whether this is the client's own thread, the one its world is read on (trmtr-api's position queries, Codex review
+     * R16). False with no client, as on a dedicated server. Read straight from the field, as {@link #idsMoved} is.
+     */
+    public static boolean onClientThread() {
+        Side at = side;
+        return at != null && at.onClientThread();
     }
 
     /**
@@ -305,6 +344,12 @@ public final class Client {
         if (at != null) at.considerServerBuild(sent, protocol, build);
     }
 
+    /** A server's rules for this player's own settings (0.9.229). Only a client has settings of that kind. */
+    public static void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {
+        Side at = reaching();
+        if (at != null) at.applyClientRules(rules);
+    }
+
     public static void askedForSnapshotScreen() {
         Side at = reaching();
         if (at != null) at.askedForSnapshotScreen();
@@ -313,6 +358,13 @@ public final class Client {
     public static void openSnapshotScreen(int flags) {
         Side at = reaching();
         if (at != null) at.openSnapshotScreen(flags);
+    }
+
+    /** The wear backups' question in single player (0.9.229); a dedicated server has nobody to ask. */
+    public static void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+        boolean dataPutBack) {
+        Side at = reaching();
+        if (at != null) at.offerWearRestore(chunks, newestBackupMillis, newerWorld, mirrorHolds, dataPutBack);
     }
 
     public static void openGuideScreen(int bookOrdinal) {
@@ -395,6 +447,12 @@ public final class Client {
     public static void setWearLook(com.trmtgtnh.surface.SurfaceFamily family, String pattern) {
         Side at = reaching();
         if (at != null) at.setWearLook(family, pattern);
+    }
+
+    /** Turns classic wear on or off for one family, or for every family when family is null. */
+    public static void setClassicWear(com.trmtgtnh.surface.SurfaceFamily family, boolean on) {
+        Side at = reaching();
+        if (at != null) at.setClassicWear(family, on);
     }
 
     /** Which block this ghost stands in for, as the painter remembered it, or -1. */

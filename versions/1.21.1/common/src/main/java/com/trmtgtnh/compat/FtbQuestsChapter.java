@@ -193,13 +193,13 @@ public final class FtbQuestsChapter {
                 out.text("type", "item");
                 out.raw("item", item);
                 out.raw("count", wanted.count + "L");
-                // A tamper is asked for whatever its wear, which is its damage and therefore its tag here; a book is
-                // asked for by its lesson, which is its tag too, so it alone matches - weakly, as BetterQuesting's
-                // partial match did, so a book carrying more than the one lesson still counts.
-                boolean matched = !quest.taskIgnoresNbt.get(at)
-                    .booleanValue();
-                out.raw("match_nbt", matched ? "true" : "false");
-                if (matched) out.raw("weak_nbt_match", "true");
+                // A tamper is asked for whatever its wear; a book is asked for by its lesson, so it alone matches, and
+                // loosely, as BetterQuesting's partial match did: every component the book in the task has, here its
+                // stored_enchantments, must be on the book offered. match_components is this version's one word, read
+                // from FTB Quests 2101.1.36's ItemTask.readData (0.9.229, planning D8): the two keys 1.20.1 writes are
+                // read by nothing here, so the task stood at none and any enchanted book finished a lesson's quest.
+                out.raw("match_components", quest.taskIgnoresNbt.get(at)
+                    .booleanValue() ? "\"none\"" : "\"fuzzy\"");
             }
             out.close();
         }

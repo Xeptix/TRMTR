@@ -59,6 +59,31 @@ public final class NeoForgeEvents {
     }
 
     // ------------------------------------------------------------------
+    // Data packs (W3 spec 2.2; T19)
+    // ------------------------------------------------------------------
+
+    /**
+     * The data packs' data files, read on every data reload - the world's first load and every {@code /reload} - by a
+     * listener of the server's own reload. See {@code dataload.DataPackListener}.
+     */
+    @SubscribeEvent
+    public static void onAddReloadListener(net.neoforged.neoforge.event.AddReloadListenerEvent event) {
+        event.addListener(new com.trmtgtnh.dataload.DataPackListener());
+    }
+
+    /**
+     * A data reload's tags are bound, which NeoForge says as the reload is put in force: the surface table is resolved
+     * from the files just read, with every tag a file names. Not on a client receiving a server's tags, which is the
+     * other cause of this event.
+     */
+    @SubscribeEvent
+    public static void onTagsUpdated(net.neoforged.neoforge.event.TagsUpdatedEvent event) {
+        if (event.getUpdateCause() == net.neoforged.neoforge.event.TagsUpdatedEvent.UpdateCause.SERVER_DATA_LOAD) {
+            ServerEvents.dataReloaded();
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Movement
     // ------------------------------------------------------------------
 

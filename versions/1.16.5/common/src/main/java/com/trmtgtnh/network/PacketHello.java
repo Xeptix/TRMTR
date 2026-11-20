@@ -34,12 +34,21 @@ public class PacketHello implements Message {
      */
     private boolean probeLines = true;
 
+    /**
+     * The format of a server's rules for its players' settings this client reads, 0 for a hello that says none
+     * (0.9.229). Said rather than assumed from the protocol, so only a client that can answer is asked for its
+     * settings by /trmt clientrules copy; a server too old to read it stops before it. Written after The One Probe's
+     * switch, as each was written after the one before.
+     */
+    private int clientRules;
+
     public PacketHello() {}
 
     public PacketHello(boolean wantsOverlays) {
         this.wantsOverlays = wantsOverlays;
         this.protocol = TrmtNetwork.PROTOCOL;
         this.probeLines = com.trmtgtnh.config.TrmtConfig.probeLines;
+        this.clientRules = com.trmtgtnh.util.ClientSettingRules.FORMAT;
     }
 
     @Override
@@ -47,6 +56,7 @@ public class PacketHello implements Message {
         wantsOverlays = buf.readBoolean();
         protocol = buf.readableBytes() >= 4 ? buf.readInt() : 1;
         probeLines = buf.readableBytes() >= 1 ? buf.readBoolean() : true;
+        clientRules = buf.readableBytes() >= 1 ? buf.readUnsignedByte() : 0;
     }
 
     @Override
@@ -54,6 +64,7 @@ public class PacketHello implements Message {
         buf.writeBoolean(wantsOverlays);
         buf.writeInt(protocol);
         buf.writeBoolean(probeLines);
+        buf.writeByte(clientRules);
     }
 
     /** What the hello says of The One Probe's lines. */
@@ -76,6 +87,7 @@ public class PacketHello implements Message {
             TrmtNetwork.rememberWanted(player, wants);
             TrmtNetwork.rememberProtocol(player, message.protocol);
             TrmtNetwork.rememberProbeLines(player, message.probeLines);
+            TrmtNetwork.rememberClientRules(player, message.clientRules);
             MainThread.onServer(new Runnable() {
 
                 @Override

@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "_": [
+    "From GT New Horizons' census (W4 R3 run, T13 judged, T14 corrected, 2026-11-09). Calcite and tuff are natural rock, calcite lining the geodes and tuff found in most biomes, as they are in the later games where both are stone; neither name holds a word the rules read as stone.",
+    "The magma block lies in the Nether alone, part of that ground, so it wears as the Nether's family; its rock material and its name gave the rules nothing to read.",
+    "Value 0 of each, the one the census saw. Named here rather than by a word, which would take other mods' blocks with it.",
+    "Sculk is the deep dark's living skin and its own family (Xep, 2026-11-11: Add both families; 0.9.229, W4), named before any census has seen it (Xep: Name them now), so the same block wears the same in every edition: GT New Horizons leaves it off, and its earth material gives the rules dirt. Value 0, the one value the block places.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.7.10 judged, each named at its full block's family so it wears on its own texture as the full block does, at the values that hold its full block's own material. A slab or stair of a block the census excluded, or never judged, is left as it was."
+  ],
+  "entries": [
+    { "blocks": ["etfuturum:calcite:0", "etfuturum:tuff:0"], "family": "stone" },
+    { "blocks": ["etfuturum:magma:0"], "family": "nether" },
+    { "blocks": ["etfuturum:sculk:0"], "family": "sculk" },
+    { "blocks": ["etfuturum:double_tuff_slab:0", "etfuturum:double_tuff_slab:3", "etfuturum:double_tuff_slab:6", "etfuturum:double_tuff_slab:8", "etfuturum:double_tuff_slab:11", "etfuturum:double_tuff_slab:14", "etfuturum:tuff_slab:0", "etfuturum:tuff_slab:3", "etfuturum:tuff_slab:6", "etfuturum:tuff_slab:8", "etfuturum:tuff_slab:11", "etfuturum:tuff_slab:14", "etfuturum:tuff_stairs"], "family": "stone" }
+  ]
+}

@@ -47,17 +47,22 @@ public final class Notices {
      * Nobody is told anything when there is nobody to tell. A null player is a gesture made by no
      * one, and a fake player is a machine: a block breaker or a dispenser has no chat window, and
      * keeping a place for it in the map would only hold a line back from nobody.
+     *
+     * <p>
+     * Answers whether the line went out, for a caller that records having told someone (the conversion's line at join,
+     * 0.9.229 W5): a line held back by the quiet second was not said.
      */
-    public static void say(Player player, Component line) {
-        if (player == null || line == null || nobodyIsThere(player)) return;
+    public static boolean say(Player player, Component line) {
+        if (player == null || line == null || nobodyIsThere(player)) return false;
         int[] when = lastTold.get(player);
-        if (when != null && player.tickCount - when[0] < QUIET_TICKS) return;
+        if (when != null && player.tickCount - when[0] < QUIET_TICKS) return false;
         if (when == null) {
             lastTold.put(player, new int[] { player.tickCount });
         } else {
             when[0] = player.tickCount;
         }
         player.sendSystemMessage(line);
+        return true;
     }
 
     /**

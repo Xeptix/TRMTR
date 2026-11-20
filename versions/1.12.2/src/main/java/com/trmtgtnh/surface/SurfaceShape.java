@@ -5,6 +5,8 @@ import net.minecraft.block.BlockSlab;
 import net.minecraft.block.BlockStairs;
 import net.minecraft.block.state.IBlockState;
 
+import com.trmtgtnh.erosion.SinkProfile;
+
 /**
  * What shape a surface occupies its block in.
  *
@@ -16,12 +18,15 @@ import net.minecraft.block.state.IBlockState;
  * looked at it.
  *
  * <p>
- * Nothing here is persisted or sent, so unlike {@link SurfaceFamily} these may be reordered
+ * Since 0.9.229 (W3 T6) a data file may give a block state its shape, which is resolved into the
+ * surface table with the families and sent with it, because collision is the server's; the class
+ * is then only what a state without one falls back to. The wire carries {@link DataShape}'s own
+ * numbers, never these ordinals, so unlike {@link SurfaceFamily} these may still be reordered
  * freely.
  *
  * <p>
  * The 1.12.2 edition of this class, and one of the few in this port that is reshaped rather than
- * carried. The three shapes and the two questions about them are exactly the 1.7.10 edition's, which
+ * carried. The shapes and the questions about them are exactly the 1.7.10 edition's, which
  * matters because {@code SinkProfile} - a portable class held byte for byte identical across both
  * editions - names this enum. What changed is how a block tells you which one it is. 1.7.10 asked
  * {@code renderAsNormalBlock} to tell a double slab from a single one and read which half a slab
@@ -37,7 +42,75 @@ public enum SurfaceShape {
     SLAB,
 
     /** A full block with a quarter cut out of it, facing one of four ways. */
-    STAIR;
+    STAIR,
+
+    /**
+     * Up to eight boxes a data file gives the block (W3 spec 2.4, task T6), the highest of them walked on and sunk
+     * into; the boxes are the file's, in {@link DataShape}, and never decided here.
+     */
+    BOXES;
+
+    /**
+     * What shape this block state stands in: a data file's shape first, then the block's class (W3 spec 2.4). The one
+     * to ask for ground, because a file gives shapes by metadata; {@link #of(Block)} is the class alone.
+     */
+    public static SurfaceShape of(Block block, int meta) {
+        DataShape data = SurfaceRegistry.shapeOf(block, meta);
+        return data != null ? ofData(data) : of(block);
+    }
+
+    /** The shape a data file's shape stands as. */
+    public static SurfaceShape ofData(DataShape data) {
+        switch (data.kind) {
+            case DataShape.SLAB:
+                return SLAB;
+            case DataShape.STAIR:
+                return STAIR;
+            case DataShape.BOXES:
+                return BOXES;
+            default:
+                return FULL;
+        }
+    }
+
+    /**
+     * How far worn ground sinks at a block state, in pixels: the family's depth as {@link SinkProfile} gives it for
+     * the shape (the collision depth when {@code collision}), then held by the state's data shape - nothing for
+     * {@code "sinks": false}, no deeper than its {@code maxSinkPixels}, and always a pixel short of the shape's height
+     * (the shortest walked box's for {@code boxes}). Both sides ask this, so the drawn rut, the client's footing and
+     * the
+     * server's collision come from one number.
+     */
+    public static int sunk(SurfaceFamily appearance, int storedSink, Block block, int meta, boolean collision) {
+        DataShape data = SurfaceRegistry.shapeOf(block, meta);
+        SurfaceShape shape = data != null ? ofData(data) : of(block);
+        int depth = collision ? SinkProfile.collides(appearance, storedSink, shape)
+            : SinkProfile.shown(appearance, storedSink, shape);
+        if (data == null) return depth;
+        return data.sunk(depth, heightOf(data));
+    }
+
+    /**
+     * Whether worn ground at this block state can sink at all, by its data shape's own rule ({@link #sunk}'s hold):
+     * not for {@code "sinks": false}, a cap of nothing, or a walked box a pixel tall. The record's sink is the chain's
+     * step and is kept whatever the shape, so whatever chooses how worn ground is drawn - the sunken stand-in, the
+     * sunk top's light, the fringe - asks this rather than the record alone, and a block that collides flat is drawn
+     * flat (W3 T6 follow-up, R3's mossy loam, 2026-11-04).
+     */
+    public static boolean sinks(Block block, int meta) {
+        return sinks(SurfaceRegistry.shapeOf(block, meta));
+    }
+
+    /** The same for a data shape already in hand; none is the family's own rule, which sinks. */
+    public static boolean sinks(DataShape data) {
+        if (data == null) return true;
+        return data.sunk(SinkProfile.MAX_SINK_PIXELS, heightOf(data)) > 0;
+    }
+
+    /** The height a data shape's wear is held a pixel short of: a slab's or a stair's half, else the whole block. */
+    private static int heightOf(DataShape data) {
+        return ofData(data) == FULL ? DataShape.PIXELS : DataShape.PIXELS / 2;
+    }
 
     /**
      * What shape this block stands in, judged by what it extends.
@@ -77,9 +150,12 @@ public enum SurfaceShape {
      * untouched - a slab takes exactly as many crossings to wear through as the block it was cut
      * from, and exactly as long to recover, because it walks the same chain at the same prices and
      * only the picture is drawn shallower.
+     *
+     * <p>
+     * Not a data file's boxes: their depth is held by their own walked box instead ({@link DataShape#sunk}).
      */
     public boolean isHalfDepth() {
-        return this != FULL;
+        return this == SLAB || this == STAIR;
     }
 
     /**

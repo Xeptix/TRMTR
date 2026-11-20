@@ -2,13 +2,14 @@ package com.trmtgtnh.neoforge.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.CactusBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.trmtgtnh.block.GhostInherit;
 
 /**
@@ -25,17 +26,24 @@ import com.trmtgtnh.block.GhostInherit;
  * On NeoForge as on Fabric, for the reason {@link MixinGhostSoilBush} gives. NeoForge 21.1.259's patched
  * {@code canSurvive} asks {@code canSustainPlant} of the block it read before its own test and leaves the calls this
  * changes where they were, so they are the same calls as on Fabric; checked against that jar's bytecode.
+ *
+ * <p>
+ * <strong>The read is wrapped, not redirected</strong> (0.9.229). MixinExtras' {@code @WrapOperation} hands this the
+ * read as an operation and calls it, so another mod's {@code @Redirect} of the same read is what the operation runs and
+ * its answer is the one seen, kept on every square but a worn one. Until 0.9.228 this was a required {@code @Redirect}:
+ * two redirects of one call cannot both apply, and beside a mod redirecting the same read the game would have stopped
+ * before its first screen, as All of Fabric 3 did over friction.
  */
 @Mixin(CactusBlock.class)
 public abstract class MixinGhostSoilCactus {
 
-    @Redirect(
+    @WrapOperation(
         method = "canSurvive",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/world/level/LevelReader;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;",
             ordinal = 1))
-    private BlockState trmt$theCoveredBlockBelow(LevelReader world, BlockPos below) {
-        return GhostInherit.soilFor(world.getBlockState(below), below);
+    private BlockState trmt$theCoveredBlockBelow(LevelReader world, BlockPos below, Operation<BlockState> read) {
+        return GhostInherit.soilFor(read.call(world, below), below);
     }
 }

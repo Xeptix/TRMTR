@@ -92,7 +92,22 @@ public final class TamperEvents {
         if (held.isEmpty() || !(held.getItem() instanceof TamperTool)) return;
 
         event.setCanceled(true);
-        if (event.getWorld() == null || event.getWorld().isRemote) return;
+        if (event.getWorld() == null) return;
+        if (event.getWorld().isRemote) {
+            // The client's copy acts on nothing, but in reinforce mode it tells the server where a press of the
+            // attack key begins, in the client's own ticks (RL19): see ReinforceGestures.clientClicked.
+            if (held.getItem() instanceof ItemChunkTamper && ItemChunkTamper.reinforceActive(held)) {
+                ReinforceGestures.clientClicked(
+                    event.getPos()
+                        .getX(),
+                    event.getPos()
+                        .getY(),
+                    event.getPos()
+                        .getZ(),
+                    player.ticksExisted);
+            }
+            return;
+        }
         // Robots and drones hold items and click blocks too. Only somebody with a connection has
         // a hotbar this means anything in.
         if (!(player instanceof EntityPlayerMP) || player instanceof FakePlayer) return;

@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "_": "Grass Overhaul's podzol sods wear as podzol does, dirt, on every loader. Its Forge build for 1.20.1 (23.10.10) gives them grass's sound and its Fabric builds podzol's, so by the rules alone the same block would wear as grass on one loader and dirt on the other. The rest of the mod is detection's, which decides each block as its vanilla source is decided: grass and mycelium sod grass, dirt sod dirt, path sod and the nylium sods never; the patches are short of their cell and never wear, so none is named here.",
+  "entries": [
+    { "blocks": ["grassoverhaul:podzol_sod_block", "grassoverhaul:podzol_sod_slab", "grassoverhaul:podzol_sod_stairs"], "family": "dirt" }
+  ]
+}

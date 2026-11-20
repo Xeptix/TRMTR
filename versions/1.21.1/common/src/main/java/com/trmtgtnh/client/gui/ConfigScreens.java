@@ -241,4 +241,14 @@ public final class ConfigScreens {
         builtCloth = new java.lang.ref.WeakReference<Screen>(cloth);
         builtOver = new java.lang.ref.WeakReference<Screen>(over);
     }
+
+    /**
+     * Draws Cloth's dirt behind the Cloth screen {@link ConfigScreen} built, where the game would draw its quarter-dark
+     * menu texture, and says whether it did (1.0.0, MixinClothDrawsItsDirt): false for every other screen, which goes on
+     * to the game's own. {@link ConfigScreen} is reached only for the screen it built, so only where Cloth is installed.
+     */
+    public static boolean drawClothBackground(Screen screen, net.minecraft.client.gui.GuiGraphics graphics) {
+        if (screen == null || screen != builtCloth.get()) return false;
+        return ConfigScreen.drawBackground(screen, graphics);
+    }
 }

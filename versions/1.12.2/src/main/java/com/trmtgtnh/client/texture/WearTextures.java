@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +13,7 @@ import java.util.function.Function;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.Stitcher;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.resources.IResourceManager;
@@ -22,6 +24,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import com.google.common.collect.Maps;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.dataload.BlockLooks;
 import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
@@ -76,6 +79,19 @@ public final class WearTextures {
      */
     private static int rotations = 2;
 
+    /**
+     * client.wearTurns as this stitch read it ({@link WearTurns}), held for the whole stitch like the rotations,
+     * because under turn only it decides how many patterns a set that turns is planned with.
+     */
+    private static String turnsMode = WearTurns.BOTH;
+
+    /**
+     * Which sets this stitch turns, by set index: the family fallbacks at their family's ordinal, then each surface set
+     * as the real walk makes it ({@link FaceDirection}, read in {@link FacePricing#turns}). Stitch thread only;
+     * published to the lookup as a copy.
+     */
+    private static final java.util.BitSet TURNED = new java.util.BitSet();
+
     /** The first {@code FAMILIES} sets are the vanilla-derived fallbacks, one per family. */
     private static final int FIRST_SURFACE_SET = FAMILIES;
 
@@ -85,6 +101,13 @@ public final class WearTextures {
     // holder published once registration is done, so they see either the old table or the whole
     // new one, never a half-filled one, nor one table measured by another stitch's ramp.
     private static TextureAtlasSprite[] icons = new TextureAtlasSprite[0];
+
+    /**
+     * The glow overlay of each wear picture, indexed as {@link #icons} is, or null where the surface's look has no glow
+     * (0.9.228, real glow; the end's cracks, the nether's ash). Every overlay is also in {@link #REGISTERED}, so it is
+     * composed with the rest; one that has nothing to light is never stitched.
+     */
+    private static WearSprite[] glowIcons = new WearSprite[0];
 
     private static int setCount = FIRST_SURFACE_SET;
 
@@ -101,6 +124,7 @@ public final class WearTextures {
 
         static final Lookup EMPTY = new Lookup(
             new TextureAtlasSprite[0],
+            new WearSprite[0],
             new TextureAtlasSprite[0],
             8,
             2,
@@ -109,9 +133,18 @@ public final class WearTextures {
             StateFiling.<Block, TextureAtlasSprite>empty(),
             null,
             StateFiling.<Block, Boolean>empty(),
-            new int[0]);
+            new int[0],
+            AtlasPlan.pictureMap(WearScale.COUNTED_STEPS, 8, 8),
+            new java.util.BitSet(),
+            WearTurns.RESEED);
 
         final TextureAtlasSprite[] icons;
+
+        /**
+         * The glow overlay of each of {@link #icons}, null where it has none. The light level each is baked with is the
+         * overlay's own ({@link WearSprite#glowLevelOf}): a sprite here is the atlas's own, set when it is composed.
+         */
+        final WearSprite[] glowIcons;
 
         /** The receding grass-side fringes, indexed {@code stage * rotations + rotation}. */
         final TextureAtlasSprite[] fringes;
@@ -142,11 +175,22 @@ public final class WearTextures {
 
         final int[] filedNumbers;
 
-        Lookup(TextureAtlasSprite[] icons, TextureAtlasSprite[] fringes, int layers, int rotations,
+        /** The picture each counted stage draws; see AtlasPlan.pictureMap. */
+        final int[] stages;
+
+        /** Which sets turn, by set index; see {@link #TURNED}. */
+        final java.util.BitSet turned;
+
+        /** client.wearTurns as the stitch read it. */
+        final String mode;
+
+        Lookup(TextureAtlasSprite[] icons, WearSprite[] glowIcons, TextureAtlasSprite[] fringes, int layers,
+            int rotations,
             StateFiling<Block, Integer> sets, StateFiling<Block, TextureAtlasSprite> mended,
             StateFiling<Block, TextureAtlasSprite> walls, TextureAtlasSprite wallFallback,
-            StateFiling<Block, Boolean> filed, int[] filedNumbers) {
+            StateFiling<Block, Boolean> filed, int[] filedNumbers, int[] stages, java.util.BitSet turned, String mode) {
             this.icons = icons;
+            this.glowIcons = glowIcons;
             this.fringes = fringes;
             this.layers = layers;
             this.rotations = rotations;
@@ -156,6 +200,9 @@ public final class WearTextures {
             this.wallFallback = wallFallback;
             this.filed = filed;
             this.filedNumbers = filedNumbers;
+            this.stages = stages;
+            this.turned = turned;
+            this.mode = mode;
         }
     }
 
@@ -436,7 +483,7 @@ public final class WearTextures {
             }
         }
         if (source.isUnreadable()) {
-            current.tally.unreadable++;
+            if (!sprite.isGlow()) current.tally.unreadable++;
             return null;
         }
 
@@ -447,9 +494,12 @@ public final class WearTextures {
             Trmt.LOG.debug("Could not compose wear texture {}", sprite.getIconName(), picture.failure);
         }
         if (pixels == null) {
-            current.tally.failed++;
+            // A glow overlay with nothing to light is no failure: most gradations of the look have none.
+            if (!sprite.isGlow()) current.tally.failed++;
             return null;
         }
+        // A glow overlay is not a wear picture and is not tallied as one.
+        if (sprite.isGlow()) return pixels;
         if (pixels.length != sprite.plannedEdge() * sprite.plannedEdge()) {
             current.tally.resized++;
             current.tally.resizedNames.add(sprite.originName());
@@ -513,6 +563,9 @@ public final class WearTextures {
             // edition shuts its pool inside its own.
             int neverAsked = current.closeAhead();
             Tally tally = current.tally;
+            // Kept for the harness, which judges the walk by it (0.9.229; PicturesComposed): what this stitch composed,
+            // and none where the atlas loaded none of this mod's sprites, which the error below says.
+            if (!REGISTERED.isEmpty()) PicturesComposed.stitchEnded(true, current.loads == 0 ? 0 : tally.built);
             Trmt.LOG.info(
                 LINE_BUILT,
                 new Object[] { Integer.valueOf(tally.built),
@@ -665,6 +718,8 @@ public final class WearTextures {
     public static void onStitchPost(TextureStitchEvent.Post event) {
         if (event.getMap() != Minecraft.getMinecraft()
             .getTextureMapBlocks()) return;
+        // First: the stitch is over and uploaded, and nothing below reads where a picture is.
+        afterStitch();
         finishPass();
         // Says what did not run, and clears every figure this stitch measured, the plan with them - so a later
         // stitch is judged on its own and planned from its own measure. Until 0.9.220 nothing called it here, and
@@ -739,7 +794,7 @@ public final class WearTextures {
         int askedMeta = 0;
         boolean layered = false;
         for (WearSprite sprite : REGISTERED) {
-            if (sprite.plannedEdge() <= 0) continue;
+            if (sprite.plannedEdge() <= 0 || sprite.isGlow()) continue;
             Block origin = sprite.origin();
             // A fallback set has no block, so nothing can name a layer behind it.
             if (origin == null) continue;
@@ -952,6 +1007,22 @@ public final class WearTextures {
     private static final int MOST_TEXTURED_SURFACES = 4096;
 
     /**
+     * Which texturable surfaces are natural ground, offered the textured-surface places first: vanilla's own, by the
+     * namespace of the registry name. Vanilla's texturable faces are its generated ground and few, 36 on 1.7.10 to 62
+     * on 26.2 in the rig's plain games (2026-11-08), so they never take more than a few dozen of the places. A mod's
+     * natural ground has no mark at the stitch that every edition can read alike: biomes name their top and filler
+     * blocks to 1.16.5, and from 1.18 the surface rules that replaced them arrive with a world, after this stitch. It
+     * keeps its place by the ceiling's default, which holds the largest pack measured whole.
+     */
+    private static final AtlasPlan.Ground<SurfaceRegistry.SurfaceState> NATURAL_GROUND = new AtlasPlan.Ground<SurfaceRegistry.SurfaceState>() {
+
+        @Override
+        public boolean natural(SurfaceRegistry.SurfaceState state) {
+            return AtlasPlan.vanilla(SurfaceRegistry.registryName(state.block));
+        }
+    };
+
+    /**
      * Reported by {@code MixinTextureMap} from the call that fires the stitch event, which lands
      * after the atlas has gathered every block and item icon and before any handler of that event
      * has run - this mod's planner included, and every other mod's with it. A sprite another mod
@@ -1146,7 +1217,7 @@ public final class WearTextures {
     private static int fallbackAppearances() {
         int total = 0;
         for (SurfaceFamily family : SurfaceFamily.values()) {
-            if (family.staged) total += appearancesFor(null, family).size();
+            if (family.staged) total += pricedAppearances(appearancesFor(null, family));
         }
         return total;
     }
@@ -1178,6 +1249,153 @@ public final class WearTextures {
         return lookup.layers;
     }
 
+    /**
+     * Rotations this stitch registers and draws, which the plan may have set below client.wearRotations. The stitch's
+     * own figure rather than the table's, because the table is only built once the atlas holds the sprites, after the
+     * sprites that ask this have begun to be composed.
+     */
+    public static int rotationsThisStitch() {
+        return rotations;
+    }
+
+    /**
+     * Each picture this stitch made, mapped to the earlier one with the same pixels whose place in the atlas it takes
+     * (0.9.229, public issue #3: "Each distinct picture is stored once"). Stitch thread only.
+     */
+    private static final Map<TextureAtlasSprite, TextureAtlasSprite> TWINS = new IdentityHashMap<TextureAtlasSprite, TextureAtlasSprite>();
+
+    static final String LINE_SHARED = "Stored {} of this mod's {} block-atlas pictures once each: {} had the same pixels as another and share its place.";
+
+    static final String LINE_LEFT_OUT = "Left {} of this mod's pictures that share another's place out of the block atlas's stitch.";
+
+    /** Records that this picture takes the other's place in the atlas. */
+    static void shareWith(TextureAtlasSprite twin, TextureAtlasSprite place) {
+        TWINS.put(twin, place);
+    }
+
+    /**
+     * Finds the pictures whose pixels are another's, once every picture is composed (each wear sprite composes its own
+     * in its load, and every load is over when the atlas goes to the stitcher), so only the first of each goes to the
+     * stitcher. A moving layer is never shared, because it is redrawn in its own place, and nor is a picture that
+     * could not be built. Their mip levels are made from their pixels, so the same pixels are the same picture at
+     * every level.
+     */
+    private static void shareIdenticalPictures() {
+        TWINS.clear();
+        List<TextureAtlasSprite> sprites = new ArrayList<TextureAtlasSprite>(REGISTERED.size() + overlaySprites.length);
+        for (WearSprite sprite : REGISTERED) sprites.add(sprite);
+        for (TextureAtlasSprite fringe : overlaySprites) {
+            if (fringe instanceof FringeSprite) sprites.add(fringe);
+        }
+        int count = sprites.size();
+        int[][] pictures = new int[count][];
+        int[] widths = new int[count];
+        int[] heights = new int[count];
+        boolean[] eligible = new boolean[count];
+        for (int i = 0; i < count; i++) {
+            TextureAtlasSprite sprite = sprites.get(i);
+            widths[i] = sprite.getIconWidth();
+            heights[i] = sprite.getIconHeight();
+            boolean usable = sprite instanceof WearSprite
+                ? ((WearSprite) sprite).isUsable() && !((WearSprite) sprite).moves()
+                : ((FringeSprite) sprite).isUsable();
+            eligible[i] = usable && widths[i] > 0 && !sprite.hasAnimationMetadata() && sprite.getFrameCount() == 1;
+            if (eligible[i]) {
+                int[][] levels = sprite.getFrameTextureData(0);
+                pictures[i] = levels == null || levels.length == 0 ? null : levels[0];
+                // A glow overlay is compared with the other overlays and with nothing else (0.9.228, real glow).
+                if (pictures[i] != null && sprite instanceof WearSprite && ((WearSprite) sprite).isGlow()) {
+                    pictures[i] = glowKey(pictures[i]);
+                }
+            }
+        }
+        int[] canonical = SmallGutter.canonical(pictures, widths, heights, eligible);
+        for (int i = 0; i < count; i++) {
+            if (canonical[i] != i) shareWith(sprites.get(i), sprites.get(canonical[i]));
+        }
+        // A glow overlay with nothing to light is neither stitched nor shared: no picture is stored for it at all.
+        int empty = emptyGlows().size();
+        Trmt.LOG.info(
+            LINE_SHARED,
+            new Object[] { Integer.valueOf(count - empty - TWINS.size()), Integer.valueOf(count - empty),
+                Integer.valueOf(TWINS.size()) });
+    }
+
+    /**
+     * An overlay's picture as it is compared for sharing: one more pixel than the picture, so no overlay is ever the same
+     * picture as a wear picture, whatever the pixels, and two overlays of the same pixels are the same (0.9.228, real
+     * glow).
+     */
+    static int[] glowKey(int[] pixels) {
+        int[] own = java.util.Arrays.copyOf(pixels, pixels.length + 1);
+        own[pixels.length] = 1;
+        return own;
+    }
+
+    /** The glow overlays of this stitch with nothing to light, which never go to the stitcher. */
+    static Set<TextureAtlasSprite> emptyGlows() {
+        Set<TextureAtlasSprite> out = java.util.Collections
+            .newSetFromMap(new IdentityHashMap<TextureAtlasSprite, Boolean>());
+        for (WearSprite sprite : REGISTERED) {
+            if (sprite.isGlow() && !sprite.isUsable()) out.add(sprite);
+        }
+        return out;
+    }
+
+    /**
+     * Called at the head of every stitch, by {@code MixinStitcher}: when the stitch carries this mod's sprites, finds
+     * the pictures that share another's place and takes each of them out of the stitch, so the stitcher sizes and
+     * places one holder for the pixels and not one for every copy.
+     */
+    public static void beforeStitch(Set<?> stitching) {
+        if (stitching == null || stitching.isEmpty()) return;
+        boolean ours = false;
+        for (Object each : stitching) {
+            if (each instanceof Stitcher.Holder && isOurs(((Stitcher.Holder) each).getAtlasSprite())) {
+                ours = true;
+                break;
+            }
+        }
+        if (!ours) return;
+        shareIdenticalPictures();
+        int left = removeShared(stitching, TWINS.keySet());
+        Trmt.LOG.info(LINE_LEFT_OUT, Integer.valueOf(left));
+        removeShared(stitching, emptyGlows());
+    }
+
+    /** Takes the holder of each of these sprites out of the stitch, and says how many were taken. */
+    static int removeShared(Set<?> stitching, Set<TextureAtlasSprite> twins) {
+        int left = 0;
+        for (Iterator<?> holders = stitching.iterator(); holders.hasNext();) {
+            Object each = holders.next();
+            if (each instanceof Stitcher.Holder && twins.contains(((Stitcher.Holder) each).getAtlasSprite())) {
+                holders.remove();
+                left++;
+            }
+        }
+        return left;
+    }
+
+    private static boolean isOurs(TextureAtlasSprite sprite) {
+        return sprite instanceof WearSprite || sprite instanceof FringeSprite;
+    }
+
+    /**
+     * Called from the stitched event, which an injection could not be trusted to replace (OptiFine rewrites
+     * TextureMap.finishLoading): every picture that shared
+     * another's place takes that place, and lets go of its own pixels, which nothing will upload. Vanilla has by then
+     * given each of them missingno's place, as it does every sprite that was not stitched.
+     */
+    public static void afterStitch() {
+        if (TWINS.isEmpty()) return;
+        for (Map.Entry<TextureAtlasSprite, TextureAtlasSprite> pair : TWINS.entrySet()) {
+            TextureAtlasSprite twin = pair.getKey();
+            twin.copyFrom(pair.getValue());
+            twin.clearFramesTextureData();
+        }
+        TWINS.clear();
+    }
+
     /** Called from {@code TextureStitchEvent.Pre} for the block atlas. */
     public static void registerAll(final TextureMap map) {
         // First, before a single wear sprite of this stitch is registered or loaded, so none of them has yet been
@@ -1188,6 +1406,7 @@ public final class WearTextures {
         // Left alone, a pack tried once at a large edge would keep that edge's chains for the rest of the session. A
         // sprite still holding an old placeholder keeps its own reference to the array, so nothing drawn changes.
         WearSprite.forgetPlaceholders();
+        TWINS.clear();
         sideSpritesNamed = 0;
 
         // Taken once, here, and held for the whole stitch. It sizes the icon table and every
@@ -1199,6 +1418,8 @@ public final class WearTextures {
         // fewer than sixteen until the config is next read.
         spriteLayers = Math.max(2, Math.min(WearScale.COUNTED_STEPS, TrmtConfig.wearGradations));
         rotations = Math.max(1, Math.min(4, TrmtConfig.wearRotations));
+        turnsMode = WearTurns.mode(TrmtConfig.wearTurns);
+        TURNED.clear();
 
         // Dropped before anything is measured rather than after it. This method runs again on
         // every re-stitch now, and the pre-flight below reads dirt and stone back through the very
@@ -1224,6 +1445,11 @@ public final class WearTextures {
         // top, and in this edition the answer is read out of the surface's model. See ModelFaces. The
         // layers named behind blocks are read first, because which of a lavastone's two cubes is its own
         // face and which is the lava behind it is that list's answer (2026-10-08).
+        // The enabled packs' looks files, read again before anything is planned (W3 T5): the game stitches this atlas
+        // in the model manager's own reload, before any mod's reload listener runs, so the pack reader's own listener
+        // would hand this stitch the looks of the packs before the change. A reload that changed no pack's data
+        // re-merges nothing.
+        com.trmtgtnh.client.PackData.beforeStitch();
         InnerLayers.readTable();
         ModelFaces.survey(SurfaceRegistry.texturableStates());
         // And the measure, taken here rather than by an injection: 1.12.2 names every texture the models
@@ -1234,8 +1460,10 @@ public final class WearTextures {
         FacePricing pricing = new FacePricing(manager, edge);
         // Read once, and every walk below takes this one list. The surface table is rebuilt whenever
         // the ids move, on whichever thread moved them, and walks that each read it afresh could hand
-        // the census one table and the gate another.
-        List<SurfaceRegistry.SurfaceState> surfaces = SurfaceRegistry.texturableStates();
+        // the census one table and the gate another. Natural ground first (AtlasPlan.naturalFirst), so
+        // a limit that cuts faces cuts decorative variants before the ground a path is worn across.
+        List<SurfaceRegistry.SurfaceState> surfaces = AtlasPlan
+            .naturalFirst(SurfaceRegistry.texturableStates(), NATURAL_GROUND);
         StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(manager, surfaces);
         StateFiling.Builder<Block, Boolean> wallsWanted = grassWallsWanted(surfaces);
         // Every edge worked out once, here, and used both to price the plan and to register the sprites, so what goes
@@ -1265,7 +1493,18 @@ public final class WearTextures {
         // every ramp that gives first. Only once the ramp is held at sixteen gradations, or at a lower
         // count a hand-edited presets.remembered string asked for, do the faces last in registry-name
         // order give way.
-        AtlasPlan plan = AtlasPlan.plan(
+        // The family fallbacks client.wearTurns' turn only draws with one pattern: those whose own face turns.
+        int fallbackOneAppearances = 0;
+        long fallbackOneCells = 0L;
+        if (WearTurns.TURN.equals(turnsMode)) {
+            for (SurfaceFamily family : SurfaceFamily.values()) {
+                if (!family.staged || !pricing.fallbackTurns(family)) continue;
+                int[] row = fallbackEdges[family.ordinal()];
+                for (int each : row) if (each > 0) fallbackOneAppearances++;
+                fallbackOneCells += FacePricing.cellsOf(row);
+            }
+        }
+        AtlasPlan plan = AtlasPlan.planForBorderBudget(
             measure,
             new AtlasPlan.Wish(
                 edge,
@@ -1280,8 +1519,18 @@ public final class WearTextures {
                 census.sets(),
                 census.cells(),
                 TrmtConfig.maxTexturedSurfaces,
-                TrmtConfig.maxWearSprites));
+                TrmtConfig.maxWearSprites,
+                fallbackOneAppearances,
+                fallbackOneCells,
+                census.ones(),
+                census.glows(),
+                census.glowLit(),
+                census.glowCells(),
+                fallbackGlows(),
+                fallbackGlowLit(),
+                glowCells(fallbackEdges)));
         spriteLayers = plan.gradations;
+        rotations = plan.wish.rotations;
         if (!plan.measure.taken) warnUnmeasured(plan);
 
         StateFiling.Builder<Block, Integer> states = StateFiling.<Block, Integer>builder();
@@ -1308,7 +1557,9 @@ public final class WearTextures {
         // else in the atlas depends on them, which is why the plan prices them first and never cuts them.
         for (SurfaceFamily family : SurfaceFamily.values()) {
             if (!family.staged) continue;
-            planChain(plans, family.ordinal(), null, 0, family, fallbackEdges[family.ordinal()]);
+            boolean turns = pricing.fallbackTurns(family);
+            if (turns) TURNED.set(family.ordinal());
+            planChain(plans, family.ordinal(), null, 0, family, fallbackEdges[family.ordinal()], turns);
         }
 
         int nextSet = FIRST_SURFACE_SET;
@@ -1316,6 +1567,7 @@ public final class WearTextures {
 
         setCount = nextSet;
         icons = new TextureAtlasSprite[setCount * FAMILIES * spriteLayers * rotations];
+        glowIcons = new WearSprite[icons.length];
         overlaySprites = new TextureAtlasSprite[spriteLayers * rotations];
         final StateFiling.Builder<Block, TextureAtlasSprite> walls = StateFiling.<Block, TextureAtlasSprite>builder();
 
@@ -1363,6 +1615,7 @@ public final class WearTextures {
         wantedMends = mendsWanted.build();
         lookup = new Lookup(
             icons,
+            glowIcons,
             overlaySprites,
             spriteLayers,
             rotations,
@@ -1371,8 +1624,12 @@ public final class WearTextures {
             wallsBuilt,
             fallbackWall,
             filed,
-            filed.numbersNow(BLOCK_NUMBERING));
+            filed.numbersNow(BLOCK_NUMBERING),
+            plan.pictureMap(WearScale.COUNTED_STEPS),
+            (java.util.BitSet) TURNED.clone(),
+            turnsMode);
         reportFiling(sets, mendedBuilt, wallsBuilt);
+        reportTurns(setCount, pricing);
 
         registeredThisStitch = REGISTERED.size() + fringesRegistered;
         lastPlan = plan;
@@ -1386,6 +1643,11 @@ public final class WearTextures {
      * written as the atlas goes to the stitcher adds missingno at the size filtering gives it, and the sprite pass
      * warns by it where not one face read out of the atlas was marked as loaded with the border, measured or not.
      * Gated on the flag rather than on the figures, because an earlier stitch's figures are not this one's.
+     *
+     * <p>
+     * No bound on the atlas's sprites is passed ({@code Measure.spriteRoom}, 1.0.0, canvas-sprites): that bound is for
+     * Canvas for 1.16.5, which keeps a texture with a row for every sprite of the atlas and cannot upload one taller
+     * than the card addresses. Neither of this edition's renderers, vanilla and OptiFine, keeps such a texture.
      */
     private static AtlasPlan.Measure measureThisStitch() {
         if (roomHookRan) {
@@ -1490,12 +1752,32 @@ public final class WearTextures {
         args.add(Integer.valueOf(plan.wish.wearEdge));
         Trmt.LOG.info(text.toString(), args.toArray());
 
+        if (plan.wish.surfaceCeiling == 0 && TrmtConfig.maxTexturedSurfaces > 0 && plan.wish.surfaceSetCount() > 0) {
+            Trmt.LOG.warn(
+                "Atlas room cannot hold all {} textured faces even at one gradation and one rotation; using one shared worn look per family.",
+                Integer.valueOf(plan.wish.surfaceSetCount()));
+            if (plan.mandatoryOverruns()) warnFallbacksPastRoom(plan, perSurface);
+            return;
+        }
         if (plan.mandatoryOverruns()) {
             warnFallbacksPastRoom(plan, perSurface);
         } else if (plan.stoppedBy == AtlasPlan.Limit.ROOM) {
             warnRoomStopped(plan);
         }
-        if (plan.gradations < plan.wish.gradations && !plan.floorHeld()) warnRampCoarsened(plan, perSurface);
+        int requestedRotations = Math.max(1, Math.min(4, TrmtConfig.wearRotations));
+        boolean safetyTurned = plan.wish.rotations < requestedRotations;
+        if (safetyTurned && plan.wish.surfaceCeiling > 0) {
+            Trmt.LOG.warn(
+                "Drawing {} rotations rather than {} to keep every textured face inside the {}-pixel block atlas; {} textured faces keep their own colors at {} gradations.",
+                Integer.valueOf(plan.wish.rotations),
+                Integer.valueOf(requestedRotations),
+                Integer.valueOf(plan.side),
+                Integer.valueOf(plan.surfaceSetsKept),
+                Integer.valueOf(plan.gradations));
+        }
+        if (plan.gradations < plan.wish.gradations && !plan.floorHeld() && !safetyTurned) {
+            warnRampCoarsened(plan, perSurface);
+        }
         if (plan.stoppedBy == AtlasPlan.Limit.CEILING) reportCeiling(plan);
         if (plan.stoppedBy == AtlasPlan.Limit.SPRITES) warnSpriteCeiling(plan);
     }
@@ -1617,8 +1899,8 @@ public final class WearTextures {
         args.add(Long.valueOf(plan.room));
         text.append(
             belowFloor
-                ? "Below sixteen the plan never draws fewer pictures than that setting asks for, so it is the faces last in registry-name order that gave way rather than the ramp. "
-                : "Sixteen is the fewest pictures a run can be drawn with before consecutive gradations share one again, so it is the faces last in registry-name order that gave way rather than the ramp, and client.wearGradations cannot take it lower. ");
+                ? "Below sixteen the plan never draws fewer pictures than that setting asks for, so it is the faces last in the plan's order, vanilla's ground first and the rest by registry name, that gave way rather than the ramp. "
+                : "Sixteen is the fewest pictures a run can be drawn with before consecutive gradations share one again, so it is the faces last in the plan's order, vanilla's ground first and the rest by registry name, that gave way rather than the ramp, and client.wearGradations cannot take it lower. ");
         AtlasPlan fewer = plan.fewerRotations();
         if (fewer != null && fewer.surfaceSetsKept > plan.surfaceSetsKept) {
             // Named against every textured face, because the figure is every face kept at that count,
@@ -1680,7 +1962,7 @@ public final class WearTextures {
             AtlasPlan bare = plan.withSettings(plan.wish.gradations, plan.wish.rotations, 0, plan.wish.spriteCeiling);
             if (bare.gradations > plan.gradations) {
                 text.append(
-                    " Lowering surfaces.maxTexturedSurfaces buys gradations back for fewer faces, the last in registry-name order, up to {} at zero, which is also what switching client.perSurfaceTextures off gives after a restart, with every face on its family's generic art.");
+                    " Lowering surfaces.maxTexturedSurfaces buys gradations back for fewer faces, the last in the plan's order, which puts vanilla's ground first, up to {} at zero, which is also what switching client.perSurfaceTextures off gives after a restart, with every face on its family's generic art.");
                 args.add(Integer.valueOf(bare.gradations));
             }
         }
@@ -1835,10 +2117,8 @@ public final class WearTextures {
         StringBuilder gaps = new StringBuilder();
         for (SurfaceFamily base : SurfaceFamily.values()) {
             if (!base.staged) continue;
-            int length = ErosionChain.length(base);
-            for (int index = 0; index < length; index++) {
-                SurfaceFamily appearance = ErosionChain.familyAt(base, index);
-                if (appearance == null) continue;
+            // Every chain of the family's ground, the blocks' own as well (W3 T9).
+            for (SurfaceFamily appearance : ErosionChain.appearancesOf(base)) {
                 int at = slot(base.ordinal(), appearance, 0, 0);
                 if (at >= 0 && at < table.length && usable(table[at])) continue;
                 String pair = base.key() + "->" + appearance.key();
@@ -2052,18 +2332,31 @@ public final class WearTextures {
                     // on an undeclared metadata - a common enough shape - and the sprite would
                     // then fail the same call at build time and draw the family stand-in anyway.
                     String raw = FaceSource.iconName(state.block, meta, 1);
+                    // Unless a looks file supplies the face, or its own pictures (Codex review R18): then the file's
+                    // face is what the set is filed and drawn by, and the block's silence does not matter.
+                    if (raw == null) raw = FaceSource.lookOf(state.block, meta)
+                        .planFace();
                     if (raw == null) continue;
 
                     String behind = InnerLayers.textureFor(state.block, meta);
                     // And by the underside where the pictures are made of it (FaceRules.setKey, 0.9.223): keyed on the
                     // top alone, vanilla grass shared Biomes O' Plenty's loamy grass's set and wore into its loamy
-                    // dirt.
+                    // dirt. And by the block's own look where a looks file gives one (W3 T5): its look, strength, face
+                    // and authored pictures are painted into every picture of the set, so only blocks with the same
+                    // look share. Empty for a block no file names, which keys every set as before.
                     String face = FaceRules.setKey(
                         family,
                         raw,
                         FaceSource.iconName(state.block, meta, 0),
                         behind,
-                        FaceSource.coverLook(TrmtConfig.family(family)));
+                        FaceSource.coverLook(TrmtConfig.family(family), state.block, meta))
+                        + FaceSource.lookOf(state.block, meta)
+                            .setKey();
+                    // And by whether the face turns (0.9.229): two blocks drawing one face share its pixels whether or
+                    // not they turn, but under turn only one is planned with one pattern and the other with all of
+                    // them, and a name hint or a looks file can part blocks the pixels alone would not.
+                    boolean turns = pricing.turns(state.block, meta, family);
+                    if (turns) face += " turns";
                     Integer shared = byFace.get(face);
                     if (shared != null) {
                         states.file(state.block, meta, shared);
@@ -2079,13 +2372,15 @@ public final class WearTextures {
                     // coarser, rather than a stranger's texture.
                     Set<SurfaceFamily> appearances = appearancesFor(state.block, family);
                     int[] edges = pricing.setEdges(state.block, meta, family, appearances);
-                    if (!gate.take(appearances.size(), FacePricing.cellsOf(edges))) {
+                    boolean one = WearTurns.seeds(turnsMode, turns, rotations) == 1 && rotations > 1;
+                    if (!gate.take(pricedAppearances(appearances), FacePricing.cellsOf(edges), one, glowCount(appearances), glowLit(appearances), glowCells(edges))) {
                         full = true;
                         break;
                     }
                     states.file(state.block, meta, Integer.valueOf(nextSet));
                     byFace.put(face, Integer.valueOf(nextSet));
-                    if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges);
+                    if (turns && plans != null) TURNED.set(nextSet);
+                    if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges, turns);
                     nextSet++;
                 }
             }
@@ -2111,12 +2406,16 @@ public final class WearTextures {
                 if (firstOfFamily[family.ordinal()] != null) continue;
                 Set<SurfaceFamily> appearances = appearancesFor(state.block, family);
                 int[] edges = pricing.setEdges(state.block, meta, family, appearances);
-                if (!gate.take(appearances.size(), FacePricing.cellsOf(edges))) {
+                // A block that names no face: nothing to read, so its names, a looks file and its family decide.
+                boolean turns = pricing.turns(state.block, meta, family);
+                boolean one = WearTurns.seeds(turnsMode, turns, rotations) == 1 && rotations > 1;
+                if (!gate.take(pricedAppearances(appearances), FacePricing.cellsOf(edges), one, glowCount(appearances), glowLit(appearances), glowCells(edges))) {
                     full = true;
                     break;
                 }
                 states.file(state.block, meta, Integer.valueOf(nextSet));
-                if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges);
+                if (turns && plans != null) TURNED.set(nextSet);
+                if (plans != null) planChain(plans, nextSet, state.block, meta, family, edges, turns);
                 firstOfFamily[family.ordinal()] = Integer.valueOf(nextSet);
                 nextSet++;
             }
@@ -2163,8 +2462,10 @@ public final class WearTextures {
      * and rendered as flat black cubes.
      */
     private static void planChain(List<SpritePlan> plans, int set, Block origin, int meta, SurfaceFamily originFamily,
-        int[] edges) {
+        int[] edges, boolean turns) {
         Set<SurfaceFamily> appearances = appearancesFor(origin, originFamily);
+        // One pattern for a set that turns under client.wearTurns' turn only, which the plan priced (WearTurns.seeds).
+        int seeds = WearTurns.seeds(turnsMode, turns, rotations);
 
         // A full run of gradations for each, rather than only the ones the chain visits. What is
         // drawn is not tied to a step any more: a sunken block is shown further along its run
@@ -2172,7 +2473,7 @@ public final class WearTextures {
         for (SurfaceFamily appearance : appearances) {
             for (int stage = 0; stage < spriteLayers; stage++) {
                 int stageCount = spriteLayers;
-                for (int rotation = 0; rotation < rotations; rotation++) {
+                for (int rotation = 0; rotation < seeds; rotation++) {
                     plans.add(
                         new SpritePlan(
                             set,
@@ -2196,12 +2497,9 @@ public final class WearTextures {
      * the plan and the price cannot come apart.
      */
     private static Set<SurfaceFamily> appearancesFor(Block origin, SurfaceFamily originFamily) {
-        int length = ErosionChain.length(originFamily);
-        Set<SurfaceFamily> onChain = new HashSet<SurfaceFamily>();
-        for (int index = 0; index < length; index++) {
-            SurfaceFamily appearance = ErosionChain.familyAt(originFamily, index);
-            if (appearance != null) onChain.add(appearance);
-        }
+        // Every chain of the family's ground, its blocks' own as well (W3 T9): a block a data file gives a list of its
+        // own may wear through to a surface the family's chain never reaches, and its fallback is planned here.
+        Set<SurfaceFamily> onChain = new HashSet<SurfaceFamily>(ErosionChain.appearancesOf(originFamily));
 
         // A surface set is built from one block's own pixels, and a successor is a different
         // material: there is nothing in a granite block to make cobble out of. So a set for a
@@ -2249,6 +2547,68 @@ public final class WearTextures {
             this.wearEdge = wearEdge;
         }
 
+        /** Each face's three measures, read once a stitch by its name ({@link FaceDirection}). */
+        private final Map<String, FaceDirection.Reading> readings = new HashMap<String, FaceDirection.Reading>();
+
+        /** A face's measures from its file, or UNREAD where the file cannot be read or decoded. */
+        FaceDirection.Reading reading(String face) {
+            if (face == null) return FaceDirection.UNREAD;
+            FaceDirection.Reading known = readings.get(face);
+            if (known != null) return known;
+            FaceDirection.Reading read = FaceDirection.UNREAD;
+            try {
+                java.awt.image.BufferedImage image = WearPatterns.readIcon(manager, face);
+                if (image != null) {
+                    int width = image.getWidth();
+                    int height = image.getHeight();
+                    read = FaceDirection.read(image.getRGB(0, 0, width, height, null, 0, width), width, height);
+                }
+            } catch (RuntimeException unreadable) {
+                read = FaceDirection.UNREAD;
+            }
+            readings.put(face, read);
+            return read;
+        }
+
+        /**
+         * Whether a block state's worn top turns with its position (0.9.229): a looks file's {@code turns}, else no
+         * where the block's or its face's name holds a hint, else the face's own pixels, else, for a face that cannot
+         * be read, its family's default (FamilySettings.turnsByDefault). The face is the looks file's where it gives
+         * one, as the set is drawn from it, else the block's own top.
+         */
+        boolean turns(Block block, int meta, SurfaceFamily family) {
+            BlockLooks.Look look = FaceSource.lookOf(block, meta);
+            String face = look.face != null ? look.face : FaceSource.iconName(block, meta, 1);
+            if (face == null) face = look.planFace();
+            String registry;
+            try {
+                registry = SurfaceRegistry.registryName(block);
+            } catch (RuntimeException unregistrable) {
+                registry = null;
+            }
+            if (Boolean.FALSE.equals(look.turns) || look.turns == null && FaceDirection.hinted(registry, face))
+                vetoed.add(registry + ":" + (meta & 0xF));
+            return FaceDirection.turns(
+                look.turns,
+                reading(face),
+                com.trmtgtnh.config.FamilySettings.turnsByDefault(family),
+                registry,
+                face);
+        }
+
+        /**
+         * Block states kept still by a looks file or a name hint, each once however many walks ask, for the line
+         * reportTurns writes.
+         */
+        final Set<String> vetoed = new HashSet<String>();
+
+        /** Whether a family's fallback set turns: the vanilla face it is made of, judged as any other face. */
+        boolean fallbackTurns(SurfaceFamily family) {
+            String face = FaceSource.readable(manager, FaceRules.vanillaName(family, 1));
+            return FaceDirection
+                .turns(null, reading(face), com.trmtgtnh.config.FamilySettings.turnsByDefault(family), face);
+        }
+
         /**
          * The edge of every appearance of one surface set, by the appearance's ordinal, nought for an appearance the
          * set does not hold. Every appearance a block's own set holds is made of the block's family - grass keeps
@@ -2260,7 +2620,9 @@ public final class WearTextures {
             int top = FaceSource.pricedWidth(manager, block, meta, 1, family);
             boolean wantsBottom = top <= 0;
             for (SurfaceFamily appearance : appearances) {
-                if (cover(family, appearance) || FaceRules.revealsEarth(family, appearance)) wantsBottom = true;
+                if (cover(family, appearance, block, meta) || FaceRules.revealsEarth(family, appearance)) {
+                    wantsBottom = true;
+                }
             }
             int bottom = wantsBottom ? FaceSource.pricedWidth(manager, block, meta, 0, family) : 0;
             int topEdge = FaceRules.faceEdge(top, bottom, wearEdge);
@@ -2268,7 +2630,7 @@ public final class WearTextures {
             int[] edges = new int[FAMILIES];
             for (SurfaceFamily appearance : appearances) {
                 edges[appearance.ordinal()] = FaceRules.appearanceEdge(
-                    cover(family, appearance),
+                    cover(family, appearance, block, meta),
                     FaceRules.revealsEarth(family, appearance),
                     topEdge,
                     bottomEdge);
@@ -2324,13 +2686,9 @@ public final class WearTextures {
             return edges;
         }
 
-        /** The slots one gradation of a set takes at one rotation. */
+        /** The slots one gradation of a set takes at one rotation, its glow overlays' included. */
         static int cellsOf(int[] edges) {
-            int cells = 0;
-            for (int edge : edges) {
-                if (edge > 0) cells += AtlasPlan.cellsFor(edge);
-            }
-            return cells;
+            return pricedCells(edges);
         }
 
         /** The slots one gradation of every fallback appearance takes at one rotation. */
@@ -2358,6 +2716,12 @@ public final class WearTextures {
         /** Whether an appearance is drawn as a cover, asked of its look as it stands while the stitch is planned. */
         private static boolean cover(SurfaceFamily family, SurfaceFamily appearance) {
             return FaceRules.drawsCover(family, appearance, FaceSource.coverLook(TrmtConfig.family(appearance)));
+        }
+
+        /** The same, for one block, whose own look a looks file may give (W3 T5), as its sprite will ask it. */
+        private static boolean cover(SurfaceFamily family, SurfaceFamily appearance, Block block, int meta) {
+            return FaceRules
+                .drawsCover(family, appearance, FaceSource.coverLook(TrmtConfig.family(appearance), block, meta));
         }
     }
 
@@ -2463,7 +2827,7 @@ public final class WearTextures {
     private static void registerFringe(TextureMap map, int stage, int rotation) {
         int index = stage * rotations + rotation;
         if (index < 0 || index >= overlaySprites.length) return;
-        String name = Trmt.MODID + ":wear/fringe_" + stage + "_" + rotation;
+        String name = fringeSpriteName(stage, rotation);
         FringeSprite sprite = new FringeSprite(name, stage, spriteLayers, rotation, map.getMipmapLevels());
         if (map.setTextureEntry(sprite)) {
             overlaySprites[index] = sprite;
@@ -2537,7 +2901,7 @@ public final class WearTextures {
         TextureAtlasSprite[] table = current.fringes;
         if (table.length == 0) return null;
         // The counted gradation maps onto a drawn one, exactly as icon() does for the faces.
-        int stage = layer * current.layers / WearScale.COUNTED_STEPS;
+        int stage = current.stages[Math.max(0, Math.min(WearScale.COUNTED_STEPS - 1, layer))];
         if (stage < 0) stage = 0;
         if (stage >= current.layers) stage = current.layers - 1;
         int index = stage * current.rotations + (rotation % current.rotations);
@@ -2579,15 +2943,160 @@ public final class WearTextures {
         return origin != null && Boolean.TRUE.equals(wantedMends.get(origin, originMeta));
     }
 
+    /**
+     * A wear texture's sprite name: set, appearance, rotation, then the stage padded to three digits, so that names
+     * sort a face's stages one after another within each rotation. Vanilla's stitcher sorts holders of one size by
+     * name, so a face's stages are stitched side by side and a distant one that blends past its border blends into
+     * its own next stage (0.9.229, public issue #3; StagesStitchSideBySideTest). A name is only ever registered, never
+     * looked up.
+     */
+    static String wearSpriteName(int set, String appearance, int stage, int rotation) {
+        return Trmt.MODID + ":wear/" + set + "_" + appearance + "_r" + rotation + "_" + padded(stage);
+    }
+
+    /**
+     * The slots one gradation of a set takes at one rotation, given the edge of each of its appearances by ordinal: the
+     * pictures, and, for each appearance that glows, the overlay beside its picture, priced as large as the picture is.
+     * The price is of the most that can be stitched: an overlay with nothing to light is never stitched, so the room is
+     * only ever more than enough (0.9.228, real glow).
+     */
+    static int pricedCells(int[] edges) {
+        SurfaceFamily[] families = SurfaceFamily.values();
+        int cells = 0;
+        for (int at = 0; at < edges.length; at++) {
+            if (edges[at] <= 0) continue;
+            cells += AtlasPlan.cellsFor(edges[at]);
+            if (at < families.length && glows(families[at])) cells += AtlasPlan.cellsFor(edges[at]);
+        }
+        return cells;
+    }
+
+    /** How many sprites a set of appearances is priced at, one gradation at one rotation: each, and each overlay. */
+    static int pricedAppearances(java.util.Collection<SurfaceFamily> appearances) {
+        int count = appearances.size();
+        for (SurfaceFamily appearance : appearances) {
+            if (glows(appearance)) count++;
+        }
+        return count;
+    }
+
+    /** Whether the look this appearance's family draws with has a glow, as the end's, the nether's and sculk's do (real glow). */
+    public static boolean glows(SurfaceFamily appearance) {
+        com.trmtgtnh.config.FamilySettings look = appearance == null ? null : TrmtConfig.family(appearance);
+        // Before the settings are read, the family's shipped look.
+        if (look == null && appearance != null) look = com.trmtgtnh.config.FamilySettings.shipped(appearance);
+        return glows(appearance, look == null ? null : look.wearPattern);
+    }
+
+    /**
+     * The same, for the look given. Only where that look has a glow: under client.classicWear the end and the nether
+     * draw classic looks with none, and GT New Horizons 2.9.0 registered 26,544 overlays that all came out empty and
+     * still counted against client.maxWearSprites, which cost it a gradation (2026-11-17).
+     */
+    static boolean glows(SurfaceFamily appearance, String look) {
+        // Glowing wear off (client.glowingWear): no overlay is registered, priced or drawn.
+        if (!TrmtConfig.glowingWear || appearance == null) return false;
+        return WearSprite.glowLevel(look) > 0;
+    }
+
+    /**
+     * Whether the glow overlay of this appearance at this stage can light at all (GlowStagesTest). One that cannot is
+     * never registered, and the plan does not count it against client.maxWearSprites.
+     */
+    static boolean glowLights(SurfaceFamily appearance, int stage, int stageCount) {
+        return WearSprite.glowCanLight(lookOf(appearance), stage, stageCount);
+    }
+
+    /** How many of these appearances have a glow overlay. */
+    static int glowCount(java.util.Collection<SurfaceFamily> appearances) {
+        int count = 0;
+        for (SurfaceFamily appearance : appearances) if (glows(appearance)) count++;
+        return count;
+    }
+
+    /**
+     * These appearances' glow sprites at one rotation, indexed by the gradations drawn: at each count, the stages whose
+     * overlay can light, summed over the appearances that glow. Null where none glows.
+     */
+    static int[] glowLit(java.util.Collection<SurfaceFamily> appearances) {
+        int[] out = null;
+        for (SurfaceFamily appearance : appearances) {
+            if (!glows(appearance)) continue;
+            int[] one = litTable(lookOf(appearance));
+            if (out == null) out = new int[one.length];
+            for (int g = 0; g < one.length; g++) out[g] += one[g];
+        }
+        return out;
+    }
+
+    /** The family fallbacks' glow overlays: one for each staged family's appearance that glows. */
+    static int fallbackGlows() {
+        int total = 0;
+        for (SurfaceFamily family : SurfaceFamily.values()) {
+            if (family.staged) total += glowCount(appearancesFor(null, family));
+        }
+        return total;
+    }
+
+    /** The family fallbacks' glow sprites at one rotation, indexed by the gradations drawn. */
+    static int[] fallbackGlowLit() {
+        int[] out = new int[WearScale.COUNTED_STEPS + 1];
+        for (SurfaceFamily family : SurfaceFamily.values()) {
+            if (!family.staged) continue;
+            int[] lit = glowLit(appearancesFor(null, family));
+            if (lit != null) for (int g = 0; g < out.length && g < lit.length; g++) out[g] += lit[g];
+        }
+        return out;
+    }
+
+    /** At each count of gradations up to the most there can be, how many stages of this look's overlay can light. */
+    static int[] litTable(String look) {
+        int[] table = new int[WearScale.COUNTED_STEPS + 1];
+        for (int g = 1; g < table.length; g++) {
+            for (int stage = 0; stage < g; stage++) if (WearSprite.glowCanLight(look, stage, g)) table[g]++;
+        }
+        return table;
+    }
+
+    /**
+     * The slots one gradation of a set's glow overlays takes at one rotation, given its edges by ordinal (GlowRoomTest):
+     * the planner takes these off for the stages that cannot light.
+     */
+    static int glowCells(int[] edges) {
+        SurfaceFamily[] families = SurfaceFamily.values();
+        int cells = 0;
+        for (int at = 0; at < edges.length && at < families.length; at++) {
+            if (edges[at] > 0 && glows(families[at])) cells += AtlasPlan.cellsFor(edges[at]);
+        }
+        return cells;
+    }
+
+    /** The same over every fallback appearance. */
+    static long glowCells(int[][] edges) {
+        long cells = 0L;
+        for (int[] row : edges) cells += glowCells(row);
+        return cells;
+    }
+
+    /** The look a family draws with: its shipped look before the settings are read. */
+    private static String lookOf(SurfaceFamily appearance) {
+        com.trmtgtnh.config.FamilySettings look = appearance == null ? null : TrmtConfig.family(appearance);
+        if (look == null && appearance != null) look = com.trmtgtnh.config.FamilySettings.shipped(appearance);
+        return look == null ? null : look.wearPattern;
+    }
+
+    /** A fringe's sprite name, ordered as {@link #wearSpriteName} orders a face's. */
+    static String fringeSpriteName(int stage, int rotation) {
+        return Trmt.MODID + ":wear/fringe_r" + rotation + "_" + padded(stage);
+    }
+
+    private static String padded(int stage) {
+        String digits = Integer.toString(stage);
+        return digits.length() >= 3 ? digits : "000".substring(digits.length()) + digits;
+    }
+
     private static void register(TextureMap map, SpritePlan plan) {
-        String name = Trmt.MODID + ":wear/"
-            + plan.set
-            + "_"
-            + plan.appearance.key()
-            + "_"
-            + plan.stage
-            + "_"
-            + plan.rotation;
+        String name = wearSpriteName(plan.set, plan.appearance.key(), plan.stage, plan.rotation);
 
         WearSprite sprite = new WearSprite(
             name,
@@ -2610,6 +3119,18 @@ public final class WearTextures {
         if (map.setTextureEntry(sprite)) {
             icons[index] = sprite;
             REGISTERED.add(sprite);
+            // The glow overlay of the end's and the nether's wear, composed beside it from the same source. Named like
+            // the picture it goes with, ordered the same way, so a face's overlays stitch side by side too, and never
+            // the same sprite as any picture: it is its own entry, and the sharing never compares it with a picture.
+            if (glows(plan.appearance) && glowLights(plan.appearance, plan.stage, plan.stageCount)) {
+                WearSprite glow = WearSprite.glowOf(
+                    sprite,
+                    wearSpriteName(plan.set, plan.appearance.key() + "_glow", plan.stage, plan.rotation));
+                if (map.setTextureEntry(glow)) {
+                    REGISTERED.add(glow);
+                    glowIcons[index] = glow;
+                }
+            }
         } else if (icons[index] == null) {
             // Refused because something already holds the name; use whatever that is.
             icons[index] = map.getTextureExtry(name);
@@ -2685,16 +3206,18 @@ public final class WearTextures {
         Lookup current = lookup;
         TextureAtlasSprite[] table = current.icons;
         int layers = current.layers;
-        int turn = rotation % current.rotations;
         // The counted position maps onto a drawn one. The identity at eighty pictures, which is the
         // whole point of the default; a fifth of the way at sixteen, which is what it always did.
-        stage = stage * layers / WearScale.COUNTED_STEPS;
+        stage = current.stages[stage];
         if (stage >= layers) stage = layers - 1;
         int set = fallbackSet(originFamily, null);
         if (origin != null) {
             Integer own = current.sets.get(origin, originMeta);
             if (own != null) set = own.intValue();
         }
+        // Which seeded pattern: the rotation folded onto the patterns drawn, or the one a set that turns has under
+        // client.wearTurns' turn only (WearTurns.seed); the quarter turn itself is the quad's (quarterTurns).
+        int turn = WearTurns.seed(current.mode, current.turned.get(set), rotation, current.rotations);
         int index = slot(set, appearance, stage, turn, layers, current.rotations);
         if (index < 0 || index >= table.length) return null;
         TextureAtlasSprite icon = table[index];
@@ -2702,10 +3225,133 @@ public final class WearTextures {
 
         // A surface set can be missing an appearance the chain has since gained, e.g. after a
         // config change without a resource reload. The family fallback always has it.
-        int fallback = slot(fallbackSet(originFamily, appearance), appearance, stage, turn, layers, current.rotations);
+        int fallbackSet = fallbackSet(originFamily, appearance);
+        int fallbackTurn = WearTurns.seed(current.mode, current.turned.get(fallbackSet), rotation, current.rotations);
+        int fallback = slot(fallbackSet, appearance, stage, fallbackTurn, layers, current.rotations);
         if (fallback < 0 || fallback >= table.length) return null;
         TextureAtlasSprite generic = table[fallback];
         return usable(generic) ? generic : null;
+    }
+
+    /**
+     * The glow overlay that goes over the wear texture {@link #icon} answers for the same arguments, or null where
+     * that one has none: the look has no glow, or nothing in this gradation glows (0.9.228, real glow). Drawn over the
+     * picture as a second quad lit at {@link #glowLevelAt}, so by day it is the picture's own pixels again and in the
+     * dark it shines.
+     */
+    public static TextureAtlasSprite glowIcon(Block origin, int originMeta, SurfaceFamily originFamily,
+        SurfaceFamily appearance, int stage, int rotation) {
+        Lookup current = lookup;
+        int at = glowSlot(current, origin, originMeta, originFamily, appearance, stage, rotation);
+        if (at < 0) return null;
+        WearSprite glow = current.glowIcons[at];
+        return glow != null && glow.isUsable() ? glow : null;
+    }
+
+    /** The light level, out of fifteen, the overlay {@link #glowIcon} answers for the same arguments is baked with. */
+    public static int glowLevelAt(Block origin, int originMeta, SurfaceFamily originFamily,
+        SurfaceFamily appearance, int stage, int rotation) {
+        Lookup current = lookup;
+        int at = glowSlot(current, origin, originMeta, originFamily, appearance, stage, rotation);
+        if (at < 0) return 0;
+        WearSprite glow = current.glowIcons[at];
+        return glow != null && glow.isUsable() ? glow.glowLevelOf() : 0;
+    }
+
+    /**
+     * The slot of the overlay that goes with the picture {@link #icon} would draw, found as it finds that picture: the
+     * block's own set, then the family's. Negative where the arguments name no picture at all.
+     */
+    private static int glowSlot(Lookup current, Block origin, int originMeta, SurfaceFamily originFamily,
+        SurfaceFamily appearance, int stage, int rotation) {
+        if (appearance == null || !glows(appearance) || stage < 0 || stage >= WearScale.COUNTED_STEPS) return -1;
+        TextureAtlasSprite[] table = current.icons;
+        int layers = current.layers;
+        stage = current.stages[stage];
+        if (stage >= layers) stage = layers - 1;
+        int set = fallbackSet(originFamily, null);
+        if (origin != null) {
+            Integer own = current.sets.get(origin, originMeta);
+            if (own != null) set = own.intValue();
+        }
+        int turn = WearTurns.seed(current.mode, current.turned.get(set), rotation, current.rotations);
+        int index = slot(set, appearance, stage, turn, layers, current.rotations);
+        if (index >= 0 && index < table.length && usable(table[index])) return index;
+        int fallbackSet = fallbackSet(originFamily, appearance);
+        int fallbackTurn = WearTurns.seed(current.mode, current.turned.get(fallbackSet), rotation, current.rotations);
+        int fallback = slot(fallbackSet, appearance, stage, fallbackTurn, layers, current.rotations);
+        if (fallback < 0 || fallback >= table.length || !usable(table[fallback])) return -1;
+        return fallback;
+    }
+
+    /**
+     * How many quarter turns clockwise, seen from above with north up, a worn top drawn at a position of this rotation
+     * is turned by (0.9.229, docs/goals/0.9.229-rotation-spec.md): the position's own rotation where the set
+     * {@link #icon} draws from for the same arguments turns and client.wearTurns turns anything, and none otherwise -
+     * a face with a direction, no picture, or reseed. Asked by the quads with what they asked the icon with, so the turn
+     * is the drawn set's whichever set the lookup fell through to; 1.7.10 asks the drawn sprite itself.
+     */
+    public static int quarterTurns(Block origin, int originMeta, SurfaceFamily originFamily, SurfaceFamily appearance,
+        int stage, int rotation, int depth, int gameTurn) {
+        if (appearance == null || stage < 0 || stage >= WearScale.COUNTED_STEPS) return 0;
+        Lookup current = lookup;
+        if (WearTurns.RESEED.equals(current.mode)) return 0;
+        TextureAtlasSprite[] table = current.icons;
+        int layers = current.layers;
+        int drawn = current.stages[stage];
+        if (drawn >= layers) drawn = layers - 1;
+        int set = fallbackSet(originFamily, null);
+        if (origin != null) {
+            Integer own = current.sets.get(origin, originMeta);
+            if (own != null) set = own.intValue();
+        }
+        int turn = WearTurns.seed(current.mode, current.turned.get(set), rotation, current.rotations);
+        int index = slot(set, appearance, drawn, turn, layers, current.rotations);
+        if (index >= 0 && index < table.length && usable(table[index])) {
+            return WearTurns.quarterTurns(current.mode, current.turned.get(set), rotation, TrmtConfig.wearTurnStart,
+                depth, gameTurn);
+        }
+        int fallbackSet = fallbackSet(originFamily, appearance);
+        // Told when the turn starts (client.wearTurnStart), how far the square has sunk and the game's own turn of the
+        // unworn block there (BlockGhost.GAME_TURN).
+        return WearTurns.quarterTurns(current.mode, current.turned.get(fallbackSet), rotation, TrmtConfig.wearTurnStart,
+            depth, gameTurn);
+    }
+
+    static final String LINE_TURNS = "Worn tops turn with their position on {} of this stitch's {} wear sets (client.wearTurns is {}): {} faces read with no direction turn, {} read with lines or a grain keep still, {} block states keep still by a name hint or a looks file, and {} that could not be read follow their family. Kept still, for example: {}.";
+
+    /**
+     * Says which sets turn, and why the rest keep still (0.9.229). Every face judged is also written at debug, with its
+     * three measures, which is what a face misjudged is checked against.
+     */
+    private static void reportTurns(int sets, FacePricing pricing) {
+        int turning = TURNED.cardinality();
+        int read = 0;
+        int lined = 0;
+        int unread = 0;
+        List<String> still = new ArrayList<String>();
+        for (Map.Entry<String, FaceDirection.Reading> each : pricing.readings.entrySet()) {
+            FaceDirection.Reading reading = each.getValue();
+            if (!reading.read) {
+                unread++;
+            } else if (reading.directional()) {
+                lined++;
+                if (still.size() < 12) still.add(each.getKey());
+            } else {
+                read++;
+            }
+            Trmt.LOG.debug("Face {} for the worn turn: {}", each.getKey(), reading);
+        }
+        Trmt.LOG.info(
+            LINE_TURNS,
+            Integer.valueOf(turning),
+            Integer.valueOf(sets),
+            turnsMode,
+            Integer.valueOf(read),
+            Integer.valueOf(lined),
+            Integer.valueOf(pricing.vetoed.size()),
+            Integer.valueOf(unread),
+            still.isEmpty() ? "none" : String.join(", ", still));
     }
 
     /**

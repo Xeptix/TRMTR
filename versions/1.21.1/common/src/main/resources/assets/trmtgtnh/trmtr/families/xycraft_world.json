@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "XyCraft World, from All the Mods 10's census (W4 R9, judged 2026-11-12). Kivi is natural rock its worlds lay in the ground, on a material no rule reads. Named alone, the one block that census judged and detection left out, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Its bricks, tiles, trims, pillars and the rajan form were not judged and are left to the rules, and its ores are excluded."
+  ],
+  "entries": [
+    { "blocks": ["xycraft_world:kivi"], "family": "stone" }
+  ]
+}

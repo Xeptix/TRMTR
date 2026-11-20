@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "_": "From GT New Horizons' census (W4 R3 run, judged 2026-11-10 by two judges who agreed). Moon Dirt, Moon Rock and Moon Turf, values 3 to 5 of the moon block, are the Moon's ground: grey regolith and rock on rock material, the turf 98.2% of its open ground, so they wear as stone, as every GalaxySpace planet surface does. The block's other values are its ores, the turf with footprints, dungeon brick and the boss spawner, which keeps a tile entity; none of those is named.",
+  "entries": [
+    { "blocks": ["GalacticraftCore:tile.moonBlock:3", "GalacticraftCore:tile.moonBlock:4", "GalacticraftCore:tile.moonBlock:5"], "family": "stone" }
+  ]
+}

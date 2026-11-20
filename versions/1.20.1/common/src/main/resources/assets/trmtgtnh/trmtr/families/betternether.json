@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "_": [
+    "Better Nether, from Prominence's census (W4 R7, judged 2026-11-12). Named one by one, only the blocks that census saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. The obsidians' bricks, tiles, slabs and stairs were not judged and are left to the rules; nether mycelium and netherrack moss already wear as nether by detection.",
+    "Nether: jungle grass, mushroom grass, sepia mushroom grass and swampland grass are the living surface of the Nether's own ground, as nylium and mycelium are, and blue obsidian, blue crying obsidian, weeping obsidian and blue weeping obsidian are natural rock found only in the Nether; the last, which this census did not judge, is named as the 26.x files have it, so the editions match (W4 R14, 2026-11-13). All are rock to the game, which the rules leave out for having no stone word."
+  ],
+  "entries": [
+    { "blocks": ["betternether:blue_crying_obsidian", "betternether:blue_obsidian", "betternether:blue_weeping_obsidian", "betternether:jungle_grass", "betternether:mushroom_grass", "betternether:sepia_mushroom_grass", "betternether:swampland_grass", "betternether:weeping_obsidian"], "family": "nether" }
+  ]
+}

@@ -92,7 +92,7 @@ indication of prior modifications, and a list that stops a year short of the cod
   model to rotate - a worn square's picture is composed per position from the covered block's pixels
 - The authored art decomposed into a reusable per-pixel coverage sequence and re-applied to each
   block's own textures, so modded surfaces wear in their own colors
-- Eleven procedural wear looks added, worked entirely from the block's own pixels, for surfaces
+- Procedural wear looks added, worked entirely from the block's own pixels, for surfaces
   nobody drew art for. `polish` and `sand` are retired names from an earlier set and are still
   read so that no config file breaks
 - The wear atlas planned into the room actually measured, with every sprite priced at the size it is
@@ -123,7 +123,7 @@ indication of prior modifications, and a list that stops a year short of the cod
 - World-gen loot and optional first-join items
 - The `/trmt` command set, including `showcase` and `demonstrate`, which builds a complete exhibit
   of every detected surface, look and golem upgrade for judging a change at a glance
-- An in-game config screen, five preset choosers, and a wear table that draws all eleven looks on
+- An in-game config screen, five preset choosers, and a wear table that draws every look on
   the player's own blocks before they choose one
 - Map coloring that travels toward what the ground is becoming - answered once, per position, so
   the vanilla map item and every minimap read the same answer. On 1.7.10 this takes a reflective

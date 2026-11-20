@@ -113,6 +113,9 @@ public final class ConfigReload {
         static Snapshot take() {
             int surfaces = SurfaceRegistry.tableSignature();
             int sink = 17;
+            // When a worn block starts turning is read as each square is drawn, so a change to it asks the squares to
+            // be drawn again and nothing more (0.9.229, "When the turn starts").
+            sink = sink * 31 + TrmtConfig.wearTurnStart.hashCode();
             int textures = TrmtConfig.maxTexturedSurfaces * 31 + (TrmtConfig.perSurfaceTextures ? 1 : 0);
 
             // Ordering is the point of the texture signature, not just membership: per-surface
@@ -141,6 +144,8 @@ public final class ConfigReload {
             textures = textures * 31 + (TrmtConfig.wearThroughToOtherSurfaces ? 1 : 0);
             textures = textures * 31 + TrmtConfig.maxWearSprites;
             textures = textures * 31 + (TrmtConfig.largerAtlas ? 1 : 0);
+            // How wide this mod's sprites' Angelica border is, which changes what fits and where every one is placed.
+            textures = textures * 31 + TrmtConfig.angelicaWearGutter.hashCode();
             // The shape of a run decides what every gradation of every sprite looks like, so a
             // change to it is a whole new atlas even though not one sprite has been added or taken
             // away. Each look's own shape rides along with this and needs nothing of its own: it is
@@ -153,6 +158,9 @@ public final class ConfigReload {
             // stitch.
             textures = textures * 31 + TrmtConfig.wearGradations;
             textures = textures * 31 + TrmtConfig.wearRotations;
+            // How the rotation is shown: under turn only a face that turns is drawn with one pattern rather than all of
+            // them, and in every mode which faces turn is settled as the atlas is planned (0.9.229).
+            textures = textures * 31 + TrmtConfig.wearTurns.hashCode();
             // What goes behind a worn block whose own face is cut away, and whether it moves. Both
             // are read while the atlas is being built and baked into the picture, so like the two
             // above they showed nothing at all until something unrelated forced a stitch - which is
@@ -163,12 +171,21 @@ public final class ConfigReload {
             textures = textures * 31 + (TrmtConfig.animateInnerLayers ? 1 : 0);
             textures = textures * 31 + TrmtConfig.innerLayerAnimationBudgetMb;
             textures = textures * 31 + (TrmtConfig.seeThroughInnerLayers ? 1 : 0);
+            // Whether glow overlays are registered at all (real glow): off leaves them out of the atlas.
+            textures = textures * 31 + (TrmtConfig.glowingWear ? 1 : 0);
+            // The looks files' looks, faces, layers and pictures (W3 T5), all baked into the pictures as the settings
+            // above are, so a look changed in the config folder and read by /trmt reload stitches again.
+            textures = textures * 31
+                + com.trmtgtnh.dataload.BlockLooks.signature(com.trmtgtnh.dataload.DataLoad.table());
             // The chain's shape, not only the atlas's. These two decide which appearances
             // a run visits, so a change to either has to rebuild chains as well as restitch -
             // missing them is why toggling the switch looked like it did nothing at all.
             sink = sink * 31 + (TrmtConfig.wearThroughToOtherSurfaces ? 1 : 0);
             sink = sink * 31 + (TrmtConfig.grassWearsThroughToDirt ? 1 : 0);
             sink = sink * 31 + TrmtConfig.physicalDecay.hashCode();
+            // Faithful Mode swaps grass, dirt and sand onto the original's chains (0.9.229 W5), a new shape even where
+            // every figure below happens to match the one it replaces.
+            sink = sink * 31 + (FaithfulProfile.on() ? 1 : 0);
 
             for (SurfaceFamily family : SurfaceFamily.values()) {
                 FamilySettings settings = TrmtConfig.family(family);
@@ -200,11 +217,11 @@ public final class ConfigReload {
                 // a run is ever built some other way, because it reads the answer instead of
                 // predicting it. Safe to read here: the chains are rebuilt inside TrmtConfig.read,
                 // which lands between the snapshot taken before a reload and the one taken after.
+                // Every chain of the family's ground, the blocks' own as well (W3 T9): a data read that gives a block a
+                // list of its own may reach a surface the family's chain never does, and that wants its fallback.
                 int visited = 0;
-                int steps = ErosionChain.length(family);
-                for (int step = 0; step < steps; step++) {
-                    SurfaceFamily seen = ErosionChain.familyAt(family, step);
-                    if (seen != null) visited |= 1 << seen.ordinal();
+                for (SurfaceFamily seen : ErosionChain.appearancesOf(family)) {
+                    visited |= 1 << seen.ordinal();
                 }
                 textures = textures * 31 + visited;
                 textures = textures * 31 + (settings.enabled ? 1 : 0);
@@ -258,6 +275,10 @@ public final class ConfigReload {
     public static Delta fromDisk() {
         Snapshot before = Snapshot.take();
         if (!TrmtConfig.reloadFromDisk()) return null;
+        // The data files again (W3 spec 2.2: "again on /trmt reload"), before the resolve in finish, which T5 feeds
+        // from them. Here rather than in finish, which the config screen's Done also runs: an edit on that screen
+        // changes no file on disk.
+        com.trmtgtnh.dataload.DataLoad.read();
         return finish(before);
     }
 
@@ -278,6 +299,9 @@ public final class ConfigReload {
             return null;
         }
         Snapshot before = Snapshot.take();
+        // The screen wrote into the settings the file is saved from: an edit to a setting a server holds is taken as
+        // the player's choice for the visit and the file's value put back, before the read applies it (0.9.229).
+        ClientSettingsHeld.takeEdits(TrmtConfig.raw());
         TrmtConfig.read();
         TrmtConfig.save();
         // Asked after the read, which is where a server's numbers were put back, and before the work
@@ -286,6 +310,19 @@ public final class ConfigReload {
         Delta delta = finish(before);
         if (overruled) Trmt.proxy.tellServerOwnsGeometry();
         return delta;
+    }
+
+    /**
+     * Applies a server's rules for this player's own settings, just taken or just let go (0.9.229): the settings
+     * screen's Done without its save, since nothing about the file has changed. What moved is acted on as a Done's
+     * would be, so a setting that rebuilds the wear pictures asks for one rebuild, and a join that also moved the
+     * server's own rules shares it.
+     */
+    public static Delta fromClientRules() {
+        if (TrmtConfig.isPoisoned()) return null;
+        Snapshot before = Snapshot.take();
+        TrmtConfig.read();
+        return finish(before);
     }
 
     // ------------------------------------------------------------------

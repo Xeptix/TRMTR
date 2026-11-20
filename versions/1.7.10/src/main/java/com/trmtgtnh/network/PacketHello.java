@@ -29,23 +29,33 @@ public class PacketHello implements IMessage {
      */
     private int protocol = 1;
 
+    /**
+     * The format of a server's rules for its players' settings this client reads, 0 for a hello that says none
+     * (0.9.229). Said rather than assumed from the protocol, so only a client that can answer is asked for its
+     * settings by /trmt clientrules copy; a server too old to read it stops before it.
+     */
+    private int clientRules;
+
     public PacketHello() {}
 
     public PacketHello(boolean wantsOverlays) {
         this.wantsOverlays = wantsOverlays;
         this.protocol = TrmtNetwork.PROTOCOL;
+        this.clientRules = com.trmtgtnh.util.ClientSettingRules.FORMAT;
     }
 
     @Override
     public void fromBytes(ByteBuf buf) {
         wantsOverlays = buf.readBoolean();
         protocol = buf.readableBytes() >= 4 ? buf.readInt() : 1;
+        clientRules = buf.readableBytes() >= 1 ? buf.readUnsignedByte() : 0;
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeBoolean(wantsOverlays);
         buf.writeInt(protocol);
+        buf.writeByte(clientRules);
     }
 
     public static class Handler implements IMessageHandler<PacketHello, IMessage> {
@@ -62,6 +72,7 @@ public class PacketHello implements IMessage {
             // from another thread. See TrmtNetwork.answerHello for why it is not decided here.
             TrmtNetwork.rememberWanted(player, wants);
             TrmtNetwork.rememberProtocol(player, message.protocol);
+            TrmtNetwork.rememberClientRules(player, message.clientRules);
             MainThread.onServer(new Runnable() {
 
                 @Override

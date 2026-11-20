@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "_": [
+    "Oh The Biomes You'll Go, from ATM6's census and All of Fabric 3's (W4 R6, judged 2026-11-11). Named one by one, only the blocks those censuses saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Bricks, tiles, pillars, slabs, stairs and walls of the same rock were not judged and are left to the rules.",
+    "Stone: dacite, red rock and the five colored sandstones are natural rock of their biomes, as vanilla sandstone is, and the rules leave them out for having no stone word or a decorative one.",
+    "Nether: brimstone, magmatic stone, frost magma, raw quartz, overgrown crimson blackstone, the embur, sythian and wailing nyliums and both soul nyliums are only ever the Nether's own ground, as basalt, blackstone and the vanilla nyliums are. Detection gave brimstone, magmatic stone and overgrown crimson blackstone stone by the stone in their names.",
+    "End: the phyliums are the living surface of the End's own ground, as nylium is the Nether's; ether soil, cryptic stone, cryptic magma, ether stone and vermilion sculk were seen only in the End, as its own ground. Detection gave cryptic stone and ether stone stone.",
+    "Sand: the subzero ash block is loose fine ash, as Biomes O' Plenty's ash block was judged, though its material is crafted snow's and detection gave it snow. Grass: glowcelium is a living top like mycelium, which wears as grass, on a material no rule reads.",
+    "Grass: meadow grass, overgrown stone, overgrown dacite and podzol dacite are living tops over the mod's soil and rock, which wear as grass, as 1.20.1's and 1.21.1's biomeswevegone.json have them. They are named because this file serves both loaders: on Forge their class is the game's grass block and detection gives them grass, but on Fabric their classes are not, and detection gave meadow grass dirt by its material, overgrown stone stone by its name, and the dacite turfs nothing.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.16.5 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are.",
+    "Stone: travertine, from ATM6's default world (W4 R16, judged 2026-11-17), is pale sedimentary rock, judged by what it is though it was seen only on the floor of the Nether's Subzero Hypogeal, as that biome's subzero ash was judged sand; the rules leave it out for a decorative word. Its slab and stairs take its ruling. Its wall is not a full cube and is left alone."
+  ],
+  "entries": [
+    { "blocks": ["byg:black_sandstone", "byg:blue_sandstone", "byg:dacite", "byg:pink_sandstone", "byg:purple_sandstone", "byg:red_rock", "byg:white_sandstone"], "family": "stone" },
+    { "blocks": ["byg:brimstone", "byg:embur_nylium", "byg:frost_magma", "byg:magmatic_stone", "byg:nylium_soul_sand", "byg:nylium_soul_soil", "byg:overgrown_crimson_blackstone", "byg:raw_quartz_block", "byg:sythian_nylium", "byg:wailing_nylium"], "family": "nether" },
+    { "blocks": ["byg:bulbis_phycelium", "byg:cryptic_magma_block", "byg:cryptic_stone", "byg:ether_phylium", "byg:ether_soil", "byg:ether_stone", "byg:imparius_phylium", "byg:ivis_phylium", "byg:nightshade_phylium", "byg:shulkren_phylium", "byg:vermilion_sculk"], "family": "end" },
+    { "blocks": ["byg:subzero_ash_block"], "family": "sand" },
+    { "blocks": ["byg:glowcelium_block"], "family": "grass" },
+    { "blocks": ["byg:meadow_grass_block", "byg:overgrown_dacite", "byg:overgrown_stone", "byg:podzol_dacite"], "family": "grass" },
+    { "blocks": ["byg:cryptic_stone_slab", "byg:cryptic_stone_stairs", "byg:ether_stone_slab", "byg:ether_stone_stairs"], "family": "end" },
+    { "blocks": ["byg:dacite_slab", "byg:dacite_stairs", "byg:red_rock_slab", "byg:red_rock_stairs"], "family": "stone" },
+    { "blocks": ["byg:travertine", "byg:travertine_slab", "byg:travertine_stairs"], "family": "stone" }
+  ]
+}

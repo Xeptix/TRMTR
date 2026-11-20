@@ -18,6 +18,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.surface.DataShape;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.surface.SurfaceShape;
@@ -107,15 +108,19 @@ public final class PhysicalDecay {
         if (entry == null || !entry.isVisible()) return 0;
         // Something planted here holds the ground level whatever the record says it has taken.
         if (GroundCover.holdsAt(world, x, y, z)) return 0;
+        // A solid block standing on it holds it full for as long as it stands there (0.9.229): see GroundCover.roofedAt.
+        if (GroundCover.roofedAt(world, x, y, z)) return 0;
 
         // By what class the block is, as the ghost decides it on the other side and as the 1.7.10 edition
         // decides it: a slab class is a slab, anything else whole. Until 0.9.220 this judged by thickness;
         // Xep chose the other edition's rule on 2026-10-08.
-        return SinkProfile.collides(
+        // Through the block state's data shape too (W3 T6), so the server's depth is the one the client's ghost takes.
+        return SurfaceShape.sunk(
             entry.getFamily(),
             entry.getSink(),
-            SurfaceShape.of(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z)
-                .getBlock()));
+            com.trmtgtnh.util.Worlds.blockAt(world, x, y, z),
+            com.trmtgtnh.util.Worlds.metaAt(world, x, y, z),
+            true);
     }
 
     /**
@@ -135,7 +140,9 @@ public final class PhysicalDecay {
         // into - and the two sides must give the same nought: the server's collision depth for a stair would otherwise
         // lower the carpet's box into a step nobody sees sunk. The server reads the real block here; a client holds a
         // stand-in at this square, which is no stair class, and Settling.dropOf asks it the block it stands in for.
-        if (SurfaceShape.of(com.trmtgtnh.util.Worlds.blockAt(world, x, y - 1, z)) == SurfaceShape.STAIR) return 0.0D;
+        if (SurfaceShape.of(
+            com.trmtgtnh.util.Worlds.blockAt(world, x, y - 1, z),
+            com.trmtgtnh.util.Worlds.metaAt(world, x, y - 1, z)) == SurfaceShape.STAIR) return 0.0D;
         if (world.isRemote) return Trmt.proxy.settledDropUnder(x, y - 1, z);
         return sinkAt(world, x, y - 1, z) / 16.0D;
     }
@@ -179,7 +186,17 @@ public final class PhysicalDecay {
         if (sink <= 0) return null;
 
         IBlockState state = com.trmtgtnh.util.Worlds.stateAt(world, x, y, z);
-        SurfaceShape shape = SurfaceShape.of(state.getBlock());
+        int meta = state.getBlock()
+            .getMetaFromState(state);
+        // A data file's boxes (W3 spec 2.4, T6): one box round them all for a caller that wants one; collision proper
+        // takes them one by one through boxesAt. Before the footing refusal below, because the file says what shape
+        // the block is, and the client's ghost asks them first as well.
+        DataShape boxes = boxesOf(state.getBlock(), meta);
+        if (boxes != null) {
+            double[] round = boxes.outline(sink);
+            return new AxisAlignedBB(x + round[0], y + round[1], z + round[2], x + round[3], y + round[4], z + round[5]);
+        }
+        SurfaceShape shape = SurfaceShape.of(state.getBlock(), meta);
         // A stair answers for its own collision and this must not take it over. Everything below
         // builds ONE box across the whole footprint, which is right for a slab and wrong for a stair -
         // a stair is three boxes. Refused rather than shaped: a stair states its own shape and never
@@ -199,6 +216,36 @@ public final class PhysicalDecay {
         double floor = SurfaceShape.bottomOf(shape, state);
         double worn = Math.max(floor, SurfaceShape.topOf(shape, state) - sink / 16.0D);
         return new AxisAlignedBB(x, y + floor, z, x + 1.0D, y + worn, z + 1.0D);
+    }
+
+    /**
+     * The boxes the server gives a worn position, or null when it gives none and the block answers for itself: a data
+     * file's boxes one by one, the walked ones sunk (W3 spec 2.4, T6), and otherwise {@link #boxAt}'s one box. The
+     * client's ghost builds the same through {@code BlockGhost.addCollisionBoxToList}; {@link CollisionHook} puts each
+     * in the list in place of the block's own box, as the 1.7.10 edition's collision mixin adds each.
+     */
+    public static AxisAlignedBB[] boxesAt(World world, int x, int y, int z) {
+        int sink = sinkAt(world, x, y, z);
+        if (sink <= 0) return null;
+        DataShape boxes = boxesOf(
+            com.trmtgtnh.util.Worlds.blockAt(world, x, y, z),
+            com.trmtgtnh.util.Worlds.metaAt(world, x, y, z));
+        if (boxes == null) {
+            AxisAlignedBB one = boxAt(world, x, y, z);
+            return one == null ? null : new AxisAlignedBB[] { one };
+        }
+        double[][] sunk = boxes.boxesSunk(sink);
+        AxisAlignedBB[] out = new AxisAlignedBB[sunk.length];
+        for (int i = 0; i < sunk.length; i++) {
+            double[] box = sunk[i];
+            out[i] = new AxisAlignedBB(x + box[0], y + box[1], z + box[2], x + box[3], y + box[4], z + box[5]);
+        }
+        return out;
+    }
+
+    private static DataShape boxesOf(Block block, int meta) {
+        DataShape data = SurfaceRegistry.shapeOf(block, meta);
+        return data != null && data.kind == DataShape.BOXES ? data : null;
     }
 
     /**
@@ -353,7 +400,16 @@ public final class PhysicalDecay {
                 Block block = com.trmtgtnh.util.Worlds.blockAt(world, x, y, z);
                 AxisAlignedBB worn;
                 if (!client && sinkable.contains(block)) {
-                    worn = boxAt(world, x, y, z);
+                    // Boxes rather than one box (W3 T6): a data file's boxes collide one by one, as the client's ghost
+                    // does; any other worn ground is the one box it always was.
+                    AxisAlignedBB[] parts = boxesAt(world, x, y, z);
+                    if (parts == null) continue;
+                    it.remove();
+                    for (AxisAlignedBB part : parts) {
+                        if (part.intersects(query)) it.add(new WornBox(part));
+                    }
+                    sayInPlace(x, y, z, parts[0]);
+                    continue;
                 } else if (settling.contains(block)) {
                     worn = settledBoxAt(world, x, y, z, box);
                 } else {

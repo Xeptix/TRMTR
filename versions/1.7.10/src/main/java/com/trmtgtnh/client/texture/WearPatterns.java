@@ -13,6 +13,7 @@ import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
 
 import com.trmtgtnh.Trmt;
+import com.trmtgtnh.dataload.BlockLooks;
 
 /**
  * Reads milkucha's authored wear art and hands it to {@link WearCompositor} as patterns that
@@ -26,7 +27,7 @@ import com.trmtgtnh.Trmt;
  * texture it was drawn on.
  *
  * <p>
- * Only the first of those two is wired today. The eleven looks a family can be set to all work off
+ * Only the first of those two is wired today. Every look a family can be set to works off
  * the block's own pixels - see {@link WearSprite#wearPass} and {@link WearSprite#grassPass} - and
  * of the art only the coverage sequence is still read, by the look that takes a cover off. The
  * ratio-transfer half is kept because it is the thing to reach for if a look ever wants authored
@@ -205,6 +206,32 @@ public final class WearPatterns {
             .modulationRatio(toPixels(art, ART_SIZE), toPixels(reference, ART_SIZE), ART_SIZE);
         MODULATION_CACHE.put(cacheKey, ratio);
         return ratio;
+    }
+
+    /**
+     * The original mod's five sand pictures at one rotation, each as the ratio it holds to vanilla sand, or null when
+     * any of them will not read (0.9.229 W5 T4). {@code sand_top_0} to {@code _4} are the original's
+     * {@code eroded_sand_0} to {@code _4} pixel for pixel at rotation 0, and turned at the other three. Render thread,
+     * as {@link #modulation} is.
+     */
+    public static float[][] originalSandRatios(IResourceManager resources, int rotation) {
+        float[][] out = new float[SAND_ART_STAGES][];
+        for (int stage = 0; stage < SAND_ART_STAGES; stage++) {
+            out[stage] = modulation(resources, PATTERN_SAND, stage, rotation);
+            if (out[stage] == null) return null;
+        }
+        return out;
+    }
+
+    /**
+     * One gradation of Faithful Mode's sand: the original's picture its place in the run falls on, multiplied into the
+     * block's own face, so vanilla sand shows the original's picture exactly and a resource pack's sand wears as the
+     * original wore vanilla's. The gradations spread across the pictures as a looks file's authored pictures do, so
+     * Faithful's stage k, drawn at k/4 of the run, lands on picture k. Pure: safe on any thread.
+     */
+    public static int[] originalSand(int[] top, int size, float[][] ratios, int stage, int stageCount) {
+        float[] ratio = ratios[BlockLooks.stagePicture(stage, stageCount, ratios.length)];
+        return WearCompositor.applyModulation(top, size, ratio, ART_SIZE, 1f);
     }
 
     /** How many stages a pattern was drawn with, for interpolating an arbitrary stage count. */

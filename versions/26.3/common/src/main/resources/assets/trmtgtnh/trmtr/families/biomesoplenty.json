@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "_": [
+    "Biomes O' Plenty, from the modded census of 26.3 (W4 R11, judged 2026-11-12), as 26.2's biomesoplenty.json has it from that edition's. Named one by one, only the blocks that census saw as ground and judged, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. The sandstones' cut, smooth and chiseled forms, slabs, stairs and walls, orpiment's and sphalerite's bricks and polished forms, the flesh tendons and the glowing moss carpet were not judged and are left to the rules, and the orpiment fumarole, potent sphalerite, the rose quartz block, the glowshroom and toadstool blocks and the flower petal blocks were excluded; black, orange and white sand, the null, algal and unmapped end stones and the origin grass block already wear by detection.",
+    "Stone: black, orange and white sandstone, sphalerite and dried salt are natural rock, as vanilla sandstone is, and the rules leave them out for a decorative word or no stone word, as 1.16.5's file has orange sandstone and dried salt and 1.20.1's white sandstone. 26.2's file names sphalerite the same, as this census ruled it, so the editions match. Flesh: flesh and porous flesh are the floor of the visceral heap, the blocks the flesh family was made for (W4 T17), on a material no rule reads.",
+    "Grass: the glowing moss block is a moss block, as vanilla's is grass, and mossy black sand is a turf judged by its living top, moss over black sand, where detection gave it sand by its falling-sand class. End: the null block is the ground of the end corruption, found only in the End. Nether: orpiment is natural rock found only in the Nether's biomes, on a rock material the rules leave out for having no stone word.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 26.3 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["biomesoplenty:black_sandstone", "biomesoplenty:dried_salt", "biomesoplenty:orange_sandstone", "biomesoplenty:sphalerite", "biomesoplenty:white_sandstone"], "family": "stone" },
+    { "blocks": ["biomesoplenty:flesh", "biomesoplenty:porous_flesh"], "family": "flesh" },
+    { "blocks": ["biomesoplenty:glowing_moss_block", "biomesoplenty:mossy_black_sand"], "family": "grass" },
+    { "blocks": ["biomesoplenty:null_block"], "family": "end" },
+    { "blocks": ["biomesoplenty:orpiment"], "family": "nether" },
+    { "blocks": ["biomesoplenty:orpiment_slab", "biomesoplenty:orpiment_stairs"], "family": "nether" },
+    { "blocks": ["biomesoplenty:black_sandstone_slab", "biomesoplenty:black_sandstone_stairs", "biomesoplenty:orange_sandstone_slab", "biomesoplenty:orange_sandstone_stairs", "biomesoplenty:sphalerite_slab", "biomesoplenty:sphalerite_stairs", "biomesoplenty:white_sandstone_slab", "biomesoplenty:white_sandstone_stairs"], "family": "stone" }
+  ]
+}

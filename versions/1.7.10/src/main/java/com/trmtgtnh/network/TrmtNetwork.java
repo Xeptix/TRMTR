@@ -66,9 +66,11 @@ public final class TrmtNetwork {
      * The protocol this build speaks on the wire: what a client and a server must agree on to read each other. 1 is
      * every build before 0.9.223, whose hello says nothing of it; 2 from 0.9.223 - the 1.16.5 surface table carries a
      * doubled slab in its spare nibble, and the rules carry {@code settleOnWornGround} and the chunk tamper's limits
-     * (Xep, 2026-10-10: "match with the protocol bump"). Moved only with Xep's permission, in every edition at once.
+     * (Xep, 2026-10-10: "match with the protocol bump"); 3 from 0.9.229 (Xep, 2026-11-03: "Step to 3"), taken once in
+     * every edition and shared by the rules' Faithful Mode tail (W5 spec 2.7) and the surface table's shapes (W3 spec
+     * 2.4). Moved only with Xep's permission, in every edition at once.
      */
-    public static final int PROTOCOL = 2;
+    public static final int PROTOCOL = 3;
 
     /** The protocol each player's hello said, 1 for a hello that said none. Forgotten with the player. */
     private static final java.util.Map<UUID, Integer> protocols = new ConcurrentHashMap<UUID, Integer>();
@@ -102,6 +104,10 @@ public final class TrmtNetwork {
         channel
             .registerMessage(PacketSurfaceTableRequest.Handler.class, PacketSurfaceTableRequest.class, 19, Side.SERVER);
         channel.registerMessage(PacketSurfaceTable.Handler.class, PacketSurfaceTable.class, 20, Side.CLIENT);
+        // A server's rules for its players' settings: the copy command's ask and its answer (0.9.229).
+        channel.registerMessage(PacketClientSettingsAsk.Handler.class, PacketClientSettingsAsk.class, 21, Side.CLIENT);
+        channel
+            .registerMessage(PacketClientSettingsCopy.Handler.class, PacketClientSettingsCopy.class, 22, Side.SERVER);
     }
 
     // ------------------------------------------------------------------
@@ -153,6 +159,8 @@ public final class TrmtNetwork {
         protocols.remove(player.getUniqueID());
         toldToUpdate.remove(player.getUniqueID());
         tableSent.remove(player.getUniqueID());
+        clientRuleFormats.remove(player.getUniqueID());
+        settingsAsks.remove(player.getUniqueID());
     }
 
     /**
@@ -224,6 +232,9 @@ public final class TrmtNetwork {
      */
     public static void sendSurfaceTable(EntityPlayerMP player) {
         if (channel == null || player == null || player.getUniqueID() == null) return;
+        // A build older than this protocol cannot read the table's format (format 2 carries the data files' shapes,
+        // W3 T6), so it is not sent one: it draws with its own table, as the ports do, and is told to update.
+        if (protocolOf(player) < PROTOCOL) return;
         long fingerprint = com.trmtgtnh.surface.SurfaceRegistry.fingerprint();
         Long already = tableSent.get(player.getUniqueID());
         if (already != null && already.longValue() == fingerprint) return;
@@ -275,6 +286,130 @@ public final class TrmtNetwork {
     public static void rememberProtocol(EntityPlayerMP player, int protocol) {
         UUID id = player == null ? null : player.getUniqueID();
         if (id != null) protocols.put(id, Integer.valueOf(protocol));
+    }
+
+    // ------------------------------------------------------------------
+    // A server's rules for its players' settings (0.9.229)
+    // ------------------------------------------------------------------
+
+    /** The client rules format each player's hello said it reads, 0 for none. Forgotten with the player. */
+    private static final java.util.Map<UUID, Integer> clientRuleFormats = new ConcurrentHashMap<UUID, Integer>();
+
+    /** The copy each operator asked for and has not been answered: the ask's number and the strength. */
+    private static final java.util.Map<UUID, int[]> settingsAsks = new ConcurrentHashMap<UUID, int[]>();
+
+    private static final java.util.concurrent.atomic.AtomicInteger asks = new java.util.concurrent.atomic.AtomicInteger(
+        (int) (System.nanoTime() & 0x7FFFFFFF));
+
+    private static volatile boolean unreadableRulesSaid;
+
+    /** Records the client rules format a player's hello said. */
+    public static void rememberClientRules(EntityPlayerMP player, int format) {
+        UUID id = player == null ? null : player.getUniqueID();
+        if (id != null) clientRuleFormats.put(id, Integer.valueOf(format));
+    }
+
+    /** Whether a player's game reads this server's client rules, and so can answer the copy command's ask. */
+    public static boolean readsClientRules(EntityPlayerMP player) {
+        UUID id = player == null ? null : player.getUniqueID();
+        Integer format = id == null ? null : clientRuleFormats.get(id);
+        return format != null && format.intValue() >= com.trmtgtnh.util.ClientSettingRules.FORMAT;
+    }
+
+    /**
+     * Client side: the rules a server's packet carried, or none. None for an older server, which sent no tail, and for
+     * bytes this build cannot read, which it says once and leaves alone rather than half applying.
+     */
+    public static java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> clientRulesIn(byte[] bytes) {
+        if (bytes == null) return java.util.Collections.emptyList();
+        java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules = com.trmtgtnh.util.ClientSettingRules
+            .decode(bytes);
+        if (rules != null) return rules;
+        if (!unreadableRulesSaid) {
+            unreadableRulesSaid = true;
+            Trmt.LOG.info(
+                "This server sets some of your TRMT settings in a form this build cannot read; your own settings stand");
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * Server side: asks an operator's game for its settings, for /trmt clientrules copy. Whether it was asked: not
+     * where the player's game cannot answer.
+     */
+    public static boolean askForSettings(EntityPlayerMP player,
+        com.trmtgtnh.util.ClientSettingRules.Strength strength) {
+        if (channel == null || player == null || player.getUniqueID() == null || !readsClientRules(player))
+            return false;
+        int ask = asks.incrementAndGet();
+        settingsAsks.put(player.getUniqueID(), new int[] { ask, strength.ordinal() });
+        channel.sendTo(new PacketClientSettingsAsk(ask), player);
+        return true;
+    }
+
+    /** Client side: answers a server's ask with this game's current settings. */
+    public static void answerSettingsAsk(int ask) {
+        if (channel == null) return;
+        java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> mine = com.trmtgtnh.util.ClientSettingRules
+            .answer(com.trmtgtnh.config.ClientSettingsHeld.current());
+        channel.sendToServer(new PacketClientSettingsCopy(ask, com.trmtgtnh.util.ClientSettingRules.encode(mine)));
+    }
+
+    /**
+     * Server side: an operator's game answered. Taken only for the ask this server sent that player and has not seen
+     * answered, only while they are still an operator, and every setting checked against this server's own.
+     */
+    public static void takeSettingsCopy(EntityPlayerMP player, int ask, byte[] bytes) {
+        UUID id = player == null ? null : player.getUniqueID();
+        int[] asked = id == null ? null : settingsAsks.get(id);
+        if (asked == null || asked[0] != ask) {
+            Trmt.LOG.info(
+                "Ignored settings sent by {} that this server did not ask for",
+                player == null ? "?" : player.getCommandSenderName());
+            return;
+        }
+        settingsAsks.remove(id);
+        if (!player.canCommandSenderUseCommand(2, "trmt")) {
+            tellCopy(
+                player,
+                net.minecraft.util.EnumChatFormatting.RED,
+                com.trmtgtnh.util.ClientSettingRules.COPY_NEEDS_AN_OPERATOR);
+            return;
+        }
+        java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> sent = com.trmtgtnh.util.ClientSettingRules
+            .decode(bytes);
+        if (sent == null) {
+            tellCopy(
+                player,
+                net.minecraft.util.EnumChatFormatting.RED,
+                com.trmtgtnh.util.ClientSettingRules.COPY_UNREADABLE);
+            return;
+        }
+        java.util.Map<String, String> values = new java.util.LinkedHashMap<String, String>();
+        for (com.trmtgtnh.util.ClientSettingRules.Rule each : sent) {
+            values.put(each.id, each.value);
+        }
+        com.trmtgtnh.util.ClientSettingRules.Strength strength = com.trmtgtnh.util.ClientSettingRules.Strength
+            .values()[asked[1]];
+        java.util.List<String> problems = com.trmtgtnh.config.ClientSettingsBook.copy(values, strength);
+        tellCopy(
+            player,
+            net.minecraft.util.EnumChatFormatting.GREEN,
+            com.trmtgtnh.util.ClientSettingRules.copiedWords(com.trmtgtnh.config.ClientSettingsBook.size(), strength));
+        for (String problem : problems) {
+            tellCopy(player, net.minecraft.util.EnumChatFormatting.GRAY, "Left out: " + problem);
+        }
+        Trmt.LOG.info(
+            "{} copied their settings to this server's client rules: {} rule(s), {} left out",
+            player.getCommandSenderName(),
+            Integer.valueOf(com.trmtgtnh.config.ClientSettingsBook.size()),
+            Integer.valueOf(problems.size()));
+    }
+
+    private static void tellCopy(EntityPlayerMP player, net.minecraft.util.EnumChatFormatting color, String words) {
+        player.addChatMessage(
+            new net.minecraft.util.ChatComponentText(words)
+                .setChatStyle(new net.minecraft.util.ChatStyle().setColor(color)));
     }
 
     /** The protocol a player's hello said, or 1 - every build before 0.9.223 - for one that has said none. */

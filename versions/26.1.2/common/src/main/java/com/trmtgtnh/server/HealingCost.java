@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.item.Item;
@@ -13,6 +14,7 @@ import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.util.OreNames;
+import com.trmtgtnh.surface.SurfaceData;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 
@@ -84,10 +86,16 @@ public final class HealingCost {
      * A null player is allowed. It carries nothing, so it can pay for nothing.
      */
     public static HealingCost forPlayer(Player player, Block covered, int meta) {
-        if (covered == null) return null;
         // The metadata is still taken and still ignored: every caller has one to give because the
         // engine's own signatures kept the shape, and there is nothing here for it to mean.
-        SurfaceFamily aimedAt = SurfaceRegistry.familyOf(covered);
+        return covered == null ? null : forPlayer(player, covered.defaultBlockState());
+    }
+
+    /** The same for the state on the ground, whose family and repairWith a data file may set apart from its block. */
+    public static HealingCost forPlayer(Player player, BlockState state) {
+        if (state == null) return null;
+        Block covered = state.getBlock();
+        SurfaceFamily aimedAt = SurfaceRegistry.familyOf(state);
         if (aimedAt == null || !aimedAt.staged) return null;
 
         FamilySettings settings = TrmtConfig.family(aimedAt);
@@ -99,7 +107,8 @@ public final class HealingCost {
             player,
             aimedAt,
             covered.asItem(),
-            settings == null ? null : settings.repairBlocks);
+            // The family's list and what a data file says of this very state (repairWith, W3 T5): both pay.
+            SurfaceData.joined(settings == null ? null : settings.repairBlocks, SurfaceRegistry.repairWithOf(state)));
     }
 
     /**

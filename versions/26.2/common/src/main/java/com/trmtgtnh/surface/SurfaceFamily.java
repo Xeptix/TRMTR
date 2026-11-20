@@ -16,8 +16,8 @@ import java.util.Locale;
  * order of these constants is part of the save format</b>. Append new families at the end,
  * never insert - inserting one renumbers every family after it and silently rewrites the
  * meaning of every record already saved. Four bits are allocated, so there is room for
- * sixteen in total; see {@code ErosionState} for where the fourth bit lives and why it is not
- * beside the other three.
+ * sixteen in total, and since 0.9.229 all sixteen are spent; see {@code ErosionState} for where
+ * the fourth bit lives and why it is not beside the other three.
  */
 public enum SurfaceFamily {
 
@@ -47,7 +47,30 @@ public enum SurfaceFamily {
     /** Snow blocks. Compacts under foot faster than anything else that holds a shape. */
     SNOW(true),
     /** Ice, packed and otherwise. Scuffs and scratches, but takes a long time to. */
-    ICE(true);
+    ICE(true),
+    /**
+     * Soft living floor: Biomes O' Plenty's flesh, under five of its Nether biomes. Neither rock, earth nor grains, so
+     * it presses down under foot and sinks as itself. No rule finds it; a data file names it (0.9.229, W4 T17).
+     */
+    FLESH(true),
+    /**
+     * Thaumcraft's crusted taint, the hard crust of the Tainted Land. It cracks under foot and creeps back over its own
+     * ruts, so it mends as turf does. No rule finds it; a data file names it (0.9.229, W4 T17).
+     */
+    TAINT(true),
+    /**
+     * Sculk, the deep dark's living skin over its rock. It goes still and dark under foot, and its rut opens onto the
+     * deepslate it was spread over, by its own {@code wearsThroughTo} list rather than the wholesale switch. No rule
+     * finds it; a data file names it (0.9.229, W4; Xep, 2026-11-11, "Add both families").
+     */
+    SCULK(true),
+    /**
+     * Twilight Forest's fluffy cloud, the floor of its cloud castles. A foot presses a shallow trough into it and the
+     * fluff fills it again within days; under it is air, so it sinks as itself. No rule finds it; a data file names it
+     * (0.9.229, W4). The sixteenth family and the last the four bits of a record hold: a seventeenth needs a new
+     * format.
+     */
+    CLOUD(true);
 
     private static final SurfaceFamily[] BY_ORDINAL = values();
 

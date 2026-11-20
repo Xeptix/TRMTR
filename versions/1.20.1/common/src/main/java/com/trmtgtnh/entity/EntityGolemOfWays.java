@@ -2669,7 +2669,8 @@ public class EntityGolemOfWays extends PathfinderMob implements net.minecraft.wo
         net.minecraft.nbt.ListTag savedBlocks = tag.getList("blockTargets", 10);
         for (int i = 0; i < savedBlocks.size() && blockTargets.size() < MAX_BLOCK_TARGETS; i++) {
             CompoundTag one = savedBlocks.getCompound(i);
-            String key = one.getString("k");
+            // Through OldNames: a golem carried from 1.12.2 holds that edition's spelling of each block.
+            String key = com.trmtgtnh.util.OldNames.savedKey(one.getString("k"));
             if (key != null && !key.isEmpty()) blockTargets.put(key, Byte.valueOf(one.getByte("v")));
         }
         byte[] savedTargets = tag.getByteArray("targets");

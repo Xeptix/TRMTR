@@ -46,7 +46,7 @@ public class BlockGhostStair extends BlockGhost {
     public VoxelShape getOcclusionShape(BlockState state, BlockGetter world, BlockPos pos) {
         // Asked by a chunk about its own column too, in the chunk's coordinates - see BlockGhost.inWorld.
         pos = inWorld(world, pos);
-        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        BlockState stair = lightStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         if (stair == null) return super.getOcclusionShape(state, world, pos);
         try {
             return stair.getOcclusionShape(world, pos);

@@ -335,14 +335,16 @@ public final class GolemWork {
 
         int target = golem.targetForBlock(block, meta, family);
         if (target < 0) return -1;
-        int length = ErosionChain.length(family);
+        // Along the chain the block follows, its own where a data file gives it one (W3 T9), as forceStage reads it.
+        ErosionChain.Chain chain = ErosionEngine.chainFor(world, x, y, z, family);
+        int length = chain.length();
         if (length <= 1) return -1;
 
         ErosionEntry entry = ErosionStore.get()
             .getEntry(world, x, y, z);
         if (entry != null && entry.isFrozen()) return -1;
 
-        int top = Math.max(0, ErosionChain.cappedLength(family) - 1);
+        int top = Math.max(0, chain.cappedLength() - 1);
         int middle = Math.min(top, Math.round(target / 100f * (length - 1)));
         if (!golem.farms()) return middle;
 
@@ -464,10 +466,19 @@ public final class GolemWork {
                 // Wearing asks the dimension list and mending does not, as for the tamper: a golem in a dimension
                 // the list rules out still keeps its road, and wears nothing in (0.9.222, spec SD47).
                 if (!TrmtConfig.dimensionAllowed(world.provider.dimensionId)) break;
-                if (!ErosionEngine.get()
-                    .forceStage(world, x, y, z, family, current + 1, false, notify)) break;
+                // trmtr-api: a golem wearing ground asks the plugins' rules and listeners first (W3 T7).
+                com.trmtgtnh.apiload.ApiHooks.enter(com.trmtgtnh.api.WearContext.Cause.GOLEM, golem);
+                boolean forced;
+                try {
+                    forced = ErosionEngine.get()
+                        .forceStage(world, x, y, z, family, current + 1, false, notify);
+                } finally {
+                    com.trmtgtnh.apiload.ApiHooks.leave();
+                }
+                if (!forced) break;
                 current++;
                 did = WEAR;
+                if (moved(world, x, y, z, family, current)) break;
             } else {
                 // Mending needs a block the ground will take. Without one the golem simply cannot,
                 // which is what makes an unfed one a wearer rather than a keeper - and it says so
@@ -510,6 +521,7 @@ public final class GolemWork {
                 purse.ledger.mended(family, quote);
                 current--;
                 did = MEND;
+                if (moved(world, x, y, z, family, current)) break;
             }
         }
         // Once, after the strokes, and only for wearing. A golem putting ground back is not walking
@@ -715,11 +727,24 @@ public final class GolemWork {
     }
 
     /** Where this position sits on its family's whole run, or 0 when nothing is recorded yet. */
+    /**
+     * Whether the ground no longer stands where the stroke just put it: a mod's listener (trmtr-api), told of the
+     * change, forgot, pinned or wore it again. The stroke stops there rather than working on from a step the ground is
+     * not at (Codex review R16). Only asked of the store while a listener is registered, so a stroke costs what it did.
+     */
+    private static boolean moved(World world, int x, int y, int z, SurfaceFamily family, int current) {
+        if (!com.trmtgtnh.apiload.ApiHooks.listening()) return false;
+        com.trmtgtnh.erosion.ErosionEntry entry = ErosionStore.get()
+            .getEntry(world, x, y, z);
+        return entry == null || entry.isFrozen() || currentIndex(world, x, y, z, family) != current;
+    }
+
     private static int currentIndex(World world, int x, int y, int z, SurfaceFamily family) {
         ErosionEntry entry = ErosionStore.get()
             .getEntry(world, x, y, z);
         if (entry == null) return 0;
-        int index = ErosionChain.indexOf(family, entry.getFamily(), entry.getStage(), entry.getSink());
+        int index = ErosionEngine.chainFor(world, x, y, z, family)
+            .indexOf(entry.getFamily(), entry.getStage(), entry.getSink());
         return index < 0 ? 0 : index;
     }
 

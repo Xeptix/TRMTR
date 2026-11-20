@@ -39,8 +39,8 @@ import com.trmtgtnh.client.settings.SettingsGeometry.Rect;
 import com.trmtgtnh.client.settings.SettingsKeys;
 import com.trmtgtnh.client.settings.Slider;
 import com.trmtgtnh.client.settings.TabStrip;
-import com.trmtgtnh.command.CommandTrmt;
 import com.trmtgtnh.config.ConfigFile;
+import com.trmtgtnh.config.OriginalFile;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.network.TrmtNetwork;
 import com.trmtgtnh.surface.SurfaceFamily;
@@ -110,6 +110,23 @@ public class WornPathScreen extends Screen {
 
     private static boolean advancedOpen;
 
+    /**
+     * The Advanced fold's photograph (settings-advanced): its row scrolled to the top of the panel. Since the Faithful row
+     * came before it on the Presets tab (0.9.229 W5), the fold sat below the frame and the photograph showed none of it.
+     */
+    private boolean advancedShown;
+
+    /**
+     * The Advanced fold's third photograph (settings-advanced-3; 0.9.229 W4, the design's Q5 a): its last row at the
+     * bottom of the panel, at the smallest GUI scale, where sculk's rows take a vanilla game's fold from 1.19 past one
+     * frame, as flesh's and taint's do a pack's that holds them. With settings-advanced-2, which shows its top, the two
+     * frames hold the whole fold.
+     */
+    private boolean advancedEnd;
+
+    /** Whether Faithful Mode's fold is open under its row (0.9.229 W5, spec 2.7). */
+    private static boolean faithfulOpen;
+
     private final Screen parent;
 
     final SettingsModel model;
@@ -175,6 +192,9 @@ public class WornPathScreen extends Screen {
 
     private boolean toggleHoverShown;
 
+    /** The Surfaces sub-tab a photograph's pointer rests on, or null (settings-surfaces-hover). */
+    private String pointerOnPage;
+
     private String sliderHeld;
 
     private boolean askToLeave;
@@ -212,6 +232,8 @@ public class WornPathScreen extends Screen {
             }
         });
         this.model.otherScreen(ConfigScreens.otherExists());
+        // The original mod's settings, looked for as the screen opens, beside this mod's own (spec 2.8).
+        this.model.original(OriginalFile.look(TrmtConfig.folder()));
         List<String> tabs = model.tabs();
         this.tab = lastTab != null && tabs.contains(lastTab) ? lastTab : tabs.isEmpty() ? null : tabs.get(0);
         this.page = pageOf(tab);
@@ -234,9 +256,19 @@ public class WornPathScreen extends Screen {
      * Null where there is no such tab or page.
      */
     public static WornPathScreen forPhotograph(Screen parent, String heading, String hoverOf) {
+        // Each photograph from a closed screen: what the session keeps open or scrolled for a player (spec M1.6) left
+        // the folds of one photograph open in every one after it (0.9.229, D3).
+        OPEN_LISTS.clear();
+        SCROLLS.clear();
+        advancedOpen = false;
+        faithfulOpen = false;
         WornPathScreen screen = new WornPathScreen(parent);
         if (!screen.open(heading)) return null;
         screen.hoverShown = hoverOf;
+        // A Surfaces page is photographed for its wear look's live picture, below the page's first rows (spec Part 4).
+        if (hoverOf == null && screen.model.setting(heading + ".wearPattern") != null) {
+            screen.shownSetting = heading + ".wearPattern";
+        }
         return screen;
     }
 
@@ -320,6 +352,19 @@ public class WornPathScreen extends Screen {
         return this;
     }
 
+    /**
+     * The pointer resting on a Surfaces sub-tab, its hover up over the sub-tabs beside it (0.9.229,
+     * settings-surfaces-hover; Xep, from GT New Horizons: the sub-tabs' blocks stood on a family's hover). The rig
+     * draws a screen with the pointer far off it, so the photograph says where it rests. Null where the open tab has
+     * no such sub-tab.
+     */
+    public WornPathScreen withPointerOnPage(String page) {
+        if (!model.pages(tab)
+            .contains(page)) return null;
+        pointerOnPage = page;
+        return this;
+    }
+
     public WornPathScreen withInlineOpen(String category, String key) {
         OPEN_LISTS.add(category + "." + key);
         open(category);
@@ -334,6 +379,9 @@ public class WornPathScreen extends Screen {
 
     public WornPathScreen withChangedOnly() {
         changedOnly = true;
+        // The photograph's own edit and nothing the rig's development settings hold (spec Part 4, settings-changed).
+        model.edits()
+            .restAtOpening();
         return this;
     }
 
@@ -347,6 +395,20 @@ public class WornPathScreen extends Screen {
 
     public WornPathScreen withAdvancedOpen() {
         advancedOpen = true;
+        advancedShown = true;
+        return this;
+    }
+
+    /** The Advanced fold open and scrolled to its end, for its third photograph: see {@link #advancedEnd}. */
+    public WornPathScreen withAdvancedEnd() {
+        advancedOpen = true;
+        advancedEnd = true;
+        return this;
+    }
+
+    /** Faithful Mode's fold open, for a photograph of its detail and its numbers. */
+    public WornPathScreen withFaithfulOpen() {
+        faithfulOpen = true;
         return this;
     }
 
@@ -399,6 +461,11 @@ public class WornPathScreen extends Screen {
         clearWidgets();
         canvas = new SettingsCanvas(minecraft, width, height);
         model.world(minecraft != null && minecraft.level != null);
+        model.ownWorld(
+            minecraft != null && minecraft.level != null
+                && minecraft.hasSingleplayerServer()
+                && com.trmtgtnh.server.WearBackups.get()
+                    .running());
         List<String> labels = new ArrayList<String>();
         for (String each : model.tabs()) labels.add(model.tabLabel(each));
         strip = new TabStrip(labels);
@@ -420,7 +487,19 @@ public class WornPathScreen extends Screen {
             View shown = viewOf(hoverShown != null ? hoverShown : shownSetting);
             if (shown != null) scroll = shown.top - frame.rows.height() / 2;
         }
+        if (advancedShown) {
+            // The Advanced fold's photograph: the fold's row at the top of the panel and its rows under it.
+            View fold = viewOfType(SettingsModel.RowType.ADVANCED);
+            if (fold != null) scroll = fold.top;
+        }
         clampScroll();
+        if (advancedEnd) {
+            // Its third photograph: the remembered rows' last line at the bottom of the panel, held to the panel
+            // as every other scroll is.
+            View rows = viewOfType(SettingsModel.RowType.REMEMBERED);
+            if (rows != null) scroll = rows.top + rows.height - frame.rows.height();
+            clampScroll();
+        }
         if (askToLeave) {
             askToLeave = false;
             leave();
@@ -473,7 +552,7 @@ public class WornPathScreen extends Screen {
     private void layoutRows() {
         views.clear();
         List<SettingsModel.Row> rows = model.results(searchText, changedOnly);
-        if (rows == null) rows = model.rows(page, advancedOpen);
+        if (rows == null) rows = model.rows(page, advancedOpen, faithfulOpen);
         int left = frame.rows.x0;
         int r = SettingsGeometry.rowWidth(frame);
         int y = bandPattern() != null ? BAND : 0;
@@ -493,7 +572,17 @@ public class WornPathScreen extends Screen {
         switch (row.type) {
             case FOLDER:
             case ADVANCED:
+            case FAITHFUL:
                 return SettingsGeometry.FOLDER_ROW;
+            case ORIGINAL:
+                // Laid out as a preset's row: its title and line at the left, its chooser at the right (spec 2.8).
+                return frame.compact ? SettingsGeometry.SETTING_ROW_COMPACT : SettingsGeometry.SETTING_ROW;
+            case DETAIL:
+                return Math.max(
+                    1,
+                    HoverText.wrap(canvas, Collections.singletonList(row.text), r - 24)
+                        .size())
+                    * 10 + 2;
             case NOTE:
                 return Math.max(
                     1,
@@ -501,7 +590,12 @@ public class WornPathScreen extends Screen {
                         .size())
                     * 10 + 8;
             case REMEMBERED:
-                if (remembered == null) remembered = new RememberedRows(model.edits(), left + 12, r - 12);
+                // A family's rows only for a family this pack holds a block of (0.9.229, W4 T17).
+                if (remembered == null) remembered = new RememberedRows(
+                    model.edits(),
+                    left + 12,
+                    r - 12,
+                    com.trmtgtnh.surface.SurfaceRegistry.familiesHeld());
                 return remembered.height() + 14;
             case EMPTY:
                 return Math.max(30, frame.rows.height());
@@ -551,6 +645,14 @@ public class WornPathScreen extends Screen {
         scroll = scroll < 0 ? 0 : Math.min(scroll, most);
     }
 
+    /** The first row of a kind laid out now, or null. */
+    private View viewOfType(SettingsModel.RowType type) {
+        for (View view : views) {
+            if (view.row.type == type) return view;
+        }
+        return null;
+    }
+
     private View viewOf(String id) {
         for (View view : views) {
             if (view.row.setting != null && (view.row.setting.id.equals(id) || view.row.setting.key.equals(id))) {
@@ -588,6 +690,15 @@ public class WornPathScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partial) {
         canvas.frame(graphics);
+        // A photograph's pointer, on the Surfaces sub-tab it rests on (withPointerOnPage).
+        Rect pointer = pointerOnPage == null ? null
+            : icons.tab(
+                model.pages(tab)
+                    .indexOf(pointerOnPage));
+        if (pointer != null) {
+            mouseX = (pointer.x0 + pointer.x1) / 2;
+            mouseY = (pointer.y0 + pointer.y1) / 2;
+        }
         // A frame's room for first tries of list pictures, and its slice of a picker's gathering (spec Part 6).
         SettingsPictures.frame();
         canvas.background(0, 0, width, height);
@@ -605,7 +716,7 @@ public class WornPathScreen extends Screen {
             int[] dots = new int[pages.size()];
             for (int i = 0; i < pages.size(); i++) {
                 SurfaceFamily family = SettingsModel.familyOf(pages.get(i));
-                pictures[i] = family == null ? SettingsCanvas.TAMPER : CommandTrmt.roadBlock(family);
+                pictures[i] = family == null ? SettingsCanvas.TAMPER : family;
                 dots[i] = model.dot(model.idsOfPage(pages.get(i)));
             }
             icons.draw(canvas, pictures, pages.indexOf(page), dots, mouseX, mouseY);
@@ -645,7 +756,9 @@ public class WornPathScreen extends Screen {
         List<String> header = model.header();
         for (int i = 0; i < header.size(); i++) {
             String action = header.get(i);
-            iconButton(frame.headerSlots[i], action, true, mouseX, mouseY, "header:" + action);
+            // The backups' button draws the undo arrow: the icon sheet has no cell to spare (0.9.229).
+            String icon = SettingsModel.HEADER_BACKUPS.equals(action) ? "undo" : action;
+            iconButton(frame.headerSlots[i], icon, true, mouseX, mouseY, "header:" + action);
         }
     }
 
@@ -777,6 +890,25 @@ public class WornPathScreen extends Screen {
                 focusFrame("adv", new Rect(left, top, left + r, top + 18));
                 return;
             }
+            case FAITHFUL: {
+                canvas.icon(faithfulOpen ? "fold_open" : "fold_closed", left + 2, top + 1);
+                canvas.text(row.text, left + 20, top + 5, Canvas.GOLD, true);
+                canvas.fill(left, top + 17, left + r, top + 18, Canvas.RULE);
+                focusFrame("faithful", new Rect(left, top, left + r, top + 18));
+                return;
+            }
+            case ORIGINAL: {
+                drawOriginal(row, left, top, r, mouseX, mouseY);
+                return;
+            }
+            case DETAIL: {
+                int y = top + 1;
+                for (String line : HoverText.wrap(canvas, Collections.singletonList(row.text), r - 24)) {
+                    canvas.text(line, left + 12, y, Canvas.BODY, true);
+                    y += 10;
+                }
+                return;
+            }
             case REMEMBERED: {
                 canvas.text(
                     canvas.trim(I18n.get(SettingsKeys.ADVANCED_NOTE), r - 18),
@@ -894,6 +1026,62 @@ public class WornPathScreen extends Screen {
             rows.visible(frame.rows.y0, frame.rows.y1);
             rows.draw(canvas, mouseX, mouseY);
         }
+    }
+
+    /**
+     * "Use your TRMT settings" (0.9.229 W5 T9, spec 2.8), drawn as a preset's row: its title, its line - the chosen
+     * rung's, or the refusal of a file that cannot be read - and its chooser, whose dropdown's detail panel lists what
+     * a rung changes and what could not be matched.
+     */
+    private void drawOriginal(SettingsModel.Row row, int left, int top, int r, int mouseX, int mouseY) {
+        SettingsGeometry.SettingRow at = SettingsGeometry.settingRow(left, top, r, frame.compact);
+        ChooserButton chooser = originalChooser();
+        boolean on = SettingsModel.ORIGINAL_ON.equals(chooser.chosen());
+        canvas.text(canvas.trim(row.text, at.title.x1 - at.title.x0), at.title.x0, at.title.y0, on ? Canvas.GOLD
+            : Canvas.WHITE, true);
+        if (at.summary != null) {
+            String summary = model.originalSummary();
+            if (summary == null) summary = chooser.line(canvas);
+            canvas.text(
+                canvas.trim(summary, (int) ((at.summary.x1 - at.title.x0) / 0.75F)),
+                at.title.x0,
+                at.summary.y0,
+                Canvas.BODY,
+                0.75F);
+        }
+        chooser.layout(at.control);
+        chooser.draw(canvas, mouseX, mouseY, ORIGINAL_ID.equals(focus), true);
+        focusFrame(ORIGINAL_ID, at.control);
+    }
+
+    /** The row of "Use your TRMT settings" where it is laid out, or null. */
+    private View originalView() {
+        for (View view : views) {
+            if (view.row.type == SettingsModel.RowType.ORIGINAL) return view;
+        }
+        return null;
+    }
+
+    /** The focus id of the row's chooser, and its key among the choosers. */
+    private static final String ORIGINAL_ID = "original";
+
+    /** The row's chooser: its two rungs, the one shown, and the detail panel each lists, as a preset's chooser's. */
+    private ChooserButton originalChooser() {
+        ChooserButton chooser = choosers.get(ORIGINAL_ID);
+        if (chooser == null) {
+            chooser = new ChooserButton(
+                com.trmtgtnh.config.Presets.CATEGORY,
+                ORIGINAL_ID,
+                model.originalChoices(),
+                model.originalChosen(),
+                rung -> {
+                    model.chooseOriginal(rung);
+                    edited();
+                }).details(model::originalChanges)
+                    .titles(SettingsModel::originalWords);
+            choosers.put(ORIGINAL_ID, chooser);
+        }
+        return chooser;
     }
 
     /** A setting's control, by its kind (spec 1.8). */
@@ -1303,8 +1491,11 @@ public class WornPathScreen extends Screen {
                 .set(ConfigWords.number(model.value(model.setting(one.getKey())), 0D));
         }
         for (Map.Entry<String, ChooserButton> one : choosers.entrySet()) {
+            // "Use your TRMT settings" holds no setting: its rung is whether the screen holds the file's values.
             one.getValue()
-                .show(model.value(model.setting(one.getKey())));
+                .show(
+                    ORIGINAL_ID.equals(one.getKey()) ? model.originalChosen()
+                        : model.value(model.setting(one.getKey())));
         }
         boolean bannerWas = frame.banner != null;
         if (bannerWas != (model.banner() != null)) relayout();
@@ -1324,6 +1515,9 @@ public class WornPathScreen extends Screen {
         } else if (SettingsModel.HEADER_WEARTABLE.equals(action)) {
             // Over this screen, so Back comes back to the edits not yet saved.
             minecraft.gui.setScreen(new GuiWearTable(WornPathScreen.this));
+        } else if (SettingsModel.HEADER_BACKUPS.equals(action)) {
+            // The world's wear backups (0.9.229), over this screen as the Wear Table is.
+            minecraft.gui.setScreen(new GuiWearBackups(WornPathScreen.this));
         } else if (SettingsModel.HEADER_TOGGLE.equals(action)) {
             if (!model.changed()) {
                 minecraft.gui.setScreen(ConfigScreens.switchTo(false, parent));
@@ -1436,6 +1630,8 @@ public class WornPathScreen extends Screen {
         for (View view : views) {
             SettingsModel.Row row = view.row;
             if (row.type == SettingsModel.RowType.ADVANCED) ids.add("adv");
+            if (row.type == SettingsModel.RowType.FAITHFUL) ids.add("faithful");
+            if (row.type == SettingsModel.RowType.ORIGINAL) ids.add(ORIGINAL_ID);
             if (row.setting == null) continue;
             String id = row.setting.id;
             if (row.setting.editor == ConfigLayout.Editor.LIST && foldable(row.setting)) ids.add("f:" + id);
@@ -1488,6 +1684,12 @@ public class WornPathScreen extends Screen {
         } else if ("adv".equals(id)) {
             advancedOpen = !advancedOpen;
             layoutRows();
+        } else if ("faithful".equals(id)) {
+            faithfulOpen = !faithfulOpen;
+            layoutRows();
+        } else if (ORIGINAL_ID.equals(id)) {
+            // Its dropdown opened, as a preset's chooser opens on Enter or Space (spec 2.8).
+            originalChooser().open(model.originalChosen());
         } else if (id.startsWith("f:")) {
             String setting = id.substring(2);
             if (!OPEN_LISTS.remove(setting)) OPEN_LISTS.add(setting);
@@ -1552,7 +1754,14 @@ public class WornPathScreen extends Screen {
             Component.literal(I18n.get(SettingsKeys.RESET_TAB_ASK, model.pageLabel(page))),
             Component.literal(I18n.get(SettingsKeys.RESET_TAB_NOTE)),
             Component.literal(I18n.get(SettingsKeys.RESET_TAB_YES)),
-            Component.literal(I18n.get(SettingsKeys.GUI_CANCEL))));
+            Component.literal(I18n.get(SettingsKeys.GUI_CANCEL))) {
+
+            // Over the world, the world dimmed as behind 1.7.10's GuiYesNo, not the game's blur (ScreenBackdrop).
+            @Override
+            public boolean isInGameUi() {
+                return ScreenBackdrop.overWorld();
+            }
+        });
     }
 
     /**
@@ -1581,7 +1790,14 @@ public class WornPathScreen extends Screen {
             new ConfirmScreen(
                 yes -> minecraft.gui.setScreen(yes ? parent : self),
                 Component.literal(I18n.get(SettingsKeys.DISCARD)),
-                Component.literal(I18n.get(SettingsKeys.DISCARD_NOTE))));
+                Component.literal(I18n.get(SettingsKeys.DISCARD_NOTE))) {
+
+                // Over the world, the world dimmed as behind 1.7.10's GuiYesNo, not the game's blur (ScreenBackdrop).
+                @Override
+                public boolean isInGameUi() {
+                    return ScreenBackdrop.overWorld();
+                }
+            });
     }
 
     // ------------------------------------------------------------------
@@ -1697,6 +1913,7 @@ public class WornPathScreen extends Screen {
         if (focused != null && focused.editor == ConfigLayout.Editor.CHOOSER) {
             if (chooser(focused).keyTyped(typedChar, key)) return;
         }
+        if (ORIGINAL_ID.equals(focus) && originalChooser().keyTyped(typedChar, key)) return;
         if (focused != null && focused.editor == ConfigLayout.Editor.SLIDER
             && (key == InputConstants.KEY_LEFT || key == InputConstants.KEY_RIGHT)) {
             Slider slider = slider(focused);
@@ -1857,6 +2074,22 @@ public class WornPathScreen extends Screen {
         if (view.row.type == SettingsModel.RowType.ADVANCED) {
             click();
             press("adv");
+            return;
+        }
+        if (view.row.type == SettingsModel.RowType.FAITHFUL) {
+            click();
+            press("faithful");
+            return;
+        }
+        if (view.row.type == SettingsModel.RowType.ORIGINAL) {
+            // Its chooser takes the click as a preset's does: the dropdown opens, a right-click steps back.
+            if (rowGeometry(view).control.contains(mouseX, mouseY)) {
+                setFocus(ORIGINAL_ID);
+                click();
+                originalChooser().mouseClicked(mouseX, mouseY, button);
+            } else {
+                setFocus(null);
+            }
             return;
         }
         if (view.row.type == SettingsModel.RowType.REMEMBERED) {
@@ -2033,6 +2266,13 @@ public class WornPathScreen extends Screen {
             View view = viewOf(focused.id);
             if (view != null && rowGeometry(view).control.contains(mouseX, mouseY)) {
                 chooser(focused).wheel(notches);
+                return true;
+            }
+        }
+        if (ORIGINAL_ID.equals(focus)) {
+            View view = originalView();
+            if (view != null && rowGeometry(view).control.contains(mouseX, mouseY)) {
+                originalChooser().wheel(notches);
                 return true;
             }
         }

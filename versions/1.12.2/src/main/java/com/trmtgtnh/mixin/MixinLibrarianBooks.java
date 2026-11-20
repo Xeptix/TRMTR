@@ -54,8 +54,9 @@ import com.trmtgtnh.item.UnlockBooks;
  *
  * <p>
  * Nothing about this catches a missing loader, which is a different failure with a different answer:
- * with no MixinBooter there is nothing reading this config at all, so {@code require} is never
- * consulted. That is what the {@code required-after:mixinbooter} dependency on {@code Trmt} is for.
+ * with no Mixin there is nothing reading this config at all, so {@code require} is never consulted.
+ * That is what {@code com.trmtgtnh.core.MixinBooterWanted} is for, which asks Forge for MixinBooter in
+ * exactly that game.
  */
 @Mixin(EntityVillager.ListEnchantedBookForEmeralds.class)
 public abstract class MixinLibrarianBooks implements com.trmtgtnh.core.MixinsApplied {

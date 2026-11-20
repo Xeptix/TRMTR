@@ -9,10 +9,12 @@
     "MixinBlockCollision",
     "MixinStuckInWornGround",
     "MixinLibrarianBooks",
-    "MixinPlayerArrives"
+    "MixinPlayerArrives",
+    "MixinPistonCarriesWear"
   ],
   "client": [
     "MixinGrassTint",
+    "MixinGhostTopTurn",
     "MixinGrassSideOverlay",
     "MixinOptiFineGrassSide",
     "MixinTextureMap",
@@ -20,6 +22,7 @@
     "MixinStitcherSlot",
     "MixinAnimatedSprite",
     "MixinSpriteFiltering",
+    "MixinSpriteEdges",
     "MixinSettleOnWornGround",
     "MixinSunkLight",
     "MixinSettledHit",

@@ -55,6 +55,29 @@ public final class ChunkErosionData {
     /** Set when anything changes, so the store knows the chunk needs re-saving. */
     private boolean dirty;
 
+    /**
+     * Which chains this chunk's records were last placed on ({@code ErosionChain.PLACED_OWN} or
+     * {@code PLACED_FAITHFUL}; Codex review R17), so a switch of Faithful Mode places each record by how far along the
+     * chain it was earned on it was, and a chunk unloaded at the switch is placed when it next loads. Saved as one
+     * trailing byte after the records, and only when it is Faithful Mode's: every save from before, and every chunk
+     * on this mod's own chains, reads as own, and a build from before this byte stops at the last whole record and
+     * never sees it.
+     */
+    private byte placedOn = ErosionChain.PLACED_OWN;
+
+    /** Which chains this chunk's records were last placed on. */
+    public byte placedOn() {
+        return placedOn;
+    }
+
+    /** Records that this chunk's records are now placed on these chains; written with the chunk. */
+    public void setPlacedOn(byte chains) {
+        byte next = chains == ErosionChain.PLACED_FAITHFUL ? ErosionChain.PLACED_FAITHFUL : ErosionChain.PLACED_OWN;
+        if (next == placedOn) return;
+        placedOn = next;
+        dirty = true;
+    }
+
     public ErosionEntry get(int key) {
         return entries.get(key);
     }
@@ -207,7 +230,8 @@ public final class ChunkErosionData {
     public byte[] write() {
         if (entries.isEmpty()) return null;
 
-        ByteBuffer buf = ByteBuffer.allocate(1 + entries.size() * BYTES_PER_ENTRY);
+        ByteBuffer buf = ByteBuffer
+            .allocate(1 + entries.size() * BYTES_PER_ENTRY + (placedOn == ErosionChain.PLACED_FAITHFUL ? 1 : 0));
         buf.put(FORMAT_VERSION);
 
         int[] keys = entries.keys();
@@ -222,6 +246,9 @@ public final class ChunkErosionData {
             buf.put((byte) entry.getWard());
             buf.put((byte) entry.getLight());
         }
+        // Which chains the records sit on, as one byte after the last whole record, only when it is Faithful Mode's
+        // (Codex review R17): a chunk on this mod's own chains writes exactly what it always did.
+        if (placedOn == ErosionChain.PLACED_FAITHFUL) buf.put(placedOn);
         // Entries may have been removed between sizing and filling in a pathological case;
         // trim rather than shipping trailing zeroes that would decode as bogus records.
         if (buf.position() == buf.capacity()) return buf.array();
@@ -283,6 +310,11 @@ public final class ChunkErosionData {
                 if (entry.isLit()) com.trmtgtnh.block.GhostLight.noteLit();
                 out.entries.put(key, entry);
             }
+        }
+        // The one byte a record cannot be: which chains these were placed on (see placedOn). Anything else left over is
+        // not read, as before.
+        if (buf.remaining() == 1 && buf.get() == ErosionChain.PLACED_FAITHFUL) {
+            out.placedOn = ErosionChain.PLACED_FAITHFUL;
         }
         out.dirty = false;
         return out;

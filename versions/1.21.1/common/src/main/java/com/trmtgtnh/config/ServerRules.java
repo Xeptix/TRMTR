@@ -133,8 +133,33 @@ public final class ServerRules {
             this(stages, maxSink, sinkStart, depths, successors, enabled, switches, -1, -1, -1);
         }
 
+        /**
+         * Whether this server runs Faithful Mode - 1 or 0, or -1 where it sent none (0.9.229 W5, spec 2.7). Unlike the
+         * other minus ones here, a server's silence is not left to the client: a server too old to send it has no
+         * Faithful Mode, so its ground wears along this mod's own chains and the client must too
+         * ({@link ServerRules#faithful(boolean)}).
+         */
+        public final int faithful;
+
         public Geometry(byte[] stages, byte[] maxSink, byte[] sinkStart, byte[] depths, byte[][] successors,
             boolean[] enabled, int switches, int settle, int tamperSteps, int tamperReach) {
+            this(
+                stages,
+                maxSink,
+                sinkStart,
+                depths,
+                successors,
+                enabled,
+                switches,
+                settle,
+                tamperSteps,
+                tamperReach,
+                -1);
+        }
+
+        public Geometry(byte[] stages, byte[] maxSink, byte[] sinkStart, byte[] depths, byte[][] successors,
+            boolean[] enabled, int switches, int settle, int tamperSteps, int tamperReach, int faithful) {
+            this.faithful = faithful;
             this.stages = stages;
             this.maxSink = maxSink;
             this.sinkStart = sinkStart;
@@ -167,6 +192,8 @@ public final class ServerRules {
      * this method can see.
      */
     public static void hold(boolean force, String mode, Geometry wanted) {
+        // A server holding the overlay on answers no hello with a clear, so none is owed (TrmtNetwork's owedClears).
+        if (force) com.trmtgtnh.network.TrmtNetwork.owesNoClear();
         if (wanted == null || !wanted.usable()) return;
 
         forceOverlay = force;
@@ -262,6 +289,36 @@ public final class ServerRules {
     }
 
     /**
+     * The Faithful Mode switch this client wears by: {@code own}, its file's, unless a server's rules are held, and
+     * then the server's (0.9.229 W5, spec 2.7; Codex review R15, finding 2). Faithful Mode picks the chains grass, dirt
+     * and sand wear along, and a record on the wire says only which state a square shows, so a client on chains other
+     * than its server's places every record on the wrong run. Asked by {@code FaithfulProfile.apply} before it writes
+     * anything, so the read that follows the hold builds the server's chains and the visit's re-reads keep them; and
+     * after {@link #release} the file's switch is back. A server that sent none is older than Faithful Mode, so off.
+     * Nothing is held in a world of one's own, where the server's switch is this file's anyway.
+     */
+    public static boolean faithful(boolean own) {
+        return faithful(own, held && Trmt.runningServer() == null ? geometry : null);
+    }
+
+    /** {@link #faithful(boolean)} for a record handed in, null for none held: plain, so a test can ask it. */
+    static boolean faithful(boolean own, Geometry rules) {
+        if (rules == null) return own;
+        return rules.faithful > 0;
+    }
+
+    /**
+     * Whether the Faithful Mode switch in force differs from the one the held rules call for. Asked once the rules are
+     * held: the switch's numbers are written into the live settings only by a config read ({@code FaithfulProfile}
+     * writes over the player's, and only reading the file gives them back), so where it is true the caller reads the
+     * settings again, and the read wears by the server's switch.
+     */
+    public static boolean faithfulMoved() {
+        boolean now = FaithfulProfile.on();
+        return faithful(now) != now;
+    }
+
+    /**
      * The value a server's rules hold a setting at, as a string, or null where the server leaves it to this client
      * (0.9.228, spec S4): the settings screen shows such a setting greyed with a lock, at the server's value, because
      * an edit to it would be put straight back by {@link #reassert} for as long as the visit lasts. Answered from the
@@ -293,6 +350,10 @@ public final class ServerRules {
         if (category == null || key == null || !serverCarries(category, key)) return null;
         if (TrmtConfig.CATEGORY_CLIENT.equals(category)) {
             return rules == null || rules.settle < 0 ? null : String.valueOf(rules.settle != 0);
+        }
+        // Faithful Mode is the server's whole, its silence included: an older server has none, so it is held off.
+        if (Presets.CATEGORY.equals(category) && FaithfulProfile.SWITCH.equals(key)) {
+            return rules == null ? null : String.valueOf(faithful(false, rules));
         }
         if (ConfigFile.CATEGORY_GENERAL.equals(category)) {
             if ("physicalDecay".equals(key)) return mode;
@@ -405,10 +466,9 @@ public final class ServerRules {
         for (int i = 0; i < families.length; i++) {
             FamilySettings settings = TrmtConfig.family(families[i]);
             if (settings != null && settings.enabled) visited[i] |= WEARS_AT_ALL;
-            int steps = ErosionChain.length(families[i]);
-            for (int step = 0; step < steps; step++) {
-                SurfaceFamily seen = ErosionChain.familyAt(families[i], step);
-                if (seen != null) visited[i] |= 1 << seen.ordinal();
+            // The blocks' own chains as well (W3 T9), which a server's table brings with it.
+            for (SurfaceFamily seen : ErosionChain.appearancesOf(families[i])) {
+                visited[i] |= 1 << seen.ordinal();
             }
         }
         return visited;
@@ -469,6 +529,10 @@ public final class ServerRules {
         }
         if (TrmtConfig.overlayForced != forceOverlay) changed++;
         TrmtConfig.overlayForced = forceOverlay;
+
+        // Faithful Mode is not written here: only a config read can write it or give the player's numbers back
+        // (faithfulMoved), and the read asks faithful() first. Counted, so a hold that moves it says so.
+        if (faithful(FaithfulProfile.on(), wanted) != FaithfulProfile.on()) changed++;
 
         // The two switches that decide whether a successor list is followed at all. Minus one is a
         // server that sent none, and there its own lists are followed under this client's switches

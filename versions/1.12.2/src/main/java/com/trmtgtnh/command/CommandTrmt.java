@@ -33,6 +33,7 @@ import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.ModBlocks;
 import com.trmtgtnh.config.ConfigReload;
 import com.trmtgtnh.config.FamilySettings;
+import com.trmtgtnh.config.OriginalFile;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ChunkErosionData;
 import com.trmtgtnh.erosion.ErosionChain;
@@ -44,6 +45,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.surface.SurfaceShape;
 import com.trmtgtnh.util.BlockEntry;
+
 
 /**
  * Runtime control: {@code /trmt status|enable|disable|purge|reload|surfaces|here}.
@@ -67,6 +69,9 @@ public class CommandTrmt extends CommandBase {
         "showcase",
         "demonstrate",
         "mapcolor",
+        "data",
+        "wear",
+        "clientrules",
         "version");
 
     /** The one subcommand any player may run (0.9.227; Xep: "Everyone"): it reports and changes nothing. */
@@ -79,7 +84,7 @@ public class CommandTrmt extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|version|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
+        return "/trmt <status|enable|disable|purge|reload|surfaces [family]|here|golem|mapcolor|data [block]|wear [list|restore <backup>|undo]|clientrules <list|set|clear|clearall|copy>|version|showcase [radius]|demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial] [cleararea[=n]] [samearea[=x,z]] [realdemo[=<w>x<l>]] [nogolems] [builtin] [quick=<n>] [quicktp=<n>] [warded[=h|p|h+p]] [reinforced[=0-3]] [tight] [overwrite] [frozen] [tp]>";
     }
 
     @Override
@@ -113,6 +118,28 @@ public class CommandTrmt extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args,
         BlockPos looking) {
+        // The names the data files give, for /trmt data <block> (W3 spec 2.3).
+        if (args.length == 2 && "data".equalsIgnoreCase(args[0])
+            && sender.canUseCommand(getRequiredPermissionLevel(), getName())) {
+            return getListOfStringsMatchingLastWord(args, com.trmtgtnh.dataload.DataLoad.names());
+        }
+        if (args.length >= 2 && "wear".equalsIgnoreCase(args[0])
+            && sender.canUseCommand(getRequiredPermissionLevel(), getName())) {
+            if (args.length == 2) return getListOfStringsMatchingLastWord(args, "status", "list", "restore", "undo");
+            if (args.length == 3 && "restore".equalsIgnoreCase(args[1])) {
+                List<String> names = new java.util.ArrayList<String>();
+                names.add(com.trmtgtnh.erosion.WearRestore.LATEST);
+                for (com.trmtgtnh.erosion.WearBackupSet.Backup each : com.trmtgtnh.server.WearBackups.get()
+                    .backups()) names.add(each.name);
+                return getListOfStringsMatchingLastWord(args, names);
+            }
+            return java.util.Collections.emptyList();
+        }
+        if (args.length >= 2 && "clientrules".equalsIgnoreCase(args[0])
+            && sender.canUseCommand(getRequiredPermissionLevel(), getName())) {
+            List<String> offered = ClientRulesCommand.completions(Arrays.copyOfRange(args, 1, args.length));
+            return getListOfStringsMatchingLastWord(args, offered);
+        }
         if (args.length != 1) return java.util.Collections.emptyList();
         // A player who may not run the rest is offered only what they may.
         return getListOfStringsMatchingLastWord(
@@ -305,13 +332,27 @@ public class CommandTrmt extends CommandBase {
                 return;
             }
             reply(sender, TextFormatting.GREEN, "Config re-read from disk and surfaces re-detected.");
+            reply(
+                sender,
+                TextFormatting.GRAY,
+                com.trmtgtnh.dataload.DataLoad.summary() + ". /trmt data shows where each value came from.");
+            // The original mod's file, looked for again (spec 2.8) where the settings screen that offers it runs.
+            if (Trmt.proxy.physicalClient() && OriginalFile.look(TrmtConfig.folder()) != null) {
+                reply(
+                    sender,
+                    TextFormatting.GRAY,
+                    "The original mod's trmt.json is in the config folder: the settings screen offers its numbers on the Presets tab, as Use your TRMT settings.");
+            }
             if (delta.textures) {
                 reply(
                     sender,
                     TextFormatting.GRAY,
                     "Wear textures changed. They are built by whatever draws the world, so in a world of your own that is this machine, and it will stop responding for up to half a minute while they are rebuilt. A dedicated server draws nothing and so rebuilds nothing, and every connected player builds their wear from their own config, so an edit here does not reach them. The only part of that picture a server hands out is how finely ground wears through, and a change to that is what makes a connected player rebuild.");
             }
+            // Ground no longer tracked loses its records as the sweep reaches it: a backup now, before it does (wear
+            // backups, 0.9.229).
             if (delta.surfaces) {
+                backupBeforeBulk(sender, "reload");
                 reply(
                     sender,
                     TextFormatting.GRAY,
@@ -327,6 +368,13 @@ public class CommandTrmt extends CommandBase {
             showcase(sender, args);
         } else if ("demonstrate".equals(sub)) {
             demonstrate(sender, args);
+        } else if ("data".equals(sub)) {
+            data(sender, args);
+        } else if ("wear".equals(sub)) {
+            wear(sender, args);
+        } else if ("clientrules".equals(sub)) {
+            // The settings this server sets for its players (0.9.229; Xep, 2026-11-18).
+            ClientRulesCommand.run(sender, Arrays.copyOfRange(args, 1, args.length));
         } else if (OPEN.equals(sub)) {
             for (String line : com.trmtgtnh.server.UpdateNotice.versionLines()) {
                 reply(sender, TextFormatting.AQUA, line);
@@ -386,6 +434,8 @@ public class CommandTrmt extends CommandBase {
     private void purge(ICommandSender sender) {
         int positions = ErosionStore.get()
             .trackedPositionCount();
+        // A backup first (wear backups, 0.9.229), of the wear as it stands before the clear.
+        backupBeforeBulk(sender, "purge");
         ErosionStore.get()
             .clearAll();
         TrmtNetwork.broadcastClearAll();
@@ -394,6 +444,64 @@ public class CommandTrmt extends CommandBase {
             TextFormatting.YELLOW,
             "Purged " + positions
                 + " tracked positions from loaded chunks. Unloaded chunks keep theirs until they load; run this again after visiting them, or disable the mod instead.");
+    }
+
+    /**
+     * A backup before a command that clears or resets wear in bulk (wear backups, 0.9.229; the spec's "before any /trmt
+     * command that clears or resets wear in bulk"): purge, which clears it; showcase, which sets every square in reach
+     * to a stage; demonstrate with overwrite or cleararea, which builds over or empties what stands; and a reload that
+     * changes which blocks wear, whose records the sweep then drops. Said to whoever asked, with the way back.
+     */
+    private static void backupBeforeBulk(ICommandSender sender, String what) {
+        String backup = com.trmtgtnh.server.WearBackups.get()
+            .backupNow(com.trmtgtnh.erosion.WearBackupSet.COMMAND);
+        if (backup == null) return;
+        reply(
+            sender,
+            TextFormatting.GRAY,
+            "Taken before this " + what + ": " + backup + ". /trmt wear restore " + backup + " brings back what it changes.");
+    }
+
+    /**
+     * The wear backups (0.9.229; the 1.7.10 tree's docs/goals/0.9.229-wear-backup-spec.md): what there is, the list
+     * newest first, a restore from one of them (or {@code latest}, the mirror and then the newest backup), and the
+     * undo of the last.
+     */
+    private void wear(ICommandSender sender, String[] args) throws CommandException {
+        String what = args.length > 1 ? args[1].toLowerCase(java.util.Locale.ROOT) : "status";
+        com.trmtgtnh.server.WearBackups backups = com.trmtgtnh.server.WearBackups.get();
+        if ("status".equals(what)) {
+            for (String line : backups.status()) reply(sender, TextFormatting.AQUA, line);
+        } else if ("list".equals(what)) {
+            List<com.trmtgtnh.erosion.WearBackupSet.Backup> all = backups.backups();
+            if (all.isEmpty()) {
+                reply(sender, TextFormatting.GRAY, "No wear backups in this world yet.");
+                return;
+            }
+            reply(sender, TextFormatting.AQUA, "Wear backups, newest first:");
+            java.text.DateFormat format = java.text.DateFormat
+                .getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT);
+            for (com.trmtgtnh.erosion.WearBackupSet.Backup each : all) {
+                reply(
+                    sender,
+                    TextFormatting.GRAY,
+                    "  " + each.name
+                        + ": "
+                        + format.format(new java.util.Date(each.made))
+                        + ", "
+                        + com.trmtgtnh.server.WearBackups.size(each.bytes)
+                        + ", "
+                        + each.chunks
+                        + (each.chunks == 1 ? " chunk" : " chunks"));
+            }
+        } else if ("restore".equals(what)) {
+            if (args.length < 3) throw new WrongUsageException("/trmt wear restore <backup|latest>");
+            backups.restore(args[2], sender);
+        } else if ("undo".equals(what)) {
+            backups.undo(sender);
+        } else {
+            throw new WrongUsageException("/trmt wear [status|list|restore <backup|latest>|undo]");
+        }
     }
 
     private void surfaces(ICommandSender sender, String[] args) {
@@ -823,6 +931,9 @@ public class CommandTrmt extends CommandBase {
         int centreZ = MathHelper.floor(player.posZ);
         int centreY = MathHelper.floor(player.posY) - 1;
 
+        // Every square in reach is set to a stage, whatever wear it had: a backup first (wear backups, 0.9.229).
+        backupBeforeBulk(sender, "showcase");
+
         int painted = 0;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
@@ -837,12 +948,20 @@ public class CommandTrmt extends CommandBase {
                     if (family == null || !family.staged) continue;
                     if (opaqueAt(world, x, y + 1, z)) continue;
 
-                    // Stripe the stages across one axis so every gradation is visible at once.
-                    int steps = ErosionChain.length(family);
+                    // Stripe the stages across one axis so every gradation is visible at once, along the chain the
+                    // block follows (its own where a data file gives it one, W3 T9), as forceStage reads the index.
+                    int steps = ErosionEngine.chainFor(world, x, y, z, family)
+                        .length();
                     if (steps <= 0) break;
                     int target = ((dx + radius) * steps) / (radius * 2 + 1);
-                    if (ErosionEngine.get()
-                        .forceStage(world, x, y, z, family, target)) painted++;
+                    // trmtr-api: a command wearing ground asks the plugins' rules and listeners first (W3 T7).
+                    com.trmtgtnh.apiload.ApiHooks.enter(com.trmtgtnh.api.WearContext.Cause.COMMAND, player);
+                    try {
+                        if (ErosionEngine.get()
+                            .forceStage(world, x, y, z, family, target)) painted++;
+                    } finally {
+                        com.trmtgtnh.apiload.ApiHooks.leave();
+                    }
                     break;
                 }
             }
@@ -1014,9 +1133,12 @@ public class CommandTrmt extends CommandBase {
                 int index = which.intValue() - 1;
                 String[] preset = QUICK[index];
                 int[] at = quickAnchorFor(index);
-                String[] full = new String[preset.length + 3];
+                String[] full = new String[preset.length + 4];
                 full[0] = "demonstrate";
                 System.arraycopy(preset, 0, full, 1, preset.length);
+                // The mod's own families and blocks alone, so a quick demo stands the same in every game that has
+                // the same blocks: a block a data file or a plugin brought is played by the api part, not here.
+                full[full.length - 3] = "builtin";
                 // Placed rather than named: the preset says what the demo is, the index says
                 // where it goes, and the two cannot drift into each other.
                 full[full.length - 2] = "samearea=" + at[0] + "," + at[1];
@@ -1047,9 +1169,14 @@ public class CommandTrmt extends CommandBase {
         boolean anchored = false;
         int anchorX = 0;
         int anchorZ = 0;
+        boolean builtIn = false;
 
         for (int i = 1; i < args.length; i++) {
             String arg = args[i].toLowerCase(Locale.ROOT);
+            if ("builtin".equals(arg)) {
+                builtIn = true;
+                continue;
+            }
             if ("frozen".equals(arg)) {
                 frozen = true;
                 continue;
@@ -1200,7 +1327,7 @@ public class CommandTrmt extends CommandBase {
                 throw new WrongUsageException(
                     "/trmt demonstrate [NxN|NxNxN] [y=<h>] [max=<n>|all] [book|snake|radial]"
                         + " [cleararea|cleararea=<n>] [samearea|samearea=<x>,<z>] [realdemo|realdemo=<w>x<l>]"
-                        + " [nogolems]"
+                        + " [nogolems] [builtin]"
                         + " [quick=<n>|quick=1+2|quick=1-6] [quicktp=<n>]"
                         + " [warded|warded=h|warded=p|warded=h+p] [reinforced|reinforced=<0-3>]"
                         + " [tight] [overwrite] [frozen] [tp]");
@@ -1209,6 +1336,7 @@ public class CommandTrmt extends CommandBase {
 
         List<DemoSurface> demos = new ArrayList<DemoSurface>();
         int unsuitable = 0;
+        int brought = 0;
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
             if (ErosionChain.length(state.family) <= 0) {
                 unsuitable++;
@@ -1226,6 +1354,10 @@ public class CommandTrmt extends CommandBase {
             int meta = erodableMeta(state);
             if (meta < 0) {
                 unsuitable++;
+                continue;
+            }
+            if (builtIn && SurfaceRegistry.broughtByData(state.block, meta)) {
+                brought++;
                 continue;
             }
             demos.add(new DemoSurface(state, meta));
@@ -1301,6 +1433,10 @@ public class CommandTrmt extends CommandBase {
         if (loaded > 0) {
             reply(sender, TextFormatting.DARK_GRAY, "Loaded " + loaded + " chunks to build in.");
         }
+
+        // Emptying a box, or building over what stands, takes the wear there with it: a backup first (wear backups,
+        // 0.9.229). A demonstrate on open ground clears nothing and takes none.
+        if (overwrite || clearMargin >= 0) backupBeforeBulk(sender, "demonstrate");
 
         int cleared = 0;
         int swept = 0;
@@ -1383,7 +1519,7 @@ public class CommandTrmt extends CommandBase {
             // two courses deep in either of them is a stack of half blocks with the sky through
             // it. So the courses underneath are laid in the family's own plain block and the shape
             // itself is only the top - which is what a slab or a stair is in a road anyway.
-            SurfaceShape shape = SurfaceShape.of(demo.state.block);
+            SurfaceShape shape = SurfaceShape.of(demo.state.block, demo.meta);
             Block under = shape.isPartial() ? roadBlock(demo.state.family) : demo.state.block;
             int underMeta = shape.isPartial() ? 0 : demo.meta;
             // And under a turf, what it becomes when covered: a course of grass under grass turns to dirt on its own
@@ -1429,7 +1565,6 @@ public class CommandTrmt extends CommandBase {
             int platformX = originX + (i % columns) * pitch;
             int platformZ = originZ + (i / columns) * pitch;
             int cells = size * size;
-            int chainLength = ErosionChain.length(demo.state.family);
             int steps = Math.max(1, cells - 2);
             // The far corner, for the radial ordering. Measured rather than assumed so a
             // platform of any size spends its whole run between the two corners.
@@ -1441,6 +1576,12 @@ public class CommandTrmt extends CommandBase {
                     // something pristine to judge the first gradation against.
                     if (row == 0 && column == 0) continue;
 
+                    int x = platformX + column;
+                    int z = platformZ + row;
+                    // Along the chain the block there follows, its own where a data file gives it one (W3 T9), as
+                    // forceStage reads the index.
+                    int chainLength = ErosionEngine.chainFor(world, x, topY, z, demo.state.family)
+                        .length();
                     int index;
                     if (order == DemoOrder.RADIAL) {
                         double reach = Math.sqrt((double) row * row + (double) column * column);
@@ -1453,8 +1594,6 @@ public class CommandTrmt extends CommandBase {
                     }
                     if (index < 0) index = 0;
 
-                    int x = platformX + column;
-                    int z = platformZ + row;
                     if (ErosionEngine.get()
                         .forceStage(world, x, topY, z, demo.state.family, index, frozen, false)) {
                         painted++;
@@ -1527,6 +1666,13 @@ public class CommandTrmt extends CommandBase {
                 TextFormatting.DARK_GRAY,
                 "Skipped " + unsuitable
                     + " detected entries: families with no wear chain to walk, this mod's own worn ground, and blocks with no metadata value at all that lands in the family they were detected as. Shape is not one of the reasons, so a slab or a stair its family allows stands here like any whole block; anything else that should not be here belongs in surfaces.exclude.");
+        }
+        if (brought > 0) {
+            reply(
+                sender,
+                TextFormatting.DARK_GRAY,
+                "Left out " + brought
+                    + " surfaces a data file or a plugin brought, so this demo stands the same wherever the same blocks are installed. /trmt demonstrate without quick= lays them.");
         }
         if (roads) {
             int[] tally = new int[3];
@@ -1677,6 +1823,8 @@ public class CommandTrmt extends CommandBase {
     private static int quickSpacing() {
         int count = 0;
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
+            // Counted as the quick demos lay them: a state a data file or a plugin brought takes no platform there.
+            if (SurfaceRegistry.broughtByData(state.block, erodableMeta(state))) continue;
             if (!ModBlocks.isGhost(state.block) && ErosionChain.length(state.family) > 0) count++;
         }
         int columns = Math.max(1, (int) Math.ceil(Math.sqrt(Math.max(1, count))));
@@ -1852,7 +2000,12 @@ public class CommandTrmt extends CommandBase {
                     if (profile <= 0.02D) continue;
 
                     double depth = Math.max(0.0D, Math.min(1.0D, deepest * profile));
-                    int step = (int) Math.round(depth * (chainLength - 1));
+                    // Along the chain the road block just laid follows, its own where a data file gives it one (W3
+                    // T9), as forceStage reads the index.
+                    int own = ErosionEngine.chainFor(world, x, baseY + 1, z, family)
+                        .length();
+                    if (own <= 0) continue;
+                    int step = (int) Math.round(depth * (own - 1));
                     if (step <= 0) continue;
                     if (ErosionEngine.get()
                         .forceStage(world, x, baseY + 1, z, family, step, frozen, false)) {
@@ -2073,6 +2226,13 @@ public class CommandTrmt extends CommandBase {
                 return Blocks.SNOW;
             case ICE:
                 return Blocks.ICE;
+            case FLESH:
+            case TAINT:
+            case SCULK:
+            case CLOUD:
+                // None is a vanilla block of this game (0.9.229, W4 T17; sculk and cloud, W4), so none has a road, a
+                // yard platform or a row to open on; every caller skips a family with none.
+                return null;
             default:
                 return Blocks.DIRT;
         }
@@ -2254,6 +2414,25 @@ public class CommandTrmt extends CommandBase {
         DemoSurface(SurfaceRegistry.SurfaceState state, int meta) {
             this.state = state;
             this.meta = meta;
+        }
+    }
+
+    /**
+     * {@code /trmt data [block]} (W3 spec 2.3): the data files read, from where, every refusal still standing, and for
+     * a named block or entity where each of its values came from. It reads the last published table and changes
+     * nothing; the words are {@code DataReport}'s, held by its test.
+     */
+    private static void data(ICommandSender sender, String[] args) {
+        StringBuilder name = new StringBuilder();
+        for (int i = 1; i < args.length; i++) {
+            if (i > 1) name.append(' ');
+            name.append(args[i]);
+        }
+        for (com.trmtgtnh.dataload.DataReport.Line line : com.trmtgtnh.dataload.DataLoad.report(name.toString())) {
+            TextFormatting color = line.tone == com.trmtgtnh.dataload.DataReport.Line.Tone.HEAD ? TextFormatting.AQUA
+                : line.tone == com.trmtgtnh.dataload.DataReport.Line.Tone.WARN ? TextFormatting.YELLOW
+                    : TextFormatting.GRAY;
+            reply(sender, color, line.text);
         }
     }
 

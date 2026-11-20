@@ -32,6 +32,13 @@ subprojects {
                 if (project.hasProperty("walk")) property("trmt.spike.walk", "true")
                 if (project.hasProperty("shots")) property("trmt.spike.shots", "true")
                 if (project.hasProperty("only")) property("trmt.spike.only", project.property("only").toString())
+                // GF1's hide, on unless asked off, for the meshtime part's measure (G17 t2): sweep.py --hide or
+                // --no-hide sets GF1_HIDE to true or false, and tools/run_client.sh turns it into -Pgf1hide=<it>.
+                // See MeshTime.HIDE and GhostHide.ON.
+                if (project.hasProperty("gf1hide")) property("trmt.gf1.hide", project.property("gf1hide").toString())
+                // A saved walk, by its folder's name, opened instead of walking (0.9.229, W1 T8): the run script
+                // copies the folder into saves/trmt-walk. See the harness's WORLD.
+                if (project.hasProperty("world")) property("trmt.spike.world", project.property("world").toString())
                 // An older edition's walk world in run/saves, opened instead of making one (0.9.225, spike 3).
                 if (project.hasProperty("upgrade")) property("trmt.spike.upgrade", project.property("upgrade").toString())
                 if (project.hasProperty("window") && name.toLowerCase().contains("client")) {
@@ -102,7 +109,10 @@ allprojects {
         }
         maven {
             url = "https://maven.minecraftforge.net/"
-            content { includeGroup "io.github.llamalad7" }
+            content {
+                includeGroup "io.github.llamalad7"
+                includeGroup "cpw.mods"
+            }
         }
         // Modrinth's own Maven, for the tooltip mods this edition writes lines into - an official source, as the
         // downloads for 0.9.225 were decided (Modrinth, CurseForge's CDN, the loaders' own Mavens).

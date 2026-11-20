@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "_": "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). Runic Dungeons' bricks are the unbreakable fixed walls and floors of its dungeon dimension, by the mod's own words, so they stand aside; their ground material made them dirt to the rules.",
+  "entries": [
+    { "blocks": ["runicdungeons:tile.runicBrick"], "family": "none" }
+  ]
+}

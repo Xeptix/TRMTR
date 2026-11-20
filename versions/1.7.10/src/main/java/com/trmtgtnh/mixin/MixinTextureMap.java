@@ -73,6 +73,31 @@ public class MixinTextureMap {
             value = "INVOKE",
             target = "Lnet/minecraftforge/client/ForgeHooksClient;onTextureStitchedPre(Lnet/minecraft/client/renderer/texture/TextureMap;)V"))
     private void trmt$noteAtlasRoom(IResourceManager manager, CallbackInfo callback) {
+        trmt$noteRoom(manager);
+    }
+
+    /**
+     * The same, under OptiFine 1.7.10 (0.9.229, stitch-optifine). OptiFine's own loadTextureAtlas fires the stitch
+     * event through its Reflector, {@code Reflector.callVoid(Reflector.ForgeHooksClient_onTextureStitchedPre, this)},
+     * the first Reflector.callVoid in the method (read from HD_U_E7's TextureMap, bpz, with its patch applied), so the
+     * injection above has nothing to attach to there and the plan was a guess at half the square, naming no stitcher.
+     * Reflector is OptiFine's own class, in no package and never obfuscated, so its name is not remapped. Without
+     * OptiFine this finds no call and writes nothing, as the one above does under OptiFine; at most one of the two runs
+     * in any game.
+     */
+    @Inject(
+        require = 0,
+        method = "loadTextureAtlas",
+        at = @At(
+            value = "INVOKE",
+            target = "LReflector;callVoid(LReflectorMethod;[Ljava/lang/Object;)V",
+            ordinal = 0,
+            remap = false))
+    private void trmt$noteAtlasRoomUnderOptiFine(IResourceManager manager, CallbackInfo callback) {
+        trmt$noteRoom(manager);
+    }
+
+    private void trmt$noteRoom(IResourceManager manager) {
         TextureMap map = (TextureMap) (Object) this;
         if (map.getTextureType() != 0) return;
         Minecraft game = Minecraft.getMinecraft();
@@ -98,10 +123,7 @@ public class MixinTextureMap {
         method = "loadTextureAtlas",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/texture/Stitcher;doStitch()V"))
     private void trmt$countStitchedSprites(IResourceManager manager, CallbackInfo callback) {
-        TextureMap map = (TextureMap) (Object) this;
-        if (map.getTextureType() != 0) return;
-        WearTextures
-            .noteStitched(mapRegisteredSprites == null ? Collections.emptyMap() : mapRegisteredSprites, mipmapLevels);
+        trmt$count();
     }
 
     @Inject(
@@ -109,6 +131,51 @@ public class MixinTextureMap {
         method = "loadTextureAtlas",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/texture/Stitcher;doStitch()V"))
     private void trmt$buildWearTextures(IResourceManager manager, CallbackInfo callback) {
+        trmt$build(manager);
+    }
+
+    /**
+     * The same two, under FastCraft 1.25 (0.9.229, fastcraft-wear). FastCraft's transformer replaces this method's
+     * call to {@code Stitcher.doStitch()} with its own hook, the static {@code fastcraft.HC.g(Stitcher, TextureMap)},
+     * whose body is {@code fastcraft.ah.a(Stitcher, TextureMap)}: it sorts every sprite it was handed, packs them into
+     * an atlas of its own, writes their places back and copies each sprite's frames into one buffer for the whole
+     * atlas (read with javap from fastcraft-1.25.jar). That rewrite comes before this mod's mixin, so the two
+     * injections above found no call and no worn picture was ever composed. These wait at FastCraft's call instead,
+     * where vanilla's doStitch was: before its packer reads a single frame, and so before both the buffer it fills
+     * there and every upload after it, which its upload hook copies into that buffer. HC is FastCraft's own class,
+     * never obfuscated, so its name is not remapped. Without FastCraft this finds no call, and under FastCraft the two
+     * above find none: in any game the count and the build each run once (FastCraftStitchIsWiredTest).
+     */
+    @Inject(
+        require = 0,
+        method = "loadTextureAtlas",
+        at = @At(
+            value = "INVOKE",
+            remap = false,
+            target = "Lfastcraft/HC;g(Lnet/minecraft/client/renderer/texture/Stitcher;Lnet/minecraft/client/renderer/texture/TextureMap;)V"))
+    private void trmt$countStitchedSpritesUnderFastCraft(IResourceManager manager, CallbackInfo callback) {
+        trmt$count();
+    }
+
+    @Inject(
+        require = 0,
+        method = "loadTextureAtlas",
+        at = @At(
+            value = "INVOKE",
+            remap = false,
+            target = "Lfastcraft/HC;g(Lnet/minecraft/client/renderer/texture/Stitcher;Lnet/minecraft/client/renderer/texture/TextureMap;)V"))
+    private void trmt$buildWearTexturesUnderFastCraft(IResourceManager manager, CallbackInfo callback) {
+        trmt$build(manager);
+    }
+
+    private void trmt$count() {
+        TextureMap map = (TextureMap) (Object) this;
+        if (map.getTextureType() != 0) return;
+        WearTextures
+            .noteStitched(mapRegisteredSprites == null ? Collections.emptyMap() : mapRegisteredSprites, mipmapLevels);
+    }
+
+    private void trmt$build(IResourceManager manager) {
         TextureMap map = (TextureMap) (Object) this;
         // Blocks only. This same method assembles the item atlas afterwards, and running there
         // would rebuild every wear texture with no block pixels left to read - which is exactly
@@ -116,5 +183,17 @@ public class MixinTextureMap {
         // replaced the lot with guesses.
         if (map.getTextureType() != 0) return;
         WearTextures.buildFromLoadedSprites(map, manager, mipmapLevels);
+    }
+
+    /**
+     * Once the block atlas is stitched and uploaded, every wear picture that shares another's pixels takes that
+     * picture's place (0.9.229, public issue #3). At the end of the method, after vanilla has given every sprite that
+     * was not stitched missingno's place.
+     */
+    @Inject(require = 0, method = "loadTextureAtlas", at = @At("RETURN"))
+    private void trmt$shareTwinPlaces(IResourceManager manager, CallbackInfo callback) {
+        TextureMap map = (TextureMap) (Object) this;
+        if (map.getTextureType() != 0) return;
+        WearTextures.afterStitch();
     }
 }

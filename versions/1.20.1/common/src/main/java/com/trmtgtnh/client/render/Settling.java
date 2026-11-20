@@ -94,7 +94,7 @@ public final class Settling {
      * {@code PhysicalDecay.groundDropUnder} asks the same of the real block, and the two sides give the same nought.
      */
     public static double dropOver(short record, int origin, int outline) {
-        if (BlockGhost.coveredStair(origin) != null) return 0.0D;
+        if (BlockGhost.coveredShape(origin) == com.trmtgtnh.surface.SurfaceShape.STAIR) return 0.0D;
         double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
         return drop > 0.0D ? drop : 0.0D;
     }

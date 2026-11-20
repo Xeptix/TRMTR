@@ -17,9 +17,16 @@ import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 
+import com.trmtgtnh.api.Wear;
+import com.trmtgtnh.api.WearContext;
+import com.trmtgtnh.apihost.RuledWearers;
+import com.trmtgtnh.apiload.ApiHooks;
+import com.trmtgtnh.config.FaithfulProfile;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.network.TrmtNetwork;
+import com.trmtgtnh.original.FaithfulHeal;
+import com.trmtgtnh.original.FaithfulWear;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.util.MobWear;
@@ -185,10 +192,22 @@ public final class ErosionEngine {
      * a landing on a different one. Standing on the square is the same block as ever. The price, accepted: a jump on
      * the spot within two seconds of arriving is not counted, once. Mobs never arrive, so nothing here changes for
      * them.
+     *
+     * <p>
+     * <strong>And none of it until the client has answered</strong> (0.9.229; the reload part on 26.3 Fabric Sodium,
+     * 2026-11-01: 8,8 from wear 0.0 to 0.5 across a rejoin, with five other games loading the machine). The two
+     * seconds were counted from the first sampled tick on the ground, and on a rejoin that tick reads the saved flag
+     * while the client is still on its loading screen - which on a busy machine, a large pack or a slow connection
+     * outlasts two seconds. The settle then came after the arrival was over and counted as a step. So while
+     * {@code heard} is false - the server still waits for the client to confirm where it was put, or, where the game
+     * has it, to say its world has loaded - an arriving mover neither spends its arrival nor wears: the first square
+     * and the two seconds start from the first tick the server has the client's own word for.
      */
     static <K> boolean steppedOnto(java.util.Map<K, long[]> arriving, java.util.Map<K, long[]> lastGround, K mover,
-        long packed, long now) {
+        long packed, long now, boolean heard) {
         long[] arrival = arriving.get(mover);
+        // Nothing while the client has not answered where it was put (0.9.229): see above.
+        if (arrival != null && !heard) return false;
         if (arrival != null && arrival.length == 2 && now > arrival[1]) {
             // Two seconds since its first square (ARRIVAL_MILLIS): the arrival is over, so a jump on the spot from here
             // counts as any other.
@@ -222,6 +241,18 @@ public final class ErosionEngine {
             previous[0] = packed;
         }
         return true;
+    }
+
+    /**
+     * Whether the server has heard from this player's client since it last put the player somewhere (0.9.229; the
+     * 26.3 Fabric Sodium reload, 2026-11-01): asked of the player's connection, which MixinPlayerArrives makes a
+     * {@link ClientAnswered}. A mob, or a player whose connection is not the game's own (a loader's fake player), has
+     * no client to wait for. See {@link #steppedOnto}.
+     */
+    private static boolean heard(EntityLivingBase walker) {
+        if (!(walker instanceof EntityPlayerMP)) return true;
+        Object connection = ((EntityPlayerMP) walker).playerNetServerHandler;
+        return !(connection instanceof ClientAnswered) || ((ClientAnswered) connection).trmtAnswered();
     }
 
     /**
@@ -259,7 +290,7 @@ public final class ErosionEngine {
         long packed = ((long) x << 40) ^ ((long) (y & 0xFF) << 32) ^ (z & 0xFFFFFFFFL);
         // Whether the mover has stepped onto a new square - an arrival's own square is not one (see arrived). After
         // the airborne branch, so an arrival in the air waits for the landing, and before anything wears.
-        if (!steppedOnto(arriving, lastGround, walker, packed, System.currentTimeMillis())) return;
+        if (!steppedOnto(arriving, lastGround, walker, packed, System.currentTimeMillis(), heard(walker))) return;
 
         if (TrmtConfig.sneakSuppresses && walker.isSneaking()) return;
         // The same class of suppression as sneaking, so it sits in the same place - after the
@@ -275,29 +306,64 @@ public final class ErosionEngine {
         // Applied to this figure rather than inside step, which means it reaches the blocks a pass
         // bleeds onto and the crop overhead as well: a heavy walker widens a track, not only sinks
         // it. That is intended, and it is written down because the setting's name does not say it.
-        amount *= com.trmtgtnh.item.ModPotions.wearFactor(walker, vehicle);
-        if (amount <= 0f) return;
+        float factor = com.trmtgtnh.item.ModPotions.wearFactor(walker, vehicle);
+        amount *= factor;
+        // Faithful Mode's five families wear by the original's own rules (0.9.229 W5 T2): its multipliers, only
+        // players and leashed mobs, a leashed mob on its own square alone. The same as amount while it is off.
+        FaithfulWear.Mover kind = FaithfulProfile.moverOf(walker);
+        float faithful = FaithfulProfile.underfoot(kind, mounted, factor, amount);
+        if (amount <= 0f && faithful <= 0f) return;
 
         // The cooldown holds back everything this mover would count - the ground, a plant in the
         // way and a leaf underfoot alike. Plants used to be let through, when their tally was wiped
         // every ten seconds and nothing could come of it; a tally that lasts would let a creature
         // milling about in one place mow every plant it stands among, which is exactly what the
-        // cooldown exists to stop.
-        if (cooldownApplies(walker) && recentlyWorn(walker, world, mover, x, y, z)) return;
+        // cooldown exists to stop. The original has none, so under Faithful Mode it holds back only
+        // the seven families that are this mod's own.
+        if (cooldownApplies(walker) && recentlyWorn(walker, world, mover, x, y, z)) {
+            if (!FaithfulProfile.on() || faithful <= 0f) return;
+            amount = 0f;
+        }
 
-        step(world, x, y, z, amount);
-        // Headed by the mount where the mount is a creature, and by the rider otherwise. The
-        // position above comes from the mover because that is the thing in contact with the
-        // ground - but a boat and a minecart keep no look yaw at all, only an atan2 of their own
-        // displacement, a quarter turn out of phase with the decoding below and flipped a half
-        // turn when they run in reverse. Neither can reach here in vanilla anyway, water and
-        // rails being nothing this mod wears, so this is a guard against the modded case rather
-        // than a fix for a visible one.
-        bleedToNeighbours(world, mover instanceof EntityLivingBase ? mover : walker, x, y, z, amount);
-        tryTrample(world, x, y + 1, z, amount, SurfaceFamily.VEGETATION);
-        // Last, because it can take the floor out from under the walker.
-        int leafY = leafUnderfoot(world, x, y, z);
-        if (leafY >= 0) tryTrample(world, x, leafY, z, amount, SurfaceFamily.LEAVES);
+        // trmtr-api: every step below is a walk, or a ride, by the thing touching the ground (W3 T7).
+        ApiHooks.enter(mounted ? WearContext.Cause.MOUNT : WearContext.Cause.STEP, mover);
+        try {
+            step(world, x, y, z, amount, faithful, true);
+            // Headed by the mount where the mount is a creature, and by the rider otherwise. The
+            // position above comes from the mover because that is the thing in contact with the
+            // ground - but a boat and a minecart keep no look yaw at all, only an atan2 of their own
+            // displacement, a quarter turn out of phase with the decoding below and flipped a half
+            // turn when they run in reverse. Neither can reach here in vanilla anyway, water and
+            // rails being nothing this mod wears, so this is a guard against the modded case rather
+            // than a fix for a visible one.
+            bleedToNeighbours(
+                world,
+                mover instanceof EntityLivingBase ? mover : walker,
+                x,
+                y,
+                z,
+                amount,
+                kind,
+                faithful);
+            tryTrample(
+                world,
+                x,
+                y + 1,
+                z,
+                FaithfulProfile.amountFor(SurfaceFamily.VEGETATION, amount, faithful),
+                SurfaceFamily.VEGETATION);
+            // Last, because it can take the floor out from under the walker.
+            int leafY = leafUnderfoot(world, x, y, z);
+            if (leafY >= 0) tryTrample(
+                world,
+                x,
+                leafY,
+                z,
+                FaithfulProfile.amountFor(SurfaceFamily.LEAVES, amount, faithful),
+                SurfaceFamily.LEAVES);
+        } finally {
+            ApiHooks.leave();
+        }
     }
 
     /** Whether the re-trigger cooldown is imposed on this mover at all. */
@@ -390,19 +456,39 @@ public final class ErosionEngine {
      * ninety degrees. Nothing changes for a vanilla mount, since horse and pig copy their
      * rider's yaw; a modded mount that steers itself is the case this was drawn for.
      */
-    private void bleedToNeighbours(World world, Entity mover, int x, int y, int z, float amount) {
+    private void bleedToNeighbours(World world, Entity mover, int x, int y, int z, float amount,
+        FaithfulWear.Mover kind, float faithful) {
         int facing = MathHelper.floor_double(mover.rotationYaw * 4.0F / 360.0F + 0.5D) & 3;
         int dx = facing == 3 ? 1 : facing == 1 ? -1 : 0;
         int dz = facing == 0 ? 1 : facing == 2 ? -1 : 0;
 
-        if (TrmtConfig.bleedFront > 0f) {
-            step(world, x + dx, y, z + dz, amount * TrmtConfig.bleedFront);
+        // Faithful Mode's shares are the original's, a fifth ahead and half aside, from a player only (W5 T2); the
+        // same as this mod's while it is off.
+        float front = amount * TrmtConfig.bleedFront;
+        float side = amount * TrmtConfig.bleedSide;
+        float faithfulFront = FaithfulProfile.ahead(kind, faithful, front);
+        float faithfulSide = FaithfulProfile.aside(kind, faithful, side);
+        if (front > 0f || faithfulFront > 0f) {
+            step(world, x + dx, y, z + dz, front, faithfulFront, true);
         }
-        if (TrmtConfig.bleedSide > 0f) {
+        if (side > 0f || faithfulSide > 0f) {
             // Perpendicular to travel, both ways.
-            step(world, x + dz, y, z - dx, amount * TrmtConfig.bleedSide);
-            step(world, x - dz, y, z + dx, amount * TrmtConfig.bleedSide);
+            step(world, x + dz, y, z - dx, side, faithfulSide, true);
+            step(world, x - dz, y, z + dx, side, faithfulSide, true);
         }
+        // The original's leaves take the spread as its ground does (original, section 7); this mod's never have.
+        if (FaithfulProfile.owns(SurfaceFamily.LEAVES)) {
+            bleedToLeaf(world, x + dx, y, z + dz, faithfulFront);
+            bleedToLeaf(world, x + dz, y, z - dx, faithfulSide);
+            bleedToLeaf(world, x - dz, y, z + dx, faithfulSide);
+        }
+    }
+
+    /** A Faithful step's share counted against the leaf underfoot at a square beside or ahead, if there is one. */
+    private void bleedToLeaf(World world, int x, int y, int z, float share) {
+        if (share <= 0f) return;
+        int leafY = leafUnderfoot(world, x, y, z);
+        if (leafY >= 0) tryTrample(world, x, leafY, z, share, SurfaceFamily.LEAVES);
     }
 
     // ------------------------------------------------------------------
@@ -448,7 +534,12 @@ public final class ErosionEngine {
             .centre(radius, TrmtConfig.explosionStrength, TrmtConfig.REFERENCE_BLAST);
         if (centre <= 0f) return;
 
-        scour(world, centreX, centreY, centreZ, reachF, centre, true);
+        ApiHooks.enter(WearContext.Cause.BLAST, null);
+        try {
+            scour(world, centreX, centreY, centreZ, reachF, centre, true);
+        } finally {
+            ApiHooks.leave();
+        }
     }
 
     /** A blast heard as it went off, scoured at the end of the tick once its blocks are gone. */
@@ -581,8 +672,14 @@ public final class ErosionEngine {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF);
     }
 
-    /** Records wear at one position and advances its appearance if the threshold is met. */
-    public void step(World world, int x, int y, int z, float amount) {
+    /**
+     * Records wear at one position and advances its appearance if the threshold is met: {@code amount} on this mod's
+     * own families and {@code faithful} on Faithful Mode's five while it is on ({@link FaithfulProfile#amountFor}). A
+     * walker's step is the one caller to tell them apart, and the one that is {@code walked}; everything else wears by
+     * one figure, through the overload after this one. First in the file, so a source test asking for {@code step}
+     * reads this body.
+     */
+    private void step(World world, int x, int y, int z, float amount, float faithful, boolean walked) {
         if (y < TrmtConfig.minY || y > TrmtConfig.maxY) return;
         if (!world.blockExists(x, y, z)) return;
 
@@ -603,10 +700,24 @@ public final class ErosionEngine {
 
         SurfaceFamily base = SurfaceRegistry.familyOf(block, meta);
         if (base == null || !base.staged) return;
+        amount = FaithfulProfile.amountFor(base, amount, faithful);
+        if (amount <= 0f) return;
 
         // Something solid resting on top means this is not exposed ground any more.
         if (world.getBlock(x, y + 1, z)
             .isOpaqueCube() || SnowCover.shelters(world, x, y + 1, z)) return;
+
+        // trmtr-api (W3 T7): the plugins' ground rules, then their listeners, once the ground here is known to wear and
+        // to be open, and before anything is banked - the snow above included, so a refused square treads no snow.
+        if (ApiHooks.asks()) {
+            amount = ApiHooks.beforeWear(world, x, y, z, block, meta, amount);
+            if (!(amount > 0f)) return;
+            // A hook may have changed the ground; this step was for the block it was asked about (Codex review R16).
+            // The record is read below, after the hook, so one it forgot or pinned is seen as it is now.
+            if (world.getBlock(x, y, z) != block || world.getBlockMetadata(x, y, z) != meta) return;
+        }
+        boolean told = ApiHooks.listening();
+        Wear wasWorn = told ? ApiHooks.wearAt(world, x, y, z) : null;
 
         // And snow lying on it takes the step in the ground's place, until it has been trodden
         // through. Above the store entirely, so a square under snow spends no record at all and a
@@ -619,6 +730,8 @@ public final class ErosionEngine {
         int now = nowSeconds(world);
 
         float resistance = SurfaceRegistry.resistanceOf(block, meta);
+        // The chain this block's ground follows: its family's, or its own where a data file gives it one (W3 T9).
+        ErosionChain.Chain chain = SurfaceRegistry.chainOf(block, meta);
 
         ErosionEntry entry = data.get(key);
         // Pinned ground takes no wear, however much is walked over it. Checked before the wear
@@ -631,7 +744,7 @@ public final class ErosionEngine {
             data.put(key, entry);
         } else {
             short before = entry.isVisible() ? entry.packState() : ErosionState.NONE;
-            if (reseat(entry, base)) {
+            if (reseat(entry, chain)) {
                 // Only moved because the chain moved. Tell the clients where it landed, or they
                 // go on drawing a step this world no longer has.
                 if (entry.packState() != before) TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
@@ -665,20 +778,11 @@ public final class ErosionEngine {
         // strength figure meaning something and meaning nothing: a charge worth twenty crossings
         // used to advance exactly one gradation out of sixteen and throw the other nineteen
         // crossings away, which is why a stick of dynamite left ground that looked untouched.
-        boolean moved = false;
         // Kept so the plants standing here can be told a change of shade from the ground going out
         // from under them. The stored depth, not the drawn one: what is drawn depends on settings
         // this side of the question has no business reading.
         int sankFrom = entry.getSink();
-        int guard = ErosionChain.length(base) + 1;
-        while (entry.thresholdReached() && guard-- > 0) {
-            float surplus = entry.getWear() - entry.effectiveThreshold();
-            // False means the chain is finished; advance has already pinned the wear at the
-            // threshold, and looping again would spin on a position that cannot move.
-            if (!advance(base, entry, resistance)) break;
-            entry.setWear(surplus);
-            moved = true;
-        }
+        boolean moved = settle(chain, entry, resistance, FaithfulProfile.carriesSurplus(base, walked));
         if (moved) {
             TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
             WearDrops.roll(world, x, y, z, base);
@@ -689,7 +793,7 @@ public final class ErosionEngine {
             // Outside the loop above rather than inside it, so a charge worth twenty crossings
             // knocks the plant down once rather than asking twenty times.
             GroundCover.breakAbove(world, x, y, z, true, entry.getSink() > sankFrom);
-        } else if (GroundGivesWay.dueToGo(world, x, y, z, base, entry)) {
+        } else if (GroundGivesWay.dueToGo(world, x, y, z, chain, entry)) {
             // Only on a tick that moved nothing. A single charge can carry a whole chain, and a
             // rule that fired in the same call would turn ground the blast deliberately spared
             // into a hole with no worn stage in between. Because the refusal above pins the wear
@@ -697,6 +801,90 @@ public final class ErosionEngine {
             // advance to and gives way then - one tick later, and visibly worn out first.
             GroundGivesWay.take(world, x, y, z, block, meta, data, key);
         }
+        if (told) ApiHooks.changed(world, x, y, z, wasWorn, ApiHooks.wearAt(world, x, y, z));
+    }
+
+    /** Records wear at one position and advances its appearance if the threshold is met. */
+    public void step(World world, int x, int y, int z, float amount) {
+        step(world, x, y, z, amount, amount, false);
+    }
+
+    /**
+     * Takes every step along the chain the banked wear pays for, and answers whether any was taken. World-free, so it
+     * is tried without a game.
+     *
+     * @param carry whether wear past a threshold goes on toward the next step. It does everywhere but on a walker's
+     *              step over one of Faithful Mode's families, where the original's counter starts again from nought
+     *              at every stage change, so its passes round up stage by stage (0.9.229 W5 T2;
+     *              {@link FaithfulProfile#carriesSurplus})
+     */
+    boolean settle(SurfaceFamily base, ErosionEntry entry, float resistance, boolean carry) {
+        return settle(ErosionChain.of(base), entry, resistance, carry);
+    }
+
+    /** As above, along the chain the block follows: its family's, or its own (W3 T9). */
+    boolean settle(ErosionChain.Chain chain, ErosionEntry entry, float resistance, boolean carry) {
+        boolean moved = false;
+        int guard = chain.length() + 1;
+        while (entry.thresholdReached() && guard-- > 0) {
+            float surplus = entry.getWear() - entry.effectiveThreshold();
+            // False means the chain is finished; advance has already pinned the wear at the
+            // threshold, and looping again would spin on a position that cannot move.
+            if (!advance(chain, entry, resistance)) break;
+            entry.setWear(carry ? surplus : 0f);
+            moved = true;
+        }
+        return moved;
+    }
+
+    /**
+     * Places every record of a chunk whose records sit on the other chains - Faithful Mode was switched while it was
+     * loaded, or while it was saved - on the chains in force, each at the same fraction of its run as on the chain it
+     * was placed on ({@link ErosionChain#placeAcross}; Codex review R17), then records that the chunk is placed. A
+     * state
+     * both chains hold is read on the chain it was earned on, so it keeps its fraction rather than its layer. A record
+     * whose state was not on the chain it was placed on is left to {@link #reseat}, as before. Called by the store
+     * before anything reads the chunk, so it is placed once, whole. Server only.
+     */
+    public void placeChunk(World world, int chunkX, int chunkZ, ChunkErosionData data) {
+        byte from = data.placedOn();
+        // First, so a read made while placing (a packet's own lookup) finds the chunk already placed.
+        data.setPlacedOn(ErosionChain.placing());
+        if (data.isEmpty()) return;
+        Chunk chunk = world.getChunkFromChunkCoords(chunkX, chunkZ);
+        if (chunk == null) return;
+        boolean moved = false;
+        for (int key : data.keys()) {
+            ErosionEntry entry = data.get(key);
+            if (entry == null || !entry.isVisible()) continue;
+            int localX = ErosionKey.localX(key);
+            int localZ = ErosionKey.localZ(key);
+            int y = ErosionKey.y(key);
+            ErosionChain.Chain chain = SurfaceRegistry
+                .chainOf(chunk.getBlock(localX, y, localZ), chunk.getBlockMetadata(localX, y, localZ));
+            int at = chain.placeAcross(from, entry.getFamily(), entry.getStage(), entry.getSink());
+            if (at < 0) continue;
+            int capped = chain.cappedLength();
+            if (capped > 0 && at >= capped) at = capped - 1;
+            SurfaceFamily appearance = chain.familyAt(at);
+            int stage = chain.stageAt(at);
+            if (appearance == null || stage < 0) continue;
+            short before = entry.packState();
+            float carried = entry.getWear();
+            entry.setAppearance(appearance, stage, entry.getThreshold());
+            entry.setSink(chain.sinkAt(at));
+            entry.setWear(carried);
+            if (entry.packState() != before) {
+                moved = true;
+                TrmtNetwork.sendDelta(world, (chunkX << 4) + localX, y, (chunkZ << 4) + localZ, entry.packState());
+            }
+        }
+        data.markDirty();
+        // The game's own chunk as well (Codex review R19): the store writes a chunk's records when the game saves the
+        // chunk, and a chunk nothing else changed is skipped by an autosave and at shutdown, so a placement made only
+        // by switching Faithful Mode was lost on a restart and the records came back on the chains they had left.
+        if (moved) ErosionStore.get()
+            .markModified(world, chunkX, chunkZ);
     }
 
     /**
@@ -715,11 +903,16 @@ public final class ErosionEngine {
      * Progress toward the next step is carried across rather than reset. It was earned under the
      * old numbers and the new threshold is the only thing that has changed about what it buys.
      *
+     * <p>
+     * The chain is the block's own where a data file gives it one (W3 T9), so a record on a block whose list changed -
+     * given one, changed, or taken away - is placed on the chain it follows now by the same rules: at its own depth and
+     * the nearest layer, showing what that chain shows there.
+     *
      * @return false when this entry does not belong to this surface at all and should be dropped
      */
-    private static boolean reseat(ErosionEntry entry, SurfaceFamily base) {
-        if (!entry.isVisible()) return entry.getFamily() == base;
-        if (ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink()) >= 0) return true;
+    static boolean reseat(ErosionEntry entry, ErosionChain.Chain chain) {
+        if (!entry.isVisible()) return entry.getFamily() == chain.base;
+        if (chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink()) >= 0) return true;
 
         // Asked in this order deliberately. A record showing a surface this one is configured to
         // wear through into is answered at its own depth first, because that is the case where the
@@ -727,40 +920,39 @@ public final class ErosionEngine {
         // switching the successor runs on or off, or changing what a family becomes. Only when
         // there is no step at that depth at all does the coarser search run, and only when the
         // appearance has never belonged to this base is the record given up as somebody else's.
-        int near = ErosionChain.reseatIndex(base, entry.getFamily(), entry.getStage(), entry.getSink());
-        if (near < 0) near = ErosionChain.nearestIndex(base, entry.getFamily(), entry.getStage(), entry.getSink());
+        int near = chain.reseatIndex(entry.getFamily(), entry.getStage(), entry.getSink());
+        if (near < 0) near = chain.nearestIndex(entry.getFamily(), entry.getStage(), entry.getSink());
         if (near < 0) return false;
         // Held to what this world currently lets ground reach, so a lowered ceiling brings deep
         // ground up to the new limit instead of leaving it past a line nothing can cross.
-        int capped = ErosionChain.cappedLength(base);
+        int capped = chain.cappedLength();
         if (capped > 0 && near >= capped) near = capped - 1;
 
-        SurfaceFamily appearance = ErosionChain.familyAt(base, near);
-        int stage = ErosionChain.stageAt(base, near);
+        SurfaceFamily appearance = chain.familyAt(near);
+        int stage = chain.stageAt(near);
         if (appearance == null || stage < 0) return false;
 
         float carried = entry.getWear();
         entry.setAppearance(appearance, stage, entry.getThreshold());
-        entry.setSink(ErosionChain.sinkAt(base, near));
+        entry.setSink(chain.sinkAt(near));
         entry.setWear(carried);
         return true;
     }
 
-    /** True when this entry's appearance is still a position on the base surface's chain. */
-    private static boolean belongsTo(ErosionEntry entry, SurfaceFamily base) {
-        if (!entry.isVisible()) return entry.getFamily() == base;
-        return ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink()) >= 0;
+    /** True when this entry's appearance is still a position on the chain the block follows. */
+    private static boolean belongsTo(ErosionEntry entry, ErosionChain.Chain chain) {
+        if (!entry.isVisible()) return entry.getFamily() == chain.base;
+        return chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink()) >= 0;
     }
 
     /**
      * Moves one step along the chain. Returns true when the visible appearance changed and
      * clients need telling.
      */
-    private boolean advance(SurfaceFamily base, ErosionEntry entry, float resistance) {
-        int index = entry.isVisible() ? ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink())
-            : -1;
+    private boolean advance(ErosionChain.Chain chain, ErosionEntry entry, float resistance) {
+        int index = entry.isVisible() ? chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink()) : -1;
         int next = index + 1;
-        if (next >= ErosionChain.cappedLength(base)) {
+        if (next >= chain.cappedLength()) {
             // As worn as this world lets it get. Hold wear at the threshold rather than letting
             // it run away, so the moment traffic stops the healing clock starts from a known
             // point - and so lowering the ceiling later does not hand back a banked debt.
@@ -774,11 +966,11 @@ public final class ErosionEngine {
             if (entry.getWear() > ceiling) entry.setWear(ceiling);
             return false;
         }
-        SurfaceFamily appearance = ErosionChain.familyAt(base, next);
-        int stage = ErosionChain.stageAt(base, next);
+        SurfaceFamily appearance = chain.familyAt(next);
+        int stage = chain.stageAt(next);
         if (appearance == null) return false;
-        entry.setAppearance(appearance, stage, drawThreshold(ErosionChain.pace(base, appearance), next) * resistance);
-        entry.setSink(ErosionChain.sinkAt(base, next));
+        entry.setAppearance(appearance, stage, drawThreshold(chain.pace(appearance), next) * resistance);
+        entry.setSink(chain.sinkAt(next));
         return true;
     }
 
@@ -831,7 +1023,15 @@ public final class ErosionEngine {
     public void catchUpChunk(final World world, final int chunkX, final int chunkZ, ChunkErosionData data) {
         // No per-position deltas here: the whole chunk goes out afterwards, and for a chunk that has been
         // away for months that is one packet instead of hundreds.
-        healChunk(world, chunkX, chunkZ, data, false);
+        // trmtr-api: this runs inside the chunk's load, so a change made here is held for the server's next tick, when
+        // the chunk is whole, and no rule is asked (API.md, "Chunk loading"). Told here, a listener reading the block
+        // it was told about waited for ever on the thread that was to finish the chunk (0.9.229, W3).
+        ApiHooks.enterLoad();
+        try {
+            healChunk(world, chunkX, chunkZ, data, false);
+        } finally {
+            ApiHooks.leaveLoad();
+        }
         if (world == null || world.isRemote) return;
         final int dimension = world.provider.dimensionId;
         com.trmtgtnh.util.MainThread.onServer(new Runnable() {
@@ -871,6 +1071,9 @@ public final class ErosionEngine {
         // is not worth asking about per position: the per-position test costs a sky lookup
         // and a biome lookup, and a chunk can hold three thousand records.
         boolean maybeRaining = world.isRaining() && !world.provider.hasNoSky;
+        // trmtr-api: the listeners are told once the sweep is done with the chunk's records, never in the middle of
+        // it, because a listener may forget, pin or wear any of them (Codex review R16).
+        ApiHooks.Changes changes = ApiHooks.listening() ? new ApiHooks.Changes() : null;
         int[] keys = data.keys();
         for (int key : keys) {
             ErosionEntry entry = data.get(key);
@@ -887,8 +1090,14 @@ public final class ErosionEngine {
             int z = (chunkZ << 4) + localZ;
 
             Block block = chunk.getBlock(localX, y, localZ);
+            // A block in a piston's grip, its record already carried onto the square it is landing on (PistonWear):
+            // left alone until it lands, a moment later, or the test below would read it as ground that had gone.
+            if (block == Blocks.piston_extension) continue;
             int meta = chunk.getBlockMetadata(localX, y, localZ);
             SurfaceFamily base = SurfaceRegistry.familyOf(block, meta);
+            // Its own chain where a data file gives the block one (W3 T9): a record on a block whose list changed since
+            // it was made is placed on the chain it follows now, here at the load and at every sweep.
+            ErosionChain.Chain chain = SurfaceRegistry.chainOf(block, meta);
 
             // A record whose step the chain no longer has is put back on the nearest one it does
             // have before any of this, because a rebuilt chain is not a changed surface and used
@@ -896,7 +1105,7 @@ public final class ErosionEngine {
             // every worn path in the world at the next chunk load.
             if (base != null && base.staged && entry.isVisible()) {
                 short seated = entry.packState();
-                if (reseat(entry, base) && entry.packState() != seated) {
+                if (reseat(entry, chain) && entry.packState() != seated) {
                     data.markDirty();
                     if (notifyClients) TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
                 }
@@ -911,16 +1120,18 @@ public final class ErosionEngine {
                 // crossing, so one that is never written is worked out again, to the same figure, next
                 // time. Marking it would rewrite every chunk holding a tally on every autosave for as
                 // long as the tally lasted, meadows and forests with no worn ground in them included.
-                if (TrampleTally.fade(entry, now, TrmtConfig.wearDecayPerDay)) data.markDirty();
+                if (TrampleTally.fade(entry, now, FaithfulProfile.wearDecayPerDay(base))) data.markDirty();
                 if (entry.isPrunable()) data.remove(key);
                 // No packet: invisible before and after. And no weather lookups, which a tally never reads.
                 continue;
             }
 
-            if (base == null || !base.staged || !belongsTo(entry, base)) {
+            if (base == null || !base.staged || !belongsTo(entry, chain)) {
                 // The ground is no longer the surface this entry described. Drop it, and tell
                 // anyone still showing it so the overlay comes off now rather than on reload.
                 boolean wasVisible = entry.isVisible();
+                // trmtr-api: the record as it was, for the listeners, before it is stripped or dropped.
+                Wear dropped = wasVisible && changes != null ? ApiHooks.wearOf(entry, chain) : null;
                 if (entry.getReinforce() > 0 || entry.getWard() != 0) {
                     // Except what it carries for the position rather than for the surface: a
                     // reinforcement or a spawn ward. Strip the stale wear so no ghost is drawn, and
@@ -935,11 +1146,13 @@ public final class ErosionEngine {
                     entry.setWear(0f);
                     if (stale) data.markDirty();
                     if (wasVisible && notifyClients) TrmtNetwork.sendDelta(world, x, y, z, ErosionState.NONE);
+                    if (dropped != null) changes.add(x, y, z, dropped, null);
                     continue;
                 }
                 data.remove(key);
                 if (wasVisible && notifyClients) TrmtNetwork.sendDelta(world, x, y, z, ErosionState.NONE);
                 if (notifyClients) dropLight(world, x, y, z, entry);
+                if (dropped != null) changes.add(x, y, z, dropped, null);
                 continue;
             }
 
@@ -963,7 +1176,27 @@ public final class ErosionEngine {
             boolean wet = maybeRaining && cap < 0 && Weather.fallingOn(world, x, y, z, base);
 
             short before = entry.isVisible() ? entry.packState() : ErosionState.NONE;
-            if (!heal(entry, base, elapsed, now, cap, wet, SurfaceRegistry.resistanceOf(block, meta))) continue;
+            Wear wasWorn = changes != null ? ApiHooks.wearOf(entry, chain) : null;
+            // What Faithful Mode's three ask of the world as the original asked it (spec 2.4), asked here so heal reads
+            // no block: whether nothing worn is around, whether something that occludes stands on the square, and
+            // whether a block may be written - only by the sweep, over plain dirt that is still plain dirt.
+            HealWork work = new HealWork(
+                notifyClients && (base != SurfaceFamily.DIRT || plainDirt(block, meta)),
+                FaithfulProfile.healsFasterAlone(base) && isolated(world, x, y, z),
+                FaithfulProfile.healsWhenCovered(base) && occluded(chunk, localX, y, localZ),
+                random,
+                block == Blocks.grass);
+            if (!heal(entry, chain, elapsed, now, cap, wet, SurfaceRegistry.resistanceOf(block, meta), work)) continue;
+            // Worn plain dirt healed into grass is a grass square from here on: the record is on grass's chain.
+            if (work.toGrass) {
+                base = SurfaceFamily.GRASS;
+                chain = ErosionChain.of(base);
+            }
+            // Covered grass worn to earth went back to dirt: a dirt square from here on, and told of as one.
+            if (work.toDirt) {
+                base = SurfaceFamily.DIRT;
+                chain = ErosionChain.of(base);
+            }
 
             data.markDirty();
             ErosionStore.get()
@@ -973,7 +1206,83 @@ public final class ErosionEngine {
             // Healing that only bled off partial wear changes nothing anyone can see, so the
             // packet is sent on a change of appearance rather than on any change at all.
             if (notifyClients && after != before) TrmtNetwork.sendDelta(world, x, y, z, after);
+            if (changes != null) changes.add(x, y, z, wasWorn, ApiHooks.wearOf(entry, chain));
+            // The world last, once the record is settled, because a block written runs neighbour updates through
+            // other mods' code. The dirt becomes the grass its record now belongs to; short grass on turf that healed.
+            if (work.toGrass) world.setBlock(x, y, z, Blocks.grass, 0, 3);
+            if (work.toDirt) world.setBlock(x, y, z, Blocks.dirt, 0, 3);
+            if (work.sprout) sprout(world, x, y, z);
         }
+        if (changes != null) changes.tell(world);
+    }
+
+    /**
+     * Puts a record of worn plain dirt's first stage on grass's chain at its bare earth: the one step by which Faithful
+     * Mode's dirt becomes grass (spec 2.4). Shared by the heal and by Faithful bone meal, so a mend and a heal of the
+     * same square land on the same stage; the caller makes the block a grass block once the record is settled.
+     */
+    void intoGrass(ErosionEntry entry, float resistance) {
+        int earth = FaithfulHeal.bareEarth();
+        SurfaceFamily appearance = ErosionChain.familyAt(SurfaceFamily.GRASS, earth);
+        entry.setAppearance(
+            appearance,
+            ErosionChain.stageAt(SurfaceFamily.GRASS, earth),
+            drawThreshold(ErosionChain.pace(SurfaceFamily.GRASS, appearance), earth) * resistance);
+        entry.setSink(ErosionChain.sinkAt(SurfaceFamily.GRASS, earth));
+    }
+
+    /**
+     * Whether a mend that walks the healing chain takes this square into grass: worn plain dirt's first stage, where
+     * Faithful Mode's heal goes on into grass ({@link FaithfulProfile#healsIntoGrass}), on a block that is still plain
+     * dirt, as the sweep asks before it writes one. Package-visible so the rule is tried without a world.
+     */
+    static boolean mendsIntoGrass(boolean healChain, SurfaceFamily base, int index, boolean plainDirt) {
+        return healChain && plainDirt && FaithfulProfile.healsIntoGrass(base, index);
+    }
+
+    /** Plain dirt: the block worn plain dirt healing into grass must still be, to be made grass. */
+    private static boolean plainDirt(Block block, int meta) {
+        return block == Blocks.dirt && meta == 0;
+    }
+
+    /**
+     * Whether no worn ground is on any of the twelve squares around this one (the original's isolation, spec 2.4),
+     * read from the store's loaded chunks alone: a chunk the store does not hold counts as nothing worn, and nothing is
+     * ever loaded or generated to ask.
+     */
+    public static boolean isolated(final World world, final int x, final int y, final int z) {
+        return FaithfulHeal.isolated((dx, dy, dz) -> {
+            int up = y + dy;
+            if (up < 0 || up > 255) return false;
+            ChunkErosionData data = ErosionStore.get()
+                .getChunk(world.provider.dimensionId, (x + dx) >> 4, (z + dz) >> 4);
+            if (data == null) return false;
+            ErosionEntry held = data.get(ErosionKey.packWorld(x + dx, up, z + dz));
+            return held != null && held.isVisible();
+        });
+    }
+
+    /**
+     * Whether the block on this square occludes, which heals Faithful Mode's ground at once (the original's
+     * {@code canOcclude}). Asked of the block's material, which says the same on a server and a client: a solid that
+     * blocks movement and is not see-through, so glass, leaves, a carpet, a snow layer, a plant or water never cover.
+     * Read from the chunk, as the rest of the sweep reads it.
+     */
+    private static boolean occluded(Chunk chunk, int localX, int y, int localZ) {
+        if (y >= 255) return false;
+        Block above = chunk.getBlock(localX, y + 1, localZ);
+        return above != null && above.getMaterial()
+            .isOpaque();
+    }
+
+    /**
+     * Short grass on a square whose worn turf healed a stage (the original's 5%, spec 2.4), where the square above is
+     * air and short grass could stand there; the original's {@code tallgrass} of this edition, meta 1.
+     */
+    private static void sprout(World world, int x, int y, int z) {
+        if (y >= 255 || !world.isAirBlock(x, y + 1, z)) return;
+        if (!Blocks.tallgrass.canBlockStay(world, x, y + 1, z)) return;
+        world.setBlock(x, y + 1, z, Blocks.tallgrass, 1, 3);
     }
 
     /**
@@ -1001,9 +1310,31 @@ public final class ErosionEngine {
      *                   protection wore into its first gradation about eight times sooner than the
      *                   unprotected square beside it; and a partial heal left every resistant square
      *                   wearing back up at the unscaled price.
+     * @param work       what the sweep read of the world for Faithful Mode's healing, and where heal leaves it the
+     *                   blocks to write: package-visible, with this, so the rules are tried without a world.
      */
-    private boolean heal(ErosionEntry entry, SurfaceFamily base, int elapsedSeconds, int now, int stageCap, boolean wet,
-        float resistance) {
+    boolean heal(ErosionEntry entry, ErosionChain.Chain chain, int elapsedSeconds, int now, int stageCap, boolean wet,
+        float resistance, HealWork work) {
+        // Back down the chain the block follows: its family's, or its own where a data file gives it one (W3 T9).
+        SurfaceFamily base = chain.base;
+        // Faithful Mode's covered ground, back at once, ahead of the weather and the heal switches: the original turned
+        // an eroded block into its vanilla block the moment anything that occludes stood on it (spec 2.4). The sweep
+        // asks the world whether it is covered and whether the base heals so; heal only acts on the answer.
+        if (work.covered && entry.isVisible()) {
+            // Grass worn to earth goes back to the dirt it shows, as the original's covered eroded_dirt became dirt
+            // (the director's reading of W5 T3's departure 2): the record says dirt and the sweep makes the block
+            // dirt, so it is done by the sweep alone; at a chunk's catch-up it waits, as it was.
+            boolean toDirt = work.grassBlock && FaithfulProfile
+                .coveredToDirt(base, chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink()));
+            if (toDirt && !work.mayWrite) return false;
+            SurfaceFamily ground = toDirt ? SurfaceFamily.DIRT : base;
+            entry.setAppearance(ground, -1, drawThreshold(ground, 0) * resistance);
+            entry.setWear(0f);
+            entry.setSink(0);
+            entry.setLastTouchedSeconds(now);
+            work.toDirt = toDirt;
+            return true;
+        }
         if (stageCap == 0) return false;
 
         double daysLeft = elapsedSeconds / (double) SECONDS_PER_DAY;
@@ -1012,7 +1343,7 @@ public final class ErosionEngine {
         boolean changed = false;
 
         // 1. Bleed off progress toward the next stage.
-        double decayPerDay = TrmtConfig.wearDecayPerDay * entry.effectiveThreshold();
+        double decayPerDay = FaithfulProfile.wearDecayPerDay(base) * entry.effectiveThreshold();
         // The partial bleed as well as the whole gradations, or rain would visibly do
         // nothing to a lightly used path, which is most of what anybody is looking at.
         if (wet) decayPerDay *= wetFactor(base, entry.getFamily());
@@ -1032,19 +1363,44 @@ public final class ErosionEngine {
         int given = 0;
         while (entry.isVisible()) {
             if (stageCap >= 0 && given >= stageCap) break;
+            // One of Faithful Mode's three with its healing switched off stays as it is, as the original's
+            // deErosion toggles leave it. Asked each step, because plain dirt healed into grass heals on as grass.
+            if (!FaithfulProfile.heals(base)) break;
+            int index = chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink());
             // Priced by the ground rather than by the picture, the same way wearing is. A stone
             // road showing the grit it shed would otherwise recover at grit's rate, which turns
             // the hundred and forty-four in-game days an abandoned one takes into about sixty.
-            FamilySettings settings = TrmtConfig.family(ErosionChain.pace(base, entry.getFamily()));
-            double cost = settings == null ? Double.MAX_VALUE : settings.scaledHealDays();
-            if (wet && settings != null) cost /= atLeastOne(settings.wetRecoverySpeed);
+            FamilySettings settings = TrmtConfig.family(chain.pace(entry.getFamily()));
+            // Faithful Mode's three by the stage's own days, as the original read them, half when nothing worn is
+            // around (spec 2.4); every other family by its one figure.
+            double cost = FaithfulProfile
+                .healDays(base, index, work.isolated, settings == null ? Double.MAX_VALUE : settings.scaledHealDays());
+            if (wet && settings != null && FaithfulProfile.rainMends(base))
+                cost /= atLeastOne(settings.wetRecoverySpeed);
             // Asked of HealBank rather than compared here, so a remainder the arithmetic has left a hair
             // short of the price pays for it. Compared exactly, a catch-up owing four gradations of snow was
             // refused the fourth, and ground waiting on the weather then waited for the next metered one.
             if (!HealBank.affords(daysLeft, cost)) break;
 
+            if (FaithfulProfile.healsIntoGrass(base, index)) {
+                // Worn plain dirt heals into grass, as the original's always does: the block becomes a grass block
+                // and the record goes on from grass's bare earth, at grass's days. A block written, so only by the
+                // sweep over a loaded chunk; at a chunk's catch-up it waits, its days kept, for the sweep.
+                if (!work.mayWrite) break;
+                daysLeft -= cost;
+                base = SurfaceFamily.GRASS;
+                chain = ErosionChain.of(base);
+                intoGrass(entry, resistance);
+                work.toGrass = true;
+                given++;
+                changed = true;
+                continue;
+            }
+
             daysLeft -= cost;
-            int index = ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink());
+            // Short grass on worn turf going back a stage, at the original's 5%; planted by the sweep, which alone
+            // may write a block.
+            if (work.mayWrite && FaithfulProfile.sprouts(base, index, work.dice.nextDouble())) work.sprout = true;
             if (index <= 0) {
                 // Back to pristine. Leaving the entry empty lets the store prune it, which is
                 // how a healed chunk sheds its NBT tag entirely. Drawn with the resistance, because a
@@ -1053,15 +1409,12 @@ public final class ErosionEngine {
                 entry.setWear(0f);
                 entry.setSink(0);
             } else {
-                SurfaceFamily appearance = ErosionChain.familyAt(base, index - 1);
-                int stage = ErosionChain.stageAt(base, index - 1);
+                SurfaceFamily appearance = chain.familyAt(index - 1);
+                int stage = chain.stageAt(index - 1);
                 if (appearance == null) break;
-                entry.setAppearance(
-                    appearance,
-                    stage,
-                    drawThreshold(ErosionChain.pace(base, appearance), index - 1) * resistance);
+                entry.setAppearance(appearance, stage, drawThreshold(chain.pace(appearance), index - 1) * resistance);
                 // Recovering fills a rut back in as well as growing its cover back.
-                entry.setSink(ErosionChain.sinkAt(base, index - 1));
+                entry.setSink(chain.sinkAt(index - 1));
             }
             given++;
             changed = true;
@@ -1077,6 +1430,57 @@ public final class ErosionEngine {
     }
 
     /**
+     * What one record's heal may do beyond the record, and what it leaves the sweep to do to the world (Faithful Mode's
+     * healing, spec 2.4). Asked of the world by {@link #healChunk} before {@link #heal}, so {@code heal} itself never
+     * reads a block and is tried without a world.
+     */
+    static final class HealWork {
+
+        /**
+         * Whether this pass may change blocks: the sweep, over a chunk the server holds loaded. Never a chunk's
+         * catch-up as it loads, when the world may not answer for it yet; a step that needs a block changed waits,
+         * banked, for the sweep.
+         */
+        final boolean mayWrite;
+
+        /** Whether no worn ground is around the square (the original's isolation), which halves Faithful days. */
+        final boolean isolated;
+
+        /** Whether something that occludes stands on the square, which heals Faithful ground at once. */
+        final boolean covered;
+
+        /** The roll for short grass. */
+        final Random dice;
+
+        /** Set when worn plain dirt healed into grass: the sweep makes the block a grass block. */
+        boolean toGrass;
+
+        /** Set when a step back from worn turf rolled short grass: the sweep plants it if the square above is air. */
+        boolean sprout;
+
+        /**
+         * Whether the square's block is this edition's own grass block, so covered grass worn to earth may be made
+         * its dirt. Another mod's grass has no dirt of this edition's to go back to, and goes back to its own grass.
+         */
+        final boolean grassBlock;
+
+        /** Set when covered grass worn to earth went back to dirt, as the original's did: the sweep makes it dirt. */
+        boolean toDirt;
+
+        HealWork(boolean mayWrite, boolean isolated, boolean covered, Random dice) {
+            this(mayWrite, isolated, covered, dice, true);
+        }
+
+        HealWork(boolean mayWrite, boolean isolated, boolean covered, Random dice, boolean grassBlock) {
+            this.mayWrite = mayWrite;
+            this.isolated = isolated;
+            this.covered = covered;
+            this.dice = dice;
+            this.grassBlock = grassBlock;
+        }
+    }
+
+    /**
      * A recovery multiplier that can only ever help.
      *
      * <p>
@@ -1086,6 +1490,12 @@ public final class ErosionEngine {
      */
     private static double atLeastOne(float rate) {
         return rate < 1f ? 1d : rate;
+    }
+
+    /** The heal above, back down the family's chain. */
+    boolean heal(ErosionEntry entry, SurfaceFamily base, int elapsedSeconds, int now, int stageCap, boolean wet,
+        float resistance, HealWork work) {
+        return heal(entry, ErosionChain.of(base), elapsedSeconds, now, stageCap, wet, resistance, work);
     }
 
     /**
@@ -1174,7 +1584,7 @@ public final class ErosionEngine {
      *               plant.
      */
     private void tryTrample(World world, int x, int y, int z, float amount, SurfaceFamily target) {
-        if (!tramples(target)) return;
+        if (amount <= 0f || !tramples(target)) return;
         if (y < Math.max(0, TrmtConfig.minY) || y > Math.min(255, TrmtConfig.maxY)) return;
         if (!world.blockExists(x, y, z)) return;
 
@@ -1241,7 +1651,8 @@ public final class ErosionEngine {
         // the sweep had not reached yet would be thrown away with the old stamp, and a plant crossed a
         // little more often than the sweep comes round would never recover at all. With healing off
         // nothing fades here, as nothing fades on the sweep.
-        boolean due = TrampleTally.cross(entry, amount, now, TrmtConfig.wearDecayPerDay, TrmtConfig.healingEnabled);
+        boolean due = TrampleTally
+            .cross(entry, amount, now, FaithfulProfile.wearDecayPerDay(target), TrmtConfig.healingEnabled);
         data.markDirty();
         ErosionStore.get()
             .markModified(world, x >> 4, z >> 4);
@@ -1259,6 +1670,15 @@ public final class ErosionEngine {
         // Sound and particles as though it had been broken. Spelled out rather than calling the world's
         // own destroy helper, which is unmapped here.
         world.playAuxSFX(2001, x, y, z, Block.getIdFromBlock(block) + (meta << 12));
+
+        // Faithful Mode: tall grass trodden down becomes short grass and stops there, with nothing dropped, as the
+        // original's did (spec 2.6, 2.13: double_plant 2 to tallgrass 1). The upper half first, without drops or
+        // neighbour updates, so the lower half's change finds nothing left to pop.
+        if (FaithfulProfile.shortensTallGrass(target) && block == Blocks.double_plant && meta == 2) {
+            if (y < 255 && world.getBlock(x, y + 1, z) == block) world.setBlock(x, y + 1, z, Blocks.air, 0, 2);
+            world.setBlock(x, y, z, Blocks.tallgrass, 1, 3);
+            return;
+        }
 
         // Asked for while the block still stands, and that order is load-bearing: a leaf or a plant kept
         // in a tile entity - Forestry's leaves are one - can only say what it drops while its tile entity
@@ -1507,9 +1927,11 @@ public final class ErosionEngine {
         ErosionEntry entry = data.get(key);
         if (entry == null) return;
         boolean wasVisible = entry.isVisible();
+        Wear wasWorn = wasVisible && ApiHooks.listening() ? ApiHooks.wearOf(world, x, y, z, entry) : null;
         data.remove(key);
         if (wasVisible) TrmtNetwork.sendDelta(world, x, y, z, ErosionState.NONE);
         dropLight(world, x, y, z, entry);
+        if (wasWorn != null) ApiHooks.changed(world, x, y, z, wasWorn, null);
     }
 
     /**
@@ -1545,16 +1967,41 @@ public final class ErosionEngine {
      * exists to avoid. The caller sends one packet per chunk when it is done.
      */
     public boolean restoreOneStage(World world, int x, int y, int z, boolean notifyClients) {
+        return restoreOneStage(world, x, y, z, notifyClients, false);
+    }
+
+    /**
+     * As above, and with {@code healChain} the step is the one Faithful Mode's heal would take (spec 2.6: bone meal
+     * walks the healing chain): worn plain dirt's first stage goes on into grass at grass's bare earth, the block made
+     * a grass block, exactly where the sweep's heal of the same square lands. With {@code dirtHealsToGrass} off, or
+     * Faithful Mode off, it is the plain step back.
+     */
+    public boolean restoreOneStage(World world, int x, int y, int z, boolean notifyClients, boolean healChain) {
         RestoreTarget target = restoreTarget(world, x, y, z);
         if (target == null) return false;
+        boolean told = ApiHooks.listening();
+        Wear wasWorn = told ? ApiHooks.wearOf(target.entry, target.chain) : null;
 
         ChunkErosionData data = target.data;
         int key = target.key;
         ErosionEntry entry = target.entry;
         SurfaceFamily base = target.base;
+        ErosionChain.Chain chain = target.chain;
         int index = target.index;
         int now = nowSeconds(world);
-        if (index <= 0) {
+        boolean toGrass = mendsIntoGrass(
+            healChain,
+            base,
+            index,
+            plainDirt(world.getBlock(x, y, z), world.getBlockMetadata(x, y, z)));
+        if (toGrass) {
+            // Worn plain dirt mended into grass, as the heal takes it: the record goes on from grass's bare earth.
+            base = SurfaceFamily.GRASS;
+            chain = ErosionChain.of(base);
+            intoGrass(entry, target.resistance);
+            entry.setLastTouchedSeconds(now);
+            if (notifyClients) TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
+        } else if (index <= 0) {
             // Back to pristine, the way healing does it: the wear goes and the record stays for
             // whatever else it carries. Removing it outright took a reinforcement, a spawn ward and
             // a glow with it - things somebody paid for, deleted by tidying the first gradation with
@@ -1572,14 +2019,17 @@ public final class ErosionEngine {
             entry.setAppearance(
                 appearance,
                 target.stage,
-                drawThreshold(ErosionChain.pace(base, appearance), index - 1) * target.resistance);
-            entry.setSink(ErosionChain.sinkAt(base, index - 1));
+                drawThreshold(chain.pace(appearance), index - 1) * target.resistance);
+            entry.setSink(chain.sinkAt(index - 1));
             entry.setLastTouchedSeconds(now);
             if (notifyClients) TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
         }
         data.markDirty();
         ErosionStore.get()
             .markModified(world, x >> 4, z >> 4);
+        if (told) ApiHooks.changed(world, x, y, z, wasWorn, ApiHooks.wearOf(entry, chain));
+        // The world last, once the record is settled, as the sweep writes it.
+        if (toGrass) world.setBlock(x, y, z, Blocks.grass, 0, 3);
         return true;
     }
 
@@ -1609,13 +2059,14 @@ public final class ErosionEngine {
         int meta = world.getBlockMetadata(x, y, z);
         SurfaceFamily base = SurfaceRegistry.familyOf(block, meta);
         if (base == null) return null;
+        ErosionChain.Chain chain = SurfaceRegistry.chainOf(block, meta);
 
-        int index = ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink());
+        int index = chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink());
         SurfaceFamily appearance = null;
         int stage = 0;
         if (index > 0) {
-            appearance = ErosionChain.familyAt(base, index - 1);
-            stage = ErosionChain.stageAt(base, index - 1);
+            appearance = chain.familyAt(index - 1);
+            stage = chain.stageAt(index - 1);
             if (appearance == null) return null;
         }
         return new RestoreTarget(
@@ -1623,6 +2074,7 @@ public final class ErosionEngine {
             key,
             entry,
             base,
+            chain,
             index,
             appearance,
             stage,
@@ -1636,6 +2088,10 @@ public final class ErosionEngine {
         final int key;
         final ErosionEntry entry;
         final SurfaceFamily base;
+
+        /** The chain the block follows, its own where a data file gives it one (W3 T9). */
+        final ErosionChain.Chain chain;
+
         final int index;
 
         /** What the position will show one gradation back; null when that is pristine ground. */
@@ -1649,12 +2105,13 @@ public final class ErosionEngine {
          */
         final float resistance;
 
-        RestoreTarget(ChunkErosionData data, int key, ErosionEntry entry, SurfaceFamily base, int index,
-            SurfaceFamily appearance, int stage, float resistance) {
+        RestoreTarget(ChunkErosionData data, int key, ErosionEntry entry, SurfaceFamily base, ErosionChain.Chain chain,
+            int index, SurfaceFamily appearance, int stage, float resistance) {
             this.data = data;
             this.key = key;
             this.entry = entry;
             this.base = base;
+            this.chain = chain;
             this.index = index;
             this.appearance = appearance;
             this.stage = stage;
@@ -1762,13 +2219,29 @@ public final class ErosionEngine {
     public boolean forceStage(World world, int x, int y, int z, SurfaceFamily base, int chainIndex, boolean frozen,
         boolean notifyClients) {
         if (world == null || world.isRemote || base == null || chainIndex < 0) return false;
-        int length = ErosionChain.length(base);
+        // The index is on the chain the block there follows when it wears as this family - its own where a data file
+        // gives it one (W3 T9) - and on the family's chain where it does not.
+        ErosionChain.Chain chain = chainFor(world, x, y, z, base);
+        int length = chain.length();
         if (length == 0) return false;
         if (chainIndex >= length) chainIndex = length - 1;
 
-        SurfaceFamily appearance = ErosionChain.familyAt(base, chainIndex);
-        int stage = ErosionChain.stageAt(base, chainIndex);
+        SurfaceFamily appearance = chain.familyAt(chainIndex);
+        int stage = chain.stageAt(chainIndex);
         if (appearance == null || stage < 0) return false;
+
+        // trmtr-api (W3 T7): a golem or a command working ground deeper asks the plugins' rules and listeners first. A
+        // hook may forget, pin or wear this very record, so nothing read before it is used after it: the record is
+        // marked before the call and read again after, and a record the hook moved is not forced over (Codex R16).
+        if (ApiHooks.asks()) {
+            ErosionEntry asked = ErosionStore.get()
+                .getEntry(world, x, y, z);
+            String seen = ApiHooks.mark(asked);
+            if (!ApiHooks.mayForce(world, x, y, z, asked, chain, chainIndex)) return false;
+            ErosionEntry after = ErosionStore.get()
+                .getEntry(world, x, y, z);
+            if (!seen.equals(ApiHooks.mark(after))) return false;
+        }
 
         ChunkErosionData data = ErosionStore.get()
             .getOrCreateChunk(world.provider.dimensionId, x >> 4, z >> 4);
@@ -1779,15 +2252,14 @@ public final class ErosionEngine {
         // demonstration lays out and leaves unfrozen wears on at the price its settings give it.
         float resistance = SurfaceRegistry.resistanceOf(world.getBlock(x, y, z), world.getBlockMetadata(x, y, z));
         ErosionEntry entry = data.get(key);
+        boolean told = ApiHooks.listening();
+        Wear wasWorn = told ? ApiHooks.wearOf(entry, chain) : null;
         if (entry == null) {
             entry = new ErosionEntry(base, drawThreshold(base, 0) * resistance, now);
             data.put(key, entry);
         }
-        entry.setAppearance(
-            appearance,
-            stage,
-            drawThreshold(ErosionChain.pace(base, appearance), chainIndex) * resistance);
-        entry.setSink(ErosionChain.sinkAt(base, chainIndex));
+        entry.setAppearance(appearance, stage, drawThreshold(chain.pace(appearance), chainIndex) * resistance);
+        entry.setSink(chain.sinkAt(chainIndex));
         entry.setLastTouchedSeconds(now);
         entry.setFrozen(frozen);
         data.markDirty();
@@ -1795,7 +2267,21 @@ public final class ErosionEngine {
             .markModified(world, x >> 4, z >> 4);
 
         if (notifyClients) TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
+        if (told) ApiHooks.changed(world, x, y, z, wasWorn, ApiHooks.wearOf(entry, chain));
         return true;
+    }
+
+    /**
+     * The chain a position's ground follows when it is asked to wear as this family: the block's own, where the block
+     * there wears as that family and a data file gives it a list (W3 T9), and the family's otherwise. What the callers
+     * that work a position by an index along its chain - a golem, the showcase, the API - read their index from.
+     */
+    public static ErosionChain.Chain chainFor(World world, int x, int y, int z, SurfaceFamily base) {
+        if (world == null || base == null) return ErosionChain.of(base);
+        Block block = world.getBlock(x, y, z);
+        int meta = world.getBlockMetadata(x, y, z);
+        if (SurfaceRegistry.familyOf(block, meta) != base) return ErosionChain.of(base);
+        return SurfaceRegistry.chainOf(block, meta);
     }
 
     /**
@@ -1889,12 +2375,15 @@ public final class ErosionEngine {
         if (entry == null || !entry.isVisible()) return false;
         if (entry.isFrozen() == frozen) return false;
 
+        boolean told = ApiHooks.listening();
+        Wear wasWorn = told ? ApiHooks.wearOf(world, x, y, z, entry) : null;
         entry.setFrozen(frozen);
         if (!frozen) entry.setLastTouchedSeconds(nowSeconds(world));
         data.markDirty();
         ErosionStore.get()
             .markModified(world, x >> 4, z >> 4);
         if (notifyClients) TrmtNetwork.sendDelta(world, x, y, z, entry.packState());
+        if (told) ApiHooks.changed(world, x, y, z, wasWorn, ApiHooks.wearOf(world, x, y, z, entry));
         return true;
     }
 
@@ -1922,15 +2411,22 @@ public final class ErosionEngine {
         // "Mount doesn't wear"), where a horse under its rider wore the ground twice.
         if (entity.riddenByEntity instanceof EntityPlayer) return 0f;
         if (entity instanceof EntityLiving && TrmtConfig.erodeFromLeashedMobs && ((EntityLiving) entity).getLeashed()) {
-            // Being led counts whatever the mob is: somebody is walking it somewhere.
-            return TrmtConfig.multiplierLeashed;
+            // Being led counts whatever the mob is: somebody is walking it somewhere. A mod's wearer rule is asked of
+            // it too (trmtr-api); the player's list has never applied to a led mob, so the rule's answer stands.
+            return ApiHooks.wearer(entity, TrmtConfig.multiplierLeashed);
+        }
+        // What the wearers files say of this mob (W3 T5): its multiplier and its group, under the player's mob list,
+        // which still wins, and a nought there still holds (PlayerLayer.multiplier).
+        String name = MobGroups.nameOf(entity);
+        com.trmtgtnh.dataload.DataWearers.Wearer data = com.trmtgtnh.dataload.DataWearers.of(name);
+        if (ApiHooks.rulesWearers()) {
+            // trmtr-api (W3 T7): a mod's wearer rule is asked after TRMTR's own figure from the mob's group (and the
+            // files) and before the player's mob list, which still wins (RuledWearers).
+            float ruled = ApiHooks.wearer(entity, data.own(MobGroups.groupOf(entity), TrmtConfig.mobSwitches));
+            return RuledWearers.overList(ruled, name, TrmtConfig.mobSwitches, TrmtConfig.mobMultipliers);
         }
         // One map lookup and a few class tests, and this already only runs on a sampled tick.
-        return MobWear.multiplier(
-            MobGroups.groupOf(entity),
-            MobGroups.nameOf(entity),
-            TrmtConfig.mobSwitches,
-            TrmtConfig.mobMultipliers);
+        return data.multiplier(MobGroups.groupOf(entity), name, TrmtConfig.mobSwitches, TrmtConfig.mobMultipliers);
     }
 
     /**
@@ -1939,9 +2435,12 @@ public final class ErosionEngine {
      */
     public static int capKindOf(EntityLivingBase entity) {
         if (entity instanceof EntityPlayer) return MobWear.PLAYERS;
+        String name = MobGroups.nameOf(entity);
+        // Counted in the group a wearers file gives it, where one does (W3 T5).
         return MobWear.kindOf(
-            MobGroups.groupOf(entity),
-            MobGroups.nameOf(entity),
+            com.trmtgtnh.dataload.DataWearers.of(name)
+                .counted(MobGroups.groupOf(entity)),
+            name,
             TrmtConfig.mobSwitches,
             TrmtConfig.mobMultipliers);
     }

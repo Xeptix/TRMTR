@@ -99,6 +99,12 @@ public final class Presets {
             REMEMBERED,
             "Not settings. This is where a chooser keeps the numbers you had before you picked a rung, so that going back to 'custom' gives them back rather than leaving you to type them again, and where it records which rung it last applied so it can tell a chooser being moved from a value being edited. Written automatically. Editing anything here by hand does nothing useful and may lose the values it is holding for you.");
 
+        // Declared before the five choosers so Faithful Mode is the first row of the tab and the first line of the
+        // heading in the file (0.9.229 W5, spec 2.1). It is a switch rather than a rung, and it moves none of the
+        // numbers the choosers compare against: FaithfulProfile.apply writes it into the live settings after they are
+        // settled.
+        FaithfulProfile.declareSwitch(config);
+
         for (Axis axis : Axis.values()) {
             settle(config, axis);
         }
@@ -509,9 +515,9 @@ public final class Presets {
     public static int[] quality(String rung) {
         if ("potato".equals(rung)) return new int[] { 16, 1, 8192, 64, 0 };
         if ("low".equals(rung)) return new int[] { 24, 2, 32768, 256, 1 };
-        if ("high".equals(rung)) return new int[] { 80, 4, 262144, 2048, 1 };
+        if ("high".equals(rung)) return new int[] { 80, 4, 262144, 3072, 1 };
         if ("ultra".equals(rung)) return new int[] { 80, 4, 262144, 4096, 1 };
-        return new int[] { 80, 4, 262144, 1024, 1 };
+        return new int[] { 80, 4, 262144, 2048, 1 };
     }
 
     // ------------------------------------------------------------------
@@ -535,29 +541,46 @@ public final class Presets {
             if (live == null || !family.staged) continue;
             if (out.length() > 0) out.append(';');
             out.append(family.key())
-                .append('=');
-            switch (axis) {
-                case WEAR:
-                    out.append(live.thresholdMin)
-                        .append(',')
-                        .append(live.thresholdMax);
-                    break;
-                case HEALING:
-                    out.append(live.healDaysPerStage);
-                    break;
-                case PHASES:
-                    out.append(live.stages)
-                        .append(',')
-                        .append(live.layersPerDepth);
-                    break;
-                case DEPTH:
-                    out.append(live.maxSinkPixels);
-                    break;
-                default:
-                    break;
-            }
+                .append('=')
+                .append(entry(axis, live));
         }
         return out.toString();
+    }
+
+    /** One surface's numbers on one axis, as its remembered entry writes them after {@code key=}. */
+    private static String entry(Axis axis, FamilySettings live) {
+        switch (axis) {
+            case WEAR:
+                return live.thresholdMin + "," + live.thresholdMax;
+            case HEALING:
+                return String.valueOf(live.healDaysPerStage);
+            case PHASES:
+                return live.stages + "," + live.layersPerDepth;
+            case DEPTH:
+                return String.valueOf(live.maxSinkPixels);
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * What Custom brings back for a surface its remembered entry does not name, as the Advanced fold shows it: the
+     * numbers the surface has now, which is what {@link #restore} leaves a surface the entry does not name, and the
+     * family's shipped figures where none are loaded. A config written before 0.9.229 remembers no flesh or taint, and
+     * the fold drew their fields empty (the rig's settings-advanced-2 in FTB Infinity): a reader is never shown an
+     * empty
+     * field for a surface Custom does bring numbers back for. Empty for quality, which has no surfaces.
+     */
+    public static String unremembered(String axisKey, SurfaceFamily family) {
+        Axis axis = axisOf(axisKey);
+        if (axis == null || axis == Axis.QUALITY || family == null || !family.staged) return "";
+        FamilySettings live = TrmtConfig.family(family);
+        return entry(axis, live != null ? live : FamilySettings.shipped(family));
+    }
+
+    /** {@link #restore} by an axis's key, for the test that hands it a text the Advanced fold could write. */
+    static boolean restoreKept(String axisKey, String held) {
+        return restore(axisOf(axisKey), held);
     }
 
     private static boolean restore(Axis axis, String held) {
@@ -569,10 +592,15 @@ public final class Presets {
             if (axis == Axis.QUALITY) {
                 String[] parts = held.split(",");
                 if (parts.length < 5) return false;
-                TrmtConfig.wearGradations = Integer.parseInt(parts[0].trim());
-                TrmtConfig.wearRotations = Integer.parseInt(parts[1].trim());
-                TrmtConfig.maxWearSprites = Integer.parseInt(parts[2].trim());
-                TrmtConfig.maxTexturedSurfaces = Integer.parseInt(parts[3].trim());
+                // All four read before any is set: one that does not read leaves the settings as they stand.
+                int gradations = Integer.parseInt(parts[0].trim());
+                int rotations = Integer.parseInt(parts[1].trim());
+                int sprites = Integer.parseInt(parts[2].trim());
+                int surfaces = Integer.parseInt(parts[3].trim());
+                TrmtConfig.wearGradations = gradations;
+                TrmtConfig.wearRotations = rotations;
+                TrmtConfig.maxWearSprites = sprites;
+                TrmtConfig.maxTexturedSurfaces = surfaces;
                 TrmtConfig.perSurfaceTextures = !"0".equals(parts[4].trim());
                 return true;
             }
@@ -584,25 +612,42 @@ public final class Presets {
                 if (live == null) continue;
                 String[] parts = chunk.substring(split + 1)
                     .split(",");
-                switch (axis) {
-                    case WEAR:
-                        if (parts.length < 2) continue;
-                        live.thresholdMin = Float.parseFloat(parts[0].trim());
-                        live.thresholdMax = Float.parseFloat(parts[1].trim());
-                        break;
-                    case HEALING:
-                        live.healDaysPerStage = Double.parseDouble(parts[0].trim());
-                        break;
-                    case PHASES:
-                        if (parts.length < 2) continue;
-                        live.stages = Integer.parseInt(parts[0].trim());
-                        live.layersPerDepth = Integer.parseInt(parts[1].trim());
-                        break;
-                    case DEPTH:
-                        live.maxSinkPixels = Integer.parseInt(parts[0].trim());
-                        break;
-                    default:
-                        break;
+                // The Advanced fold could write half an entry until 0.9.229 (grass=5, grass=,80 or dirt=). A half entry
+                // cannot be applied, so it is dropped on the next write, good half and all, and the WARN is the record.
+                // The surfaces after it are still put back, and a pair reads both numbers before it sets either.
+                try {
+                    switch (axis) {
+                        case WEAR:
+                            if (parts.length < 2) {
+                                passOver(axis, chunk);
+                                continue;
+                            }
+                            float from = Float.parseFloat(parts[0].trim());
+                            float to = Float.parseFloat(parts[1].trim());
+                            live.thresholdMin = from;
+                            live.thresholdMax = to;
+                            break;
+                        case HEALING:
+                            live.healDaysPerStage = Double.parseDouble(parts[0].trim());
+                            break;
+                        case PHASES:
+                            if (parts.length < 2) {
+                                passOver(axis, chunk);
+                                continue;
+                            }
+                            int stages = Integer.parseInt(parts[0].trim());
+                            int layers = Integer.parseInt(parts[1].trim());
+                            live.stages = stages;
+                            live.layersPerDepth = layers;
+                            break;
+                        case DEPTH:
+                            live.maxSinkPixels = Integer.parseInt(parts[0].trim());
+                            break;
+                        default:
+                            break;
+                    }
+                } catch (NumberFormatException half) {
+                    passOver(axis, chunk);
                 }
             }
             return true;
@@ -615,6 +660,20 @@ public final class Presets {
                 unreadable);
             return false;
         }
+    }
+
+    /** The kept entries already said to be passed over: each is said once, however often the file is read. */
+    private static final java.util.Set<String> PASSED_OVER = java.util.Collections
+        .synchronizedSet(new java.util.HashSet<String>());
+
+    /** The record of a half entry, which is about to go: see {@link #restore}. */
+    private static void passOver(Axis axis, String entry) {
+        if (!PASSED_OVER.add(axis.key + " " + entry)) return;
+        Trmt.LOG.warn(
+            "presets.remembered.{}Custom: passed over {} in '{}', which cannot be applied and is dropped on the next write",
+            axis.key,
+            entry.substring(0, entry.indexOf('=')),
+            entry);
     }
 
     private static boolean near(float a, float b) {

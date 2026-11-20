@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "_": [
+    "Soul sand wears as sand (Xep, 2026-11-06: Let them wear). Named here because the rules refuse every block called soul and, from 1.16.5, every block short of its cell, and one block of the game's should not move that line for every mod's. Nether wart holds its square because it is planted there, as wheat is on farmland, and a path worn through a wart bed would otherwise break the crop.",
+    "From the plain census of 1.16.5 (W4 R4, judged 2026-11-09), as 1.7.10's from FTB Infinity's. Terracotta in every color, sandstone and obsidian are natural rock the rules leave out: terracotta has no stone word, and sandstone and obsidian are on the decorative list so that their bricks and made blocks stay out. Clay is packed earth of river beds, on a material no rule reads. Magma, both nyliums and soul soil are the Nether's own ground with no nether word, and soul soil is refused for the soil in its name. Basalt and blackstone are only ever the Nether's ground, and the rules read the stone in their names.",
+    "Named one by one because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Stone stairs are made from stone in this game, so 1.7.10's cobble entry for them is not here.",
+    "From ATM6's census (W4 R6, judged 2026-11-11), which saw what the plain one did not: red sandstone on open ground, and sandstone and red sandstone slabs laid in its worlds. Red sandstone is natural rock as sandstone is, and a slab of either is stone, as a stone slab is. Their cut, smooth and chiseled forms, stairs and walls were not judged and stay out.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.16.5 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["minecraft:soul_sand"], "family": "sand" },
+    { "blocks": ["minecraft:nether_wart"], "cover": "holds" },
+    { "blocks": ["minecraft:terracotta", "minecraft:white_terracotta", "minecraft:orange_terracotta", "minecraft:magenta_terracotta", "minecraft:light_blue_terracotta", "minecraft:yellow_terracotta", "minecraft:lime_terracotta", "minecraft:pink_terracotta", "minecraft:gray_terracotta", "minecraft:light_gray_terracotta", "minecraft:cyan_terracotta", "minecraft:purple_terracotta", "minecraft:blue_terracotta", "minecraft:brown_terracotta", "minecraft:green_terracotta", "minecraft:red_terracotta", "minecraft:black_terracotta"], "family": "stone" },
+    { "blocks": ["minecraft:sandstone", "minecraft:obsidian"], "family": "stone" },
+    { "blocks": ["minecraft:clay"], "family": "dirt" },
+    { "blocks": ["minecraft:magma_block", "minecraft:basalt", "minecraft:blackstone", "minecraft:soul_soil", "minecraft:crimson_nylium", "minecraft:warped_nylium"], "family": "nether" },
+    { "blocks": ["minecraft:red_sandstone", "minecraft:red_sandstone_slab", "minecraft:sandstone_slab"], "family": "stone" },
+    { "blocks": ["minecraft:blackstone_slab", "minecraft:blackstone_stairs"], "family": "nether" },
+    { "blocks": ["minecraft:red_sandstone_stairs", "minecraft:sandstone_stairs"], "family": "stone" }
+  ]
+}

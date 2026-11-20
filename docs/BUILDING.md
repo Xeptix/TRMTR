@@ -71,7 +71,7 @@ of this repository and build on its own.
 
 ## Why the portable core is duplicated
 
-Sixty-three classes appear in every edition, byte for byte. They are the ones that name nothing from
+A hundred and twenty-three classes appear in every edition, byte for byte. They are the ones that name nothing from
 Minecraft at all - the storage layer, the wear chain, the texture planners, the surface table codec,
 the quest and loot bookkeeping - and they are duplicated rather than shared for the same reason
 there is no root build: each edition compiles against a different Minecraft with a different
@@ -82,26 +82,26 @@ development tree reads its own copy and the one in the edition it was carried fr
 1.7.10, 1.16.5 against 1.12.2, 1.20.1 and 1.21.1 against 1.7.10 - and fails the build on any difference, naming the
 files.
 
-Consequence worth knowing if you are editing: **a change to any of those sixty-three classes has to
+Consequence worth knowing if you are editing: **a change to any of those hundred and twenty-three classes has to
 be made in every edition identically**, and neither edition may reformat them.
 
 Real shared compilation - a `common/` module with loader-specific subprojects - becomes possible
 from Minecraft 1.16.5, where Architectury Loom can give you Minecraft without a loader on the
 classpath. That is where it happened: the 1.16.5 edition is `common`, `forge` and `fabric`, and one
 build produces both jars, 1.20.1 is laid out the same way, and 1.21.1 adds a `neoforge` module beside the other two,
-so one build produces three, as one build of each of 26.1.2, 26.2 and 26.3 does. The sixty-three classes are still
+so one build produces three, as one build of each of 26.1.2, 26.2 and 26.3 does. The hundred and twenty-three classes are still
 duplicated *across* editions, for the reason above; within 1.16.5, within 1.20.1, and within 1.21.1, they exist once.
 
 ## How a release is verified
 
 **This repository carries what builds the jars, and nothing else.** The tests stay in the development
-trees, where every one of them runs and passes before a release is built here - 548 on 1.7.10, 700 on
-1.12.2, 787 on 1.16.5, 825 on 1.20.1, 838 on 1.21.1, 863 on 26.1.2, 865 on 26.2 and 871 on 26.3. `./gradlew build` here compiles and packages; it has no tests to run.
+trees, where every one of them runs and passes before a release is built here - 1,959 tests on 1.7.10, 2,253 on
+1.12.2, 2,436 on 1.16.5, 2,595 on 1.20.1, 2,609 on 1.21.1, 2,620 on 26.1.2, 2,617 on 26.2 and 2,629 on 26.3. `./gradlew build` here compiles and packages; it has no tests to run.
 Among what runs before a release:
 
 - **The portable core must stay portable.** `CoreStaysPortableTest` fails if any of those
-  sixty-three classes starts naming a Minecraft type.
-- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds seventy-two files across
+  hundred and twenty-three classes starts naming a Minecraft type.
+- **The 1.12.2 edition keeps a second fence.** `LoaderNeutralTest` holds ninety-nine files across
   seven packages that may name Minecraft and may not name Forge, and lists the twelve files outside
   it with what each needs Forge for. It fails both ways, so neither the fence nor the list of
   exceptions can rot. It is there for the ports after 1.12.2.

@@ -252,7 +252,8 @@ public final class OverlayPainter {
         // plant is no cover and a sunk ghost is no full cube.
         if (world.getBlock(x, y, z) instanceof GhostBlock && !covered(world, x, y, z)
             && !drawnFlat(world, x, y, z)
-            && !GroundCover.holdsAt(world, x, y, z)) return false;
+            && !GroundCover.holdsAt(world, x, y, z)
+            && !GroundCover.roofedAt(world, x, y, z)) return false;
 
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
@@ -295,6 +296,9 @@ public final class OverlayPainter {
         // not the path - a rut with a block sitting in mid-air over it looks broken, while a
         // worn flagstone under a wall looks like a worn flagstone under a wall.
         boolean flatten = hidden && TrmtConfig.flattenWearUnderBlocks;
+        // A solid block on it holds it full on both sides whatever this player's settings say, so the picture is
+        // never drawn sunk under one (0.9.229): the settings above decide only whether its wear is shown.
+        boolean roofed = GroundCover.roofedAt(world, x, y, z);
 
         // Something planted here holds the ground at the end of the run it takes on the face it
         // still has: as worn as this ground can look while still being this ground. What it has
@@ -304,13 +308,14 @@ public final class OverlayPainter {
         if (GroundCover.holdsAt(world, x, y, z)) {
             Block under = current instanceof GhostBlock ? originBlockOf(origins[index]) : current;
             int underMeta = current instanceof GhostBlock ? (origins[index] & 0xF) : currentMeta;
-            SurfaceFamily base = SurfaceRegistry.familyOf(under, underMeta);
-            int flat = ErosionChain.lastFlatIndex(base);
+            // The chain the block underneath follows: its own, where a data file gives it one (W3 T9).
+            ErosionChain.Chain chain = SurfaceRegistry.chainOf(under, underMeta);
+            int flat = chain.lastFlatIndex();
             if (flat >= 0) {
-                int at = ErosionChain.indexOf(base, appearance, stage, sink);
+                int at = chain.indexOf(appearance, stage, sink);
                 if (at < 0 || at > flat) {
-                    SurfaceFamily held = ErosionChain.familyAt(base, flat);
-                    int heldStage = ErosionChain.stageAt(base, flat);
+                    SurfaceFamily held = chain.familyAt(flat);
+                    int heldStage = chain.stageAt(flat);
                     if (held != null && heldStage >= 0) {
                         appearance = held;
                         stage = heldStage;
@@ -320,7 +325,7 @@ public final class OverlayPainter {
             }
         }
 
-        int drawnSink = flatten ? 0 : sink;
+        int drawnSink = flatten || roofed ? 0 : sink;
 
         if (current instanceof GhostBlock) {
             // Something has been built on it since it was painted. Put the block back and
@@ -338,7 +343,7 @@ public final class OverlayPainter {
                 stage,
                 drawnSink,
                 origins[index],
-                isShort(originBlockOf(origins[index])));
+                isShort(originBlockOf(origins[index]), origins[index] & 0xF));
             if (current == wanted && currentMeta == stage) return false;
             if (wanted == null) return false;
             world.setBlock(x, y, z, wanted, stage, 0);
@@ -372,7 +377,7 @@ public final class OverlayPainter {
         int packedOrigin = (Block.getIdFromBlock(current) << 4) | (currentMeta & 0xF);
         origins[index] = packedOrigin;
 
-        Block ghost = wantedGhost(appearance, stage, drawnSink, packedOrigin, isShort(current));
+        Block ghost = wantedGhost(appearance, stage, drawnSink, packedOrigin, isShort(current, currentMeta));
         if (ghost == null) return false;
 
         world.setBlock(x, y, z, ghost, stage, 0);
@@ -386,12 +391,12 @@ public final class OverlayPainter {
      * Opaque cubes only. A slab or a fence leaves the ground around it in plain view, and a
      * path that vanished under a fence post would be a stranger sight than one that did not.
      * A sunken ghost is not an opaque cube either, so worn ground under worn ground still shows
-     * the dip it has been given.
+     * the dip it has been given. Which blocks cover is GroundCover.roofedAt, the one rule collision
+     * asks as well (0.9.229); a full drift's shelter is the picture's own question.
      */
     private static boolean covered(WorldClient world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
-        Block above = world.getBlock(x, y + 1, z);
-        return above != null && (above.isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(world, x, y + 1, z));
+        return GroundCover.roofedAt(world, x, y, z) || com.trmtgtnh.erosion.SnowCover.shelters(world, x, y + 1, z);
     }
 
     /** Said once a session, because the interesting thing is that it happened at all. */
@@ -460,13 +465,14 @@ public final class OverlayPainter {
     }
 
     /** A block that does not fill its own space, such as a grass path. */
-    private static boolean isShort(Block block) {
+    private static boolean isShort(Block block, int meta) {
         if (block == null) return false;
         // A shape says so outright, and says so reliably. The bounds fields below are shared
         // mutable state that only mean anything immediately after setBlockBoundsBasedOnState, and
         // a slab's depend on its metadata - so asking a slab this way would answer whatever the
         // last slab anybody looked at happened to be.
-        if (SurfaceShape.of(block)
+        // A data file's shape counts too (W3 T6): a file's boxes are never a whole cube to look at.
+        if (SurfaceShape.of(block, meta)
             .isPartial()) return true;
         return block.getBlockBoundsMaxY() < 0.999D;
     }
@@ -482,6 +488,11 @@ public final class OverlayPainter {
         // alone could not answer it, and each question no longer decodes the record for itself.
         Block origin = originBlockOf(packedOrigin);
         int originMeta = packedOrigin & 0xF;
+        // The record's sink is the chain's step; what is drawn is held by the block's shape, as its collision is
+        // (SurfaceShape.sunk). A block a data file keeps flat ("sinks": false) is stood on at its full top, so it
+        // takes the stand-in of ground that has not sunk: an opaque cube, lit and fringed as unsunk ground (R3's mossy
+        // loam, 2026-11-04, drawn by the sunken stand-in while it collided flat).
+        if (!SurfaceShape.sinks(origin, originMeta)) sink = 0;
         boolean vanillaGrassTop = appearance == SurfaceFamily.GRASS && usesVanillaGrassTop(origin, originMeta);
         // Every grass stage takes the full biome tint now, so the untinted variant is never
         // chosen. It stays registered so the set of block names in a save does not change.
@@ -491,7 +502,7 @@ public final class OverlayPainter {
         boolean hollow = shortBase || sink > 0;
         // The shape of the block being covered, not of the record: a stair has to be stood in for
         // by something that can draw a stair, and nothing about how worn it is changes that.
-        SurfaceShape shape = SurfaceShape.of(origin);
+        SurfaceShape shape = SurfaceShape.of(origin, originMeta);
         // Whether this covered block has anything see-through behind its own cut-away texture,
         // which is worked out from the pixels while the sprites are built and is a fact about the
         // block rather than about the setting - so the setting is asked here, where changing it can

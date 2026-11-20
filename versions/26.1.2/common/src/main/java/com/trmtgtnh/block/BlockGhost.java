@@ -18,6 +18,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import com.trmtgtnh.Client;
 import com.trmtgtnh.erosion.ErosionState;
 import com.trmtgtnh.erosion.SinkProfile;
+import com.trmtgtnh.surface.DataShape;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceShape;
 
@@ -221,6 +222,10 @@ public class BlockGhost extends Block {
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         VoxelShape stair = stairShapeAt(world, pos, origin);
         if (stair != null) return stair;
+        // A data file's boxes collide one by one, as the server's PhysicalDecay.shapeOfWorn gives them, the walked ones
+        // sunk by the collision depth (W3 T6), before the block's own footing: the file says what shape the block is.
+        double[][] boxes = boxesAt(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin, true);
+        if (boxes != null) return union(boxes);
         // A block narrower than its own square keeps its own footing, worn or not - see
         // GhostInherit.ownFootingAt. Wear is a height off the top of a full cell, which is the wrong
         // shape for a pad that only covers part of one: handing back a full cell over a cloud turns
@@ -228,6 +233,13 @@ public class BlockGhost extends Block {
         VoxelShape own = GhostInherit.ownFootingAt(world, pos, origin);
         if (own != null) return own;
         return solidBox(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
+    }
+
+    /** Boxes in block units as one shape, the game's own way of colliding with several boxes at once. */
+    public static VoxelShape union(double[][] boxes) {
+        VoxelShape all = Shapes.empty();
+        for (double[] box : boxes) all = Shapes.or(all, Shapes.box(box[0], box[1], box[2], box[3], box[4], box[5]));
+        return all.isEmpty() ? Shapes.block() : all;
     }
 
     /**
@@ -248,7 +260,11 @@ public class BlockGhost extends Block {
         if (origin < 0 || world == null) return null;
         try {
             BlockState under = Block.stateById(origin);
+            // A data file's shape first (W3 T6): a data "full" on a stair is a cube, and a data "stair" on a block that
+            // is not one stands as the straight stair SurfaceShape.stairStandIn reads from its properties.
             if (com.trmtgtnh.surface.SurfaceShape.of(under) != com.trmtgtnh.surface.SurfaceShape.STAIR) return null;
+            BlockState standIn = com.trmtgtnh.surface.SurfaceShape.stairStandIn(under);
+            if (standIn != null) under = standIn;
             VoxelShape shape = under.getShape(world, pos);
             return shape == null || shape.isEmpty() ? null : shape;
         } catch (RuntimeException awkwardBlock) {
@@ -279,6 +295,8 @@ public class BlockGhost extends Block {
         int origin = Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         VoxelShape stair = stairShapeAt(world, pos, origin);
         if (stair != null) return stair;
+        // Round a data file's boxes (W3 T6), before the block's own footing, as the collision asks them.
+        if (boxesOf(origin) != null) return solidBox(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
         VoxelShape own = GhostInherit.ownFootingAt(world, pos, origin);
         VoxelShape solid = own != null ? own
             : solidBox(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
@@ -307,13 +325,61 @@ public class BlockGhost extends Block {
      */
     static VoxelShape solidBox(short record, int origin) {
         BlockState covered = coveredState(origin);
+        // A data file's boxes (W3 T6): one box round them all, the walked ones sunk by the collision depth, as the
+        // server's PhysicalDecay.boxesAt builds them from the same shape.
+        DataShape boxes = boxesOf(covered);
+        if (boxes != null) {
+            double[] round = boxes.outline(sunk(record, covered, true));
+            return Shapes.box(round[0], round[1], round[2], round[3], round[4], round[5]);
+        }
+        // A data file's shape first, then the class (W3 T6), and the depth held by it (SurfaceShape.sunk).
         SurfaceShape shape = SurfaceShape.of(covered);
         if (shape.isPartial()) {
             double floor = SurfaceShape.bottomOf(shape, covered);
             double top = SurfaceShape.topOf(shape, covered);
-            return box(floor, Math.max(floor, top - collisionSink(record, shape) / 16.0D));
+            return box(floor, Math.max(floor, top - sunk(record, covered, true) / 16.0D));
         }
-        return box(0.0D, SinkProfile.heightFor(collisionSink(record, SurfaceShape.FULL)));
+        return box(0.0D, SinkProfile.heightFor(sunk(record, covered, true)));
+    }
+
+    /**
+     * The boxes worn ground over a data file's boxes is drawn ({@code footing} false) or stood on as, in block units
+     * from the block's corner, or null where the covered block has none (W3 spec 2.4, T6): the walked boxes' tops
+     * lowered by the depth, the rest as the file gives them. The 1.7.10 edition's {@code GhostLogic.boxesAt}; the same
+     * boxes the server's {@code PhysicalDecay.boxesAt} builds.
+     */
+    public static double[][] boxesAt(short record, int origin, boolean footing) {
+        BlockState covered = coveredState(origin);
+        DataShape boxes = boxesOf(covered);
+        if (boxes == null) return null;
+        return boxes.boxesSunk(sunk(record, covered, footing));
+    }
+
+    /** The boxes a data file gives the block a square covers, or null where its shape is anything but boxes. */
+    public static DataShape boxesOf(int origin) {
+        return boxesOf(coveredState(origin));
+    }
+
+    private static DataShape boxesOf(BlockState covered) {
+        DataShape data = SurfaceShape.dataOf(covered);
+        return data != null && data.kind == DataShape.BOXES ? data : null;
+    }
+
+    /**
+     * How far a record has sunk at the block it covers, drawn or ({@code collision}) stood on: the family's depth for
+     * the shape, held by the block's data shape - nothing for {@code "sinks": false}, no deeper than its
+     * {@code maxSinkPixels}, a pixel short of its walked box (W3 T6). The one number the server's
+     * {@code PhysicalDecay.sinkAt} takes as well, through the same {@code SurfaceShape.sunk}.
+     */
+    static int sunk(short record, BlockState covered, boolean collision) {
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        if (appearance == null || !shows(record)) return 0;
+        return SurfaceShape.sunk(appearance, ErosionState.sinkOf(record), covered, collision);
+    }
+
+    /** The drawn depth of a record over the block a square covers, as {@link #heightAt} draws it (W3 T6). */
+    public static int drawnSinkAt(short record, int origin) {
+        return sunk(record, coveredState(origin), false);
     }
 
     /**
@@ -329,21 +395,36 @@ public class BlockGhost extends Block {
      */
     public static double heightAt(short record, int origin, int outline, boolean footing) {
         BlockState covered = coveredState(origin);
+        // A data file's boxes (W3 T6): worn from the walked box's top, and never through it.
+        DataShape boxes = boxesOf(covered);
+        if (boxes != null) return boxes.walkedTop() / 16.0D - sunk(record, covered, footing) / 16.0D;
         SurfaceShape shape = SurfaceShape.of(covered);
         if (shape.isPartial()) {
             double top = SurfaceShape.topOf(shape, covered);
             double floor = SurfaceShape.bottomOf(shape, covered);
-            int sunk = footing ? collisionSink(record, shape) : drawnSink(record, shape);
-            return Math.max(floor, top - sunk / 16.0D);
+            return Math.max(floor, top - sunk(record, covered, footing) / 16.0D);
         }
-        return Math.min(topOf(outline), SinkProfile.heightFor(drawnSink(record, SurfaceShape.FULL)));
+        return Math.min(topOf(outline), SinkProfile.heightFor(sunk(record, covered, false)));
     }
 
-    /** Where the space a square stands in begins - only ever above nought for an upper slab. 1.7.10's bottomAt. */
+    /**
+     * Where the space a square stands in begins - only ever above nought for an upper slab, or a data file's boxes
+     * that stand off the floor. 1.7.10's bottomAt.
+     */
     public static double bottomAt(int origin) {
         BlockState covered = coveredState(origin);
+        DataShape boxes = boxesOf(covered);
+        if (boxes != null) return boxes.floor() / 16.0D;
         SurfaceShape shape = SurfaceShape.of(covered);
         return shape.isPartial() ? SurfaceShape.bottomOf(shape, covered) : 0.0D;
+    }
+
+    /**
+     * The shape of the block a square stands in for: a data file's first, then its class as SurfaceShape.of decides it
+     * (0.9.228; W3 T6).
+     */
+    public static SurfaceShape coveredShape(int origin) {
+        return SurfaceShape.of(coveredState(origin));
     }
 
     /**
@@ -354,6 +435,24 @@ public class BlockGhost extends Block {
      * a slab and anything else whole, whatever its thickness. Until 0.9.220 this edition judged by thickness, which
      * wore a half-height block that is not a slab as a slab; Xep chose the other edition's rule on 2026-10-08.
      */
+    /**
+     * Whether a square standing in for the block at this origin lights its cell other than as the whole block of earth
+     * a ghost answers as while it has no block behind it: the block lets light into its cell or on down through it, as
+     * a slab, a path or a carpet does. The painter writes the ghost before it files what the square covers, so the
+     * engine's check of that write took the light out of such a cell; this says which squares must be asked again.
+     * Anything that cannot be asked outside a world is asked again, which costs a check and never a light.
+     */
+    public static boolean litUnlikeEarth(int origin) {
+        BlockState covered = coveredState(origin);
+        if (covered == null || covered.getBlock() instanceof BlockGhost) return false;
+        try {
+            return covered.getLightDampening() < 15
+                || covered.propagatesSkylightDown();
+        } catch (RuntimeException awkwardBlock) {
+            return true;
+        }
+    }
+
     private static BlockState coveredState(int origin) {
         if (origin < 0) return null;
         try {
@@ -602,7 +701,12 @@ public class BlockGhost extends Block {
      * of the position instead.
      */
     private static boolean sunkAt(BlockGetter world, BlockPos pos) {
-        return ErosionState.sinkOf(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
+        if (ErosionState.sinkOf(Client.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) <= 0) return false;
+        // The record's sink is the chain's step; a block a data file keeps flat ("sinks": false) has not sunk whatever
+        // that step says, as its drawn top and its collision say, so it stops light and is lit as unsunk ground (W3 T6
+        // follow-up, 2026-11-04: 1.7.10's OverlayPainter.wantedGhost and GhostRendering.sunkHere).
+        BlockState covered = coveredState(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        return covered == null || SurfaceShape.sinks(covered);
     }
 
     /**
@@ -642,7 +746,7 @@ public class BlockGhost extends Block {
     public boolean propagatesSkylightDown(BlockState state, BlockGetter world, BlockPos pos) {
         pos = inWorld(world, pos);
         // A worn stair as the stair does, whatever depth its record carries - see getLightBlock (0.9.223, spec GF8).
-        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        BlockState stair = lightStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         // A state answers this for itself from 1.21.2, with no square: the covered block's own figure.
         if (stair != null) return stair.propagatesSkylightDown();
         if (sunkAt(world, pos)) return true;
@@ -697,7 +801,19 @@ public class BlockGhost extends Block {
      */
     public static BlockState coveredStair(int origin) {
         BlockState covered = coveredState(origin);
-        return covered != null && SurfaceShape.of(covered) == SurfaceShape.STAIR ? covered : null;
+        // A real stair a data file has not made something else (W3 T6): vanilla's stair rules this is handed read a
+        // stair's own facing, half and shape, which a data file's stair over another block does not carry.
+        return covered != null && covered.getBlock() instanceof net.minecraft.world.level.block.StairBlock
+            && SurfaceShape.of(covered) == SurfaceShape.STAIR ? covered : null;
+    }
+
+    /**
+     * The stair a square answers light as: the covered stair, or a data file's stair's stand-in (W3 T6), which stands
+     * as a stair whatever its block is; null for anything else.
+     */
+    public static BlockState lightStair(int origin) {
+        BlockState stair = coveredStair(origin);
+        return stair != null ? stair : SurfaceShape.stairStandIn(coveredState(origin));
     }
 
     /**
@@ -770,7 +886,8 @@ public class BlockGhost extends Block {
         // and
         // lent the cell's faces the brightest light around it; vanilla stairs at both of those versions are opacity
         // 255.
-        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        // A data file's stair too (W3 T6), as its stand-in.
+        BlockState stair = lightStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         // A state answers this for itself from 1.21.2 (getLightBlock became getLightDampening), with no square.
         if (stair != null) return stair.getLightDampening();
         if (sunkAt(world, pos)) return 0;
@@ -949,6 +1066,19 @@ public class BlockGhost extends Block {
     public SoundType getSoundType(BlockState state, net.minecraft.world.level.LevelReader world, BlockPos pos,
         net.minecraft.world.entity.Entity entity) {
         return GhostFamily.soundFor(GhostFamily.familyAt(world, pos));
+    }
+
+    /**
+     * What this square looks like to whoever asks with the square in hand: see {@link GhostFamily#appearanceAt} (W6 S1).
+     * NeoForge's {@code IBlockExtension}'s and Fabric API's {@code FabricBlock}'s, spelt alike from 26.1, with
+     * {@code BlockAndLightGetter}, so one plain method overrides both with nothing here naming a loader.
+     * Forge's takes the client's own {@code BlockAndTintGetter}, a type a dedicated server does not have, so its
+     * override is the Forge module's client mixin, {@code MixinGhostAppearance}. {@code tools/appearance_sites.py} holds
+     * both spellings to each jar.
+     */
+    public BlockState getAppearance(BlockState state, net.minecraft.world.level.BlockAndLightGetter level, BlockPos pos,
+        net.minecraft.core.Direction side, BlockState queryState, BlockPos queryPos) {
+        return GhostFamily.appearanceAt(state, level, pos);
     }
 
     /**

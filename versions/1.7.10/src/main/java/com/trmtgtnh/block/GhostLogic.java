@@ -17,7 +17,9 @@ import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ErosionState;
 import com.trmtgtnh.erosion.SinkProfile;
+import com.trmtgtnh.surface.DataShape;
 import com.trmtgtnh.surface.SurfaceFamily;
+import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.surface.SurfaceShape;
 
 import cpw.mods.fml.relauncher.Side;
@@ -87,7 +89,15 @@ final class GhostLogic {
                 return Material.craftedSnow;
             case ICE:
                 return Material.ice;
+            case FLESH:
+                // Biomes O' Plenty's flesh is sponge, read from its jar.
+                return Material.sponge;
+            case CLOUD:
+                // Twilight Forest builds fluffy cloud on packed ice's material, read from its jar (0.9.229, W4).
+                return Material.packedIce;
             default:
+                // Et Futurum Requiem's sculk is earth, read from its jar (0.9.229, W4). Crusted taint's own is
+                // Thaumcraft's, which a ghost cannot name: earth is the nearest the game has.
                 return Material.ground;
         }
     }
@@ -111,6 +121,17 @@ final class GhostLogic {
                 return 0.2f;
             case ICE:
                 return 0.5f;
+            case FLESH:
+                // Each the block's own, read from its jar (0.9.229, W4 T17).
+                return 0.4f;
+            case TAINT:
+                return 1.75f;
+            case SCULK:
+                // Et Futurum Requiem's own, read from its jar (0.9.229, W4).
+                return 0.6f;
+            case CLOUD:
+                // Twilight Forest's own, read from its jar (0.9.229, W4).
+                return 0.8f;
             default:
                 return 0.5f;
         }
@@ -137,6 +158,18 @@ final class GhostLogic {
                 return Block.soundTypeSnow;
             case ICE:
                 return Block.soundTypeGlass;
+            case FLESH:
+            case TAINT:
+                // Flesh's own sound is gravel's, read from its jar. Crusted taint's is Thaumcraft's "gore", which a
+                // ghost cannot name without Thaumcraft there to play it, so it takes gravel's too (0.9.229, W4 T17).
+                return Block.soundTypeGravel;
+            case SCULK:
+                // Et Futurum Requiem's sculk has a sound of its own, which a ghost cannot name without that mod there
+                // to play it, so it takes gravel's, as crusted taint does (0.9.229, W4).
+                return Block.soundTypeGravel;
+            case CLOUD:
+                // Fluffy cloud's own, read from Twilight Forest's jar (0.9.229, W4).
+                return Block.soundTypeCloth;
             default:
                 return Block.soundTypeGravel;
         }
@@ -230,6 +263,22 @@ final class GhostLogic {
                 return Blocks.snow;
             case ICE:
                 return Blocks.ice;
+            case FLESH:
+                // The vanilla block flesh is all but a twin of: a Nether floor with flesh's own short collision box
+                // and drag. Its map color is flesh's own, below, not this one's.
+                return Blocks.soul_sand;
+            case TAINT:
+                // The vanilla ground most like a crust of taint: a living crust that spreads over the earth, purple,
+                // and on grass's map color as Thaumcraft's taint is.
+                return Blocks.mycelium;
+            case SCULK:
+                // No sculk in this game but Et Futurum's: obsidian is the nearest vanilla face to it, and every edition
+                // has it. Its map color is sculk's own, below (0.9.229, W4).
+                return Blocks.obsidian;
+            case CLOUD:
+                // White wool is fluffy cloud's twin in all a ghost reports: as soft to dig, the same cloth sound, and
+                // as white. Its map color is the cloud's own, below.
+                return Blocks.wool;
             default:
                 return Blocks.dirt;
         }
@@ -309,6 +358,14 @@ final class GhostLogic {
         // rather than as an unknown block.
         if (appearance == SurfaceFamily.GRAVEL) return MapColor.stoneColor;
         if (appearance == SurfaceFamily.END) return MapColor.sandColor;
+        // The two with no vanilla block of their own report what the real block does, read from each jar: flesh's
+        // sponge material gives cloth's color, and Thaumcraft builds its taint material on grass's (0.9.229, W4 T17).
+        if (appearance == SurfaceFamily.FLESH) return MapColor.clothColor;
+        if (appearance == SurfaceFamily.TAINT) return MapColor.grassColor;
+        // Sculk is black on every map from 1.19 and here, and fluffy cloud's packed ice gives ice's (0.9.229, W4); the
+        // stand-ins' own would say obsidian and white wool.
+        if (appearance == SurfaceFamily.SCULK) return MapColor.blackColor;
+        if (appearance == SurfaceFamily.CLOUD) return MapColor.iceColor;
         return vanillaCounterpart(appearance).getMapColor(0);
     }
 
@@ -623,19 +680,26 @@ final class GhostLogic {
 
     private static double heightAt(GhostBlock ghost, net.minecraft.world.IBlockAccess world, int x, int y, int z,
         boolean footing) {
-        SurfaceShape shape = shapeAt(x, y, z);
+        Block origin = Trmt.proxy.originBlockAt(x, y, z);
+        int meta = originMetaAt(x, y, z);
+        DataShape boxes = boxesOf(origin, meta);
+        if (boxes != null) {
+            // A data file's boxes (W3 T6): worn from the walked box's top, and never through it.
+            double top = boxes.walkedTop() / 16.0D;
+            if (!ghost.isSunken()) return top;
+            return top - SurfaceShape.sunk(ghost.appearance(), heldSink(world, x, y, z), origin, meta, footing) / 16.0D;
+        }
+        SurfaceShape shape = SurfaceShape.of(origin, meta);
         if (shape.isPartial()) {
             // A shaped surface is worn down from its own top rather than down towards an absolute
             // height: a slab resting on the floor starts at half a block, so the same eight-pixel
             // rut measured from zero would leave nothing of it at all. It is also why the depth
             // itself is halved - see SinkProfile - and why the floor here is the bottom of the
             // space the block actually occupies rather than the bottom of its cell.
-            int meta = originMetaAt(x, y, z);
             double top = SurfaceShape.topOf(shape, meta);
             if (!ghost.isSunken()) return top;
             double floor = SurfaceShape.bottomOf(shape, meta);
-            int sunk = footing ? SinkProfile.collides(ghost.appearance(), heldSink(world, x, y, z), shape)
-                : SinkProfile.shown(ghost.appearance(), heldSink(world, x, y, z), shape);
+            int sunk = SurfaceShape.sunk(ghost.appearance(), heldSink(world, x, y, z), origin, meta, footing);
             return Math.max(floor, top - sunk / 16.0D);
         }
 
@@ -643,18 +707,81 @@ final class GhostLogic {
         if (!ghost.isSunken()) return base;
         // The drawn depth whether or not this is footing - see collidedHeightAt. Deliberate since
         // 2026-10-08, when it was found and Xep chose it over the comment that said otherwise.
-        return Math.min(base, SinkProfile.heightFor(SinkProfile.shown(ghost.appearance(), heldSink(world, x, y, z))));
+        return Math.min(
+            base,
+            SinkProfile
+                .heightFor(SurfaceShape.sunk(ghost.appearance(), heldSink(world, x, y, z), origin, meta, false)));
     }
 
-    /** Where the space this ghost stands in begins, which is only ever above zero for a slab. */
+    /** Where the space this ghost stands in begins, which is only ever above zero for a slab or a file's boxes. */
     static double bottomAt(int x, int y, int z) {
-        SurfaceShape shape = shapeAt(x, y, z);
-        return shape.isPartial() ? SurfaceShape.bottomOf(shape, originMetaAt(x, y, z)) : 0.0D;
+        Block origin = Trmt.proxy.originBlockAt(x, y, z);
+        int meta = originMetaAt(x, y, z);
+        DataShape boxes = boxesOf(origin, meta);
+        if (boxes != null) return boxes.floor() / 16.0D;
+        SurfaceShape shape = SurfaceShape.of(origin, meta);
+        return shape.isPartial() ? SurfaceShape.bottomOf(shape, meta) : 0.0D;
     }
 
     /** What shape the block being covered here stands in. */
     static SurfaceShape shapeAt(int x, int y, int z) {
-        return SurfaceShape.of(Trmt.proxy.originBlockAt(x, y, z));
+        return SurfaceShape.of(Trmt.proxy.originBlockAt(x, y, z), originMetaAt(x, y, z));
+    }
+
+    /** The boxes a data file gives a covered block state, or null where its shape is anything but boxes. */
+    static DataShape boxesOf(Block origin, int meta) {
+        DataShape data = SurfaceRegistry.shapeOf(origin, meta);
+        return data != null && data.kind == DataShape.BOXES ? data : null;
+    }
+
+    /**
+     * The boxes worn ground over a file's boxes is drawn or stood on as, in block units from the block's corner, or
+     * null
+     * where the covered block has no boxes (W3 spec 2.4, T6): the walked boxes' tops lowered by the depth, the drawn
+     * one or ({@code footing}) the collision one, as {@link #heightAt} takes it; the rest as the file gives them.
+     */
+    public static double[][] boxesAt(GhostBlock ghost, net.minecraft.world.IBlockAccess world, int x, int y, int z,
+        boolean footing) {
+        Block origin = Trmt.proxy.originBlockAt(x, y, z);
+        int meta = originMetaAt(x, y, z);
+        DataShape boxes = boxesOf(origin, meta);
+        if (boxes == null) return null;
+        int sunk = ghost.isSunken()
+            ? SurfaceShape.sunk(ghost.appearance(), heldSink(world, x, y, z), origin, meta, footing)
+            : 0;
+        return boxes.boxesSunk(sunk);
+    }
+
+    /** The bounds a ghost over a file's boxes is given, round all its drawn boxes, or null for any other shape. */
+    static float[] boxBoundsAt(GhostBlock ghost, net.minecraft.world.IBlockAccess world, int x, int y, int z) {
+        double[][] boxes = boxesAt(ghost, world, x, y, z, false);
+        if (boxes == null) return null;
+        float[] out = new float[] { 1, 1, 1, 0, 0, 0 };
+        for (double[] box : boxes) {
+            for (int axis = 0; axis < 3; axis++) {
+                out[axis] = Math.min(out[axis], (float) box[axis]);
+                out[axis + 3] = Math.max(out[axis + 3], (float) box[axis + 3]);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Adds the collision boxes of a ghost over a file's boxes that meet the mask, and answers whether it was one; any
+     * other ghost answers false and keeps its single box. The same boxes the server's {@code PhysicalDecay.boxesAt}
+     * builds from the same shape and the same collision depth.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static boolean addBoxes(GhostBlock ghost, World world, int x, int y, int z, AxisAlignedBB mask,
+        java.util.List list) {
+        double[][] boxes = boxesAt(ghost, world, x, y, z, true);
+        if (boxes == null) return false;
+        for (double[] box : boxes) {
+            AxisAlignedBB one = AxisAlignedBB
+                .getBoundingBox(x + box[0], y + box[1], z + box[2], x + box[3], y + box[4], z + box[5]);
+            if (mask == null || mask.intersectsWith(one)) list.add(one);
+        }
+        return true;
     }
 
     /**
@@ -679,6 +806,9 @@ final class GhostLogic {
      */
     static double originTop(GhostBlock ghost, int x, int y, int z) {
         Block origin = Trmt.proxy.originBlockAt(x, y, z);
+        // A file's boxes stand as tall as their walked box, whatever the block's own bounds say (W3 T6).
+        DataShape boxes = boxesOf(origin, originMetaAt(x, y, z));
+        if (boxes != null) return boxes.walkedTop() / 16.0D;
         if (origin != null && origin != ghost.asBlock()) {
             double top = origin.getBlockBoundsMaxY();
             if (top > 0.0D && top <= 1.0D) return top;
@@ -715,7 +845,9 @@ final class GhostLogic {
         // reads and a registry lookup on the collision path, for an answer that can only turn a sink into
         // none.
         if (sink == 0 || world == null) return sink;
-        return com.trmtgtnh.erosion.GroundCover.holdsAt(world, x, y, z) ? 0 : sink;
+        // And while a solid block stands on it, as the picture fills it in and the server holds it (0.9.229).
+        return (com.trmtgtnh.erosion.GroundCover.holdsAt(world, x, y, z)
+            || com.trmtgtnh.erosion.GroundCover.roofedAt(world, x, y, z)) ? 0 : sink;
     }
 
     /**
@@ -770,6 +902,16 @@ final class GhostLogic {
         // square has already answered this question and wear has nothing to add to it. Handing back
         // a full cell over a cloud turned a block you fall through into a block you stand on.
         Block origin = Trmt.proxy.originBlockAt(x, y, z);
+        int meta = originMetaAt(x, y, z);
+        // A file's boxes before the block's own footing: the file says what shape the block is, and the server's
+        // PhysicalDecay.boxAt asks them first as well (W3 T6). One box round them all here; collision proper takes
+        // them one by one through addBoxes.
+        DataShape boxes = boxesOf(origin, meta);
+        if (boxes != null) {
+            double[] round = boxes.outline(SurfaceShape.sunk(appearance, heldSink(world, x, y, z), origin, meta, true));
+            return AxisAlignedBB
+                .getBoundingBox(x + round[0], y + round[1], z + round[2], x + round[3], y + round[4], z + round[5]);
+        }
         if (origin != null) {
             AxisAlignedBB own = GhostInherit.ownFootingAt(origin, world, x, y, z);
             if (own != GhostInherit.ORDINARY) return own;
@@ -777,16 +919,16 @@ final class GhostLogic {
 
         // Off the block just read rather than through shapeAt, which would look the same block up a
         // second time. This is the collision path and the lookup is the dearest thing on it.
-        SurfaceShape shape = SurfaceShape.of(origin);
+        SurfaceShape shape = SurfaceShape.of(origin, meta);
         if (shape.isPartial()) {
-            int meta = originMetaAt(x, y, z);
             double floor = SurfaceShape.bottomOf(shape, meta);
             double top = SurfaceShape.topOf(shape, meta);
             double worn = Math
-                .max(floor, top - SinkProfile.collides(appearance, heldSink(world, x, y, z), shape) / 16.0D);
+                .max(floor, top - SurfaceShape.sunk(appearance, heldSink(world, x, y, z), origin, meta, true) / 16.0D);
             return AxisAlignedBB.getBoundingBox(x, y + floor, z, x + 1.0D, y + worn, z + 1.0D);
         }
-        double height = SinkProfile.heightFor(SinkProfile.collides(appearance, heldSink(world, x, y, z)));
+        double height = SinkProfile
+            .heightFor(SurfaceShape.sunk(appearance, heldSink(world, x, y, z), origin, meta, true));
         return AxisAlignedBB.getBoundingBox(x, y, z, x + 1.0D, y + height, z + 1.0D);
     }
 
@@ -830,6 +972,15 @@ final class GhostLogic {
                 return "snow";
             case ICE:
                 return "ice";
+            case FLESH:
+                return "soul_sand";
+            case TAINT:
+                return "mycelium_top";
+            case SCULK:
+                // Not sculk, which only Et Futurum ships here: a game without it would log a missing texture.
+                return "obsidian";
+            case CLOUD:
+                return "wool_colored_white";
             default:
                 return "dirt";
         }

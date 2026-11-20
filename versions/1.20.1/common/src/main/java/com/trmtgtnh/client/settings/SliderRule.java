@@ -37,8 +37,14 @@ public final class SliderRule {
         "families.end.layersPerDepth", "families.end.maxSinkPixels", "families.end.stages",
         "families.snow.layersPerDepth", "families.snow.maxSinkPixels", "families.snow.stages",
         "families.ice.layersPerDepth", "families.ice.maxSinkPixels", "families.ice.stages",
+        "families.flesh.layersPerDepth", "families.flesh.maxSinkPixels", "families.flesh.stages",
+        "families.taint.layersPerDepth", "families.taint.maxSinkPixels", "families.taint.stages",
+        "families.sculk.layersPerDepth", "families.sculk.maxSinkPixels", "families.sculk.stages",
+        "families.cloud.layersPerDepth", "families.cloud.maxSinkPixels", "families.cloud.stages",
         // Bounded in the file and sliding by the rule, and missing from the table until 0.9.228 (found by P2a).
-        "client.overlayDistanceChunks", "general.maxWearFraction", "general.wearDropChance" };
+        "client.overlayDistanceChunks", "general.maxWearFraction", "general.wearDropChance",
+        // How many wear backups a world keeps, 1 to 100 (0.9.229, wear backups).
+        "general.wearBackupsKept" };
 
     /** The widest a whole number's range may be and still slide. */
     public static final int WHOLE_SPAN = 100;

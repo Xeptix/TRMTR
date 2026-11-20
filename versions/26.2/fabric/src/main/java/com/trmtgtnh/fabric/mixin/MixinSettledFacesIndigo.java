@@ -45,6 +45,10 @@ public abstract class MixinSettledFacesIndigo {
                 + "Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;)Z"),
         require = 0)
     private boolean trmt$keepSettledFace(BlockState state, BlockState neighbour, Direction face) {
+        // GF1: a face against an unsunk worn square hidden, as against the block it stands in for, before vanilla's
+        // per-state cache is asked (see client.render.GhostHide; on unless -Dtrmt.gf1.hide=false, vanilla's mesher
+        // alone). Asked in this redirect because a second redirect of the same call would never apply.
+        if (com.trmtgtnh.client.render.GhostHide.hiddenToward(state, level, pos, face)) return false;
         boolean vanilla = Block.shouldRenderFace(state, neighbour, face);
         if (level == null || pos == null) return vanilla;
         return com.trmtgtnh.client.render.FaceRule.decide(vanilla, state, level, pos, face);

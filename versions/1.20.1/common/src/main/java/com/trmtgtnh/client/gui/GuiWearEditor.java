@@ -127,6 +127,14 @@ public class GuiWearEditor extends Screen {
 
     private boolean lookOpen;
 
+    /**
+     * The first look the picker shows, and whether its bar is being dragged: the picker scrolls once it holds more
+     * looks than its card has room for (LookWindow).
+     */
+    private int lookTop;
+
+    private boolean lookDragging;
+
     /** The pictures of what each look does, made on demand and released with the screen. */
     private final PatternPreview previews = new PatternPreview();
 
@@ -197,6 +205,20 @@ public class GuiWearEditor extends Screen {
         this.parent = parent;
     }
 
+    /** Open the look picker at its first look for the screens photograph. */
+    public GuiWearEditor withLookPickerTop() {
+        lookOpen = true;
+        lookTop = 0;
+        return this;
+    }
+
+    /** Open the look picker at its last look for the screens photograph. Drawing clamps to the visible rows. */
+    public GuiWearEditor withLookPickerBottom() {
+        lookOpen = true;
+        lookTop = Integer.MAX_VALUE;
+        return this;
+    }
+
     // ------------------------------------------------------------------
     // Geometry
     // ------------------------------------------------------------------
@@ -227,6 +249,11 @@ public class GuiWearEditor extends Screen {
 
     private int cl() {
         return left() + 34;
+    }
+
+    /** The open picker begins after the header's sixteen-pixel block icon, with room between them. */
+    private int lookLeft() {
+        return cl() + 22;
     }
 
     private int cr() {
@@ -629,13 +656,49 @@ public class GuiWearEditor extends Screen {
 
         super.render(graphics, mouseX, mouseY, partial);
 
-        if (previewOpen) drawPreview(mouseX, mouseY);
-        else if (!lookOpen && !curveOpen) drawHover(mouseX, mouseY);
+        if (!previewOpen && !lookOpen && !curveOpen) drawHover(mouseX, mouseY);
 
         // Last, and over everything, because it is a thing you are in the middle of doing rather
-        // than a thing on the card.
-        if (lookOpen) drawLookPicker(cl(), mouseX, mouseY);
-        else if (curveOpen) drawCurvePicker(cl(), mouseX, mouseY);
+        // than a thing on the card. Raised to OVERLAY_Z as well as drawn last: see the constant.
+        graphics.pose().pushPose();
+        graphics.pose().translate(0F, 0F, OVERLAY_Z);
+        try {
+            if (previewOpen) drawPreview(mouseX, mouseY);
+            if (lookOpen) drawLookPicker(lookLeft(), mouseX, mouseY);
+            else if (curveOpen) drawCurvePicker(cl(), mouseX, mouseY);
+        } finally {
+            graphics.pose().popPose();
+        }
+    }
+
+    /**
+     * How far toward the viewer the two pickers and the publish preview are drawn (1.0.0).
+     *
+     * <p>
+     * Drawn last is not drawn over at this version: the screen is drawn with the depth test on. The game's font draws
+     * each glyph 0.03 nearer than its shadow and writes that depth, and a fill drawn later at the screen's own depth of
+     * nought is behind those glyphs, so the test throws its pixels away there. The open look picker's opaque panel let
+     * every word of the card under it through ("Crossings to advance", the heal times) on 1.20.1 and 1.21.1, while
+     * 1.7.10 and the other editions draw it whole. 400 is the height the game raises its own tooltips to, above an item
+     * drawn in a slot (150, and half the item's own depth), so nothing on the card reaches the picker. The harness's
+     * screens part reads its photographs for it (lookPickerBareMargins).
+     */
+    static final float OVERLAY_Z = 400F;
+
+    /**
+     * The open look picker's two bare margins, as {left, top, right, bottom} in the screen's own pixels, or null while
+     * it is closed (1.0.0): its left margin, before the row labels, and its right one, between the last preview and the
+     * row bands' end. The picker draws nothing there but its panel, its rules and the row bands, each across the whole
+     * margin, so every pixel row of one is a single color unless something beneath shows through.
+     */
+    public int[][] lookPickerBareMargins() {
+        if (!lookOpen) return null;
+        int cl = lookLeft();
+        int top = lookPickerTop();
+        int bottom = top + lookPickerHeight();
+        int bandRight = cl + LOOK_WIDTH - 2 - (lookScrolls() ? LookWindow.BAR_HIT : 0);
+        int lastPreview = cl + 118 + 2 * (lookArt() + 4) + lookArt();
+        return new int[][] { { cl + 2, top, cl + 8, bottom }, { lastPreview + 1, lookListTop(), bandRight, bottom } };
     }
 
     /**
@@ -1162,6 +1225,23 @@ public class GuiWearEditor extends Screen {
         }
 
         if (lookOpen) {
+            // A press on the bar scrolls and chooses nothing, and the picker stays open for the choice it was
+            // scrolled to make; nor does the click go on to the screen, as no other press is held back for.
+            if (onLookBar(mouseX, mouseY)) {
+                lookDragging = true;
+                lookTop = lookBarTo(mouseY);
+                return true;
+            }
+            // A switch applies at once, as cosmetic and as local as a look, and the picker stays open on it.
+            int flip = lookSwitchAt(mouseX, mouseY);
+            if (flip == 0) {
+                Client.setClassicWear(null, !classicOn(0));
+                return true;
+            }
+            if (flip == 1 && FamilySettings.classicLook(selectedFamily()) != null) {
+                Client.setClassicWear(selectedFamily(), !classicOn(1));
+                return true;
+            }
             int hit = lookRowAt(mouseX, mouseY);
             if (hit >= 0) {
                 String look = PatternPreview.looks()[hit];
@@ -1218,6 +1298,14 @@ public class GuiWearEditor extends Screen {
         if (within(hdrLook, mouseX, mouseY)) {
             lookOpen = true;
             curveOpen = false;
+            // Opened with the family's own look in view, wherever the list was last left.
+            String current = PatternPreview.canonical(shapePattern(selectedFamily()));
+            lookTop = LookWindow.showing(
+                java.util.Arrays.asList(PatternPreview.looks())
+                    .indexOf(current),
+                0,
+                PatternPreview.lookCount(),
+                lookRowsShown());
             closeEdit();
             return super.mouseClicked(clickX, clickY, mouseButton);
         }
@@ -1311,6 +1399,33 @@ public class GuiWearEditor extends Screen {
                 return;
             }
         }
+    }
+
+    /**
+     * The wheel over an open look picker scrolls it a row a notch, as the settings list scrolls. The other editions ask
+     * the wheel themselves; here it arrives with its own call, positive for up, as their notch does.
+     */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double wheel) {
+        int turn = (int) Math.signum(wheel);
+        if (!lookOpen || turn == 0) return super.mouseScrolled(mouseX, mouseY, wheel);
+        lookTop = LookWindow.wheel(lookTop, turn, PatternPreview.lookCount(), lookRowsShown());
+        return true;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (lookOpen && lookDragging) {
+            lookTop = lookBarTo((int) mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 0) lookDragging = false;
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     /**
@@ -1868,14 +1983,8 @@ public class GuiWearEditor extends Screen {
      * Not a taste. The label is drawn {@code (row - art) / 2 + 1} into the row and the font is nine
      * pixels tall, so at a pitch of eleven the glyphs reach into the next row's highlight band;
      * twelve is the first pitch at which they do not. It is a floor rather than a pitch anybody
-     * chooses - at every screen and interface scale the game itself picks, eleven looks come out at
-     * twelve or more.
-     *
-     * <p>
-     * A floor rather than a scrollbar, and the click handler is what rules the scrollbar out: it
-     * closes the picker whatever was clicked, so a bar that could be dragged would need that
-     * unpicked first, and a wheel-only list that vanishes when a stray pixel is touched would be
-     * worse than the thing it fixed.
+     * chooses. Below it the list scrolls instead of the rows shrinking further: see
+     * {@link #lookRowsShown}.
      */
     private static final int LOOK_ROW_FLOOR = 12;
 
@@ -1896,7 +2005,7 @@ public class GuiWearEditor extends Screen {
      * {@link #panelBottom} it can reach neither.
      */
     private int lookRow() {
-        int pitch = (panelBottom() - (top() + 20) - 8) / Math.max(1, PatternPreview.lookCount());
+        int pitch = (panelBottom() - (top() + 20) - 8) / Math.max(1, PatternPreview.lookCount() + LOOK_SWITCHES);
         if (pitch > LOOK_ROW) pitch = LOOK_ROW;
         return pitch < LOOK_ROW_FLOOR ? LOOK_ROW_FLOOR : pitch;
     }
@@ -1910,19 +2019,52 @@ public class GuiWearEditor extends Screen {
      * drawn past the card AND still answered a click - and since the click goes on to the screen
      * afterwards, a row reaching the edit bar would choose a look and press Revert with nothing
      * thrown and nothing in the log. Counting to this instead keeps the picker's height inside the
-     * band, so a look that will not fit is neither drawn nor clickable: a visibly short picker,
-     * which is the failure worth having.
+     * band, so a look that will not fit is never drawn past it and never clicked there.
      *
      * <p>
-     * Nothing is hidden today, and the room left over is now one row rather than two. Eleven looks
-     * fit whole above a scaled height of 232 and the automatic scale never goes below 240, where they
-     * land exactly on the floor pitch; the twelfth needs 244 and is where this arrives - as a missing
-     * row rather than as a click that does two things. The four pixels of air above and below the
-     * rows are where a twelfth would have to be found, and finding it there is the whole of the fix.
+     * What does not fit scrolls (0.9.229). The looks made for one material each took the list past
+     * what a 1920 by 1080 screen at the automatic scale holds at the floor pitch (a scaled height of
+     * 270, where the band holds fourteen rows), and the last rows were simply missing there. So the
+     * picker shows this many from {@link #lookTop} and scrolls the rest, on the terms the settings
+     * list and the choosers already keep ({@link LookWindow}): a row a wheel notch, and a bar at its
+     * right edge that a press or a drag moves without choosing. The click that chooses still closes
+     * it, as every click but one on the bar does.
      */
     private int lookRowsShown() {
         int band = panelBottom() - (top() + 20);
-        return Math.max(0, Math.min(PatternPreview.lookCount(), (band - 8) / lookRow()));
+        return Math.max(0, Math.min(PatternPreview.lookCount(), (band - 8) / lookRow() - LOOK_SWITCHES));
+    }
+
+    /**
+     * The two classic wear switches, drawn as the picker's first two rows (0.9.229; Xep, 2026-11-12: "a global + per
+     * family toggle for bringing back the old wear styles"): every family's, then this family's. Beside the looks
+     * because they answer the same question, which look a family is drawn in, and a press on either applies at once
+     * and leaves the picker open, so the change can be read in the rows below it.
+     */
+    private static final int LOOK_SWITCHES = 2;
+
+    /** Where the looks start, under the switches. */
+    private int lookListTop() {
+        return lookPickerTop() + LOOK_SWITCHES * lookRow();
+    }
+
+    /** Which switch is under a point: 0 for every family's, 1 for this family's, -1 for neither. */
+    private int lookSwitchAt(int mouseX, int mouseY) {
+        if (mouseX < lookLeft() || mouseX > lookLeft() + LOOK_WIDTH) return -1;
+        int row = lookRow();
+        int top = lookPickerTop();
+        for (int k = 0; k < LOOK_SWITCHES; k++) {
+            int y = top + 4 + k * row;
+            if (mouseY >= y - 1 && mouseY <= y + row - 3) return k;
+        }
+        return -1;
+    }
+
+    /** Whether a switch is on: every family's, or this family's own. */
+    private boolean classicOn(int which) {
+        if (which == 0) return TrmtConfig.classicWear;
+        FamilySettings own = TrmtConfig.family(selectedFamily());
+        return own != null && own.classicWear;
     }
 
     /** A preview is the row less the air around it, at whichever pitch is in use. */
@@ -1932,7 +2074,7 @@ public class GuiWearEditor extends Screen {
     }
 
     private int lookPickerHeight() {
-        return 8 + lookRowsShown() * lookRow();
+        return 8 + (lookRowsShown() + LOOK_SWITCHES) * lookRow();
     }
 
     /**
@@ -1955,7 +2097,7 @@ public class GuiWearEditor extends Screen {
      * <p>
      * Over rather than beside, because the thing being chosen changes the whole card underneath and
      * the comparison worth making is between the three looks rather than between a look and the
-     * numbers. It closes on any click, including one that chooses nothing.
+     * numbers. It closes on any click but one on its bar, including one that chooses nothing.
      */
     /**
      * Which row is under a point, or -1 for none.
@@ -1968,16 +2110,42 @@ public class GuiWearEditor extends Screen {
      * the pitch stopped being a constant, and it applies twice over now that a row lights up.
      */
     private int lookRowAt(int mouseX, int mouseY) {
-        if (mouseX < cl() || mouseX > cl() + LOOK_WIDTH) return -1;
+        if (mouseX < lookLeft() || mouseX > lookLeft() + LOOK_WIDTH) return -1;
+        if (onLookBar(mouseX, mouseY)) return -1;
         int row = lookRow();
-        int top = lookPickerTop();
+        int top = lookListTop();
+        int shown = lookRowsShown();
+        int first = LookWindow.clamp(lookTop, PatternPreview.lookCount(), shown);
         // To the rows that are actually drawn, and off the same method the drawing counts to, so a
-        // row nobody can see is a row nobody can click.
-        for (int i = 0; i < lookRowsShown(); i++) {
+        // row nobody can see is a row nobody can click. The index is the look's own, scrolled.
+        for (int i = 0; i < shown; i++) {
             int y = top + 4 + i * row;
-            if (mouseY >= y - 1 && mouseY <= y + row - 3) return i;
+            if (mouseY >= y - 1 && mouseY <= y + row - 3) return first + i;
         }
         return -1;
+    }
+
+    /** Whether the list scrolls on this screen: only while it holds more looks than its card has room for. */
+    private boolean lookScrolls() {
+        return LookWindow.scrolls(PatternPreview.lookCount(), lookRowsShown());
+    }
+
+    /** Whether a point is on the picker's bar, its right edge's column, which it has only while it scrolls. */
+    private boolean onLookBar(int mouseX, int mouseY) {
+        if (!lookScrolls()) return false;
+        return mouseX >= lookLeft() + LOOK_WIDTH - LookWindow.BAR_HIT && mouseX <= lookLeft() + LOOK_WIDTH
+            && mouseY >= lookListTop()
+            && mouseY < lookPickerTop() + lookPickerHeight();
+    }
+
+    /** Where a press or a drag on the bar puts the list. */
+    private int lookBarTo(int mouseY) {
+        return LookWindow.barTo(
+            mouseY,
+            lookListTop() + 2,
+            lookPickerHeight() - LOOK_SWITCHES * lookRow() - 4,
+            PatternPreview.lookCount(),
+            lookRowsShown());
     }
 
     // ------------------------------------------------------------------
@@ -2230,7 +2398,7 @@ public class GuiWearEditor extends Screen {
         int top = lookPickerTop();
         int height = lookPickerHeight();
         int over = lookRowAt(mouseX, mouseY);
-        graphics.fill(cl, top, cl + LOOK_WIDTH, top + height, 0xF0141420);
+        graphics.fill(cl, top, cl + LOOK_WIDTH, top + height, 0xFF141420);
         graphics.fill(cl, top, cl + LOOK_WIDTH, top + 1, 0xFF6A6A7A);
         graphics.fill(cl, top + height - 1, cl + LOOK_WIDTH, top + height, 0xFF6A6A7A);
 
@@ -2240,22 +2408,29 @@ public class GuiWearEditor extends Screen {
         ItemStack shown = cycled();
         int tint = tintOf(shown);
         int rows = lookRowsShown();
+        int first = LookWindow.clamp(lookTop, looks.length, rows);
+        drawClassicSwitches(cl, top, row, art, mouseX, mouseY);
+        int listTop = lookListTop();
+        graphics.fill(cl + 2, listTop + 1, cl + LOOK_WIDTH - 2, listTop + 2, 0x30FFFFFF);
+        // The bar's column is kept clear of the row bands, so what lights up is what a press there would choose.
+        int bandRight = cl + LOOK_WIDTH - 2 - (lookScrolls() ? LookWindow.BAR_HIT : 0);
         for (int i = 0; i < rows; i++) {
-            int y = top + 4 + i * row;
-            boolean chosen = looks[i].equals(current);
-            boolean under = i == over;
+            int y = listTop + 4 + i * row;
+            int look = first + i;
+            boolean chosen = looks[look].equals(current);
+            boolean under = look == over;
             // Under the cursor first and chosen over the top of it, so a row that is both comes out
             // brightest of all rather than one of the two washes hiding the other. Plain white for
             // the cursor and the violet for the choice, which is the difference worth keeping: one
             // says where the mouse is and the other says what this family is actually set to, and a
             // picker that told you those in the same color would be answering the wrong question.
-            if (under) graphics.fill(cl + 2, y - 1, cl + LOOK_WIDTH - 2, y + row - 3, 0x22FFFFFF);
-            if (chosen) graphics.fill(cl + 2, y - 1, cl + LOOK_WIDTH - 2, y + row - 3, 0x30E0D0FF);
+            if (under) graphics.fill(cl + 2, y - 1, bandRight, y + row - 3, 0x22FFFFFF);
+            if (chosen) graphics.fill(cl + 2, y - 1, bandRight, y + row - 3, 0x30E0D0FF);
             int label = chosen ? 0xE0D0FF : 0xB8B8C4;
             if (under) label = chosen ? 0xF4ECFF : 0xFFFFFF;
-            graphics.drawString(font, PatternPreview.nameOf(looks[i]), cl + 8, y + (row - art) / 2 + 1, label);
+            graphics.drawString(font, PatternPreview.nameOf(looks[look]), cl + 8, y + (row - art) / 2 + 1, label);
             for (int step = 0; step < 3; step++) {
-                ResourceLocation at = previews.of(selectedFamily(), shown, looks[i], step);
+                ResourceLocation at = previews.of(selectedFamily(), shown, looks[look], step);
                 if (at == null) continue;
                 // The block's own multiplier, because a picture of worn sandstone drawn in flat
                 // white is a picture of a different block. Not the biome tint, which is a property
@@ -2273,6 +2448,43 @@ public class GuiWearEditor extends Screen {
             }
         }
         graphics.setColor(1f, 1f, 1f, 1f);
+        if (lookScrolls()) {
+            // The bar: a rule down the right edge and the thumb on it, as the choosers draw theirs.
+            int trackTop = listTop + 2;
+            int trackHeight = height - LOOK_SWITCHES * row - 4;
+            int[] thumb = LookWindow.thumb(trackTop, trackHeight, first, looks.length, rows);
+            graphics.fill(cl + LOOK_WIDTH - 4, trackTop, cl + LOOK_WIDTH - 2, trackTop + trackHeight, 0x30FFFFFF);
+            graphics.fill(cl + LOOK_WIDTH - 4, thumb[0], cl + LOOK_WIDTH - 2, thumb[0] + thumb[1], 0xFF9A9AAA);
+        }
+    }
+
+    /**
+     * The two classic wear switches: every family's, then this family's, each saying what it does and whether it is on.
+     * This family's is greyed for a family that has no classic look, because its look never changed.
+     */
+    private void drawClassicSwitches(int cl, int top, int row, int art, int mouseX, int mouseY) {
+        String classic = FamilySettings.classicLook(selectedFamily());
+        int over = lookSwitchAt(mouseX, mouseY);
+        for (int k = 0; k < LOOK_SWITCHES; k++) {
+            int y = top + 4 + k * row;
+            boolean live = k == 0 || classic != null;
+            boolean on = live && classicOn(k);
+            if (live && over == k) graphics.fill(cl + 2, y - 1, cl + LOOK_WIDTH - 2, y + row - 3, 0x22FFFFFF);
+            String words = k == 0 ? com.trmtgtnh.util.Translate.get("trmtgtnh.weareditor.classicAll")
+                : classic == null ? com.trmtgtnh.util.Translate.get("trmtgtnh.weareditor.classicNone")
+                    : com.trmtgtnh.util.Translate.get("trmtgtnh.weareditor.classicHere", PatternPreview.nameOf(classic));
+            int color = !live ? 0xFF606070 : on ? 0xE0D0FF : 0xB8B8C4;
+            graphics.drawString(font, words, cl + 8, y + (row - art) / 2 + 1, color);
+            if (live) {
+                String state = com.trmtgtnh.util.Translate.get(on ? "options.on" : "options.off");
+                graphics.drawString(
+                    font,
+                    state,
+                    cl + LOOK_WIDTH - 8 - font.width(state),
+                    y + (row - art) / 2 + 1,
+                    on ? 0xFF6AD46A : 0xFF8C8CA0);
+            }
+        }
     }
 
     /** The color a block multiplies its own texture by, or plain white when it does not. */

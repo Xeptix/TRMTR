@@ -6,6 +6,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
+import com.trmtgtnh.config.FaithfulProfile;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.erosion.ErosionChain;
@@ -75,8 +76,11 @@ public class PacketInspect implements IMessage {
      * And the rates come from the server's config, which is the one that governs; a client on
      * someone else's server has its own copy and no reason to think it matches.
      */
-    private static int recoverySeconds(ErosionEntry entry, SurfaceFamily base, int untouchedSeconds, World world) {
+    private static int recoverySeconds(ErosionEntry entry, SurfaceFamily base, int untouchedSeconds, World world,
+        int chainIndex, boolean isolated) {
         if (!TrmtConfig.healingEnabled || !entry.isVisible()) return -1;
+        // One of Faithful Mode's three with its healing off never recovers (spec 2.4).
+        if (!FaithfulProfile.heals(base)) return -1;
         FamilySettings settings = TrmtConfig.family(entry.getFamily());
         if (settings == null) return -1;
 
@@ -92,9 +96,11 @@ public class PacketInspect implements IMessage {
         // biome it is one that will never be kept.
         if (Weather.waitsForWeather(base, world)) return -1;
 
-        double decayPerDay = TrmtConfig.wearDecayPerDay * entry.effectiveThreshold();
+        double decayPerDay = FaithfulProfile.wearDecayPerDay(base) * entry.effectiveThreshold();
         double bleedDays = decayPerDay > 0 ? entry.getWear() / decayPerDay : 0.0D;
-        double days = bleedDays + settings.scaledHealDays() - untouchedSeconds / SECONDS_PER_DAY;
+        // Faithful Mode's three wait their stage's own days, half when alone, as the sweep prices them.
+        double stage = FaithfulProfile.healDays(base, chainIndex, isolated, settings.scaledHealDays());
+        double days = bleedDays + stage - untouchedSeconds / SECONDS_PER_DAY;
         return days <= 0 ? 0 : (int) (days * SECONDS_PER_DAY);
     }
 
@@ -116,14 +122,20 @@ public class PacketInspect implements IMessage {
         // Where this sits on the whole run from pristine to fully sunk, which is the
         // only number that means anything across a chain that changes surface part
         // way. The stage on its own restarts counting when grass gives way to earth.
-        SurfaceFamily base = com.trmtgtnh.surface.SurfaceRegistry.familyOf(
+        // On the chain the block follows: its own, where a data file gives it one (W3 T9).
+        ErosionChain.Chain chain = com.trmtgtnh.surface.SurfaceRegistry.chainOf(
             com.trmtgtnh.util.Worlds.blockAt(world, x, y, z),
             com.trmtgtnh.util.Worlds.metaAt(world, x, y, z));
-        int chainLength = base == null ? 0 : ErosionChain.length(base);
-        int chainIndex = base == null ? -1
-            : ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink());
-        return RecordReadout
-            .of(entry, untouched, recoverySeconds(entry, base, untouched, world), chainIndex, chainLength);
+        SurfaceFamily base = chain.base;
+        int chainLength = base == null ? 0 : chain.length();
+        int chainIndex = base == null ? -1 : chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink());
+        boolean alone = FaithfulProfile.healsFasterAlone(base) && ErosionEngine.isolated(world, x, y, z);
+        return RecordReadout.of(
+            entry,
+            untouched,
+            recoverySeconds(entry, base, untouched, world, chainIndex, alone),
+            chainIndex,
+            chainLength);
     }
 
     public static class Handler implements IMessageHandler<PacketInspect, IMessage> {

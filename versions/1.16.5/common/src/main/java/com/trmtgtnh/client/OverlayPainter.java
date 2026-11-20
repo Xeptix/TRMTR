@@ -284,6 +284,9 @@ public final class OverlayPainter {
             // against the light the squares end up with.
             ClientOverlay.relightPainted(chunkX, chunkZ);
             redraw((chunkX << 4), minY, (chunkZ << 4), (chunkX << 4) + 15, maxY, (chunkZ << 4) + 15);
+            // Distant Horizons read this chunk as it arrived, before it was painted: handed to it again now it holds
+            // the ghosts, where it is loaded, and nothing at all where it is not (0.9.229 W6 T16; see DistantColors).
+            if (DistantColors.pluginRegistered()) DistantColors.painted(world, world.getChunk(chunkX, chunkZ), chunkX, chunkZ);
         }
         return touched;
     }
@@ -328,6 +331,8 @@ public final class OverlayPainter {
         ClientErosionCache.get()
             .put(chunkX, chunkZ, overlay.copyWithOrigins(origins));
         if (!painted) return false;
+        // Asked again now the origin is filed: the write's own check asked a ghost with no block behind it.
+        ClientOverlay.relightIfOwnWay(x, y, z);
         redraw(x, y, z, x, y, z);
         com.trmtgtnh.client.xaero.XaeroMinimap.chunkChanged(world, x, z);
         return true;
@@ -438,27 +443,11 @@ public final class OverlayPainter {
      */
     static boolean covered(net.minecraft.world.level.BlockGetter world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= com.trmtgtnh.util.Heights.top(world)) return false;
-        if (world.getBlockState(new BlockPos(x, y + 1, z))
-            .getBlock() instanceof BlockGhost) return ghostCovers(world, x, y + 1, z);
-        return com.trmtgtnh.util.Worlds.isOpaque(world, x, y + 1, z);
-    }
-
-    /**
-     * Whether a ghost standing on the square above covers it as 1.7.10's ghost would (0.9.227, spec PT9 and PT24): there
-     * a ghost is an opaque cube unless it is sunk, clear or a window, so a block placed on a road and then worn itself
-     * still hid the road beneath. Here a ghost never answers opaque - it declares no occlusion, for its neighbours' sake
-     * - so the ground under a worn block stopped being covered: it sank into its dip under the block, or showed wear
-     * where 1.7.10 hides it. Asked of the square's own record and the block it stands in for: covered when the picture
-     * is not sunk and the block it stands in for is a whole opaque cube, which a clear block or a window is not.
-     */
-    private static boolean ghostCovers(net.minecraft.world.level.BlockGetter world, int x, int y, int z) {
-        short record = ClientErosionCache.get()
-            .stateAt(x, y, z);
-        if (BlockGhost.drawnSink(record) > 0) return false;
-        int origin = ClientErosionCache.get()
-            .originAt(x, y, z);
-        BlockState stood = origin < 0 ? null : Block.stateById(origin);
-        return stood != null && stood.isSolidRender(world, new BlockPos(x, y, z));
+        // Which blocks cover is GroundCover.roofedAt, the one rule collision asks as well (0.9.229); a full drift's
+        // shelter is the picture's own question.
+        return com.trmtgtnh.erosion.GroundCover.roofedAt(world, x, y, z)
+            || com.trmtgtnh.erosion.SnowCover.isSnowLayer(world.getBlockState(new BlockPos(x, y + 1, z)))
+                && com.trmtgtnh.util.Worlds.isOpaque(world, x, y + 1, z);
     }
 
     /** Puts one painted position back to what it was covering, and marks it undrawn. */
@@ -619,13 +608,16 @@ public final class OverlayPainter {
      * Whether this chunk is one the client has.
      *
      * <p>
-     * One line where the other editions need three. There, the chunk provider is asked for the chunk
-     * object and the object is asked whether it is empty - an empty chunk being the provider's way of
-     * saying "not really". Here the question has its own method and nothing is handed back to ask a
-     * second question of.
+     * The other editions' question: the chunk provider is asked for the chunk, and the empty stand-in it gives for
+     * one it has not got means "not really". Here that is {@link DistantColors#heldChunk}, the one answer every part
+     * of this mod asks: the client's chunk cache asked not to load. Never the level's {@code hasChunk}, which answers
+     * true for every chunk, held or not ({@code ClientLevel.hasChunk} is {@code iconst_1, ireturn} in 1.16.5 and in
+     * every edition from 1.20.1 to 26.3, javap): until 0.9.229 a chunk whose record arrived before its blocks was
+     * walked square by square against that stand-in, painting nothing, and one the client no longer held was "lifted"
+     * the same way, forgetting what its ghosts had covered (W6 T17).
      */
     private static boolean isChunkLoaded(ClientLevel world, int chunkX, int chunkZ) {
-        return world != null && world.hasChunk(chunkX, chunkZ);
+        return DistantColors.heldChunk(world, chunkX, chunkZ) != null;
     }
 
     /**
@@ -640,11 +632,31 @@ public final class OverlayPainter {
      * <p>
      * A box rather than a block at a time, for the same reason as there: a chunk's worth of painted
      * squares should cost one rebuild and not a thousand.
+     *
+     * <p>
+     * <strong>Widened by a block on every side here, not left to the renderer (0.9.229).</strong> Vanilla's
+     * {@code setBlocksDirty} marks the sections from one block outside the box to one block outside it, so a
+     * neighbour's face beside a painted square is built again with it. Sodium and its forks overwrite that method
+     * and shift the box's own corners to sections, with no block either side (their MixinWorldRenderer
+     * hands the box unchanged to {@code scheduleRebuildForBlockArea}, which is {@code >> 4} on each corner - read
+     * from Sodium 0.2.0 (Fabric), Rubidium 0.2.13 and Embeddium 0.3.18 (Forge)). A chunk's box then rebuilds that chunk alone, and the block
+     * across the chunk's edge keeps the mesh it was given while the painted square was still a whole cube: its face
+     * toward the square culled, a hole to the sky where the rut is sunk below it. Whether that neighbour happened to
+     * be rebuilt after the paint for some other reason decided whether the hole showed, which is why it came and
+     * went between runs (W1 T11 on 26.2, the turf rows' east ends, which stand at a chunk's edge). Widening it here
+     * gives Sodium the sections it left out; under vanilla a chunk's box reaches the same sections as before, and
+     * one square's at most one more.
      */
-    private static void redraw(int x0, int y0, int z0, int x1, int y1, int z1) {
+    static void redraw(int x0, int y0, int z0, int x1, int y1, int z1) {
         Minecraft client = Minecraft.getInstance();
         if (client.levelRenderer == null) return;
-        client.levelRenderer.setBlocksDirty(x0, y0, z0, x1, y1, z1);
+        int[] box = widened(x0, y0, z0, x1, y1, z1);
+        client.levelRenderer.setBlocksDirty(box[0], box[1], box[2], box[3], box[4], box[5]);
+    }
+
+    /** The box a redraw marks: the one asked for and a block beyond it on every side, as vanilla marks it. */
+    static int[] widened(int x0, int y0, int z0, int x1, int y1, int z1) {
+        return new int[] { x0 - 1, y0 - 1, z0 - 1, x1 + 1, y1 + 1, z1 + 1 };
     }
 
     private static boolean withinRange(int chunkX, int chunkZ) {

@@ -170,6 +170,14 @@ public final class TrmtFabric implements ModInitializer {
                     .toFile(),
                 Trmt.MODID + ".cfg"));
 
+        // The data files and trmtr-api (W3 spec 2.2 and 2.5, carried in T17): where Fabric's mods are, which packs are
+        // Fabric API's own packs of their files, the data-pack listener; then the first read, after the settings,
+        // whose folder holds config/trmtr, and the plugins - here, from the main entry point, which every mod's
+        // pre-launch entry point has run before, so an example mod has set what its plugin needs.
+        FabricData.open();
+        com.trmtgtnh.dataload.DataLoad.read();
+        com.trmtgtnh.apiload.ApiLoad.start();
+
         Trmt.LOG.info("{} on Fabric, Minecraft 1.16.5", Trmt.NAME);
     }
 

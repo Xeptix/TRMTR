@@ -43,6 +43,15 @@ public final class NeoForgeClientSetup {
 
     /** What client setup does, run by {@link #client} on the game's own thread. */
     private static void onTheGamesThread() {
+        // The enabled resource packs' data files after every resource reload from now on (W3 spec 2.2); each block-atlas
+        // stitch reads them itself as it begins, the first one included.
+        com.trmtgtnh.client.PackData.start();
+        // Distant Horizons' far terrain told what a worn square looks like (0.9.229 W6 T17, as TrmtFabricClient does),
+        // only where that mod is loaded: the plugin is the one class that names it, and a game without it never loads it.
+        if (net.neoforged.fml.ModList.get()
+            .isLoaded("distanthorizons")) {
+            com.trmtgtnh.neoforge.dh.DhPlugin.register();
+        }
         // 1.21.1 offered every ghost to every chunk pass here (ItemBlockRenderTypes.setRenderLayer with
         // GhostLayers::claims) and handed GhostLayers a lookup reading the covered block's ChunkRenderTypeSet. From
         // 1.21.5 neither exists: there is no per-block pass to claim, and every quad carries its own chunk layer, which

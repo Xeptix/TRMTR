@@ -84,6 +84,10 @@ public final class SettingsKeys {
     public static final String FAMILY_END = OWN + "family.end";
     public static final String FAMILY_SNOW = OWN + "family.snow";
     public static final String FAMILY_ICE = OWN + "family.ice";
+    public static final String FAMILY_FLESH = OWN + "family.flesh";
+    public static final String FAMILY_TAINT = OWN + "family.taint";
+    public static final String FAMILY_SCULK = OWN + "family.sculk";
+    public static final String FAMILY_CLOUD = OWN + "family.cloud";
     public static final String SEARCH_HINT = OWN + "search.hint";
     public static final String SEARCH_NONE = OWN + "search.none";
     public static final String SEARCH_COUNT_ONE = OWN + "search.count.one";
@@ -177,10 +181,18 @@ public final class SettingsKeys {
     public static final String GREYED_PARTIAL = OWN + "greyed.partial";
     public static final String LOCKED = OWN + "locked";
     public static final String LOCKED_NOTE = OWN + "locked.note";
+    /** A setting a server suggests, and the player's own line at join (0.9.229; Xep, 2026-11-18). */
+    public static final String SUGGESTED = OWN + "suggested";
+    public static final String SUGGESTED_NOTE = OWN + "suggested.note";
+    public static final String SERVER_SETS_ONE = OWN + "server.sets.one";
+    public static final String SERVER_SETS_MANY = OWN + "server.sets.many";
+    public static final String SERVER_SETS_NONE = OWN + "server.sets.none";
+    public static final String SERVER_SETS_NOT_HERE = OWN + "server.sets.notHere";
     public static final String PRESET_CHANGES_ONE = OWN + "preset.changes.one";
     public static final String PRESET_CHANGES_MANY = OWN + "preset.changes.many";
     public static final String PRESET_LINE = OWN + "preset.line";
     public static final String PRESET_NONE = OWN + "preset.none";
+    public static final String PRESET_MORE = OWN + "preset.more";
     public static final String RESTART_QUIT = OWN + "restart.quit";
     public static final String RESTART_LATER = OWN + "restart.later";
     public static final String RELOAD = OWN + "reload";
@@ -209,6 +221,37 @@ public final class SettingsKeys {
     public static final String HEADER_PUSH_TIP = OWN + "header.push.tip";
     public static final String HEADER_WEARTABLE = OWN + "header.weartable";
     public static final String HEADER_WEARTABLE_TIP = OWN + "header.weartable.tip";
+    // Wear backups (0.9.229): the header's button, the restore screen and the single-player question.
+    public static final String HEADER_BACKUPS = OWN + "header.backups";
+    public static final String HEADER_BACKUPS_TIP = OWN + "header.backups.tip";
+    public static final String BACKUPS_TITLE = OWN + "backups.title";
+    public static final String BACKUPS_NONE = OWN + "backups.none";
+    public static final String BACKUPS_ROW_ONE = OWN + "backups.row.one";
+    public static final String BACKUPS_ROW_MANY = OWN + "backups.row.many";
+    public static final String BACKUPS_REASON_SCHEDULED = OWN + "backups.reason.scheduled";
+    public static final String BACKUPS_REASON_UPDATE = OWN + "backups.reason.update";
+    public static final String BACKUPS_REASON_COMMAND = OWN + "backups.reason.command";
+    public static final String BACKUPS_REASON_RESTORE = OWN + "backups.reason.restore";
+    public static final String BACKUPS_CHOOSE = OWN + "backups.choose";
+    public static final String BACKUPS_CHANGES_ASKING = OWN + "backups.changes.asking";
+    public static final String BACKUPS_CHANGES_UNREAD = OWN + "backups.changes.unread";
+    public static final String BACKUPS_CHANGES_NONE = OWN + "backups.changes.none";
+    public static final String BACKUPS_CHANGES_ONE = OWN + "backups.changes.one";
+    public static final String BACKUPS_CHANGES_MANY = OWN + "backups.changes.many";
+    public static final String BACKUPS_RESTORE = OWN + "backups.restore";
+    public static final String BACKUPS_UNDO = OWN + "backups.undo";
+    public static final String BACKUPS_IGNORE = OWN + "backups.ignore";
+    public static final String BACKUPS_NEVER = OWN + "backups.never";
+    public static final String BACKUPS_ASK_ONE = OWN + "backups.ask.one";
+    public static final String BACKUPS_ASK_MANY = OWN + "backups.ask.many";
+    public static final String BACKUPS_ASK_NEWEST = OWN + "backups.ask.newest";
+    public static final String BACKUPS_ASK_NONE = OWN + "backups.ask.none";
+    public static final String BACKUPS_ASK_NEWER = OWN + "backups.ask.newer";
+    public static final String BACKUPS_ASK_MIRROR = OWN + "backups.ask.mirror";
+    public static final String BACKUPS_ASK_DATA = OWN + "backups.ask.data";
+    public static final String BACKUPS_ASK_DATA_ONLY = OWN + "backups.ask.dataOnly";
+    public static final String BACKUPS_MIRROR = OWN + "backups.mirror";
+    public static final String BACKUPS_MIRROR_DETAIL = OWN + "backups.mirror.detail";
     public static final String ADVANCED = OWN + "advanced";
     public static final String ADVANCED_NOTE = OWN + "advanced.note";
     public static final String ADVANCED_LAST_CHOSEN = OWN + "advanced.lastChosen";
@@ -218,6 +261,23 @@ public final class SettingsKeys {
     public static final String ADVANCED_QUALITY = OWN + "advanced.quality";
     public static final String ADVANCED_STAGES = OWN + "advanced.stages";
     public static final String ADVANCED_LAYERS = OWN + "advanced.layers";
+
+    /**
+     * The heading of a page's Advanced folder, at its end (0.9.229; Xep, 2026-11-18: "could we add some settings to
+     * control this behavior? Advanced settings or something?"). Not the Presets tab's Advanced fold above, which is
+     * what Custom brings back.
+     */
+    public static final String FOLDER_ADVANCED = OWN + "folder.advanced";
+
+    /** The settings shown under their page's Advanced folder rather than among its own, by {@code category.key}. */
+    public static final List<String> IN_ADVANCED = Collections
+        .unmodifiableList(Arrays.asList("client.angelicaWearGutter"));
+
+    /** Whether a setting is shown under its page's Advanced folder. */
+    public static boolean inAdvanced(String id) {
+        return IN_ADVANCED.contains(id);
+    }
+
     public static final String HINT_BLOCK = OWN + "hint.block";
     public static final String HINT_ITEM = OWN + "hint.item";
     public static final String HINT_MOB = OWN + "hint.mob";
@@ -245,28 +305,35 @@ public final class SettingsKeys {
         TAB_PERFORMANCE, TAB_REINFORCE, TAB_POTIONS, TAB_WEATHER, TAB_GOLEM, TAB_LOOT, TAB_SPAWNWARD, TAB_PATHLIGHT,
         TAB_INTEGRATION, TAB_SPAWNITEMS, TAB_MORE, TAB_CHANGED_ONE, TAB_CHANGED_MANY, TAB_REFUSED_ONE, TAB_REFUSED_MANY,
         FAMILY_ALL, FAMILY_GRASS, FAMILY_DIRT, FAMILY_SAND, FAMILY_GRAVEL, FAMILY_STONE, FAMILY_COBBLE, FAMILY_LEAVES,
-        FAMILY_VEGETATION, FAMILY_NETHER, FAMILY_END, FAMILY_SNOW, FAMILY_ICE, SEARCH_HINT, SEARCH_NONE,
-        SEARCH_COUNT_ONE, SEARCH_COUNT_MANY, FILTER_CHANGED, FILTER_CHANGED_TIP, FILTER_CHANGED_NONE, SAVE_ONE,
-        SAVE_MANY, FIX_ONE, FIX_MANY, UNDO_ALL, UNDO_ALL_TIP, RESET_TAB, RESET_TAB_TIP, RESET_TAB_ASK, RESET_TAB_NOTE,
-        RESET_TAB_YES, RESET_TIP, UNDO_TIP, RELOAD_MARK, BANNER_ONE, BANNER_MANY, RANGE, DEFAULT, REFUSE_NOT_NUMBER,
-        REFUSE_NOT_WHOLE, REFUSE_BELOW, REFUSE_ABOVE, REFUSE_EMPTY, CYCLE_TIP, ADD_BLOCK, ADD_ITEM, ADD_FLUID,
-        ADD_ENCHANTMENT, PICK_BLOCK, PICK_ITEM, PICK_FLUID, PICK_ENCHANTMENT, PICK_NONE, PICK_VARIANT, PICK_EVERY,
-        PICK_SHIFT, PICK_GATHERING, FOLD_OPEN, FOLD_CLOSE, REMOVE_TIP, DRAG_TIP, COPY, COPY_TIP, PASTE, PASTE_TIP,
-        PASTE_NONE, PASTE_ADDED_ONE, PASTE_ADDED_MANY, STATUS_NOT_HERE, STATUS_UNKNOWN_BLOCK, STATUS_UNKNOWN_ITEM,
-        STATUS_UNKNOWN_FLUID, STATUS_UNKNOWN_ORE, STATUS_UNKNOWN_TAG, STATUS_UNKNOWN_ENCHANTMENT, STATUS_UNKNOWN_SPRITE,
-        STATUS_UNKNOWN_FAMILY, STATUS_UNKNOWN_DIMENSION, STATUS_META_REFUSED, STATUS_NO_ITEM, STATUS_EVERY,
-        STATUS_MEMBERS_ONE, STATUS_MEMBERS_MANY, STATUS_FLUID, STATUS_KEPT_OUT, STATUS_ANY_MOB, STATUS_MATCHES_ONE,
-        STATUS_MATCHES_MANY, STATUS_BAD_LINE, GRADE_NAME, GRADE_ORE, GRADE_USES, GRADE_REACH, GRADE_BAD, CHIPS_ADD,
-        CHIPS_TIP, COLOR_PICK, COLOR_HEX, COLOR_REFUSE_DIGITS, COLOR_REFUSE_CHAR, COLOR_PREVIEW, COLOR_APPLY, GREYED,
-        GREYED_PARTIAL, LOCKED, LOCKED_NOTE, PRESET_CHANGES_ONE, PRESET_CHANGES_MANY, PRESET_LINE, PRESET_NONE,
-        RESTART_QUIT, RESTART_LATER, RELOAD, RELOAD_NOW, DISCARD_SAVE, DISCARD_LEAVE, DISCARD_STAY, TOGGLE_FORGE,
-        TOGGLE_CLOTH, TOGGLE_TIP, TOGGLE_BACK, TOGGLE_BACK_TIP, TOGGLE_NONE, TOGGLE_ASK, HELP_TITLE, HELP_1, HELP_2,
-        HELP_3, HELP_4, HELP_5, HELP_6, HELP_7, HELP_8, HELP_9, HEADER_PUSH, HEADER_PUSH_TIP, HEADER_WEARTABLE,
-        HEADER_WEARTABLE_TIP, ADVANCED, ADVANCED_NOTE, ADVANCED_LAST_CHOSEN, ADVANCED_DEPTH, ADVANCED_HEALING,
-        ADVANCED_PHASES, ADVANCED_QUALITY, ADVANCED_STAGES, ADVANCED_LAYERS, HINT_BLOCK, HINT_ITEM, HINT_MOB,
-        HINT_ENCHANTMENT, HINT_DIMENSION, HINT_DIMENSION_NAMED, HINT_TEXTURE, HINT_FAMILY, HINT_GRADE, HINT_TEXT,
-        ADD_DIMENSION, PICK_DIMENSION, PICK_TEXTURE, TEXTURE_BLOCK, TEXTURE_SHOWS, DIMENSION_BY_NAME, HOVER_MORE,
-        HOVER_PAGE, OPTION_CHOOSE };
+        FAMILY_VEGETATION, FAMILY_NETHER, FAMILY_END, FAMILY_SNOW, FAMILY_ICE, FAMILY_FLESH, FAMILY_TAINT, FAMILY_SCULK,
+        FAMILY_CLOUD, SEARCH_HINT, SEARCH_NONE, SEARCH_COUNT_ONE, SEARCH_COUNT_MANY, FILTER_CHANGED, FILTER_CHANGED_TIP,
+        FILTER_CHANGED_NONE, SAVE_ONE, SAVE_MANY, FIX_ONE, FIX_MANY, UNDO_ALL, UNDO_ALL_TIP, RESET_TAB, RESET_TAB_TIP,
+        RESET_TAB_ASK, RESET_TAB_NOTE, RESET_TAB_YES, RESET_TIP, UNDO_TIP, RELOAD_MARK, BANNER_ONE, BANNER_MANY, RANGE,
+        DEFAULT, REFUSE_NOT_NUMBER, REFUSE_NOT_WHOLE, REFUSE_BELOW, REFUSE_ABOVE, REFUSE_EMPTY, CYCLE_TIP, ADD_BLOCK,
+        ADD_ITEM, ADD_FLUID, ADD_ENCHANTMENT, PICK_BLOCK, PICK_ITEM, PICK_FLUID, PICK_ENCHANTMENT, PICK_NONE,
+        PICK_VARIANT, PICK_EVERY, PICK_SHIFT, PICK_GATHERING, FOLD_OPEN, FOLD_CLOSE, REMOVE_TIP, DRAG_TIP, COPY,
+        COPY_TIP, PASTE, PASTE_TIP, PASTE_NONE, PASTE_ADDED_ONE, PASTE_ADDED_MANY, STATUS_NOT_HERE,
+        STATUS_UNKNOWN_BLOCK, STATUS_UNKNOWN_ITEM, STATUS_UNKNOWN_FLUID, STATUS_UNKNOWN_ORE, STATUS_UNKNOWN_TAG,
+        STATUS_UNKNOWN_ENCHANTMENT, STATUS_UNKNOWN_SPRITE, STATUS_UNKNOWN_FAMILY, STATUS_UNKNOWN_DIMENSION,
+        STATUS_META_REFUSED, STATUS_NO_ITEM, STATUS_EVERY, STATUS_MEMBERS_ONE, STATUS_MEMBERS_MANY, STATUS_FLUID,
+        STATUS_KEPT_OUT, STATUS_ANY_MOB, STATUS_MATCHES_ONE, STATUS_MATCHES_MANY, STATUS_BAD_LINE, GRADE_NAME,
+        GRADE_ORE, GRADE_USES, GRADE_REACH, GRADE_BAD, CHIPS_ADD, CHIPS_TIP, COLOR_PICK, COLOR_HEX, COLOR_REFUSE_DIGITS,
+        COLOR_REFUSE_CHAR, COLOR_PREVIEW, COLOR_APPLY, GREYED, GREYED_PARTIAL, LOCKED, LOCKED_NOTE, SUGGESTED,
+        SUGGESTED_NOTE, SERVER_SETS_ONE, SERVER_SETS_MANY, SERVER_SETS_NONE, SERVER_SETS_NOT_HERE, PRESET_CHANGES_ONE,
+        PRESET_CHANGES_MANY, PRESET_LINE, PRESET_NONE, PRESET_MORE, RESTART_QUIT, RESTART_LATER, RELOAD, RELOAD_NOW,
+        DISCARD_SAVE, DISCARD_LEAVE, DISCARD_STAY, TOGGLE_FORGE, TOGGLE_CLOTH, TOGGLE_TIP, TOGGLE_BACK, TOGGLE_BACK_TIP,
+        TOGGLE_NONE, TOGGLE_ASK, HELP_TITLE, HELP_1, HELP_2, HELP_3, HELP_4, HELP_5, HELP_6, HELP_7, HELP_8, HELP_9,
+        HEADER_PUSH, HEADER_PUSH_TIP, HEADER_WEARTABLE, HEADER_WEARTABLE_TIP, ADVANCED, ADVANCED_NOTE,
+        ADVANCED_LAST_CHOSEN, ADVANCED_DEPTH, ADVANCED_HEALING, ADVANCED_PHASES, ADVANCED_QUALITY, ADVANCED_STAGES,
+        ADVANCED_LAYERS, FOLDER_ADVANCED, HINT_BLOCK, HINT_ITEM, HINT_MOB, HINT_ENCHANTMENT, HINT_DIMENSION,
+        HINT_DIMENSION_NAMED, HINT_TEXTURE, HINT_FAMILY, HINT_GRADE, HINT_TEXT, ADD_DIMENSION, PICK_DIMENSION,
+        PICK_TEXTURE, TEXTURE_BLOCK, TEXTURE_SHOWS, DIMENSION_BY_NAME, HOVER_MORE, HOVER_PAGE, OPTION_CHOOSE,
+        HEADER_BACKUPS, HEADER_BACKUPS_TIP, BACKUPS_TITLE, BACKUPS_NONE, BACKUPS_ROW_ONE, BACKUPS_ROW_MANY,
+        BACKUPS_REASON_SCHEDULED, BACKUPS_REASON_UPDATE, BACKUPS_REASON_COMMAND, BACKUPS_REASON_RESTORE, BACKUPS_CHOOSE,
+        BACKUPS_CHANGES_ASKING, BACKUPS_CHANGES_UNREAD, BACKUPS_CHANGES_NONE, BACKUPS_CHANGES_ONE, BACKUPS_CHANGES_MANY,
+        BACKUPS_RESTORE, BACKUPS_UNDO, BACKUPS_IGNORE, BACKUPS_NEVER, BACKUPS_ASK_ONE, BACKUPS_ASK_MANY,
+        BACKUPS_ASK_NEWEST, BACKUPS_ASK_NONE, BACKUPS_ASK_NEWER, BACKUPS_ASK_MIRROR, BACKUPS_ASK_DATA,
+        BACKUPS_ASK_DATA_ONLY, BACKUPS_MIRROR, BACKUPS_MIRROR_DETAIL };
 
     /** The game's own keys the screen uses; not this mod's to write. */
     public static final String[] GAME = { OPTIONS_ON, OPTIONS_OFF, GUI_DONE, GUI_CANCEL };
@@ -309,7 +376,18 @@ public final class SettingsKeys {
                 "smooth_crack",
                 "smooth_dirt",
                 "crack_dirt",
-                "crack_dirt_lite"));
+                "crack_dirt_lite",
+                "flesh",
+                "taint",
+                "sculk",
+                "cloud",
+                "sand_trodden",
+                "gravel_parted",
+                "cobble_polished",
+                "snow_packed",
+                "ice_scuffed",
+                "nether_charred",
+                "end_bleached"));
         CHOOSERS = Collections.unmodifiableMap(choosers);
         DETAILED = Collections.unmodifiableList(
             Arrays.asList(
@@ -338,7 +416,18 @@ public final class SettingsKeys {
                 "wearPattern.crack_lite",
                 "wearPattern.dirt",
                 "wearPattern.dirt_lite",
-                "wearPattern.crack_dirt"));
+                "wearPattern.crack_dirt",
+                "wearPattern.flesh",
+                "wearPattern.taint",
+                "wearPattern.sculk",
+                "wearPattern.cloud",
+                "wearPattern.sand_trodden",
+                "wearPattern.gravel_parted",
+                "wearPattern.cobble_polished",
+                "wearPattern.snow_packed",
+                "wearPattern.ice_scuffed",
+                "wearPattern.nether_charred",
+                "wearPattern.end_bleached"));
     }
 
     /** Whether a category is one of the surface families', whose settings share their words. */

@@ -24,7 +24,7 @@ import com.trmtgtnh.surface.SurfaceFamily;
  * <p>
  * The tabs begin with the headings Forge's screen here names ({@link #HEADINGS}, spec CF58), in the same order, so the
  * two screens agree where they overlap; then the six categories the file alone held until 0.9.228 (Xep: they "become
- * tabs"), and the twelve families are not tabs of their own but sub-tabs under Surfaces. The newer editions carry a
+ * tabs"), and the sixteen families are not tabs of their own but sub-tabs under Surfaces. The newer editions carry a
  * class of this name with the same answers.
  */
 public final class ConfigLayout {
@@ -284,6 +284,8 @@ public final class ConfigLayout {
             return ListLine.Kind.ITEM_OR_FLUID;
         }
         if (TrmtConfig.CATEGORY_LIGHT.equals(category) && "materials".equals(key)) return ListLine.Kind.ITEM;
+        // The plants Faithful Mode tramples, as this edition names them: block and metadata (0.9.229 W5).
+        if ("faithful.vegetation".equals(category) && "blocks".equals(key)) return ListLine.Kind.BLOCK;
         if (TrmtConfig.CATEGORY_WARD.equals(category)
             && ("hostileMaterials".equals(key) || "passiveMaterials".equals(key))) {
             return ListLine.Kind.ITEM;

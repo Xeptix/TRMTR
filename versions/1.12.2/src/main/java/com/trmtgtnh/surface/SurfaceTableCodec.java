@@ -26,11 +26,23 @@ import java.util.zip.Inflater;
  * Keys are the registry's own packing, a block id shifted four and a metadata value in the low four
  * bits. Ids are only meaningful under one id map, and that is safe here for a reason outside this
  * class: Forge hands a joining client the server's id map before any of this is sent.
+ *
+ * <p>
+ * <strong>Format 2</strong> (0.9.229, W3 spec 2.4, task T6) adds the shapes data files give blocks, because a shape
+ * decides where a player stands and so is the server's: the distinct shapes once each, then each shaped block's
+ * sixteen values as an index into them. It travels only under protocol 3, which is the same step for every edition,
+ * so a build that reads format 1 is never sent one: it is told to update by the protocol paths instead.
  */
 public final class SurfaceTableCodec {
 
     /** The layout below. A decoder that meets a different one refuses rather than misreads. */
-    public static final int FORMAT = 1;
+    public static final int FORMAT = 2;
+
+    /** The most distinct shapes a table may carry, each named by a byte; the byte's last value means "no shape". */
+    public static final int MOST_SHAPES = 255;
+
+    /** A metadata value with no shape, in its block's byte of shape indexes. */
+    private static final int NO_SHAPE = 0xFF;
 
     /**
      * The most a table may take once compressed.
@@ -43,15 +55,25 @@ public final class SurfaceTableCodec {
      */
     public static final int MAX_COMPRESSED = 60000;
 
-    /** The most raw bytes a well-formed table can inflate to: every id with every value, twice over. */
-    private static final int MAX_RAW = 1 + 2 + 4096 * 10 + 2 + 4096 * 6;
+    /**
+     * The most raw bytes a well-formed table can inflate to: every id with every value, twice over, and every shape
+     * with every box and every id with a shape at each value.
+     */
+    private static final int MAX_RAW = 1 + 2
+        + 4096 * 10
+        + 2
+        + 4096 * 6
+        + 2
+        + MOST_SHAPES * (4 + 6 * DataShape.MOST_BOXES)
+        + 2
+        + 4096 * 18;
 
     /** A metadata value that belongs to no family, in the four bits a family ordinal is given. */
     private static final int NONE = 0xF;
 
     private SurfaceTableCodec() {}
 
-    /** A decoded table: family ordinals by packed key, and the two ground-cover sets. */
+    /** A decoded table: family ordinals by packed key, the two ground-cover sets, and the data files' shapes. */
     public static final class Table {
 
         public final Map<Integer, Integer> families;
@@ -60,10 +82,19 @@ public final class SurfaceTableCodec {
 
         public final Set<Integer> holds;
 
+        /** The shapes data files give block states, by packed key (format 2). */
+        public final Map<Integer, DataShape> shapes;
+
         public Table(Map<Integer, Integer> families, Set<Integer> cover, Set<Integer> holds) {
+            this(families, cover, holds, Collections.<Integer, DataShape>emptyMap());
+        }
+
+        public Table(Map<Integer, Integer> families, Set<Integer> cover, Set<Integer> holds,
+            Map<Integer, DataShape> shapes) {
             this.families = Collections.unmodifiableMap(new HashMap<Integer, Integer>(families));
             this.cover = Collections.unmodifiableSet(new HashSet<Integer>(cover));
             this.holds = Collections.unmodifiableSet(new HashSet<Integer>(holds));
+            this.shapes = Collections.unmodifiableMap(new HashMap<Integer, DataShape>(shapes));
         }
     }
 
@@ -103,6 +134,32 @@ public final class SurfaceTableCodec {
     }
 
     /**
+     * The same, with the data files' shapes. No shapes leaves the fingerprint exactly as the four-part one gives it, so
+     * a side without shape data still agrees with one from before format 2; any shape moves it, by state and by every
+     * fact of the shape, because each decides where somebody stands.
+     */
+    public static long fingerprint(Map<Integer, Integer> families, Set<Integer> cover, Set<Integer> holds,
+        boolean holdsSwitch, Map<Integer, DataShape> shapes) {
+        long hash = fingerprint(families, cover, holds, holdsSwitch);
+        if (shapes == null || shapes.isEmpty()) return hash;
+        int[] keys = sorted(shapes.keySet());
+        hash = mix(hash, -3);
+        hash = mix(hash, keys.length);
+        for (int key : keys) {
+            DataShape shape = shapes.get(Integer.valueOf(key));
+            hash = mix(hash, key);
+            hash = mix(hash, shape.kind);
+            hash = mix(hash, shape.sinks ? 1 : 0);
+            hash = mix(hash, shape.maxSinkPixels);
+            hash = mix(hash, shape.boxCount());
+            for (int b = 0; b < shape.boxCount(); b++) {
+                for (int n : shape.box(b)) hash = mix(hash, n);
+            }
+        }
+        return hash;
+    }
+
+    /**
      * The table as compressed bytes.
      *
      * <p>
@@ -115,6 +172,17 @@ public final class SurfaceTableCodec {
      * @throws IllegalArgumentException for a key or an ordinal that cannot be packed
      */
     public static byte[] encode(Map<Integer, Integer> families, Set<Integer> cover, Set<Integer> holds) {
+        return encode(families, cover, holds, Collections.<Integer, DataShape>emptyMap());
+    }
+
+    /**
+     * The table with the data files' shapes, as compressed bytes.
+     *
+     * @throws IllegalArgumentException for a key, an ordinal or a shape that cannot be packed, or more distinct shapes
+     *                                  than {@link #MOST_SHAPES}
+     */
+    public static byte[] encode(Map<Integer, Integer> families, Set<Integer> cover, Set<Integer> holds,
+        Map<Integer, DataShape> shapes) {
         TreeMap<Integer, int[]> byBlock = new TreeMap<Integer, int[]>();
         for (Map.Entry<Integer, Integer> entry : families.entrySet()) {
             int key = entry.getKey()
@@ -160,6 +228,7 @@ public final class SurfaceTableCodec {
             writeShort(raw, entry.getValue()[0]);
             writeShort(raw, entry.getValue()[1]);
         }
+        writeShapes(raw, shapes == null ? Collections.<Integer, DataShape>emptyMap() : shapes);
 
         Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
         try {
@@ -218,8 +287,90 @@ public final class SurfaceTableCodec {
                 if ((holdMask & (1 << meta)) != 0) holds.add(key);
             }
         }
+        Map<Integer, DataShape> shapes = readShapes(raw, at);
         if (at[0] != raw.length) throw new IllegalArgumentException("trailing bytes after the table");
-        return new Table(families, cover, holds);
+        return new Table(families, cover, holds, shapes);
+    }
+
+    /**
+     * The shapes section: the distinct shapes, each as its kind, a flags byte (bit 0: sinks), its cap (0xFF for none),
+     * its box count and six bytes a box; then each shaped block's id and sixteen bytes, an index into those shapes for
+     * each metadata value or 0xFF for none.
+     */
+    private static void writeShapes(ByteArrayOutputStream raw, Map<Integer, DataShape> shapes) {
+        java.util.LinkedHashMap<DataShape, Integer> distinct = new java.util.LinkedHashMap<DataShape, Integer>();
+        TreeMap<Integer, int[]> byBlock = new TreeMap<Integer, int[]>();
+        for (int key : sorted(shapes.keySet())) {
+            DataShape shape = shapes.get(Integer.valueOf(key));
+            if (shape == null) throw new IllegalArgumentException("no shape at key " + key);
+            if (key < 0 || (key >>> 4) > 0xFFFF) throw new IllegalArgumentException("key out of range: " + key);
+            Integer index = distinct.get(shape);
+            if (index == null) {
+                if (distinct.size() >= MOST_SHAPES) {
+                    throw new IllegalArgumentException("more than " + MOST_SHAPES + " distinct shapes");
+                }
+                index = Integer.valueOf(distinct.size());
+                distinct.put(shape, index);
+            }
+            int[] indexes = byBlock.get(Integer.valueOf(key >>> 4));
+            if (indexes == null) {
+                indexes = new int[16];
+                java.util.Arrays.fill(indexes, NO_SHAPE);
+                byBlock.put(Integer.valueOf(key >>> 4), indexes);
+            }
+            indexes[key & 0xF] = index.intValue();
+        }
+        writeShort(raw, distinct.size());
+        for (DataShape shape : distinct.keySet()) {
+            raw.write(shape.kind);
+            raw.write(shape.sinks ? 1 : 0);
+            raw.write(shape.maxSinkPixels == DataShape.NO_CAP ? 0xFF : shape.maxSinkPixels);
+            raw.write(shape.boxCount());
+            for (int b = 0; b < shape.boxCount(); b++) {
+                for (int n : shape.box(b)) raw.write(n);
+            }
+        }
+        writeShort(raw, byBlock.size());
+        for (Map.Entry<Integer, int[]> entry : byBlock.entrySet()) {
+            writeShort(
+                raw,
+                entry.getKey()
+                    .intValue());
+            for (int index : entry.getValue()) raw.write(index);
+        }
+    }
+
+    private static Map<Integer, DataShape> readShapes(byte[] raw, int[] at) {
+        int count = readShort(raw, at);
+        if (count > MOST_SHAPES) throw new IllegalArgumentException(count + " distinct shapes");
+        DataShape[] distinct = new DataShape[count];
+        for (int s = 0; s < count; s++) {
+            int kind = readByte(raw, at);
+            int flags = readByte(raw, at);
+            if ((flags & ~1) != 0) throw new IllegalArgumentException("shape flags " + flags);
+            int cap = readByte(raw, at);
+            int boxes = readByte(raw, at);
+            if (boxes > DataShape.MOST_BOXES) throw new IllegalArgumentException(boxes + " boxes in a shape");
+            int[][] made = new int[boxes][];
+            for (int b = 0; b < boxes; b++) {
+                made[b] = new int[6];
+                for (int n = 0; n < 6; n++) made[b][n] = readByte(raw, at);
+            }
+            // The constructor holds every rule a file is held to, so a shape no file could give is refused here.
+            distinct[s] = new DataShape(kind, (flags & 1) != 0, cap == 0xFF ? DataShape.NO_CAP : cap, made);
+        }
+        Map<Integer, DataShape> shapes = new HashMap<Integer, DataShape>();
+        int blocks = readShort(raw, at);
+        for (int b = 0; b < blocks; b++) {
+            int id = readShort(raw, at);
+            for (int meta = 0; meta < 16; meta++) {
+                int index = readByte(raw, at);
+                if (index == NO_SHAPE) continue;
+                if (index >= count) throw new IllegalArgumentException("a shape index past the shapes sent");
+                shapes.put(Integer.valueOf((id << 4) | meta), distinct[index]);
+            }
+        }
+        return shapes;
     }
 
     private static void put(Map<Integer, Integer> families, int id, int meta, int ordinal) {

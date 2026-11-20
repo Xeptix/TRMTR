@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "_": "From GT New Horizons' census (W4 R3 run, T13 judged, T14 corrected, 2026-11-09; the Mars values judged 2026-11-10 by two judges who agreed). Value 1 of the asteroids block is the solid rock that floors the asteroid fields, on rock material with no stone word, so it wore not at all. Mars Surface Rock, Mars Sub-Surface Rock and Mars Stone, values 5, 6 and 9 of the Mars block, are Mars's ground on rock material, the surface rock 99.8% of its open ground, and were kept out by the boss spawner's tile entity at value 10 until the tile entity was asked of each value. Only the values seen and judged are named; the blocks' other values are ores, cobblestone, brick, desh and the spawner.",
+  "entries": [
+    { "blocks": ["GalacticraftMars:tile.asteroidsBlock:1"], "family": "stone" },
+    { "blocks": ["GalacticraftMars:tile.mars:5", "GalacticraftMars:tile.mars:6", "GalacticraftMars:tile.mars:9"], "family": "stone" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "From RLCraft 2.9.3's census of 1.12.2 (W4 R5, judged 2026-11-12). Blue rock (the Crag biome's top) and red rock (Traverse's mesa) are solid natural rock with no stone word for the rules to read, so stone. Named at the value the census judged, so their bricks, slabs and stairs stay out, and their cobblestones keep the cobble the rules already give them.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.12.2 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["traverse:blue_rock:0", "traverse:red_rock:0"], "family": "stone" },
+    { "blocks": ["traverse:blue_rock_double_slab", "traverse:blue_rock_slab", "traverse:red_rock_double_slab", "traverse:red_rock_slab"], "family": "stone" }
+  ]
+}

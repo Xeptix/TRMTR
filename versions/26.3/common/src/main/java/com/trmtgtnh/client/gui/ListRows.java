@@ -676,7 +676,7 @@ public final class ListRows {
         return Rect.sized(chip.x1 - 12, chip.y0 + 6, 8, 8);
     }
 
-    /** The families the menu offers: the ten that wear in stages, less those already in the list. */
+    /** The families the menu offers: the fourteen that wear in stages, less those already in the list. */
     private List<String> menuFamilies() {
         List<String> out = new ArrayList<String>();
         for (String family : NameStatus.FAMILIES) {

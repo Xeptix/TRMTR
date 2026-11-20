@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.trmtgtnh.client.texture.AtlasPlan;
+import com.trmtgtnh.client.texture.WearTextures;
 
 /**
  * Times each stitch, so the log can say what the stitcher took and what {@link MixinStitcherSlot} spared it -
@@ -32,6 +33,8 @@ public class MixinStitcher {
     @Inject(require = 0, method = "doStitch", at = @At("HEAD"))
     private void trmt$noteTheStart(CallbackInfo callback) {
         trmt$began = System.nanoTime();
+        // First, so the stitcher sees none of the pictures that share another's place (0.9.229, public issue #3).
+        WearTextures.beforeStitch(setStitchHolders);
     }
 
     @Inject(require = 0, method = "doStitch", at = @At("RETURN"))

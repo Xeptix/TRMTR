@@ -3,13 +3,16 @@ package com.trmtgtnh.fabric.mixin;
 import java.util.Set;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.world.phys.Vec3;
 
+import com.trmtgtnh.erosion.ClientAnswered;
 import com.trmtgtnh.erosion.ErosionEngine;
 
 /**
@@ -30,11 +33,25 @@ import com.trmtgtnh.erosion.ErosionEngine;
  * CommonMixinsNeedNoRefmapTest); the same mixin stands in the other loader's module. Server code, in both sides' list.
  */
 @Mixin(ServerGamePacketListenerImpl.class)
-public abstract class MixinPlayerArrives {
+public abstract class MixinPlayerArrives implements ClientAnswered {
 
     @Inject(method = "teleport(DDDFFLjava/util/Set;)V", at = @At("HEAD"))
     private void trmt$arrives(double x, double y, double z, float yaw, float pitch,
         Set<ClientboundPlayerPositionPacket.RelativeArgument> relative, CallbackInfo ci) {
         ErosionEngine.get().arrived(((ServerGamePacketListenerImpl) (Object) this).player);
+    }
+
+    /** The position the server waits for the client to confirm, null once it has (0.9.229). */
+    @Shadow
+    private Vec3 awaitingPositionFromClient;
+
+    /**
+     * Whether the client has answered the last place it was put (0.9.229; see ClientAnswered): the confirmation the
+     * server waits for. Until it has, the server's "on the ground" for the player is the saved or the old one, and an
+     * arrival waits.
+     */
+    @Override
+    public boolean trmtAnswered() {
+        return awaitingPositionFromClient == null;
     }
 }

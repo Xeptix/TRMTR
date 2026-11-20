@@ -80,6 +80,12 @@ public final class OculusGate implements IMixinConfigPlugin {
      */
     public static final String EMBEDDIUM_FACES = "org.embeddedt.embeddium.impl.render.chunk.compile.pipeline.BlockOcclusionCache";
 
+    /**
+     * Sodium's light cache, which reads each cell's light once for the block pipelines - named here for the same reason as
+     * {@link #HOLDER}. A worn stair's cell is read through it at its square (1.0.0). See {@code MixinWornStairLightSodium}.
+     */
+    public static final String SODIUM_LIGHT = "net.caffeinemc.mods.sodium.client.model.light.data.LightDataAccess";
+
     /** The mixin that needs Oculus. */
     private static final String GATED = "MixinOculusBlockContext";
 
@@ -88,6 +94,9 @@ public final class OculusGate implements IMixinConfigPlugin {
 
     /** The mixin that needs the Sodium family. */
     private static final String GATED_SODIUM = "MixinSettledFacesSodium";
+
+    /** The mixin that needs Sodium's light cache. */
+    private static final String GATED_SODIUM_LIGHT = "MixinWornStairLightSodium";
 
     /**
      * Jade's harvest-tool line, through which a worn square names the tool its covered block wants - named here for the
@@ -111,6 +120,8 @@ public final class OculusGate implements IMixinConfigPlugin {
 
     private boolean sodiumPresent;
 
+    private boolean sodiumLightPresent;
+
     private boolean jadePresent;
 
     private boolean wthitPresent;
@@ -120,16 +131,18 @@ public final class OculusGate implements IMixinConfigPlugin {
         present = there(HOLDER);
         optiFinePresent = there(OPTIFINE_SEAT);
         sodiumPresent = there(SODIUM_FACES) || there(EMBEDDIUM_FACES);
+        sodiumLightPresent = there(SODIUM_LIGHT);
         jadePresent = there(JADE_HARVEST);
         wthitPresent = there(WTHIT_HARVEST);
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material.
         org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
             .info(
-                "Shader material seats at mixin load: Oculus or Iris {}, OptiFine {}; the Sodium family's face test {}",
+                "Shader material seats at mixin load: Oculus or Iris {}, OptiFine {}; the Sodium family's face test {}, Sodium's light cache {}",
                 present ? "found" : "not found",
                 optiFinePresent ? "found" : "not found",
-                sodiumPresent ? "found" : "not found");
+                sodiumPresent ? "found" : "not found",
+                sodiumLightPresent ? "found" : "not found");
     }
 
     /** Whether either loader can see a class's bytes. */
@@ -157,6 +170,7 @@ public final class OculusGate implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(GATED)) return present;
         if (mixinClassName.endsWith(GATED_OPTIFINE)) return optiFinePresent;
         if (mixinClassName.endsWith(GATED_SODIUM)) return sodiumPresent;
+        if (mixinClassName.endsWith(GATED_SODIUM_LIGHT)) return sodiumLightPresent;
         if (mixinClassName.endsWith(GATED_JADE)) return jadePresent;
         if (mixinClassName.endsWith(GATED_WTHIT)) return wthitPresent;
         return true;

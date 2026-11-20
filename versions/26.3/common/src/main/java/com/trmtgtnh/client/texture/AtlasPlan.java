@@ -4,8 +4,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -100,7 +102,12 @@ public final class AtlasPlan {
          */
         ROOM,
         /** client.maxWearSprites, counting every sprite this mod registers. */
-        SPRITES
+        SPRITES,
+        /**
+         * The sprites the renderer can index across the whole block atlas ({@link Measure#spriteRoom}), counting every
+         * sprite this mod registers once the rest of the pack has its own (1.0.0, canvas-sprites).
+         */
+        RENDERER
     }
 
     /**
@@ -137,14 +144,100 @@ public final class AtlasPlan {
          */
         public final boolean anisotropic;
 
+        /** Actual largest atlas edge this stitch may use; the usual planner retains its configured 8192 cap. */
+        public final int stitchSide;
+
+        /** Pixels Angelica reserves on each side of a stitched block sprite. */
+        public final int holderGutter;
+
+        /**
+         * The share of the square, in thousandths, the stitcher that will pack this atlas was measured to fill, or
+         * nought where it was not measured (0.9.229, glow-pixels). Above nought, and with a wish priced in pixels
+         * ({@link Wish#withPixels}), the plan prices this mod's holders by their exact pixels and holds them and the
+         * pack to this share of the square; at nought, every set is priced in whole slots and a sixteenth is held
+         * back, as before. Only the edition can say which stitcher will run, so only the edition passes it.
+         */
+        public final int fillPerMille;
+
+        /**
+         * The most sprites the whole block atlas may hold, missingno and the rest of the pack's included, or nought
+         * where nothing but the room bounds the count (1.0.0, canvas-sprites). Only an edition can say which renderer
+         * will read the atlas, so only the edition passes it: Canvas for 1.16.5 keeps one row of a sprite information
+         * texture for every sprite, as many rows as the count rounded up to a power of two, and a texture taller than
+         * the card's largest is never uploaded, so every block its shaders draw is then read from the wrong place in
+         * the atlas. Above nought, every candidate {@link #planForBorderBudget} weighs is held to it as it is to the
+         * room, so the rotations give way first, then the gradations, and a face's own pixels last.
+         */
+        public final int spriteRoom;
+
         public Measure(boolean taken, int packSprites, int packRead, long packReadCells, int glMaximum,
             boolean anisotropic) {
+            this(taken, packSprites, packRead, packReadCells, glMaximum, anisotropic, side(glMaximum), 0);
+        }
+
+        public Measure(boolean taken, int packSprites, int packRead, long packReadCells, int glMaximum,
+            boolean anisotropic, int stitchSide, int holderGutter) {
+            this(taken, packSprites, packRead, packReadCells, glMaximum, anisotropic, stitchSide, holderGutter, 0);
+        }
+
+        public Measure(boolean taken, int packSprites, int packRead, long packReadCells, int glMaximum,
+            boolean anisotropic, int stitchSide, int holderGutter, int fillPerMille) {
+            this(
+                taken,
+                packSprites,
+                packRead,
+                packReadCells,
+                glMaximum,
+                anisotropic,
+                stitchSide,
+                holderGutter,
+                fillPerMille,
+                0);
+        }
+
+        public Measure(boolean taken, int packSprites, int packRead, long packReadCells, int glMaximum,
+            boolean anisotropic, int stitchSide, int holderGutter, int fillPerMille, int spriteRoom) {
             this.taken = taken;
             this.packSprites = packSprites;
             this.packRead = packRead;
             this.packReadCells = packReadCells;
             this.glMaximum = glMaximum;
             this.anisotropic = anisotropic;
+            this.stitchSide = Math.max(1, Math.min(glMaximum > 0 ? glMaximum : LARGEST_SIDE, stitchSide));
+            this.holderGutter = Math.max(0, holderGutter);
+            this.fillPerMille = Math.max(0, Math.min(1000, fillPerMille));
+            this.spriteRoom = Math.max(0, spriteRoom);
+        }
+
+        /** The same measure with this bound on the atlas's sprites, or none at nought. */
+        public Measure withSpriteRoom(int sprites) {
+            return new Measure(
+                taken,
+                packSprites,
+                packRead,
+                packReadCells,
+                glMaximum,
+                anisotropic,
+                stitchSide,
+                holderGutter,
+                fillPerMille,
+                sprites);
+        }
+
+        /**
+         * The sprites this mod may register within {@link #spriteRoom}: what is left once missingno and the textures
+         * the atlas had gathered when it was measured have theirs, never below none, or {@code Long.MAX_VALUE} where
+         * nothing bounds the count. Where nothing measured the atlas the pack is taken to hold half of it, as the room
+         * takes it to hold half the square.
+         */
+        public long ownSpriteRoom() {
+            if (spriteRoom <= 0) return Long.MAX_VALUE;
+            long pack = taken ? Math.max(0, packSprites) : spriteRoom / UNMEASURED_SHARE;
+            return Math.max(0L, spriteRoom - pack - 1L);
+        }
+
+        public long squareCells() {
+            return (long) stitchSide * stitchSide / ((long) CELL * CELL);
         }
 
         /** How many of the pack's textures could not be read, never below none. */
@@ -211,9 +304,305 @@ public final class AtlasPlan {
 
         private final int[] surfaceCells;
 
+        /**
+         * Of the fallback appearances, how many are drawn with one pattern whatever the rotations (client.wearTurns'
+         * turn only, for a family whose face turns: WearTurns.seeds), and the slots one gradation of those takes.
+         * Nought where nothing is.
+         */
+        public final int fallbackOneAppearances;
+
+        public final long fallbackOneCells;
+
+        /** Per recorded surface set, whether it is drawn with one pattern whatever the rotations. */
+        private final boolean[] surfaceOne;
+
+        /** Per recorded surface set, how many of its appearances are glow overlays. */
+        private final int[] surfaceGlows;
+
+        /** Per recorded surface set, its glow sprites at one rotation, indexed by the gradations drawn. */
+        private final int[][] surfaceGlowLit;
+
+        /** Of the fallback appearances, how many are glow overlays, and their sprites by the gradations drawn. */
+        public final int fallbackGlows;
+
+        private final int[] fallbackGlowLit;
+
+        /** Per recorded surface set, the slots one gradation of its glow overlays takes at one rotation. */
+        private final int[] surfaceGlowCells;
+
+        /** The slots one gradation of the fallback tier's glow overlays takes at one rotation. */
+        public final long fallbackGlowCells;
+
+        /**
+         * The same prices in exact holder pixels (0.9.229, glow-pixels; {@link #withPixels}), or null where the wish is
+         * priced in whole slots alone: per recorded set, one gradation at one rotation and its glow overlays' share of
+         * that; the fallback tier's, of which the part drawn with one pattern and the glows' share; the fringe's; and
+         * the side sprites', once each.
+         */
+        private final int[] surfacePixels;
+
+        private final int[] surfaceGlowPixels;
+
+        public final long fallbackPixels;
+
+        public final long fallbackOnePixels;
+
+        public final long fallbackGlowPixels;
+
+        public final long fringePixels;
+
+        public final long sidePixels;
+
+        /**
+         * A recorded set's slots at one rotation at this many gradations, its glows' only at the stages where they can
+         * light (GlowRoomTest): the slots of the stages that cannot are taken off, rounded down, so the room is never
+         * priced below what is stitched.
+         */
+        public long surfaceSetSlots(int index, int gradations) {
+            long cells = surfaceSetCells(index);
+            long g = Math.max(0, gradations);
+            int glows = surfaceSetGlows(index);
+            long glowCells = index < surfaceGlowCells.length ? Math.max(0L, Math.min(cells, surfaceGlowCells[index]))
+                : 0L;
+            if (glows <= 0 || glowCells <= 0L) return cells * g;
+            long unlit = (long) glows * g - surfaceSetGlowSprites(index, gradations);
+            return cells * g - unlit * glowCells / glows;
+        }
+
+        /** The fallback tier's glow slots at one rotation at this many gradations, at the stages that cannot light. */
+        public long fallbackUnlitGlowSlots(int gradations) {
+            if (fallbackGlows <= 0 || fallbackGlowCells <= 0L) return 0L;
+            long unlit = (long) fallbackGlows * Math.max(0, gradations) - fallbackGlowSprites(gradations);
+            return unlit * fallbackGlowCells / fallbackGlows;
+        }
+
+        /** Whether this wish carries its prices in exact holder pixels as well as in slots ({@link #withPixels}). */
+        public boolean pricedInPixels() {
+            return surfacePixels != null;
+        }
+
+        /**
+         * One gradation of a recorded set at one rotation, in exact holder pixels; where no figure was recorded, its
+         * slots' pixels, which is never less.
+         */
+        public long surfaceSetPixels(int index) {
+            return surfacePixels != null && index < surfacePixels.length ? Math.max(0, surfacePixels[index])
+                : surfaceSetCells(index) * CELL * CELL;
+        }
+
+        /**
+         * {@link #surfaceSetSlots} in exact pixels: a recorded set's pixels at one rotation at this many gradations,
+         * its glows' only at the stages where they can light. The pixels of the stages that cannot are taken off,
+         * rounded down, so the room is never priced below what is stitched.
+         */
+        public long surfaceSetPixels(int index, int gradations) {
+            long pixels = surfaceSetPixels(index);
+            long g = Math.max(0, gradations);
+            int glows = surfaceSetGlows(index);
+            long glowPixels = surfaceGlowPixels != null && index < surfaceGlowPixels.length
+                ? Math.max(0L, Math.min(pixels, surfaceGlowPixels[index]))
+                : 0L;
+            if (glows <= 0 || glowPixels <= 0L) return pixels * g;
+            long unlit = (long) glows * g - surfaceSetGlowSprites(index, gradations);
+            return pixels * g - unlit * glowPixels / glows;
+        }
+
+        /** {@link #fallbackUnlitGlowSlots} in exact pixels. */
+        public long fallbackUnlitGlowPixels(int gradations) {
+            if (fallbackGlows <= 0 || fallbackGlowPixels <= 0L) return 0L;
+            long unlit = (long) fallbackGlows * Math.max(0, gradations) - fallbackGlowSprites(gradations);
+            return unlit * fallbackGlowPixels / fallbackGlows;
+        }
+
+        /** A recorded set at this many gradations at one rotation, in the plan's unit: pixels, or else slots. */
+        long surfaceSetUnits(int index, int gradations, boolean pixels) {
+            return pixels ? surfaceSetPixels(index, gradations) : surfaceSetSlots(index, gradations);
+        }
+
+        /** The fallback tier's unlit glows at one rotation, in the plan's unit. */
+        long fallbackUnlitGlowUnits(int gradations, boolean pixels) {
+            return pixels ? fallbackUnlitGlowPixels(gradations) : fallbackUnlitGlowSlots(gradations);
+        }
+
+        /**
+         * The same wish with its prices in exact holder pixels as well (0.9.229, glow-pixels), for a plan whose measure
+         * names a measured stitcher: per recorded set, in the order of surfaceSets, one gradation at one rotation and
+         * its glow overlays' share; the fallback tier's, the part of it drawn with one pattern and its glows'; the
+         * fringe's; and the side sprites' together. The slot prices stay, and a measure that names no stitcher plans
+         * in them as before.
+         */
+        public Wish withPixels(int[] surfacePixels, int[] surfaceGlowPixels, long fallbackPixels,
+            long fallbackOnePixels, long fallbackGlowPixels, long fringePixels, long sidePixels) {
+            return new Wish(
+                wearEdge,
+                gradations,
+                floor,
+                rotations,
+                fallbackAppearances,
+                fallbackCells,
+                fringeCells,
+                sideSprites,
+                sideCells,
+                surfaceSets,
+                surfaceCells,
+                surfaceCeiling,
+                spriteCeiling,
+                fallbackOneAppearances,
+                fallbackOneCells,
+                surfaceOne,
+                surfaceGlows,
+                surfaceGlowLit,
+                surfaceGlowCells,
+                this.fallbackGlows,
+                fallbackGlowLit,
+                fallbackGlowCells,
+                surfacePixels == null ? new int[0] : surfacePixels,
+                surfaceGlowPixels,
+                fallbackPixels,
+                fallbackOnePixels,
+                fallbackGlowPixels,
+                fringePixels,
+                sidePixels);
+        }
+
+        /** A recorded set's glow sprites at one rotation at this many gradations: only the stages that can light. */
+        public long surfaceSetGlowSprites(int index, int gradations) {
+            int glows = index < surfaceGlows.length ? surfaceGlows[index] : 0;
+            return litSprites(glows, index < surfaceGlowLit.length ? surfaceGlowLit[index] : null, gradations);
+        }
+
+        /** A recorded set's glow overlays, among its appearances. */
+        public int surfaceSetGlows(int index) {
+            return index < surfaceGlows.length ? Math.max(0, Math.min(surfaceSets[index], surfaceGlows[index])) : 0;
+        }
+
+        /** The fallback tier's glow sprites at one rotation at this many gradations. */
+        public long fallbackGlowSprites(int gradations) {
+            return litSprites(fallbackGlows, fallbackGlowLit, gradations);
+        }
+
         public Wish(int wearEdge, int gradations, int floor, int rotations, int fallbackAppearances, long fallbackCells,
             int fringeCells, int sideSprites, long sideCells, int[] surfaceSets, int[] surfaceCells, int surfaceCeiling,
             int spriteCeiling) {
+            this(
+                wearEdge,
+                gradations,
+                floor,
+                rotations,
+                fallbackAppearances,
+                fallbackCells,
+                fringeCells,
+                sideSprites,
+                sideCells,
+                surfaceSets,
+                surfaceCells,
+                surfaceCeiling,
+                spriteCeiling,
+                0,
+                0L,
+                null);
+        }
+
+        /**
+         * The same, with what client.wearTurns' turn only draws with one pattern rather than one per rotation (0.9.229,
+         * docs/goals/0.9.229-rotation-spec.md: "a quarter of the atlas space"): that part of the fallback tier, and
+         * a flag per surface set, in the order of surfaceSets. A set so flagged is priced at one rotation whatever the
+         * rotations, so dropping rotations for room never touches it.
+         */
+        public Wish(int wearEdge, int gradations, int floor, int rotations, int fallbackAppearances, long fallbackCells,
+            int fringeCells, int sideSprites, long sideCells, int[] surfaceSets, int[] surfaceCells, int surfaceCeiling,
+            int spriteCeiling, int fallbackOneAppearances, long fallbackOneCells, boolean[] surfaceOne) {
+            this(
+                wearEdge,
+                gradations,
+                floor,
+                rotations,
+                fallbackAppearances,
+                fallbackCells,
+                fringeCells,
+                sideSprites,
+                sideCells,
+                surfaceSets,
+                surfaceCells,
+                surfaceCeiling,
+                spriteCeiling,
+                fallbackOneAppearances,
+                fallbackOneCells,
+                surfaceOne,
+                null,
+                null,
+                null,
+                0,
+                null,
+                0L);
+        }
+
+        /**
+         * The same, with the glow overlays among the appearances counted only at the stages where they can light
+         * (2026-11-17, GlowStagesTest): per recorded set, how many of its appearances are glows and, indexed by the
+         * gradations drawn, how many glow sprites those come to at one rotation; and the same for the fallback tier.
+         * Their slots are still priced at every stage, so the room is only ever more than enough.
+         */
+        public Wish(int wearEdge, int gradations, int floor, int rotations, int fallbackAppearances, long fallbackCells,
+            int fringeCells, int sideSprites, long sideCells, int[] surfaceSets, int[] surfaceCells, int surfaceCeiling,
+            int spriteCeiling, int fallbackOneAppearances, long fallbackOneCells, boolean[] surfaceOne,
+            int[] surfaceGlows, int[][] surfaceGlowLit, int[] surfaceGlowCells, int fallbackGlows,
+            int[] fallbackGlowLit, long fallbackGlowCells) {
+            this(
+                wearEdge,
+                gradations,
+                floor,
+                rotations,
+                fallbackAppearances,
+                fallbackCells,
+                fringeCells,
+                sideSprites,
+                sideCells,
+                surfaceSets,
+                surfaceCells,
+                surfaceCeiling,
+                spriteCeiling,
+                fallbackOneAppearances,
+                fallbackOneCells,
+                surfaceOne,
+                surfaceGlows,
+                surfaceGlowLit,
+                surfaceGlowCells,
+                fallbackGlows,
+                fallbackGlowLit,
+                fallbackGlowCells,
+                null,
+                null,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L);
+        }
+
+        private Wish(int wearEdge, int gradations, int floor, int rotations, int fallbackAppearances,
+            long fallbackCells, int fringeCells, int sideSprites, long sideCells, int[] surfaceSets, int[] surfaceCells,
+            int surfaceCeiling, int spriteCeiling, int fallbackOneAppearances, long fallbackOneCells,
+            boolean[] surfaceOne, int[] surfaceGlows, int[][] surfaceGlowLit, int[] surfaceGlowCells, int fallbackGlows,
+            int[] fallbackGlowLit, long fallbackGlowCells, int[] surfacePixels, int[] surfaceGlowPixels,
+            long fallbackPixels, long fallbackOnePixels, long fallbackGlowPixels, long fringePixels, long sidePixels) {
+            this.surfacePixels = surfacePixels == null ? null : surfacePixels.clone();
+            this.surfaceGlowPixels = surfaceGlowPixels == null ? new int[0] : surfaceGlowPixels.clone();
+            this.fallbackPixels = Math.max(0L, fallbackPixels);
+            this.fallbackOnePixels = Math.max(0L, Math.min(this.fallbackPixels, fallbackOnePixels));
+            this.fallbackGlowPixels = Math.max(0L, Math.min(this.fallbackPixels, fallbackGlowPixels));
+            this.fringePixels = Math.max(0L, fringePixels);
+            this.sidePixels = Math.max(0L, sidePixels);
+            this.surfaceGlows = surfaceGlows == null ? new int[0] : surfaceGlows.clone();
+            this.surfaceGlowLit = surfaceGlowLit == null ? new int[0][] : surfaceGlowLit.clone();
+            this.fallbackGlows = Math.max(0, Math.min(Math.max(0, fallbackAppearances), fallbackGlows));
+            this.fallbackGlowLit = fallbackGlowLit;
+            this.surfaceGlowCells = surfaceGlowCells == null ? new int[0] : surfaceGlowCells.clone();
+            this.fallbackGlowCells = Math.max(0L, Math.min(Math.max(0L, fallbackCells), fallbackGlowCells));
+            this.fallbackOneAppearances = Math
+                .max(0, Math.min(Math.max(0, fallbackAppearances), fallbackOneAppearances));
+            this.fallbackOneCells = Math.max(0L, Math.min(Math.max(0L, fallbackCells), fallbackOneCells));
+            this.surfaceOne = surfaceOne == null ? new boolean[0] : surfaceOne.clone();
             this.wearEdge = wearEdge;
             this.gradations = gradations;
             this.floor = floor;
@@ -248,6 +637,16 @@ public final class AtlasPlan {
                 : (long) Math.max(0, surfaceSets[index]) * cellsFor(wearEdge);
         }
 
+        /** Whether a recorded surface set is drawn with one pattern whatever the rotations. */
+        public boolean surfaceSetOne(int index) {
+            return index >= 0 && index < surfaceOne.length && surfaceOne[index];
+        }
+
+        /** The patterns a recorded surface set is drawn with at this many rotations: one if flagged, else all. */
+        public int surfaceSetTurns(int index, int turns) {
+            return surfaceSetOne(index) ? 1 : Math.max(1, turns);
+        }
+
         /** The same wish with the four settings the log gives advice about replaced, every price kept. */
         public Wish withSettings(int gradations, int rotations, int surfaceCeiling, int spriteCeiling) {
             return new Wish(
@@ -263,8 +662,79 @@ public final class AtlasPlan {
                 surfaceSets,
                 surfaceCells,
                 surfaceCeiling,
-                spriteCeiling);
+                spriteCeiling,
+                fallbackOneAppearances,
+                fallbackOneCells,
+                surfaceOne,
+                surfaceGlows,
+                surfaceGlowLit,
+                surfaceGlowCells,
+                fallbackGlows,
+                fallbackGlowLit,
+                fallbackGlowCells,
+                surfacePixels,
+                surfaceGlowPixels,
+                fallbackPixels,
+                fallbackOnePixels,
+                fallbackGlowPixels,
+                fringePixels,
+                sidePixels);
         }
+    }
+
+    /**
+     * Glow sprites at one rotation at this many gradations: the table's figure where it has one, which counts only the
+     * stages that can light, and every stage of every glow past it; never more than every stage, nor fewer than none.
+     */
+    public static long litSprites(int glows, int[] lit, int gradations) {
+        long every = (long) Math.max(0, glows) * Math.max(0, gradations);
+        if (gradations <= 0 || lit == null || gradations >= lit.length) return every;
+        return Math.max(0L, Math.min(every, lit[gradations]));
+    }
+
+    /** Which of the surfaces the planner's walk is handed are natural ground, the first to be offered places. */
+    public interface Ground<T> {
+
+        /** Whether this surface is ground the game generates, rather than a decorative variant of one. */
+        boolean natural(T surface);
+    }
+
+    /** The namespace vanilla's blocks are registered under, in every edition. */
+    public static final String VANILLA = "minecraft";
+
+    /**
+     * Whether a registry name is one of vanilla's own blocks: its namespace is {@link #VANILLA}, matched without
+     * regard to case. A name with no namespace, or none at all, is not.
+     */
+    public static boolean vanilla(String registryName) {
+        if (registryName == null) return false;
+        int colon = registryName.indexOf(':');
+        return colon == VANILLA.length() && registryName.regionMatches(true, 0, VANILLA, 0, colon);
+    }
+
+    /**
+     * The surfaces in the order the planner's walk offers them places: natural ground first, then everything else, each
+     * part in the order it came, as a list of the caller's own.
+     *
+     * <p>
+     * The walk keeps sets from the first, so whatever a limit cuts is cut from the end of this order. Before 0.9.229
+     * that was registry-name order alone, and on the 1.20.1 copies with Chisel, Chipped and Rechiseled 1513 faces were
+     * wanted, the ceiling of 1024 kept the first of them, and vanilla's nether wart block, warped wart, grass and dried
+     * kelp sorted after chipped's and chisel's carvings: a worn nether wart block drew brown dirt while a thousand
+     * decorative variants kept their own pixels. Ground that generates is what a path is worn across, so it is offered
+     * a place before any variant of it (Xep, 2026-11-08: "Both"). Stable within each part, so a pack's order is the
+     * same at every stitch and a set keeps its place while nothing is added.
+     */
+    public static <T> List<T> naturalFirst(List<T> surfaces, Ground<? super T> ground) {
+        List<T> out = new ArrayList<T>(surfaces == null ? 0 : surfaces.size());
+        if (surfaces == null) return out;
+        List<T> rest = new ArrayList<T>();
+        for (T surface : surfaces) {
+            if (ground.natural(surface)) out.add(surface);
+            else rest.add(surface);
+        }
+        out.addAll(rest);
+        return out;
     }
 
     /** What the planner's walk asks before it makes each surface set. */
@@ -275,6 +745,26 @@ public final class AtlasPlan {
          * made.
          */
         boolean take(int appearances, int cells);
+
+        /**
+         * The same, for a set that may be drawn with one pattern whatever the rotations ({@code one}: client.wearTurns'
+         * turn only, for a face that turns). The cells are still one gradation at one rotation.
+         */
+        boolean take(int appearances, int cells, boolean one);
+
+        /**
+         * The same, with how many of the appearances are glow overlays, their sprites at one rotation by the
+         * gradations drawn, counted only at the stages where they can light (GlowStagesTest), and the slots one
+         * gradation of them takes at one rotation, priced only at those stages too (GlowRoomTest).
+         */
+        boolean take(int appearances, int cells, boolean one, int glows, int[] glowLit, int glowCells);
+
+        /**
+         * The same, with the set's exact holder pixels at one gradation and one rotation and its glow overlays' share
+         * of them (0.9.229, glow-pixels), which a plan whose measure names a measured stitcher prices it by.
+         */
+        boolean take(int appearances, int cells, boolean one, int glows, int[] glowLit, int glowCells, int pixels,
+            int glowPixels);
 
         /** Whether this gate has refused a set, after which it grants nothing. */
         boolean shut();
@@ -293,18 +783,101 @@ public final class AtlasPlan {
 
         private int[] cells = new int[64];
 
+        private boolean[] ones = new boolean[64];
+
+        private int[] glows = new int[64];
+
+        private int[][] glowLit = new int[64][];
+
+        private int[] glowCells = new int[64];
+
+        private int[] pixels = new int[64];
+
+        private int[] glowPixels = new int[64];
+
         private int count;
 
         @Override
         public boolean take(int appearances, int slots) {
+            return take(appearances, slots, false);
+        }
+
+        @Override
+        public boolean take(int appearances, int slots, boolean one) {
+            return take(appearances, slots, one, 0, null, 0);
+        }
+
+        /** A set given in slots alone is taken as its slots' pixels, which is never less than it holds. */
+        @Override
+        public boolean take(int appearances, int slots, boolean one, int glows, int[] glowLit, int glowCells) {
+            long cell = (long) CELL * CELL;
+            return take(
+                appearances,
+                slots,
+                one,
+                glows,
+                glowLit,
+                glowCells,
+                (int) Math.min(Integer.MAX_VALUE, Math.max(0, slots) * cell),
+                (int) Math.min(Integer.MAX_VALUE, Math.max(0, glowCells) * cell));
+        }
+
+        @Override
+        public boolean take(int appearances, int slots, boolean one, int glows, int[] glowLit, int glowCells,
+            int pixels, int glowPixels) {
             if (count == sets.length) {
                 sets = Arrays.copyOf(sets, count * 2);
                 cells = Arrays.copyOf(cells, count * 2);
+                ones = Arrays.copyOf(ones, count * 2);
+                this.glows = Arrays.copyOf(this.glows, count * 2);
+                this.glowLit = Arrays.copyOf(this.glowLit, count * 2);
+                this.glowCells = Arrays.copyOf(this.glowCells, count * 2);
+                this.pixels = Arrays.copyOf(this.pixels, count * 2);
+                this.glowPixels = Arrays.copyOf(this.glowPixels, count * 2);
             }
             sets[count] = Math.max(0, appearances);
             cells[count] = Math.max(0, slots);
+            ones[count] = one;
+            this.glows[count] = Math.max(0, glows);
+            this.glowLit[count] = glowLit;
+            this.glowCells[count] = Math.max(0, glowCells);
+            this.pixels[count] = Math.max(0, pixels);
+            this.glowPixels[count] = Math.max(0, Math.min(Math.max(0, pixels), glowPixels));
             count++;
             return true;
+        }
+
+        /** Each recorded set's exact holder pixels at one gradation and one rotation, in the same order. */
+        public int[] pixels() {
+            return Arrays.copyOf(pixels, count);
+        }
+
+        /** Of those, each recorded set's glow overlays' pixels, in the same order. */
+        public int[] glowPixels() {
+            return Arrays.copyOf(glowPixels, count);
+        }
+
+        /** How many of each recorded set's appearances are glow overlays, in the same order. */
+        public int[] glows() {
+            return Arrays.copyOf(glows, count);
+        }
+
+        /** Each recorded set's glow sprites at one rotation by the gradations drawn, in the same order. */
+        public int[][] glowLit() {
+            return Arrays.copyOf(glowLit, count);
+        }
+
+        /** The slots one gradation of each recorded set's glow overlays takes at one rotation, in the same order. */
+        public int[] glowCells() {
+            return Arrays.copyOf(glowCells, count);
+        }
+
+        /**
+         * Whether each set recorded so far is drawn with one pattern, in the same order, as an array of the caller's
+         * own.
+         */
+        public boolean[] ones() {
+            return Arrays.copyOf(ones, count);
         }
 
         @Override
@@ -401,6 +974,11 @@ public final class AtlasPlan {
     public static int cellsFor(int edge) {
         int across = (Math.max(1, edge) + CELL - 1) / CELL;
         return across * across;
+    }
+
+    /** The cells a holder takes after a per-side atlas gutter has been reserved. */
+    public static int cellsForHolder(int edge, int gutter) {
+        return cellsFor(edge + 2 * Math.max(0, gutter));
     }
 
     /**
@@ -540,6 +1118,16 @@ public final class AtlasPlan {
         return glMaximum <= 0 ? LARGEST_SIDE : Math.min(glMaximum, ceiling);
     }
 
+    /**
+     * The most sprites a renderer can index that keeps one row of a texture for every sprite, as many rows as the count
+     * rounded up to a power of two (1.0.0, canvas-sprites): the count rounded up is within the card exactly when the
+     * count is within the largest power of two the card addresses. A card whose probe failed is taken as 8192, the
+     * square the atlas is planned to. Canvas for 1.16.5 keeps such a texture; see {@link Measure#spriteRoom}.
+     */
+    public static int powerOfTwoRows(int glMaximum) {
+        return Integer.highestOneBit(glMaximum > 0 ? glMaximum : LARGEST_SIDE);
+    }
+
     /** Lets the atlas be planned past an 8192 square, to {@link #LARGER_SIDE}, or holds it there again. */
     public static void allowLarger(boolean larger) {
         ceiling = larger ? LARGER_SIDE : LARGEST_SIDE;
@@ -569,10 +1157,10 @@ public final class AtlasPlan {
      * missing plan straight past a room it had never seen.
      */
     public static long packCells(Measure measure, int wearEdge) {
-        if (!measure.taken) return squareCells(measure.glMaximum) / UNMEASURED_SHARE;
+        if (!measure.taken) return measure.squareCells() / UNMEASURED_SHARE;
         long sprites = Math.max(0, measure.packSprites);
         long read = Math.max(0, measure.packRead);
-        if (read == 0L) return sprites * spriteCells(wearEdge, measure.anisotropic);
+        if (read == 0L) return sprites * spriteCells(wearEdge + 2 * measure.holderGutter, measure.anisotropic);
         long readCells = Math.max(0L, measure.packReadCells);
         long unread = measure.packUnread();
         // The average times the unread, rounded up, worked as whole slots a texture and a remainder, so that
@@ -590,7 +1178,7 @@ public final class AtlasPlan {
      * the last few per cent of an atlas with sprites of mixed sizes.
      */
     public static long room(Measure measure, int wearEdge) {
-        long cells = squareCells(measure.glMaximum);
+        long cells = measure.squareCells();
         return Math.max(0L, cells - cells / RESERVE_SHARE - packCells(measure, wearEdge));
     }
 
@@ -598,6 +1186,43 @@ public final class AtlasPlan {
      * How many gradations the room pays for once the slots every gradation shares are out of it, and none
      * when those alone fill it. Unbounded when a gradation costs nothing.
      */
+    /**
+     * Past the figure every stage of every glow pays for, the gradations whose glow overlays' slots at the stages that
+     * can light still fit the room, up to those asked (GlowRoomTest). The slots grow with the gradations, so the first
+     * that does not fit ends it.
+     */
+    static long affordableLit(Wish wish, int considered, int turns, long tierSlots, long room, long sideCells,
+        long linear) {
+        return affordableLit(wish, considered, turns, tierSlots, room, sideCells, linear, false);
+    }
+
+    /** The same in the plan's unit: exact pixels where {@code pixels}, else slots. */
+    static long affordableLit(Wish wish, int considered, int turns, long tierUnits, long room, long sideUnits,
+        long linear, boolean pixels) {
+        if (linear >= wish.gradations) return linear;
+        long best = linear;
+        for (int g = (int) Math.max(1L, linear + 1L); g <= wish.gradations; g++) {
+            long units = tierUnits * g + sideUnits - wish.fallbackUnlitGlowUnits(g, pixels) * turns;
+            for (int i = 0; i < considered; i++) {
+                units += wish.surfaceSetUnits(i, g, pixels) * wish.surfaceSetTurns(i, turns);
+            }
+            if (units > room) break;
+            best = g;
+        }
+        return best;
+    }
+
+    /**
+     * The pixels this mod's holders may take where the measure names a measured stitcher (0.9.229, glow-pixels): its
+     * share of the square, less the pack's own holders at their slots' pixels. Nothing is held back besides, because
+     * the share is the margin, set below the fullest pack that stitcher was replayed at.
+     */
+    public static long pixelRoom(Measure measure, int wearEdge) {
+        long cell = (long) CELL * CELL;
+        long share = measure.squareCells() * cell * measure.fillPerMille / 1000L;
+        return Math.max(0L, share - packCells(measure, wearEdge) * cell);
+    }
+
     public static long affordable(long room, long fixedCells, long cellsPerGradation) {
         if (cellsPerGradation <= 0L) return Long.MAX_VALUE;
         return room > fixedCells ? (room - fixedCells) / cellsPerGradation : 0L;
@@ -618,8 +1243,9 @@ public final class AtlasPlan {
      * Sixteen is the floor because that is one picture per gradation a record can hold, and below it
      * consecutive gradations share a picture again, which is the fault the whole of this was written to end.
      * The floor holds even where the room will not, and what gives then is which faces keep their own pixels:
-     * the plan stops where the room runs out, and the faces last in registry-name order wear their family's
-     * generic art. Nor does it ever lift a count above what was asked. Forge clamps client.wearGradations to
+     * the plan stops where the room runs out, and the faces last in the walk's order, which offers natural ground
+     * its places first ({@link #naturalFirst}), wear their family's generic art. Nor does it ever lift a count above
+     * what was asked. Forge clamps client.wearGradations to
      * sixteen or more when it reads the config file, so a count below sixteen arrives here only from a
      * hand-edited presets.remembered quality string, which Presets writes into the setting without that range.
      */
@@ -628,6 +1254,55 @@ public final class AtlasPlan {
         floor = Math.max(1, floor);
         if (affordable >= wanted) return wanted;
         return (int) Math.max(Math.min(floor, wanted), affordable); // affordable < wanted here
+    }
+
+    /** One part in this many of the gradations asked may be trimmed to keep a rotation. */
+    public static final int TRIM_SHARE = 10;
+
+    /** The most pictures a ramp of this many gradations may lose to a trim. */
+    public static int maxTrim(int asked) {
+        return Math.max(0, asked) / TRIM_SHARE;
+    }
+
+    /**
+     * For each of {@code steps} counted stages, the picture it draws, given a ramp asked at {@code asked} gradations
+     * and registered with {@code pictures}.
+     *
+     * <p>
+     * Where nothing was trimmed this is the proportional map the lookup always used: stage times the gradations over
+     * the steps. Where up to a tenth of the asked gradations were trimmed to keep a rotation (Xep, 2026-11-15: "up to
+     * 8 of 80 stages would look the same as another stage"), the stages are all still there, and a trimmed gradation
+     * draws the picture of the one before it, which costs no sprite. The twins are every other gradation across the
+     * middle of the ramp, spread rather than clustered: the first gradations, where wear first shows, and the last,
+     * the fully worn ones, stay distinct. A trim past the tenth is not a trim, and the map is the proportional one of
+     * the pictures there are.
+     */
+    public static int[] pictureMap(int steps, int asked, int pictures) {
+        int stages = Math.max(0, steps);
+        int[] map = new int[stages];
+        int wanted = Math.max(1, asked);
+        int kept = Math.max(1, Math.min(pictures, wanted));
+        int dropped = wanted - kept;
+        if (dropped > maxTrim(wanted)) {
+            wanted = kept;
+            dropped = 0;
+        }
+        // The first twin, and every other gradation after it: 33, 35, ... 47 of 80 when eight are trimmed.
+        int first = (wanted - 2 * dropped) / 2 + 1;
+        for (int stage = 0; stage < stages; stage++) {
+            int gradation = Math.min((int) ((long) stage * wanted / stages), wanted - 1);
+            int before = dropped == 0 ? 0 : Math.max(0, Math.min(dropped, (gradation - first + 1) / 2));
+            boolean twin = dropped > 0 && gradation >= first
+                && gradation <= first + 2 * (dropped - 1)
+                && (gradation - first) % 2 == 0;
+            map[stage] = twin ? gradation - 1 - before : gradation - before;
+        }
+        return map;
+    }
+
+    /** The picture each counted stage draws in this plan. */
+    public int[] pictureMap(int steps) {
+        return pictureMap(steps, asked, gradations);
     }
 
     /** The measure this plan was made from. */
@@ -675,8 +1350,14 @@ public final class AtlasPlan {
     /** How many gradations of everything priced the room pays for. */
     public final long affordable;
 
-    /** The gradations per run this plan draws. */
+    /** The gradations per run this plan draws: the distinct pictures a ramp is registered with. */
     public final int gradations;
+
+    /**
+     * The gradations the ramp was asked to have. Above {@link #gradations} only where a small trim was taken to keep
+     * a rotation, and then the ramp still steps through every stage it was asked for; see {@link #pictureMap}.
+     */
+    public final int asked;
 
     /**
      * Sprites planned whatever else gives way: the fallbacks and the fringe at every gradation and rotation,
@@ -706,38 +1387,78 @@ public final class AtlasPlan {
     public final Limit stoppedBy;
 
     private AtlasPlan(Measure measure, Wish wish) {
+        this(measure, wish, wish.gradations);
+    }
+
+    private AtlasPlan(Measure measure, Wish wish, int asked) {
         this.measure = measure;
         this.wish = wish;
+        // Exact pixels where the measure names a measured stitcher and the wish carries them (0.9.229, glow-pixels):
+        // every sum below is then in pixels, rounded to slots once over each, and the room is that stitcher's share of
+        // the square. Otherwise every sum is in slots, each set's rounded up on its own, as before.
+        this.pixels = measure.fillPerMille > 0 && wish.pricedInPixels();
+        long unit = this.pixels ? (long) CELL * CELL : 1L;
         int turns = Math.max(1, wish.rotations);
         long fallbacks = Math.max(0, wish.fallbackAppearances);
         long tierCells = Math.max(0L, wish.fallbackCells) + Math.max(0, wish.fringeCells);
+        long tierUnits = this.pixels ? wish.fallbackPixels + wish.fringePixels : tierCells;
         long sides = Math.max(0, wish.sideSprites);
-        this.side = side(measure.glMaximum);
-        this.squareCells = squareCells(measure.glMaximum);
-        this.reserveCells = this.squareCells / RESERVE_SHARE;
+        this.side = measure.stitchSide;
+        this.squareCells = measure.squareCells();
+        // Priced in pixels, what is held back is the rest of the square past the stitcher's share, so the square less
+        // the reserve is that share and planForBorderBudget's test holds the plan, rounded up once, and the pack to it.
+        this.reserveCells = this.pixels ? this.squareCells - this.squareCells * measure.fillPerMille / 1000L
+            : this.squareCells / RESERVE_SHARE;
         this.packCells = packCells(measure, wish.wearEdge);
-        this.room = room(measure, wish.wearEdge);
+        this.roomUnits = this.pixels ? pixelRoom(measure, wish.wearEdge) : room(measure, wish.wearEdge);
+        this.room = this.roomUnits / unit;
         this.sideCells = Math.max(0L, wish.sideCells);
+        long sideUnits = this.pixels ? wish.sidePixels : this.sideCells;
         int recorded = wish.surfaceSetCount();
         int considered = Math.min(recorded, Math.max(0, wish.surfaceCeiling));
         long candidates = 0L;
         long candidateCells = 0L;
+        // A gradation of every priced sprite at every pattern it is drawn with: all the rotations, save what
+        // client.wearTurns' turn only draws once (Wish.surfaceSetOne, Wish.fallbackOneCells).
+        long candidateUnits = 0L;
         for (int i = 0; i < considered; i++) {
             candidates += Math.max(0, wish.surfaceSet(i));
             candidateCells += wish.surfaceSetCells(i);
+            candidateUnits += (this.pixels ? wish.surfaceSetPixels(i) : wish.surfaceSetCells(i))
+                * wish.surfaceSetTurns(i, turns);
         }
+        long oneFallbacks = wish.fallbackOneAppearances;
+        long oneTierUnits = this.pixels ? wish.fallbackOnePixels : wish.fallbackOneCells;
+        long tierPerGradation = (tierUnits - oneTierUnits) * turns + oneTierUnits;
+        long unitsPerGradation = tierPerGradation + candidateUnits;
         this.surfaceSetsConsidered = considered;
         this.pricedAppearances = fallbacks + candidates + 1L; // + the grass-side fringe
         this.pricedCells = tierCells + candidateCells;
-        this.cellsPerGradation = this.pricedCells * turns;
-        this.affordable = affordable(this.room, this.sideCells, this.cellsPerGradation);
+        this.cellsPerGradation = slots(unitsPerGradation, unit);
+        this.affordable = affordableLit(
+            wish,
+            considered,
+            turns,
+            tierPerGradation,
+            this.roomUnits,
+            sideUnits,
+            affordable(this.roomUnits, sideUnits, unitsPerGradation),
+            this.pixels);
         this.gradations = gradations(wish.gradations, wish.floor, this.affordable);
-        this.cellsWanted = this.cellsPerGradation * Math.max(1, wish.gradations) + this.sideCells;
-        this.mandatorySprites = (fallbacks + 1L) * this.gradations * turns + sides;
-        this.mandatoryCells = tierCells * this.gradations * turns + this.sideCells;
+        this.asked = Math.max(this.gradations, asked);
+        this.cellsWanted = slots(unitsPerGradation * Math.max(1, wish.gradations) + sideUnits, unit);
+        // A fallback's glow overlays are drawn at every rotation and counted only where they can light
+        // (GlowStagesTest).
+        long unlitFallbackGlows = (long) wish.fallbackGlows * this.gradations
+            - wish.fallbackGlowSprites(this.gradations);
+        this.mandatorySprites = ((fallbacks - oneFallbacks + 1L) * turns + oneFallbacks) * this.gradations + sides
+            - unlitFallbackGlows * turns;
+        this.mandatoryUnits = tierPerGradation * this.gradations + sideUnits
+            - wish.fallbackUnlitGlowUnits(this.gradations, this.pixels) * turns;
+        this.mandatoryCells = slots(this.mandatoryUnits, unit);
 
         long sprites = this.mandatorySprites;
-        long cells = this.mandatoryCells;
+        long cells = this.mandatoryUnits;
         int kept = 0;
         long keptAppearances = 0L;
         long keptCells = 0L;
@@ -749,14 +1470,25 @@ public final class AtlasPlan {
             }
             long appearances = Math.max(0, wish.surfaceSet(i));
             long setCells = wish.surfaceSetCells(i);
-            long setSprites = appearances * this.gradations * turns;
-            long setSlots = setCells * this.gradations * turns;
-            if (cells + setSlots > this.room) {
+            int setTurns = wish.surfaceSetTurns(i, turns);
+            // Its glow overlays only at the stages where they can light (GlowStagesTest).
+            long glows = wish.surfaceSetGlows(i);
+            long setSprites = ((appearances - glows) * this.gradations + wish.surfaceSetGlowSprites(i, this.gradations))
+                * setTurns;
+            // And its glow overlays' room only there too (GlowRoomTest), in the plan's unit.
+            long setSlots = wish.surfaceSetUnits(i, this.gradations, this.pixels) * setTurns;
+            if (cells + setSlots > this.roomUnits) {
                 stopped = Limit.ROOM;
                 break;
             }
             if (sprites + setSprites > Math.max(0, wish.spriteCeiling)) {
                 stopped = Limit.SPRITES;
+                break;
+            }
+            // What the renderer can index (Measure.spriteRoom), asked after the player's own ceiling so that a
+            // ceiling the player set is the one named where both would stop the same set.
+            if (sprites + setSprites > measure.ownSpriteRoom()) {
+                stopped = Limit.RENDERER;
                 break;
             }
             sprites += setSprites;
@@ -769,9 +1501,25 @@ public final class AtlasPlan {
         this.surfaceAppearancesKept = keptAppearances;
         this.surfaceCellsKept = keptCells;
         this.plannedSprites = sprites;
-        this.plannedCells = cells;
+        this.plannedCells = slots(cells, unit);
         this.stoppedBy = stopped;
     }
+
+    /** Whole slots for a sum in the plan's unit, rounded up once over the sum. */
+    private static long slots(long units, long unit) {
+        return unit <= 1L ? units : (Math.max(0L, units) + unit - 1L) / unit;
+    }
+
+    /**
+     * Whether this plan priced this mod's holders in exact pixels against a measured stitcher's share of the square
+     * (0.9.229, glow-pixels), rather than in whole slots against the square less a sixteenth.
+     */
+    public final boolean pixels;
+
+    /** The room and the mandatory tier in the plan's unit: pixels where {@link #pixels}, else slots. */
+    private final long roomUnits;
+
+    private final long mandatoryUnits;
 
     /**
      * Everything the stitch will register, priced in slots at the size each will be stitched at and fitted to the
@@ -780,10 +1528,11 @@ public final class AtlasPlan {
      * <p>
      * The family fallbacks, the grass fringe and the side walls are mandatory: they are planned in full at
      * whatever gradation count is chosen, because every lookup falls through to them and truncating them leaves
-     * ground with nothing to draw. The surface sets come after, in the order the walk makes them. The gradation
+     * ground with nothing to draw. The surface sets come after, in the order the walk makes them, natural ground
+     * first ({@link #naturalFirst}). The gradation
      * count is chosen first, from every set within surfaces.maxTexturedSurfaces, so that when there is not room it
      * is the ramp that coarsens first; only once it is held at the floor, or at a lower count that was asked for, do
-     * the faces last in registry-name order give way. The sprite ceiling cuts sets and never gradations. The limits
+     * the faces last in that order give way. The sprite ceiling cuts sets and never gradations. The limits
      * are asked in the order ceiling, room, sprites, and the one reported is the first a set met.
      *
      * <p>
@@ -793,6 +1542,75 @@ public final class AtlasPlan {
      */
     public static AtlasPlan plan(Measure measure, Wish wish) {
         return new AtlasPlan(measure, wish);
+    }
+
+    /**
+     * Choose what gives way when the wear art does not fit the atlas, before any wear sprite is registered, in the
+     * order Xep set (2026-11-14 and 2026-11-15: "We should first drop the extra rotations rather than drop blocks /
+     * wear levels for blocks", and "Fewer stages, then colors"): before a rotation is dropped, up to a tenth of the
+     * gradations asked may be trimmed (a trimmed gradation draws its neighbour's picture and the stages stay as they
+     * were, see {@link #pictureMap}); then rotations, four down to one, each with that trim; then gradations at one
+     * rotation, really fewer, down to one; never a surface's own pixels while any of that can still give; and only as
+     * the last resort one shared look per family, at one gradation and one rotation.
+     *
+     * <p>
+     * A candidate is accepted when it keeps every admitted face at the gradations asked for and holds a sixteenth of
+     * the square for packing slack. A pack that fits at the rotations and gradations asked for comes out as
+     * {@link #plan} makes it. Angelica's gutter, which makes every holder larger, is in the measure and the wish, and
+     * is the one difference between the paths: when even the shared tier does not fit a gutter-bordered atlas this
+     * returns null so that the wear is not registered at all, where a plain atlas gets the shared tier anyway, as it
+     * always has, because its mandatory sprites overrunning is warned about and not fatal.
+     *
+     * <p>
+     * Where the measure bounds the atlas's sprites ({@link Measure#spriteRoom}, Canvas for 1.16.5), a candidate is
+     * accepted only within that count as well, so the same order gives way to it; and when even the shared tier is past
+     * it this returns null on any atlas, because a renderer that cannot index the atlas draws every block wrongly
+     * (1.0.0, canvas-sprites).
+     *
+     * <p>
+     * Before 0.9.229 an atlas with no gutter, which is every edition but 1.7.10 with Angelica, was planned by
+     * {@link #plan} alone: that coarsens the ramp for room down to its floor and never lowers a rotation, so a very
+     * large pack lost wear stages before it lost a rotation, the reverse of the order above.
+     */
+    public static AtlasPlan planForBorderBudget(Measure measure, Wish wish) {
+        AtlasPlan candidate = null;
+        int asked = Math.max(1, wish.gradations);
+        int trimmable = maxTrim(asked);
+        for (int turns = Math.max(1, wish.rotations); turns >= 1; turns--) {
+            for (int trim = 0; trim <= trimmable; trim++) {
+                int pictures = asked - trim;
+                candidate = new AtlasPlan(
+                    measure,
+                    wish.withSettings(pictures, turns, wish.surfaceCeiling, wish.spriteCeiling),
+                    asked);
+                if (withinHolderBudget(candidate, pictures)) return candidate;
+            }
+        }
+        for (int gradations = Math.max(1, wish.gradations) - 1; gradations >= 1; gradations--) {
+            candidate = plan(measure, wish.withSettings(gradations, 1, wish.surfaceCeiling, wish.spriteCeiling));
+            if (withinHolderBudget(candidate, gradations)) return candidate;
+        }
+        candidate = plan(measure, wish.withSettings(1, 1, 0, wish.spriteCeiling));
+        if (withinHolderBudget(candidate, 1)) return candidate;
+        // Past what the renderer can index nothing is registered either (1.0.0, canvas-sprites): there, unlike a plain
+        // atlas whose mandatory tier ran over its room, every block in the game would be drawn wrongly, not only worn
+        // ground.
+        return measure.holderGutter == 0 && !candidate.pastSpriteRoom() ? candidate : null;
+    }
+
+    private static boolean withinHolderBudget(AtlasPlan candidate, int requestedGradations) {
+        return candidate.surfaceSetsKept == candidate.surfaceSetsConsidered
+            && candidate.gradations == requestedGradations
+            && candidate.plannedCells + candidate.packCells <= candidate.squareCells - candidate.reserveCells
+            && !candidate.pastSpriteRoom();
+    }
+
+    /**
+     * True where this plan's sprites, the mandatory tier's included, come to more than the renderer can index once the
+     * rest of the pack has its own ({@link Measure#ownSpriteRoom}); never where nothing bounds the count.
+     */
+    public boolean pastSpriteRoom() {
+        return plannedSprites > measure.ownSpriteRoom();
     }
 
     /**
@@ -808,7 +1626,7 @@ public final class AtlasPlan {
      * that no surface set is kept and the stitch may not fit at all.
      */
     public boolean mandatoryOverruns() {
-        return mandatoryCells > room;
+        return mandatoryUnits > roomUnits;
     }
 
     /** How many of the recorded surface sets gave way, to whichever limit. */
@@ -1011,6 +1829,27 @@ public final class AtlasPlan {
             this.sets = sets;
             this.appearances = appearances;
             this.cells = cells;
+        }
+
+        @Override
+        public boolean take(int asked, int askedCells, boolean one) {
+            // Granted on appearances and slots alone, as the plan kept them: a set the walk flags differently the
+            // second time is the walk's own fault, and the slot count it is held to is the same either way.
+            return take(asked, askedCells);
+        }
+
+        @Override
+        public boolean take(int asked, int askedCells, boolean one, int glows, int[] glowLit, int glowCells) {
+            // Granted as the other two are: the glows are among the appearances the plan kept.
+            return take(asked, askedCells);
+        }
+
+        @Override
+        public boolean take(int asked, int askedCells, boolean one, int glows, int[] glowLit, int glowCells, int pixels,
+            int glowPixels) {
+            // Granted on the slots the census recorded beside the pixels, so a walk that answers differently the
+            // second time still comes out with fewer sets than were priced, never more.
+            return take(asked, askedCells);
         }
 
         @Override

@@ -9,14 +9,13 @@ import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
 import com.trmtgtnh.client.settings.Canvas;
-import com.trmtgtnh.command.CommandTrmt;
 import com.trmtgtnh.config.Presets;
 import com.trmtgtnh.erosion.CostCurve;
 import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
  * The pictures beside a chooser's values (0.9.228, spec M23.2 and S3; Xep: "Perhaps images where applicable to help you
- * understand"): a family's wear look drawn on its own road block three quarters through the run, a cost curve as a
+ * understand"): a family's wear look drawn on its own picture three quarters through the run, a cost curve as a
  * column of gold for each of sixteen steps, the depth a preset sinks a rut to, and the steps a quality preset wears
  * grass through. The other choosers have none: a word says as much as a picture of a word would.
  *
@@ -120,7 +119,7 @@ final class ChooserPictures {
     // The pictures
     // ------------------------------------------------------------------
 
-    /** A family's wear look, on its own road block, three quarters through the run (spec M23.2, S3.1). */
+    /** A family's wear look, on its own picture, three quarters through the run (spec M23.2, S3.1). */
     static final class Look implements Picture {
 
         final SurfaceFamily family;
@@ -144,11 +143,16 @@ final class ChooserPictures {
     }
 
     /**
-     * One look on a family's road block, at one of the Wear Editor's points along the run, 16 by 16: the block's own
+     * One look on a family's picture, at one of the Wear Editor's points along the run, 16 by 16: the block's own
      * faces handed to the very operators the atlas runs ({@link PatternPreview}), tinted as the block is.
      */
     static void drawLook(SurfaceFamily family, String pattern, int step, int x, int y) {
-        Block block = CommandTrmt.roadBlock(family);
+        // On the family's picture, as its sub-tab shows it: its own block, the pack's first block of it, or its
+        // stand-in (0.9.229, WearIcons.familyPicture; the road block, which flesh, taint and cloud have none of, until
+        // then). A look is painted on a block's face, so flesh's stand-in, an item, gives none, and PatternPreview
+        // paints the family's own stock face, as it did for every family with no road block.
+        Object picture = WearIcons.familyPicture(family);
+        Block block = picture instanceof Block ? (Block) picture : null;
         ItemStack shown = block == null ? null : new ItemStack(block);
         ResourceLocation at = PREVIEWS.of(family, shown, pattern, step);
         if (at == null) return;
@@ -179,7 +183,7 @@ final class ChooserPictures {
     }
 
     /**
-     * A family page's band (spec S3.3): its road block worn across a path at four wears, 16 high, in the family's own
+     * A family page's band (spec S3.3): its picture worn across a path at four wears, 16 high, in the family's own
      * look, as many squares as fit {@code width}.
      */
     static void drawBand(SurfaceFamily family, String pattern, int x, int y, int width) {

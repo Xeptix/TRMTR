@@ -79,3 +79,51 @@ if (sibling.exists()) {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// The TRMTR API's example mod, on the development runs only
+// ---------------------------------------------------------------------------
+//
+// The example mod (0.9.229, W3 spec 2.8, task T12) lives in the 1.7.10 tree's api/example/: its portable plugin and
+// data in common/, and this edition's one registration class in 1.12.2/forge/. That tree is found through the same
+// untracked sibling.properties the drift check reads, so this tree and its public repository build exactly as before
+// where the file or the folder is absent. It is a source set of its own so that nothing a shipped jar takes - `jar`,
+// `reobfJar`, `sourcesJar`, all of them the main source set's - can reach it, and its jar is written to build/example/,
+// outside build/libs, where staging and the jar checks look. It compiles against the game and TRMTR's classes because
+// the dev run needs both on one classpath; that it uses nothing of TRMTR's but trmtr-api, and that no shipped jar holds
+// it, are checked by guards in the 1.7.10 tree's tools.
+//
+// FML 1.12.2 finds a mod in any jar on a development run's classpath (ModDiscoverer.findClasspathMods examines every
+// file of the class loader's parent sources that is not a known library), so the example is loaded as the separate mod
+// it is, with its own jar as its source: TRMTR reads its plugin.json and data from that jar as it would a player's.
+def exampleHome = null
+if (sibling.exists()) {
+    Properties heldForExample = new Properties()
+    sibling.withInputStream { heldForExample.load(it) }
+    String otherTree = heldForExample.getProperty('otherEdition', '').trim()
+    if (!otherTree.isEmpty() && new File(otherTree, 'api/example/1.12.2/forge').isDirectory()) {
+        exampleHome = new File(otherTree, 'api/example')
+    }
+}
+if (exampleHome != null) {
+    sourceSets {
+        example {
+            java.srcDirs = [new File(exampleHome, 'common/java'), new File(exampleHome, '1.12.2/forge/java')]
+            resources.srcDirs = [new File(exampleHome, 'common/resources'), new File(exampleHome, '1.12.2/forge/resources')]
+            compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        }
+    }
+
+    def exampleJar = tasks.register('exampleJar', Jar) {
+        description = 'The TRMTR API example mod, for the development runs only.'
+        from(sourceSets.example.output)
+        archiveFileName.set('example-1.12.2-forge.jar')
+        destinationDirectory.set(layout.buildDirectory.dir('example'))
+    }
+
+    ['runClient', 'runServer'].each { taskName ->
+        tasks.named(taskName, JavaExec).configure { JavaExec task ->
+            task.classpath(exampleJar)
+        }
+    }
+}

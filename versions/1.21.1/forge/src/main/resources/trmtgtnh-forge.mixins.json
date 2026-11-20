@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "MixinChunkSerializer",
+    "MixinLevelSaved",
     "MixinCrashReportSupport",
     "MixinGhostFriction",
     "MixinGhostMapColor",
@@ -26,6 +27,7 @@
     "MixinSettledOutline",
     "MixinAirSwing",
     "MixinOptiFineSettledFaces",
+    "MixinGhostHidesFaces",
     "MixinBlockArrivals",
     "MixinChunkForgotten",
     "MixinGhostSustainsPlant",

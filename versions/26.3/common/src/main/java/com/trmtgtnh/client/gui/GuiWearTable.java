@@ -37,8 +37,7 @@ public class GuiWearTable extends Screen {
     private static final int ID_BACK = 1;
     private static final int ID_EDIT = 2;
 
-    private static final int ROW_H = 26;
-    private static final int PANEL_MAX = 420;
+    private static final int ROW_H = WearTableLayout.ROW_H;
 
     /** Right edges of the four quarter columns, measured from the content left. */
     private static final int[] QX = { 206, 268, 330, 392 };
@@ -71,39 +70,42 @@ public class GuiWearTable extends Screen {
         this.parent = parent;
     }
 
-    private int panelWidth() {
-        return Math.min(width - 8, PANEL_MAX);
+    /**
+     * The legend's sentences in the order the band shows them: the column key, the green/red line where a server has
+     * sent its numbers, and the bar's explanation.
+     */
+    private List<String> legend() {
+        List<String> sentences = new ArrayList<String>();
+        sentences.add(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.legend"));
+        if (Client.serverPricing() != null) {
+            sentences.add(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.legend.diff"));
+        }
+        sentences.add(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.legend.shape"));
+        return sentences;
     }
 
-    private int panelLeft() {
-        return width / 2 - panelWidth() / 2;
+    /** Where everything stands on this screen now, with the legend wrapped by the game's own font. */
+    private WearTableLayout layout() {
+        return WearTableLayout.of(width, height, legend(), font::width);
     }
 
-    private int panelTop() {
-        return 18;
-    }
-
-    private int panelBottom() {
-        return height - 40;
-    }
-
-    private int bodyTop() {
-        return panelTop() + 45;
-    }
-
-    private int bodyBottom() {
-        return panelBottom() - 4;
+    /**
+     * Null when the legend is shown whole, inside the panel and clear of the table and the buttons, or what does not
+     * fit - the harness's screens part reads it at the size it photographs.
+     */
+    public String legendMisfit() {
+        return layout().misfit(legend(), font::width);
     }
 
     @Override
     public void init() {
-        addRenderableWidget(new Tagged(this, ID_BACK, panelLeft(), height - 28, 70, 20, com.trmtgtnh.util.Translate.get("gui.back")));
+        addRenderableWidget(new Tagged(this, ID_BACK, WearTableLayout.panelLeft(width), WearTableLayout.buttonTop(height), 70, WearTableLayout.BUTTON_H, com.trmtgtnh.util.Translate.get("gui.back")));
         addRenderableWidget(
             new Tagged(this, ID_EDIT,
-                panelLeft() + panelWidth() - 90,
-                height - 28,
+                WearTableLayout.panelLeft(width) + WearTableLayout.panelWidth(width) - 90,
+                WearTableLayout.buttonTop(height),
                 90,
-                20,
+                WearTableLayout.BUTTON_H,
                 com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.edit")));
 
         // The staged families, in the order the enum declares them, which reads grass-first.
@@ -133,7 +135,9 @@ public class GuiWearTable extends Screen {
                 Item item = heldForm(fallback);
                 if (item != null) list.add(new ItemStack(item));
             }
-            // Each row opens on its family's road block: see RowOrder.
+            // Each row opens on its family's road block: see RowOrder. Flesh, taint and cloud have none, and keep the
+            // registry's order.
+            if (com.trmtgtnh.command.CommandTrmt.roadBlock(family) == null) continue;
             final Item road = heldForm(com.trmtgtnh.command.CommandTrmt.roadBlock(family));
             RowOrder.leadWith(list, stack -> stack.getItem() == road);
         }
@@ -169,13 +173,18 @@ public class GuiWearTable extends Screen {
         // From 1.20.2 the wheel comes with a sideways amount beside it, which neither older edition has; only the
         // wheel is read, as before.
         if (wheel == 0) return super.mouseScrolled(mouseX, mouseY, sideways, wheel);
-        int content = rows.length * ROW_H;
-        int viewport = bodyBottom() - bodyTop();
-        int max = Math.max(0, content - viewport);
         scroll -= wheel > 0 ? ROW_H : -ROW_H;
+        clampScroll(layout());
+        return true;
+    }
+
+    /** Keeps the body's scroll inside its rows, which the legend band's height can change under it. */
+    private void clampScroll(WearTableLayout at) {
+        int content = rows.length * ROW_H;
+        int viewport = at.bodyBottom - at.bodyTop;
+        int max = Math.max(0, content - viewport);
         if (scroll < 0) scroll = 0;
         if (scroll > max) scroll = max;
-        return true;
     }
 
     void actionPerformed(Button button, int id) {
@@ -194,10 +203,12 @@ public class GuiWearTable extends Screen {
     public void extractRenderState(net.minecraft.client.gui.GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partial) {
         // Held for the length of this frame; see the field.
         this.graphics = graphics;
-        int left = panelLeft();
-        int right = left + panelWidth();
-        int top = panelTop();
-        int bottom = panelBottom();
+        WearTableLayout at = layout();
+        clampScroll(at);
+        int left = at.panelLeft;
+        int right = left + at.panelWidth;
+        int top = at.panelTop;
+        int bottom = at.panelBottom;
         int cx = width / 2;
         int cl = left + 6;
 
@@ -236,14 +247,14 @@ public class GuiWearTable extends Screen {
         graphics.fill(cl - 2, top + 42, cl + QX[3] + 2, top + 43, 0x30FFFFFF);
 
         // Scrolled body, clipped to its viewport so rows never spill into the chrome.
-        int vTop = bodyTop();
-        int vBottom = bodyBottom();
+        int vTop = at.bodyTop;
+        int vBottom = at.bodyBottom;
         // The same box 1.21.1 handed the driver - the panel's width, from the top of the body to its
         // bottom - given in this screen's own units. 1.21.1 set it with GL11.glScissor in real pixels,
         // multiplied by the GUI scale; from 26.1 nothing is drawn while a screen describes itself, so
         // a GL call here would clip nothing, and the box goes on the frame's own scissor stack, which
         // clips every row, label and icon inside it when the frame is drawn.
-        graphics.enableScissor(left, vTop, left + panelWidth(), vBottom);
+        graphics.enableScissor(left, vTop, left + at.panelWidth, vBottom);
 
         for (int i = 0; i < rows.length; i++) {
             int rowY = vTop - scroll + i * ROW_H;
@@ -253,30 +264,13 @@ public class GuiWearTable extends Screen {
 
         graphics.disableScissor();
 
-        // One line, in the strip between the panel border and the buttons, which is empty. Full
-        // panel width rather than the cramped space the two legends above share between Back and
-        // Edit - this one has a picture to explain and needs the room.
-        graphics.text(font,
-            fit(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.legend.shape"), panelWidth() - 12),
-            left + 6,
-            height - 38,
-            GuiText.argb(0x8C8CA0));
-
-        // Footer legend below the panel, between the two buttons and trimmed to the gap between
-        // them, because it sits on their row and a sentence that overruns it lands on top of Edit.
-        int legendLeft = left + 74;
-        int legendWidth = right - 94 - legendLeft;
-        graphics.text(font,
-            fit(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.legend"), legendWidth),
-            legendLeft,
-            height - 22,
-            GuiText.argb(0x8C8CA0));
-        if (server != null) {
-            graphics.text(font,
-                fit(com.trmtgtnh.util.Translate.get("trmtgtnh.weartable.legend.diff"), legendWidth),
-                legendLeft,
-                height - 12,
-                GuiText.argb(0x8C8CA0));
+        // The legend's own band at the foot of the panel, under a rule like the header's, every
+        // sentence wrapped to the panel's width and none cut (1.0.0). It used to be one line cut
+        // with an ellipsis in a strip under the panel and two more squeezed between Back and Edit
+        // down to the screen's edge, where the chat and the hotbar draw.
+        graphics.fill(cl - 2, at.ruleY, cl + QX[3] + 2, at.ruleY + 1, 0x30FFFFFF);
+        for (int i = 0; i < at.lines.size(); i++) {
+            graphics.text(font, at.lines.get(i), at.legendLeft, at.lineY(i), GuiText.argb(0x8C8CA0));
         }
 
         super.extractRenderState(graphics, mouseX, mouseY, partial);
@@ -442,6 +436,15 @@ public class GuiWearTable extends Screen {
                 return Blocks.SNOW_BLOCK;
             case ICE:
                 return Blocks.ICE;
+            case SCULK:
+                // Vanilla's own from 1.19, so it has a road, a yard platform and a row to open on (0.9.229, W4).
+                return Blocks.SCULK;
+            case FLESH:
+            case TAINT:
+            case CLOUD:
+                // No vanilla block is flesh, taint or cloud (0.9.229, W4 T17; cloud, W4): a row with none of its
+                // own detected shows nothing rather than another family's block.
+                return null;
             default:
                 return Blocks.DIRT;
         }

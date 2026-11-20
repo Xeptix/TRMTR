@@ -119,12 +119,18 @@ public final class InnerLayers {
      * is found under that name with the number appended, and neither can be mistaken for the other.
      */
     public static String textureFor(Block origin, int meta) {
-        if (table.isEmpty() || origin == null) return null;
+        if (origin == null) return null;
         String name = SurfaceRegistry.registryName(origin);
         if (name == null) return null;
-        String key = name.toLowerCase(Locale.ROOT);
-        String exact = table.get(key + ":" + meta);
-        return exact != null ? exact : table.get(key);
+        if (!table.isEmpty()) {
+            String key = name.toLowerCase(Locale.ROOT);
+            String exact = table.get(key + ":" + meta);
+            if (exact != null) return exact;
+            String any = table.get(key);
+            if (any != null) return any;
+        }
+        // Then a looks file's innerLayer (W3 T5): the player's own line above wins over any file.
+        return com.trmtgtnh.dataload.BlockLooks.of(name, meta, SurfaceRegistry.propertiesOf(origin, meta)).innerLayer;
     }
 
     // ------------------------------------------------------------------
@@ -416,7 +422,8 @@ public final class InnerLayers {
 
     /** Whether any layer can move this stitch, so the pass need not count pictures when nothing can ask. */
     static boolean layersMayMove() {
-        return animating && !table.isEmpty();
+        // A looks file's layer moves as a line of the config's does, and it may be the only layer there is.
+        return animating && (!table.isEmpty() || com.trmtgtnh.dataload.BlockLooks.namesALayer());
     }
 
     /**

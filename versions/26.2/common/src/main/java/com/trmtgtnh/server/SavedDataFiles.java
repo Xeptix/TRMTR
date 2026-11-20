@@ -85,6 +85,22 @@ final class SavedDataFiles {
         return storage.computeIfAbsent(type);
     }
 
+    /**
+     * The record, read from its own place or from the file 1.21.1 wrote, or null when there is neither: for a record
+     * that is never made by being asked (OriginalConversionData).
+     */
+    static <T extends SavedData> T find(Level world, SavedDataType<T> type, String legacyName,
+        java.util.function.Function<CompoundTag, T> fromLegacy) {
+        SavedDataStorage storage = storage(world);
+        if (storage == null) return null;
+        T held = storage.get(type);
+        if (held != null) return held;
+        Path old = ((ServerLevel) world).getServer()
+            .getWorldPath(LevelResource.DATA)
+            .resolve(legacyName + ".dat");
+        return Files.isRegularFile(old) ? computeIfAbsent(world, type, legacyName, fromLegacy) : null;
+    }
+
     /** A saved record's whole file, compressed or not - the two the game itself reads. Package-private for its test. */
     static CompoundTag readTag(Path file) throws java.io.IOException {
         try (InputStream in = Files.newInputStream(file);

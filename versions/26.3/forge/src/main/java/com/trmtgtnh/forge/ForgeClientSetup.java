@@ -44,6 +44,9 @@ public final class ForgeClientSetup {
 
     /** What client setup does, run by {@link #client} on the game's own thread. */
     private static void onTheGamesThread() {
+        // The enabled resource packs' data files after every resource reload from now on (W3 spec 2.2); each block-atlas
+        // stitch reads them itself as it begins, the first one included.
+        com.trmtgtnh.client.PackData.start();
         // No pass is declared for the ghosts any more, and none is looked up for the blocks they cover. 1.21.1 offered
         // each ghost to every pass a covered block might draw in (setRenderLayer, see GhostLayers.claims) and asked a
         // covered block's model which pass it drew in (its ChunkRenderTypeSet). From 26.1 a chunk has no per-block pass:

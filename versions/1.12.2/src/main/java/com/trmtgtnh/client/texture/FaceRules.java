@@ -128,9 +128,97 @@ public final class FaceRules {
                 return "snow";
             case ICE:
                 return "ice";
+            case FLESH:
+                // No vanilla flesh: soul sand is the Nether floor it is all but a twin of (0.9.229, W4 T17).
+                return "soul_sand";
+            case TAINT:
+                // No vanilla taint: mycelium's top is the purple living crust nearest a crust of it.
+                return "mycelium_top";
+            case SCULK:
+                // Vanilla's own from 1.19, and Et Futurum Requiem's in the 1.7.10 edition, under the same name. Where
+                // no file of that name can be read, its second choice is obsidian (secondChoice), so this one table
+                // stays the same bytes in every edition (0.9.229, W4).
+                return "sculk";
+            case CLOUD:
+                // No vanilla cloud: white wool is fluffy cloud's twin in all a ghost reports, as soft to dig, as
+                // quiet, and as white. Spelt as the older editions spell it; VanillaNames gives the 1.13 name.
+                return "wool_colored_white";
             default:
                 return "dirt";
         }
+    }
+
+    /**
+     * The vanilla texture a family's fallback set reads for one appearance and side: what the sprite is made of
+     * ({@link #madeOf}, {@link #vanillaName}), except sculk worn into stone, which is the deepslate the deep dark's
+     * sculk is spread over, {@code deepslate_top} on top and {@code deepslate} on the sides (0.9.229, W4; Xep,
+     * 2026-11-11, "Yes, by default"). Without it sculk worn into stone would show vanilla's smooth stone, which is not
+     * the deep dark's rock. Where no deepslate file can be read, {@link #secondChoice} is stone's own.
+     *
+     * <p>
+     * Not grass's route: grass shows the earth on the block's own underside ({@link #revealsEarth}), and sculk's
+     * underside is sculk, so the deepslate comes from a named picture instead.
+     */
+    public static String fallbackName(SurfaceFamily originFamily, SurfaceFamily appearance, int side) {
+        SurfaceFamily made = madeOf(originFamily, appearance);
+        if (originFamily == SurfaceFamily.SCULK && made == SurfaceFamily.STONE) {
+            return side == 1 ? "deepslate_top" : "deepslate";
+        }
+        return vanillaName(made, side);
+    }
+
+    /**
+     * What a vanilla texture of this table is read as where its own file cannot be: deepslate falls back to stone,
+     * and sculk to obsidian, the nearest vanilla face to it ({@code #0f0a18} against sculk's {@code #0d1b21}) and
+     * one every edition has. Deepslate and sculk exist from 1.17 and 1.19, and in the 1.7.10 edition only where Et
+     * Futurum Requiem ships them. Null for every other name, which has no second choice.
+     */
+    public static String secondChoice(String name) {
+        if ("deepslate_top".equals(name) || "deepslate".equals(name)) return "stone";
+        if ("sculk".equals(name)) return "obsidian";
+        return null;
+    }
+
+    /**
+     * What a lawn shows on a face its own picture says is its top: {@code grass_side} on a flank, {@code dirt}
+     * underneath,
+     * or null where the face is the block's own to draw (0.9.229, W6 S2).
+     *
+     * <p>
+     * A lawn is a block that draws vanilla's grass top, and everything downstream takes it at its word: its flank is
+     * drawn untinted under a tinted fringe, past grass it shows its underside, and the wall that recedes is made from
+     * its flank. All of that is right for grass's own side and earth, and wrong for the top, which is stored grey and
+     * is
+     * green only on a tinted face: a block that draws grass_top all round - Grass Overhaul's sod blocks do, by design,
+     * and a resource pack doing OptiFine's Better Grass may - wore a grey wall. So it is read as the lawn it is, and
+     * the
+     * worn wall shows earth and thinned fringe; its unworn neighbours stay green, which is the look a Better Grass
+     * player
+     * already has, and the 1.7.10 edition's MixinOptiFineGrassSide keeps the same rule under OptiFine's.
+     *
+     * <p>
+     * The grey top alone, for the reason the fringe is asked the same question: a modded turf's top drawn on its flanks
+     * is in its own colors and is that block's business. The name is compared however an edition or a model spells it,
+     * because one texture has several spellings ({@code grass_top}, {@code minecraft:blocks/grass_top},
+     * {@code block/grass_block_top}).
+     *
+     * @param top  the name the block's top draws
+     * @param face the name this face draws, or null
+     * @param side the face, in the mod's numbering: 0 down, 1 up, 2-5 the flanks
+     */
+    public static String lawnFace(String top, String face, int side) {
+        if (side == 1 || top == null || face == null) return null;
+        String bare = bareName(top);
+        if (!bare.equals("grass_top") && !bare.equals("grass_block_top")) return null;
+        if (!bare.equals(bareName(face))) return null;
+        return side == 0 ? "dirt" : "grass_side";
+    }
+
+    /** A vanilla block texture's name with vanilla's namespace and its folder taken off; any other name as it is. */
+    private static String bareName(String name) {
+        String bare = name.startsWith("minecraft:") ? name.substring("minecraft:".length()) : name;
+        if (bare.startsWith("blocks/")) return bare.substring("blocks/".length());
+        return bare.startsWith("block/") ? bare.substring("block/".length()) : bare;
     }
 
     /**

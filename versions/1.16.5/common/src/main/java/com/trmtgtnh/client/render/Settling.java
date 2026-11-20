@@ -91,7 +91,7 @@ public final class Settling {
      * sides must give the same nought, or the box and the picture part.
      */
     public static double dropOver(short record, int origin, int outline) {
-        if (BlockGhost.coveredStair(origin) != null) return 0.0D;
+        if (BlockGhost.coveredShape(origin) == com.trmtgtnh.surface.SurfaceShape.STAIR) return 0.0D;
         double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
         return drop > 0.0D ? drop : 0.0D;
     }

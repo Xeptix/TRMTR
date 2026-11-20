@@ -41,7 +41,6 @@ import com.trmtgtnh.client.settings.NameStatus;
 import com.trmtgtnh.client.settings.PictureBudget;
 import com.trmtgtnh.client.settings.Slicer;
 import com.trmtgtnh.client.texture.WearPatterns;
-import com.trmtgtnh.command.CommandTrmt;
 import com.trmtgtnh.config.MobNames;
 import com.trmtgtnh.surface.SurfaceFamily;
 
@@ -798,7 +797,10 @@ final class SettingsPictures {
             SurfaceFamily family = SurfaceFamily.byKey(key);
             if (family == null) return null;
             try {
-                return blockPicture(CommandTrmt.roadBlock(family), 0);
+                // Its own block, the pack's first block of it, or its stand-in, which may be an item (0.9.229).
+                Object shown = WearIcons.familyPicture(family);
+                if (shown instanceof Block) return blockPicture((Block) shown, 0);
+                return shown instanceof Item ? new Stack(new ItemStack((Item) shown)) : null;
             } catch (Throwable hostile) {
                 return null;
             }

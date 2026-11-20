@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). Deadrock, values 0 and 2 as the census saw them, is the natural rock floor of the Thornlands and the Highlands Center, and rock is no word the rules read as stone.",
+    "Fluffy cloud, the floor of the cloud castles over the Highlands, is its own family (Xep, 2026-11-11: Add both families; 0.9.229, W4), named before a census has seen it as ground (Xep: Name them now), as it is in the later editions. Packed ice's material gives the rules ice, and a config that recorded it there still wears it as cloud, as this file is heard over a line that only repeats detection. Value 0, the one value the block places."
+  ],
+  "entries": [
+    { "blocks": ["TwilightForest:tile.TFDeadrock:0", "TwilightForest:tile.TFDeadrock:2"], "family": "stone" },
+    { "blocks": ["TwilightForest:tile.FluffyCloud:0"], "family": "cloud" }
+  ]
+}

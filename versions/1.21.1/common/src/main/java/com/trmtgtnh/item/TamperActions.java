@@ -203,14 +203,16 @@ public final class TamperActions {
         // -1 both for a position with nothing showing yet and for one whose appearance no longer
         // belongs to this block's chain, and +1 is right for both - the same arithmetic the
         // engine's own advance does with the same value.
+        // Along the chain the block follows, its own where a data file gives it one (W3 T9), as forceStage reads it.
+        ErosionChain.Chain chain = ErosionEngine.chainFor(world, x, y, z, base);
         int index = entry == null || !entry.isVisible() ? -1
-            : ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink());
+            : chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink());
         int next = index + 1;
         // Asked here rather than left to forceStage, which clamps. Clamping would rewrite the
         // last gradation onto itself, report success, and charge the tool for work it did not do.
         // The same ceiling traffic obeys. A tool that could wear ground past the point the
         // world allows would be a way round a setting rather than a use of one.
-        if (next >= ErosionChain.cappedLength(base)) return false;
+        if (next >= chain.cappedLength()) return false;
 
         int sankFrom = entry == null ? 0 : entry.getSink();
         if (!ErosionEngine.get()

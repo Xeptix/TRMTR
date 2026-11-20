@@ -2,13 +2,14 @@ package com.trmtgtnh.neoforge.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.trmtgtnh.block.BlockGhost;
 
 /**
@@ -29,16 +30,23 @@ import com.trmtgtnh.block.BlockGhost;
  * ({@link BlockGhost#asStairsSee}), and every other square's state untouched. A ghost exists only in a client's world,
  * so on a server every read passes through as it was. In this module because it names a game method - see
  * CommonMixinsNeedNoRefmapTest; the other loader's module has the same class.
+ *
+ * <p>
+ * <strong>The reads are wrapped, not redirected</strong> (0.9.229). MixinExtras' {@code @WrapOperation} hands this each
+ * read as an operation and calls it, so another mod's {@code @Redirect} of the same reads is what the operation runs and
+ * its answer is the one seen, kept on every square but a worn stair's. Until 0.9.228 this was a required
+ * {@code @Redirect}: two redirects of one call cannot both apply, and beside a mod redirecting the same reads the game
+ * would have stopped before its first screen, as All of Fabric 3 did over friction.
  */
 @Mixin(StairBlock.class)
 public abstract class MixinStairNeighbours {
 
-    @Redirect(
+    @WrapOperation(
         method = { "getStairsShape", "canTakeShape" },
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/world/level/BlockGetter;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;"))
-    private static BlockState trmt$aWornStairIsAStair(BlockGetter level, BlockPos pos) {
-        return BlockGhost.asStairsSee(level.getBlockState(pos), pos);
+    private static BlockState trmt$aWornStairIsAStair(BlockGetter level, BlockPos pos, Operation<BlockState> read) {
+        return BlockGhost.asStairsSee(read.call(level, pos), pos);
     }
 }

@@ -280,6 +280,9 @@ public final class OverlayPainter {
                 (chunkX << 4) + 15,
                 maxY,
                 (chunkZ << 4) + 15);
+            // Distant Horizons read this chunk as it arrived, before it was painted: handed to it again now it holds
+            // the ghosts, where it is loaded, and nothing at all where it is not (0.9.229 W6 T17; see DistantColors).
+            if (DistantColors.pluginRegistered()) DistantColors.painted(world, world.getChunk(chunkX, chunkZ), chunkX, chunkZ);
         }
         return touched;
     }
@@ -408,8 +411,20 @@ public final class OverlayPainter {
         paintingY = y;
         paintingZ = z;
         paintingOrigin = origins[index];
+        // Asked before the write, as the write asks it, to know whether the write's own re-light was wanted.
+        int opacityBefore = current.getLightOpacity(world, pos);
+        int glowBefore = current.getLightValue(world, pos);
         try {
             world.setBlockState(pos, ghost.getDefaultState(), 0);
+            // The write re-lights the square only where every chunk within sixteen blocks is loaded, and says
+            // nothing when it does not; a square painted already sunk then kept a whole block's darkness, which the
+            // faces beside a window ghost show (RelightRetry). Kept to be re-lit once they are.
+            IBlockState painted = world.getBlockState(pos);
+            if (painted.getLightOpacity(world, pos) != opacityBefore
+                || painted.getLightValue(world, pos) != glowBefore) {
+                RelightRetry.get()
+                    .rememberIfRefused(ClientProxy.lightOf(world), x, y, z);
+            }
         } finally {
             paintingOrigin = -1;
         }
@@ -426,29 +441,10 @@ public final class OverlayPainter {
      */
     static boolean covered(net.minecraft.world.IBlockAccess world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;
-        IBlockState above = world.getBlockState(new BlockPos(x, y + 1, z));
-        if (above.getBlock() instanceof BlockGhost) return ghostCovers(x, y + 1, z);
-        return above.isOpaqueCube() || com.trmtgtnh.erosion.SnowCover.shelters(above);
-    }
-
-    /**
-     * Whether a ghost standing on the square above covers it as 1.7.10's ghost would (0.9.227, spec PT9 and PT24):
-     * there
-     * a ghost is an opaque cube unless it is sunk, clear or a window, so a block placed on a road and then worn itself
-     * still hid the road beneath. Here a ghost never answers opaque - it declares no occlusion, for its neighbours'
-     * sake
-     * - so the ground under a worn block stopped being covered: it sank into its dip under the block, or showed wear
-     * where 1.7.10 hides it. Asked of the square's own record and the block it stands in for: covered when the picture
-     * is not sunk and the block it stands in for is a whole opaque cube, which a clear block or a window is not.
-     */
-    private static boolean ghostCovers(int x, int y, int z) {
-        short record = ClientErosionCache.get()
-            .stateAt(x, y, z);
-        if (BlockGhost.drawnSink(record) > 0) return false;
-        int origin = ClientErosionCache.get()
-            .originAt(x, y, z);
-        IBlockState stood = origin < 0 ? null : Block.getStateById(origin);
-        return stood != null && stood.isOpaqueCube();
+        // Which blocks cover is GroundCover.roofedAt, the one rule collision asks as well (0.9.229); a full drift's
+        // shelter is the picture's own question.
+        return com.trmtgtnh.erosion.GroundCover.roofedAt(world, x, y, z)
+            || com.trmtgtnh.erosion.SnowCover.shelters(world.getBlockState(new BlockPos(x, y + 1, z)));
     }
 
     /** Puts one painted position back to what it was covering, and marks it undrawn. */

@@ -7,6 +7,7 @@ import net.minecraft.world.World;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.block.GhostInherit;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.surface.DataShape;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.surface.SurfaceShape;
@@ -70,8 +71,13 @@ public final class PhysicalDecay {
         if (entry == null || !entry.isVisible()) return 0;
         // Something planted here holds the ground level whatever the record says it has taken.
         if (GroundCover.holdsAt(world, x, y, z)) return 0;
+        // A solid block standing on it holds it full for as long as it stands there (0.9.229): see
+        // GroundCover.roofedAt.
+        if (GroundCover.roofedAt(world, x, y, z)) return 0;
 
-        return SinkProfile.collides(entry.getFamily(), entry.getSink(), SurfaceShape.of(world.getBlock(x, y, z)));
+        // Through the block state's data shape too (W3 T6), so the server's depth is the one the client's ghost takes.
+        return SurfaceShape
+            .sunk(entry.getFamily(), entry.getSink(), world.getBlock(x, y, z), world.getBlockMetadata(x, y, z), true);
     }
 
     /**
@@ -91,7 +97,8 @@ public final class PhysicalDecay {
         // into - and the two sides must give the same nought: the client draws it whole, and the server's collision
         // depth for a stair would otherwise lower the carpet's box into a step nobody sees sunk. Asked of the block
         // itself, which is the real stair here and the stair stand-in on a client, both of them stairs.
-        if (SurfaceShape.of(world.getBlock(x, y - 1, z)) == SurfaceShape.STAIR) return 0.0D;
+        if (SurfaceShape.of(world.getBlock(x, y - 1, z), world.getBlockMetadata(x, y - 1, z)) == SurfaceShape.STAIR)
+            return 0.0D;
         if (world.isRemote) return Trmt.proxy.settledDropUnder(x, y - 1, z);
         return sinkAt(world, x, y - 1, z) / 16.0D;
     }
@@ -163,7 +170,17 @@ public final class PhysicalDecay {
         if (sink <= 0) return null;
 
         Block block = world.getBlock(x, y, z);
-        SurfaceShape shape = SurfaceShape.of(block);
+        int meta = world.getBlockMetadata(x, y, z);
+        // A data file's boxes (W3 spec 2.4, T6): one box round them all for a caller that wants one; collision proper
+        // takes them one by one through boxesAt. Before the footing refusal below, because the file says what shape
+        // the block is, and the client's GhostLogic.solidBox asks them first as well.
+        DataShape boxes = boxesOf(block, meta);
+        if (boxes != null) {
+            double[] round = boxes.outline(sink);
+            return AxisAlignedBB
+                .getBoundingBox(x + round[0], y + round[1], z + round[2], x + round[3], y + round[4], z + round[5]);
+        }
+        SurfaceShape shape = SurfaceShape.of(block, meta);
         // A stair answers for its own collision and this must not take it over. Everything below
         // builds ONE box across the whole footprint, which is right for a slab and wrong for a
         // stair - a stair is three boxes, and BlockStairs asks for them by calling the method this
@@ -187,11 +204,38 @@ public final class PhysicalDecay {
             return AxisAlignedBB.getBoundingBox(x, y, z, x + 1.0D, y + SinkProfile.heightFor(sink), z + 1.0D);
         }
 
-        int meta = world.getBlockMetadata(x, y, z);
         double floor = SurfaceShape.bottomOf(shape, meta);
         double top = SurfaceShape.topOf(shape, meta);
         double worn = Math.max(floor, top - sink / 16.0D);
         return AxisAlignedBB.getBoundingBox(x, y + floor, z, x + 1.0D, y + worn, z + 1.0D);
+    }
+
+    /**
+     * The boxes the server's collision gives a worn position, or null when it gives none and the block answers for
+     * itself: a data file's boxes one by one, the walked ones sunk (W3 spec 2.4, T6), and otherwise {@link #boxAt}'s
+     * one box. The client's ghost builds the same through {@code GhostLogic.addBoxes}.
+     */
+    public static AxisAlignedBB[] boxesAt(World world, int x, int y, int z) {
+        int sink = sinkAt(world, x, y, z);
+        if (sink <= 0) return null;
+        DataShape boxes = boxesOf(world.getBlock(x, y, z), world.getBlockMetadata(x, y, z));
+        if (boxes == null) {
+            AxisAlignedBB one = boxAt(world, x, y, z);
+            return one == null ? null : new AxisAlignedBB[] { one };
+        }
+        double[][] sunk = boxes.boxesSunk(sink);
+        AxisAlignedBB[] out = new AxisAlignedBB[sunk.length];
+        for (int i = 0; i < sunk.length; i++) {
+            double[] box = sunk[i];
+            out[i] = AxisAlignedBB
+                .getBoundingBox(x + box[0], y + box[1], z + box[2], x + box[3], y + box[4], z + box[5]);
+        }
+        return out;
+    }
+
+    private static DataShape boxesOf(Block block, int meta) {
+        DataShape data = SurfaceRegistry.shapeOf(block, meta);
+        return data != null && data.kind == DataShape.BOXES ? data : null;
     }
 
     /**

@@ -88,6 +88,13 @@ public final class KeyedText {
         return keyed(values);
     }
 
+    /** One family's value taken out, the rest kept as written: a row emptied on the Advanced fold. */
+    public static String without(String text, String key) {
+        Map<String, String> values = keyed(text);
+        values.remove(key);
+        return keyed(values);
+    }
+
     /** One part of a comma list replaced, the list widened with empty parts where it is too short. */
     public static String withPart(String text, int index, String value) {
         List<String> parts = new ArrayList<String>(commas(text));

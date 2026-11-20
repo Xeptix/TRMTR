@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "_": [
+    "Ice and Fire, from All the Mods 10's census (W4 R9, judged 2026-11-12). Crackled gravel is the gravel a lightning dragon leaves scorched, still loose gravel, and the rules make it dirt by its ground material. Named alone, the one block that census judged where detection did not place it, because a file reaches a config that already holds detection's line where a changed rule does not. The charred gravel was not judged and is left to the rules, and the crackled dirt, stone and cobblestone already wear by detection.",
+    "Frozen dirt, grass and gravel, the ground an ice dragon leaves frozen, as 1.16.5's census ruled them from All the Mods 6's, so the editions match (W4 R14, 2026-11-13): bare earth, a living top and loose gravel, each on a material no rule reads here. The frozen path and splinters, which no edition judged, are left to the rules, and the frozen stone and cobblestone already wear by detection.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.21.1 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was.",
+    "Charred grass, the living top of the ground a fire dragon burned, is grass in every edition, as 1.12.2's census ruled it (Xep, 2026-11-13: Charred grass grass; scoria as is; W4 R15); the rules make it dirt by its ground material here, so it joins the frozen grass."
+  ],
+  "entries": [
+    { "blocks": ["iceandfire:crackled_gravel", "iceandfire:frozen_gravel"], "family": "gravel" },
+    { "blocks": ["iceandfire:frozen_dirt"], "family": "dirt" },
+    { "blocks": ["iceandfire:frozen_grass", "iceandfire:chared_grass"], "family": "grass" },
+    { "blocks": ["iceandfire:dread_stone_slab", "iceandfire:dread_stone_stairs"], "family": "stone" }
+  ]
+}

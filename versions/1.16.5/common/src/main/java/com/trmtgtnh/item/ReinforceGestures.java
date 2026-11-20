@@ -30,8 +30,8 @@ import com.trmtgtnh.surface.SurfaceRegistry;
  * explosion.
  *
  * <p>
- * Server-side only. The gestures are dispatched from {@link ItemChunkTamper}, which has already
- * decided this is a reinforce click; here is only the rule.
+ * Server-side, but for {@link #clientClicked} and {@link #clientTicked}. The gestures are dispatched from {@link ItemChunkTamper},
+ * which has already decided this is a reinforce click; here is only the rule.
  */
 public final class ReinforceGestures {
 
@@ -40,6 +40,37 @@ public final class ReinforceGestures {
 
     /** Two left-clicks at the same block within this many ticks take a reinforcement off. */
     private static final int ARM_WINDOW_TICKS = 40;
+
+    /** Each player's press of the attack key as the server has it; see {@link Press}. */
+    private static final WeakHashMap<Player, Press> PRESSES = new WeakHashMap<Player, Press>();
+
+    /**
+     * For a client that does not say where its presses begin (a build before this rule): a left-click on the same
+     * block within this many server ticks of the player's last continues the same press.
+     */
+    static final int PRESS_GAP_TICKS = 2;
+
+    /**
+     * A left-click on the same block on the client's next tick after its press was last known held, or the same one,
+     * is the attack key still held. The press is known held by its last click and by every client tick that ends with
+     * the key down and the crosshair on a block ({@link #clientTicked}), not by its clicks alone: the game's own dig
+     * delay sends no click for several ticks of a held key (RL19, 2026-11-09).
+     */
+    static final int HELD_CLIENT_TICKS = 1;
+
+    /**
+     * How far apart, in server ticks, a press's announcement and its left-click may be handled and still be one
+     * press. The client writes the two in the same tick, one behind the other, so nothing but the server's own queue
+     * stands between them: the loaders hand a message to the game's thread behind clicks that arrived after it, and
+     * this mod hands it once more to the end of the tick. A second is far more than either takes.
+     */
+    static final int PAIR_TICKS = 20;
+
+    /**
+     * The client's press of the attack key in reinforce mode: x, y, z and the client's tick it was last known held, or
+     * null when none is held. Client side only.
+     */
+    private static int[] clientLast;
 
     private ReinforceGestures() {}
 
@@ -150,14 +181,178 @@ public final class ReinforceGestures {
      */
     public static boolean unreinforce(Level world, int x, int y, int z, Player player) {
         if (world == null || world.isClientSide() || !TrmtConfig.reinforceEnabled || player == null) return false;
+        // A held button is one press (RL19, 0.9.229). This edition's client refuses the dig before it marks the
+        // block as being dug, so a held attack key sends the server a fresh start every tick, two on the tick it
+        // is pressed, where 1.7.10's client sends one. Which of those begins a press is the client's to say, in
+        // its own ticks, since a client that stalls while the server ticks on sends one press's clicks several
+        // server ticks apart (clientClicked); a click is taken only as the start of a press so announced.
+        if (!press(player).clickTakes(world, x, y, z, player.tickCount)) return true;
+        return pressed(world, x, y, z, player);
+    }
+
+    /**
+     * Server side: the client says a new press of the attack key began on x, y, z ({@code PacketTamperPress}). The
+     * press is taken now if its left-click has already been heard, otherwise when that click is.
+     */
+    public static void pressBegan(Player player, int x, int y, int z) {
+        if (player == null || !TrmtConfig.reinforceEnabled) return;
+        Level world = player.level;
+        if (world == null || world.isClientSide()) return;
+        if (press(player).pressTakes(world, x, y, z, player.tickCount)) pressed(world, x, y, z, player);
+    }
+
+    /**
+     * Client side: a left-click this client is sending with a chunk tamper in reinforce mode, on its own tick
+     * {@code clientTick}. The server is told where a press begins, before the click itself goes.
+     */
+    public static void clientClicked(int x, int y, int z, int clientTick) {
+        boolean begins = beginsPress(clientLast, x, y, z, clientTick);
+        clientLast = new int[] { x, y, z, clientTick };
+        if (begins) com.trmtgtnh.network.TrmtNetwork.sendTamperPress(x, y, z);
+    }
+
+    /**
+     * Whether the client's left-click at x, y, z on its tick {@code now} begins a press, after the press {@code last}
+     * (x, y, z and the client tick it was last known held, or null for none). 1.7.10's rule in the client's own ticks:
+     * its client lets the block go on any tick the key is up or the crosshair is on no block, and starts again on a
+     * click at another block, so a press is one block held from client tick to client tick, however far apart the
+     * server hears its clicks.
+     */
+    static boolean beginsPress(int[] last, int x, int y, int z, int now) {
+        return !(last != null && last[0] == x
+            && last[1] == y
+            && last[2] == z
+            && now - last[3] >= 0
+            && now - last[3] <= HELD_CLIENT_TICKS);
+    }
+
+    /**
+     * Client side, at the end of every client tick {@code clientTick}: whether the attack key is held as the game reads
+     * it for digging (no screen, the mouse taken, the key down) and whether the crosshair is on a block. Holds the
+     * client's press through the tick, or lets it go.
+     */
+    public static void clientTicked(boolean attackHeld, boolean onABlock, int clientTick) {
+        clientLast = heldThrough(clientLast, attackHeld, onABlock, clientTick);
+    }
+
+    /**
+     * The client's press {@code last} after its tick {@code now}: let go on a tick with the key up or the crosshair on
+     * no block, where 1.7.10's client lets the block go ({@code resetBlockRemoving}), and otherwise held to this tick,
+     * so the next click on its block continues it however long the clicks paused (RL19, 2026-11-09). The game's own
+     * dig delay, {@code MultiPlayerGameMode.destroyDelay}, returns before the left-click on each tick it counts. It is
+     * set to five by a creative start and by a block broken in survival, and counted down only while the key is held,
+     * so it carries into the next hold, whose first click goes and then four ticks send none. Read by the gap in its
+     * clicks, the next click began a second press and took a level. A crosshair passed over another block keeps the
+     * press, as in 1.7.10, which counts its delay before it asks what is hit; a click on that block begins its own.
+     */
+    static int[] heldThrough(int[] last, boolean attackHeld, boolean onABlock, int now) {
+        if (last == null || !attackHeld || !onABlock) return null;
+        return new int[] { last[0], last[1], last[2], now };
+    }
+
+    private static Press press(Player player) {
+        Press press = PRESSES.get(player);
+        if (press == null) {
+            press = new Press();
+            PRESSES.put(player, press);
+        }
+        return press;
+    }
+
+    /**
+     * One player's press as the server hears it: the left-click last heard, how many of the clicks heard on its block
+     * no press has taken, and a press the client announced that no click has met yet.
+     *
+     * <p>
+     * The client sends the announcement just before the click it belongs to, but the two may be handled in either
+     * order, so each waits for the other: whichever is handled second takes the press, once. A client that has not
+     * announced a press yet (a build before this rule, or the first press of a visit, whose announcement is handled
+     * after its click) is heard by the older rule, the same block within {@link #PRESS_GAP_TICKS} server ticks; the
+     * first announcement then finds its click already taken and does not take it again.
+     *
+     * <p>
+     * <strong>Each click heard takes one press at most</strong> (review R30, 0.9.229). An announcement handled after
+     * its click took the press from the last click heard and left that click as it was, so a client that announced
+     * twice on one block after one click, within {@link #PAIR_TICKS}, was given two presses: the block armed and a level
+     * taken off. So the clicks no press has taken are counted, an announcement takes one of them, and one that finds
+     * none waits for a click of its own, as it waits for one not heard yet. A count rather than a mark on the last
+     * click, because this edition's server hears a click every tick the key is held and two as it goes down: a
+     * double-click run together by a stalled client arrives as four clicks and then both announcements, which a mark
+     * on the last click would have given one press.
+     */
+    static final class Press {
+
+        private boolean announcing;
+
+        private Object heardIn;
+        private int heardX, heardY, heardZ, heardAt;
+
+        /** The clicks heard on the last click's block, each within PAIR_TICKS of the one before, that took no press. */
+        private int untaken;
+
+        private Object newIn;
+        private int newX, newY, newZ, newAt;
+
+        /** A left-click on x, y, z in {@code world} was heard on server tick {@code now}: whether it takes a press. */
+        boolean clickTakes(Object world, int x, int y, int z, int now) {
+            boolean same = at(heardIn, heardX, heardY, heardZ, world, x, y, z);
+            boolean continuing = same && within(heardAt, now, PRESS_GAP_TICKS);
+            if (!same || !within(heardAt, now, PAIR_TICKS)) untaken = 0;
+            heardIn = world;
+            heardX = x;
+            heardY = y;
+            heardZ = z;
+            heardAt = now;
+            boolean takes;
+            if (!announcing) {
+                takes = !continuing;
+            } else {
+                takes = at(newIn, newX, newY, newZ, world, x, y, z) && within(newAt, now, PAIR_TICKS);
+                if (takes) newIn = null;
+            }
+            if (!takes) untaken++;
+            return takes;
+        }
+
+        /** The client announced a new press on x, y, z in {@code world}, handled on server tick {@code now}. */
+        boolean pressTakes(Object world, int x, int y, int z, int now) {
+            boolean first = !announcing;
+            announcing = true;
+            boolean heard = at(heardIn, heardX, heardY, heardZ, world, x, y, z) && within(heardAt, now, PAIR_TICKS);
+            // The first announcement of a visit comes after its click, which the older rule has already taken.
+            if (heard && first) return false;
+            // A click no press has taken yet meets this announcement; one already taken is not taken again (R30).
+            if (heard && untaken > 0) {
+                untaken--;
+                return true;
+            }
+            newIn = world;
+            newX = x;
+            newY = y;
+            newZ = z;
+            newAt = now;
+            return false;
+        }
+
+        private static boolean at(Object in, int ax, int ay, int az, Object world, int x, int y, int z) {
+            return in != null && in == world && ax == x && ay == y && az == z;
+        }
+
+        private static boolean within(int then, int now, int ticks) {
+            return now - then >= 0 && now - then <= ticks;
+        }
+    }
+
+    /** One press of the attack key, taken: arms the block, or on the second press takes a level off. */
+    private static boolean pressed(Level world, int x, int y, int z, Player player) {
         int level = level(world, x, y, z);
         if (level <= 0) {
             ARMED.remove(player);
             return false;
         }
 
-        int[] armed = ARMED.get(player);
         int now = player.tickCount;
+        int[] armed = ARMED.get(player);
         boolean sameBlock = armed != null && armed[0] == x
             && armed[1] == y
             && armed[2] == z

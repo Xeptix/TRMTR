@@ -242,12 +242,27 @@ public final class NameStatus {
     static final String KEY = "trmtgtnh.config.own.";
 
     /**
-     * The ten surface families a family list may name, which are the families that wear in stages - leaves and
+     * The fourteen surface families a family list may name, which are the families that wear in stages - leaves and
      * vegetation have no pictures to wear through to, so {@code TrmtConfig.wearsThroughTo} skips them, and
-     * {@code status.unknownFamily} lists these ten. Matched without regard to case, as {@code SurfaceFamily.byKey}.
+     * {@code status.unknownFamily} lists these fourteen. Matched without regard to case, as
+     * {@code SurfaceFamily.byKey}.
      */
     public static final List<String> FAMILIES = Collections.unmodifiableList(
-        java.util.Arrays.asList("grass", "dirt", "sand", "gravel", "stone", "cobble", "nether", "end", "snow", "ice"));
+        java.util.Arrays.asList(
+            "grass",
+            "dirt",
+            "sand",
+            "gravel",
+            "stone",
+            "cobble",
+            "nether",
+            "end",
+            "snow",
+            "ice",
+            "flesh",
+            "taint",
+            "sculk",
+            "cloud"));
 
     /**
      * The id one of the three vanilla dimensions is called by, or null (M18.3): {@code overworld} 0, {@code nether}

@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "_": [
+    "Mine Cells, from Prominence's census (W4 R7, judged 2026-11-12). Named one by one, only the block that census saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Bloomrock's bricks, tiles, slabs and stairs were not judged and are left to the rules; hardstone, the prison stone and cobblestone and the wilted grass blocks already wear by detection.",
+    "Stone: bloomrock is the solid natural rock of the mod's dimension, which the rules leave out for having no stone word.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.20.1 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["minecells:bloomrock"], "family": "stone" },
+    { "blocks": ["minecells:bloomrock_slab", "minecells:bloomrock_stairs"], "family": "stone" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "_": [
+    "From FTB Infinity's census (W4 T13 judged, 2026-11-07; W4 T17 built, 2026-11-08). Crusted Taint, value 0 of blockTaint, is the hard crust over the ground of the Tainted Land, and its own family (Xep signed it off on 2026-11-07): Thaumcraft's own material, which no rule reads, and no other family's chain or pace fits a crust that creeps back over its own ruts.",
+    "Value 0 alone, the one the census saw. Tainted Soil (1) and the Block of Flesh (2) share the block and were not seen; a later sighting judges them."
+  ],
+  "entries": [
+    { "blocks": ["Thaumcraft:blockTaint:0"], "family": "taint" }
+  ]
+}

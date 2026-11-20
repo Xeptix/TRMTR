@@ -67,10 +67,25 @@ public final class GhostSides {
         /** The receding grass fringe, drawn over the side in a second quad and tinted, or null. */
         public final TextureAtlasSprite overlay;
 
+        /**
+         * The glow overlay of {@link #sprite}, drawn over it at the same place lit as brightly as {@link #glowLevel}
+         * says, or null where the picture has no pixel that glows or is not a wear picture (0.9.228, real glow).
+         */
+        public final TextureAtlasSprite glow;
+
+        public final int glowLevel;
+
         Face(TextureAtlasSprite sprite, boolean slid, TextureAtlasSprite overlay) {
+            this(sprite, slid, overlay, null, 0);
+        }
+
+        Face(TextureAtlasSprite sprite, boolean slid, TextureAtlasSprite overlay, TextureAtlasSprite glow,
+            int glowLevel) {
             this.sprite = sprite;
             this.slid = slid;
             this.overlay = overlay;
+            this.glow = glow;
+            this.glowLevel = glowLevel;
         }
     }
 
@@ -91,7 +106,7 @@ public final class GhostSides {
         BlockState under = stateOf(origin);
         Block block = under == null ? null : under.getBlock();
         int meta = block == null ? 0 : metaOf(block, under);
-        SurfaceFamily originFamily = block == null ? null : SurfaceRegistry.familyOf(block);
+        SurfaceFamily originFamily = block == null ? null : SurfaceRegistry.familyOf(under);
         if (originFamily == null) originFamily = appearance;
 
         /*
@@ -105,7 +120,10 @@ public final class GhostSides {
          * `uv [0, 1, 16, 16]`. Sliding an unsunk path drew that transparent row along the top of
          * every side - a see-through band in the cut-out pass, and a black one in the solid pass.
          */
-        boolean sunken = ErosionState.sinkOf(record) > 0 && !stair(under);
+        // And only where the block's shape sinks at all (W3 T6 follow-up, 1.7.10's GhostRendering.sunkHere): a block a
+        // data file keeps flat ("sinks": false) is fringed and walled as unsunk ground whatever its record's step says.
+        boolean sunken = ErosionState.sinkOf(record) > 0 && !stair(under)
+            && com.trmtgtnh.surface.SurfaceShape.sinks(under);
         // A worn stair is never sunk, whatever depth its record carries: it keeps the stair's own shape, and the
         // 1.7.10 edition's stair stand-in answers isSunken false and isUntinted false - so its flanks never slide, and
         // a deep-worn turf stair never shows the earth a sunk lawn does (0.9.222, spec GF7).
@@ -117,9 +135,15 @@ public final class GhostSides {
 
         // One texture all round: the side wears from the same set as the top, at the side's own lesser wear.
         if (appearance != SurfaceFamily.GRASS && !hasOwnSides(block, meta)) {
-            TextureAtlasSprite worn = WearTextures
-                .icon(block, meta, originFamily, appearance, WearSteps.sideLayer(appearance, record), turn);
-            if (worn != null) return new Face(worn, false, null);
+            int sideStep = WearSteps.sideLayer(appearance, record);
+            TextureAtlasSprite worn = WearTextures.icon(block, meta, originFamily, appearance, sideStep, turn);
+            if (worn != null) {
+                // The same picture's glow, where it has pixels that shine: the end's cracks and the nether's ash on a
+                // side and the underside as much as on the top.
+                TextureAtlasSprite glow = WearTextures.glowIcon(block, meta, originFamily, appearance, sideStep, turn);
+                int level = glow == null ? 0 : WearTextures.glowLevelAt(block, meta, originFamily, appearance, sideStep, turn);
+                return new Face(worn, false, null, level > 0 ? glow : null, level);
+            }
         }
 
         // Worn through to what was underneath: a rut through turf shows the soil it sat on, not the turf's flank. And
@@ -233,6 +257,7 @@ public final class GhostSides {
      * (0.9.222, spec GF7). See BlockGhost.coveredStair.
      */
     public static boolean stair(BlockState under) {
+        // A data file's shape first (W3 T6), so a data stair is never sunk either, and a data "full" on a stair is.
         return under != null && com.trmtgtnh.surface.SurfaceShape.of(under) == com.trmtgtnh.surface.SurfaceShape.STAIR;
     }
 
@@ -288,12 +313,24 @@ public final class GhostSides {
     private static TextureAtlasSprite faceSprite(Block block, int meta, int side, SurfaceFamily originFamily,
         SurfaceFamily appearance) {
         String named = ModelFaces.faceName(block, side);
+        String stock = null;
         if (named == null) {
-            named = com.trmtgtnh.client.texture.FaceRules
+            named = stock = com.trmtgtnh.client.texture.FaceRules
                 .vanillaName(com.trmtgtnh.client.texture.FaceRules.madeOf(originFamily, appearance), side);
         }
         if (named == null) return null;
-        return atlasSprite(sprite(named));
+        TextureAtlasSprite drawn = atlasSprite(sprite(named));
+        // A stock face this version has no file of - sculk before 1.19 - is drawn from its second choice, as the wear
+        // pictures are (FaceRules.secondChoice; 0.9.229, W4, Codex's review of the new families).
+        String second = stock == null ? null : com.trmtgtnh.client.texture.FaceRules.secondChoice(stock);
+        if (second != null && missing(drawn)) drawn = atlasSprite(sprite(second));
+        return drawn;
+    }
+
+    /** Whether the atlas answered a name with nothing, or with its missing texture. */
+    private static boolean missing(TextureAtlasSprite drawn) {
+        return drawn == null || net.minecraft.client.renderer.texture.MissingTextureAtlasSprite.getLocation()
+            .equals(drawn.contents().name());
     }
 
     /**
@@ -350,7 +387,9 @@ public final class GhostSides {
      * Both older editions ask the block which of its metadata values this state is, because there a
      * block is several surfaces. 1.13 split those into separate blocks, so there is one. Kept as a
      * method, and still passed down, because the lookup below it is keyed on the pair and changing
-     * that is the surface table's business rather than this file's.
+     * that is the surface table's business rather than this file's. A state a data file gives pictures
+     * of its own wears them on its top ({@code GhostQuads.topOf}): flanks are made from the block's side
+     * face, which no look gives, so they stay at the block's own place.
      */
     private static int metaOf(Block block, BlockState state) {
         return 0;

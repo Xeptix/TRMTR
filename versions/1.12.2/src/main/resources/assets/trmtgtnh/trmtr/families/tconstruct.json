@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "From Enigmatica 2 Expert 1.93a's census of 1.12.2 (W4 R8, judged 2026-11-12). Congealed slime is laid as natural ground by the Nether's slime islands, of clay material that no step of the rules reads; its nearest family is flesh, as for the parasite stain, until a slime family is decided. Named at the two values the census saw and judged, so the other colors of congealed slime, the slime blocks, and the slime dirt and grass, which the rules already place, stay as they are."
+  ],
+  "entries": [
+    { "blocks": ["tconstruct:slime_congealed:3", "tconstruct:slime_congealed:4"], "family": "flesh" }
+  ]
+}

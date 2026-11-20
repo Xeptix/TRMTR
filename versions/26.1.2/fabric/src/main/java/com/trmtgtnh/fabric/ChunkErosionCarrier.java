@@ -17,4 +17,13 @@ public interface ChunkErosionCarrier {
     byte[] trmt$erosion();
 
     void trmt$erosion(byte[] wear);
+
+    /**
+     * The original mod's worn squares converted from the tag as it was parsed (0.9.229 W5, spec 2.9): null when the
+     * parse converted nothing, and a list, empty when no square carries a record, when it converted something. The
+     * same in all three loaders' modules.
+     */
+    java.util.List<com.trmtgtnh.original.OriginalWorld.Square> trmt$converted();
+
+    void trmt$converted(java.util.List<com.trmtgtnh.original.OriginalWorld.Square> squares);
 }

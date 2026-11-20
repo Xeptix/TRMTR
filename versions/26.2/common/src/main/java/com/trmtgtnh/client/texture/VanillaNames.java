@@ -47,6 +47,8 @@ public final class VanillaNames {
         moved.put("grass_side_overlay", "grass_block_side_overlay");
         // 1.13 renamed this one rather than merely moving it: "snowed" became "snow".
         moved.put("grass_side_snowed", "grass_block_snow");
+        // White wool, cloud's stand-in (0.9.229, W4): wool_colored_white before 1.13.
+        moved.put("wool_colored_white", "white_wool");
         RENAMED = Collections.unmodifiableMap(moved);
     }
 

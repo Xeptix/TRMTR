@@ -13,15 +13,20 @@
     "MixinOptiFineShaderSeat",
     "MixinPackRepository",
     "MixinPlayerArrives",
-    "MixinRecipeSuggestions"
+    "MixinPistonCarriesWear",
+    "MixinRecipeSuggestions",
+    "MixinFaithfulBrush"
   ],
   "client": [
     "MixinJadeHarvestLine",
     "MixinWthitHarvestLine",
     "MixinSettledFacesSodium",
+    "MixinWornStairLightSodium",
+    "MixinWornStairAoVanilla",
     "MixinGhostBlockLight",
     "MixinGhostSkyLight",
-    "MixinGhostSkySources"
+    "MixinGhostSkySources",
+    "MixinSavingIndicator"
   ],
   "injectors": {
     "defaultRequire": 1

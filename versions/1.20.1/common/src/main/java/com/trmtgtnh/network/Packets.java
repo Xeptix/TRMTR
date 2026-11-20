@@ -30,7 +30,9 @@ import java.util.function.Supplier;
  * <p>
  * <strong>Nothing is reserved any more.</strong> Seventeen belonged to {@code PacketAirSwing}, the
  * one message this port deferred, and it has arrived - so every id from nought to twenty is the
- * message the other editions give it, which is what the numbering was kept for.
+ * message the other editions give it, which is what the numbering was kept for. Twenty-one is the ports' own
+ * (RL19, 0.9.229), the same number in each of them; 1.7.10 has no need of it. Twenty-two and twenty-three are the
+ * client rules' ask and answer (0.9.229), 1.7.10's twenty-one and twenty-two moved up one past it.
  *
  * <p>
  * The golem's was the find worth recording: its send had already landed and its entry had not, so
@@ -257,6 +259,36 @@ public final class Packets {
                 PacketSurfaceTable::new,
                 new PacketSurfaceTable.Handler(),
                 To.CLIENT));
+        // The one message the ports carry that 1.7.10 has no need of (RL19, 0.9.229): its client sends one
+        // left-click a press, and these send one a tick held, so the client says where a press begins.
+        list.add(
+            at(
+                21,
+                "tamper_press",
+                PacketTamperPress.class,
+                PacketTamperPress::new,
+                new PacketTamperPress.Handler(),
+                To.SERVER));
+        // A server's rules for its players' settings: the copy command's ask and its answer (0.9.229). Twenty-two and
+        // twenty-three in every port, where 1.7.10, with no tamper press, gives them twenty-one and twenty-two. The ask
+        // goes only to a client whose hello said it reads client rules, and the answer only to the server that asked,
+        // so neither end is ever sent one it has not registered.
+        list.add(
+            at(
+                22,
+                "client_settings_ask",
+                PacketClientSettingsAsk.class,
+                PacketClientSettingsAsk::new,
+                new PacketClientSettingsAsk.Handler(),
+                To.CLIENT));
+        list.add(
+            at(
+                23,
+                "client_settings_copy",
+                PacketClientSettingsCopy.class,
+                PacketClientSettingsCopy::new,
+                new PacketClientSettingsCopy.Handler(),
+                To.SERVER));
 
         return Collections.unmodifiableList(list);
     }

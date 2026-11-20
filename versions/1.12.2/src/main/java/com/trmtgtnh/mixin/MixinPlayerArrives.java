@@ -4,12 +4,15 @@ import java.util.Set;
 
 import net.minecraft.network.NetHandlerPlayServer;
 import net.minecraft.network.play.server.SPacketPlayerPosLook;
+import net.minecraft.util.math.Vec3d;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.trmtgtnh.erosion.ClientAnswered;
 import com.trmtgtnh.erosion.ErosionEngine;
 
 /**
@@ -32,12 +35,26 @@ import com.trmtgtnh.erosion.ErosionEngine;
  * Common, because it is server code - a dedicated server's, or the one inside single player.
  */
 @Mixin(NetHandlerPlayServer.class)
-public abstract class MixinPlayerArrives {
+public abstract class MixinPlayerArrives implements ClientAnswered {
 
     @Inject(method = "setPlayerLocation(DDDFFLjava/util/Set;)V", at = @At("HEAD"))
     private void trmt$arrives(double x, double y, double z, float yaw, float pitch,
         Set<SPacketPlayerPosLook.EnumFlags> relative, CallbackInfo ci) {
         ErosionEngine engine = ErosionEngine.get();
         engine.arrived(((NetHandlerPlayServer) (Object) this).player);
+    }
+
+    /** The position the server waits for the client to confirm, null once it has (0.9.229). */
+    @Shadow
+    private Vec3d targetPos;
+
+    /**
+     * Whether the client has answered the last place it was put (0.9.229; see ClientAnswered): the confirmation the
+     * server waits for. Until it has, the server's "on the ground" for the player is the saved or the old one, and an
+     * arrival waits.
+     */
+    @Override
+    public boolean trmtAnswered() {
+        return targetPos == null;
     }
 }

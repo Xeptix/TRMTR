@@ -11,6 +11,7 @@ import net.minecraft.world.level.block.Block;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.dataload.BlockLooks;
 import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
@@ -122,6 +123,14 @@ public class WearSprite {
      */
     private final boolean wallDegreen;
 
+    /**
+     * True when this sprite is the glow overlay of a wear picture rather than the picture itself: the pixels of it that
+     * glow, in the color the picture draws them in, everything else clear (0.9.228, real glow). It is composed from the
+     * same source as the picture it goes with, and drawn over it as a second quad at a baked light, so the pixels shine
+     * in the dark. Never offered the atlas as the same picture as an opaque one, and never drawn where it is empty.
+     */
+    private final boolean glow;
+
     public WearSprite(Identifier name, Block origin, int originMeta, SurfaceFamily originFamily,
         SurfaceFamily appearance, int stage, int stageCount, int rotation, int edge) {
         this(name, origin, originMeta, originFamily, appearance, stage, stageCount, rotation, edge, false);
@@ -135,6 +144,14 @@ public class WearSprite {
     public WearSprite(Identifier name, Block origin, int originMeta, SurfaceFamily originFamily,
         SurfaceFamily appearance, int stage, int stageCount, int rotation, int edge, boolean mendSide,
         boolean wallDegreen) {
+        this(name, origin, originMeta, originFamily, appearance, stage, stageCount, rotation, edge, mendSide,
+            wallDegreen, false);
+    }
+
+    private WearSprite(Identifier name, Block origin, int originMeta, SurfaceFamily originFamily,
+        SurfaceFamily appearance, int stage, int stageCount, int rotation, int edge, boolean mendSide,
+        boolean wallDegreen, boolean glow) {
+        this.glow = glow;
         this.name = name;
         this.mendSide = mendSide;
         this.wallDegreen = wallDegreen;
@@ -163,6 +180,30 @@ public class WearSprite {
      */
     public Identifier name() {
         return name;
+    }
+
+    /**
+     * The glow overlay of a wear picture: the same block, surface, gradation, rotation and edge, under its own name.
+     */
+    static WearSprite glowOf(WearSprite base, Identifier name) {
+        return new WearSprite(
+            name,
+            base.origin,
+            base.originMeta,
+            base.originFamily,
+            base.appearance,
+            base.stage,
+            base.stageCount,
+            base.rotation,
+            base.edge,
+            false,
+            false,
+            true);
+    }
+
+    /** Whether this is a glow overlay rather than a wear picture. */
+    boolean isGlow() {
+        return glow;
     }
 
     /** The edge the plan priced this at, which is what the picture is drawn to. */
@@ -339,6 +380,21 @@ public class WearSprite {
 
         final float earthStrength;
 
+        /**
+         * The original mod's five sand pictures as ratios, one set per rotation, for the look Faithful Mode gives sand
+         * ({@code FamilySettings.ORIGINAL_SAND_LOOK}, 0.9.229 W5 T4); null for every other look, or where the
+         * pictures will not read, and then the face wears as an unrecognised look does. Read on the render thread as
+         * the source is built, and final like every field a worker is handed.
+         */
+        final float[][][] originalSand;
+
+        /**
+         * A looks file's authored stage pictures (W3 T5), each at the source's edge, which replace the generated ones
+         * on the block's own surface; null where there are none. Read on the render thread as the source is built, and
+         * final like every field a worker is handed.
+         */
+        final int[][] authored;
+
         Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
             float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
             AnimationFrames layerAnimation, boolean seeThrough, boolean scaled) {
@@ -360,13 +416,15 @@ public class WearSprite {
                 scaled,
                 0f,
                 "",
-                1f);
+                1f,
+                null,
+                null);
         }
 
         Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
             float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
             AnimationFrames layerAnimation, boolean seeThrough, boolean scaled, float earthHead,
-            String earthPattern, float earthStrength) {
+            String earthPattern, float earthStrength, float[][][] originalSand, int[][] authored) {
             this.edge = edge;
             this.top = top;
             this.bottom = bottom;
@@ -385,6 +443,8 @@ public class WearSprite {
             this.earthHead = earthHead;
             this.earthPattern = earthPattern;
             this.earthStrength = earthStrength;
+            this.originalSand = originalSand;
+            this.authored = authored;
         }
 
         boolean isUnreadable() {
@@ -471,7 +531,10 @@ public class WearSprite {
         // unless somebody asks it to - and only while the sprite is still drawing its own surface,
         // because once it has worn through into a successor the cover is already gone.
         FamilySettings look = TrmtConfig.family(appearance);
-        boolean cover = FaceRules.drawsCover(originFamily, appearance, FaceSource.coverLook(look));
+        // A looks file's look for this very block (W3 T5), on its own surface only: worn through into a successor,
+        // the successor's look draws. Asked as the plan asked it, so the set and its sprites agree about the cover.
+        BlockLooks.Look own = appearance == originFamily ? FaceSource.lookOf(origin, originMeta) : BlockLooks.Look.NONE;
+        boolean cover = FaceRules.drawsCover(originFamily, appearance, FaceSource.coverLook(look, origin, originMeta));
 
         // Grass that has worn through shows the earth it was sitting on; everything else wears the
         // face you were already looking at.
@@ -577,14 +640,15 @@ public class WearSprite {
             }
         }
 
+        String pattern = own.patternOr(look == null ? "" : look.wearPattern);
         return new Source(
             size,
             top,
             bottom,
             null,
             cover ? WearPatterns.orders(rotationsInUse()) : null,
-            look == null ? "" : look.wearPattern,
-            look == null ? 1f : look.wearStrength,
+            pattern,
+            own.strengthOr(look == null ? 1f : look.wearStrength),
             TrmtConfig.wearCurve <= 0f ? 1f : TrmtConfig.wearCurve,
             improvised,
             revealsEarth,
@@ -595,12 +659,52 @@ public class WearSprite {
             scaled,
             earthHead,
             earthLook == null ? "" : earthLook.wearPattern,
-            earthLook == null ? 1f : earthLook.wearStrength);
+            earthLook == null ? 1f : earthLook.wearStrength,
+            FamilySettings.ORIGINAL_SAND_LOOK.equals(pattern) ? originalSand(manager) : null,
+            authoredStages(manager, own, size));
+    }
+
+    /** Stage pictures named but not readable, said once each a session rather than once a sprite. Render thread. */
+    private static final java.util.Set<String> UNREAD_STAGES = new java.util.HashSet<String>();
+
+    /**
+     * A looks file's authored stage pictures (W3 T5), read at the sprite's edge, or null where there are none or any
+     * one of them will not read - then the generated wear is drawn, and the picture is named once at WARN as the
+     * file's to mend, never as TRMTR's.
+     */
+    private int[][] authoredStages(ResourceManager manager, BlockLooks.Look own, int size) {
+        if (own.stages.isEmpty()) return null;
+        int[][] pictures = new int[own.stages.size()][];
+        for (int i = 0; i < pictures.length; i++) {
+            String name = own.stages.get(i);
+            BufferedImage picture = WearPatterns.readIcon(manager, name);
+            if (picture == null) {
+                if (UNREAD_STAGES.add(name)) {
+                    Trmt.LOG.warn(
+                        "TRMTR data: the stage picture {} a looks file names for {} could not be read, so that block wears its generated pictures - report this to the mod or pack that names it",
+                        name,
+                        com.trmtgtnh.surface.SurfaceRegistry.registryName(origin));
+                }
+                return null;
+            }
+            pictures[i] = WearPatterns.toPixels(picture, size);
+        }
+        return pictures;
+    }
+
+    /** The original's sand pictures at every rotation in use, or null if any will not read. Render thread. */
+    private static float[][][] originalSand(ResourceManager manager) {
+        float[][][] out = new float[rotationsInUse()][][];
+        for (int rotation = 0; rotation < out.length; rotation++) {
+            out[rotation] = WearPatterns.originalSandRatios(manager, rotation);
+            if (out[rotation] == null) return null;
+        }
+        return out;
     }
 
     /** One face of this sprite's block as the pass reads it, noting when it was not the block's own loaded pixels. */
     private int[] read(FaceSource faces, int side) {
-        FaceSource.Face face = faces.read(origin, side, originFamily, appearance);
+        FaceSource.Face face = faces.read(origin, originMeta, side, originFamily, appearance);
         if (!face.ownPixels) improvised = true;
         return face.pixels;
     }
@@ -622,6 +726,7 @@ public class WearSprite {
         if (source == null || source.isUnreadable()) return null;
         int size = source.edge;
         if (size <= 0) return null;
+        if (glow) return composeGlow(source, size);
         if (wallDegreen) return WearCompositor.degreenTopEdge(source.top, size);
         if (source.mendUnder != null) {
             // Cloned rather than handed back. One Source feeds every gradation and rotation of a
@@ -629,6 +734,16 @@ public class WearSprite {
             // whose pixels ARE its Source's array would share one upload with all of them.
             if (source.mendUnder.length == 0) return source.top.clone();
             return WearCompositor.over(source.mendUnder, source.top, size);
+        }
+        if (source.authored != null) {
+            // A looks file's own pictures (W3 T5) in place of the generated ones, the gradations spread across them
+            // in order; the layer behind still goes under them, as under a generated shell. Copied, since one source
+            // feeds every gradation and rotation, and the copy is uniquely this sprite's shell.
+            int[] drawn = source.authored[BlockLooks.stagePicture(stage, stageCount, source.authored.length)].clone();
+            if (source.innerLayer == null) return drawn;
+            if (source.layerFrames != null) pendingShell = drawn;
+            return source.seeThrough ? WearCompositor.overThroughHoles(source.innerLayer, drawn, size)
+                : WearCompositor.over(source.innerLayer, drawn, size);
         }
         if (source.grassOrder != null) {
             float[] order = source.grassOrder[rotation % Math.max(1, source.grassOrder.length)];
@@ -647,10 +762,11 @@ public class WearSprite {
 
         int[] pixels = source.revealsEarth ? source.bottom : source.top;
         if (pixels == null) return null;
-        float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
-        if (source.revealsEarth && source.earthHead > 0f)
-            progress = FaceRules.earthProgress(progress, source.earthHead);
-        int[] worn = wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
+        float progress = runProgress(source);
+        // Faithful Mode's sand draws the original's own pictures, the gradation choosing which (0.9.229 W5 T4).
+        int[] worn = source.originalSand != null ? WearPatterns
+            .originalSand(pixels, size, source.originalSand[rotation % source.originalSand.length], stage, stageCount)
+            : wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
         // Only this branch, and only because it is the only one whose source is a single face of the
         // block being worn. The three above compose two faces into one or lay a mended side over
         // vanilla's, and what shows through those is earth or turf rather than the world.
@@ -669,6 +785,56 @@ public class WearSprite {
         if (source.layerFrames != null) pendingShell = worn;
         return source.seeThrough ? WearCompositor.overThroughHoles(source.innerLayer, worn, size)
             : WearCompositor.over(source.innerLayer, worn, size);
+    }
+
+    /** How far along its run this gradation is, as the wear pass is told it, for a picture and for its overlay. */
+    private float runProgress(Source source) {
+        float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
+        if (source.revealsEarth && source.earthHead > 0f)
+            progress = FaceRules.earthProgress(progress, source.earthHead);
+        return progress;
+    }
+
+    /**
+     * The glow overlay's pixels, or null where there are none to draw: the look has no glow, the surface is not a plain
+     * single face (a mended side, a grass cover, a looks file's own pictures, a face with a moving layer behind it), or
+     * no pixel of this gradation glows. A picture with nothing to light is never stitched.
+     */
+    private int[] composeGlow(Source source, int size) {
+        // None of these draws the end's or the nether's look into its pixels, so there is nothing of it to light: a mended
+        // side and a de-greened wall are the block's own side laid over earth, a grass cover is grass's own, a looks
+        // file's pictures are authored whole with no pixel named a crack or an ash fleck, and Faithful sand draws the
+        // original's own pictures. A face with a layer behind it is not among them: see below.
+        if (wallDegreen || mendSide || source.mendUnder != null || source.authored != null || source.grassOrder != null
+            || source.originalSand != null) return null;
+        int[] pixels = source.revealsEarth ? source.bottom : source.top;
+        if (pixels == null) return null;
+        float progress = runProgress(source);
+        int[] lit = glowPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
+        if (lit == null) return null;
+        // Only where the face itself is whole: a pixel the face has cut away or lets the world or a layer behind it show
+        // through is not the look's to light, and the layer behind a face may move while an overlay stands still. The
+        // wear pass works on the face as opaque, so this is what keeps a crack off a hole.
+        boolean any = false;
+        for (int i = 0; i < lit.length && i < pixels.length; i++) {
+            if ((lit[i] >>> 24) == 0) continue;
+            if ((pixels[i] >>> 24) != 0xFF) {
+                lit[i] = 0;
+            } else {
+                any = true;
+            }
+        }
+        if (!any) return null;
+        // Written on the worker that composes this sprite, read once the pass is done.
+        glowLevel = glowLevel(source.pattern);
+        return lit;
+    }
+
+    /** The light level this overlay is baked with, set when it is composed; 0 until then and where it is empty. */
+    private volatile int glowLevel;
+
+    int glowLevelOf() {
+        return glowLevel;
     }
 
     /** As {@link #rescale}, but never the argument itself, so a shared Source is never handed on. */
@@ -911,7 +1077,7 @@ public class WearSprite {
 
     /** How many rotations this stitch is building, which the cover look needs one order for each of. */
     private static int rotationsInUse() {
-        return Math.max(1, Math.min(4, TrmtConfig.wearRotations));
+        return WearTextures.rotationsThisStitch();
     }
 
     /**
@@ -1018,14 +1184,14 @@ public class WearSprite {
      * relief, because the rub flattens the fissures it does claim to about a quarter of theirs.
      *
      * <p>
-     * Both halves of this look run at once, which is what makes it the only one of the eleven that had
+     * Both halves of this look run at once, which is what made it the only one of the eleven then offered that had
      * to be pulled back on brightness rather than tuned for legibility. On the eight vanilla faces
      * at four rotations a fully worn face of this look sat 93.12 levels below the unworn ground it
      * stands beside, where the darkest of the other nine - the plain crack - sits at 69.74 and their
      * median at 43.64. A player picking down a list of ten pictures saw one of them go black. This
      * fraction and {@link #CRACKED_RUB_RUN} together answered that first, and neither does it alone:
      * 79.47 levels, which closed thirteen and a half of the twenty-three levels between this look
-     * and the next darkest. It was still the darkest of the eleven by ten levels after that, so a
+     * and the next darkest. It was still the darkest of those eleven by ten levels after that, so a
      * third fraction followed on {@link #CRACKED_RUB_SETTLE} and took it to 72.02, against the next
      * darkest at 69.74.
      *
@@ -1185,14 +1351,62 @@ public class WearSprite {
      *
      * <p>
      * The eleventh takes the cover off and shows what is underneath. That one needs two faces rather
-     * than one and lives in {@link #grassPass} next door. Anything unrecognised - including the old
-     * sand and polish names still sitting in people's configs - falls to the default, so no file
-     * breaks.
+     * than one and lives in {@link #grassPass} next door. The rest were made for one material each - flesh,
+     * taint, sculk and cloud, 0.9.229's four new families, in {@link TailoredWear}, and seven for the older
+     * families, in {@link TailoredGround} - because each is that material's own wear rather than an arrangement
+     * of the three operators. Anything unrecognised - including the old sand and polish names still sitting in
+     * people's configs - falls to the default, so no file breaks.
      *
      * @param progress how far along its run this face is, from 0 to 1
      */
     public static int[] wearPass(int[] pixels, int size, String pattern, float progress, float strength, int rotation) {
         return wearPass(pixels, size, pattern, progress, strength, rotation, TrmtConfig.wearCurve);
+    }
+
+    /**
+     * The pixels of the same wear picture that glow, or null where the look has none: only the end's bleached stone
+     * (its purple cracks) and the nether's charred ground (its ash) do. Drawn exactly as {@link #wearPass} draws the
+     * picture, so every glowing pixel is the picture's own pixel; everything else is clear.
+     */
+    public static int[] glowPass(int[] pixels, int size, String pattern, float progress, float strength, int rotation,
+        float curve) {
+        float eased = ease(progress, pattern, curve);
+        float spread = spread(eased);
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) {
+            return TailoredGround.netherGlow(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) {
+            return TailoredGround.endGlow(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) {
+            return TailoredWear.sculkGlow(pixels, size, eased, strength, rotation);
+        }
+        return null;
+    }
+
+    /**
+     * The light level, out of fifteen, the glow of a look is baked with, or 0 where the look has no glow. The end's
+     * cracks are 9, the nether's ash 5 ({@link TailoredGround#END_GLOW_LEVEL}) and sculk's survivors 7.
+     */
+    public static int glowLevel(String pattern) {
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) return TailoredGround.NETHER_GLOW_LEVEL;
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return TailoredGround.END_GLOW_LEVEL;
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return TailoredWear.SCULK_GLOW_LEVEL;
+        return 0;
+    }
+
+    /**
+     * Whether the glow overlay of this gradation of a look can light any pixel at all, asked before anything is
+     * composed (GlowStagesTest): only where the eased progress passes the depth the look first lights at, at the
+     * strongest strength, so a stage that answers no composes nothing. Stage 0 never lights, nor a look with no glow.
+     */
+    public static boolean glowCanLight(String pattern, int stage, int stageCount) {
+        if (glowLevel(pattern) <= 0) return false;
+        float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
+        float eased = ease(progress, pattern, TrmtConfig.wearCurve);
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return eased > TailoredGround.END_CRACK_START;
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return eased >= TailoredWear.SCULK_GLOW_START;
+        return eased > 0f;
     }
 
     /**
@@ -1299,6 +1513,45 @@ public class WearSprite {
                 liteSpread * CRACKED_RUB_RUN * 0.9f * strength,
                 run * strength,
                 rotation);
+        }
+        // The four looks made for one material each (0.9.229; TailoredWear). Strength is handed in whole, as the
+        // family's own setting, and each look scales its own changes by it. The two that grow a trodden patch take
+        // the floored coverage as the rubs do, for the same reason: the step off untouched ground.
+        if (FamilySettings.PATTERN_FLESH.equals(pattern)) {
+            return TailoredWear.flesh(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_TAINT.equals(pattern)) {
+            return TailoredWear.taint(pixels, size, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) {
+            return TailoredWear.sculk(pixels, size, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_CLOUD.equals(pattern)) {
+            return TailoredWear.cloud(pixels, size, spread, eased, strength, rotation);
+        }
+        // The seven made for the older families (0.9.229; TailoredGround), on the same terms: strength whole, and the
+        // floored coverage for every one that grows a trodden track. Ice grows none; its haze and scratches follow
+        // the eased progress alone.
+        if (FamilySettings.PATTERN_SAND_TRODDEN.equals(pattern)) {
+            return TailoredGround.sand(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_GRAVEL_PARTED.equals(pattern)) {
+            return TailoredGround.gravel(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_COBBLE_POLISHED.equals(pattern)) {
+            return TailoredGround.cobble(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_SNOW_PACKED.equals(pattern)) {
+            return TailoredGround.snow(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_ICE_SCUFFED.equals(pattern)) {
+            return TailoredGround.ice(pixels, size, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) {
+            return TailoredGround.nether(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) {
+            return TailoredGround.end(pixels, size, spread, eased, strength, rotation);
         }
         // Ranked once and shared, because both looks below want the same ranking of the same pixels
         // and it is the dearest thing either of them does.
@@ -1460,6 +1713,23 @@ public class WearSprite {
         if (FamilySettings.PATTERN_CRACK_DIRT.equals(pattern)) return CURVE_EVEN;
         if (FamilySettings.PATTERN_CRACK_DIRT_LITE.equals(pattern)) return CURVE_EVEN;
         if (FamilySettings.PATTERN_DIRT_LITE.equals(pattern)) return CURVE_RUB;
+        // The tailored four, each on its own measured best of the numbers above, taken on its own family's face at
+        // eighty gradations and all four rotations (0.9.229-found.md, "Four tailored wear patterns"). Flesh and cloud
+        // grow a ranked patch as the rub does and peak where it does; taint's blotches open in the same late-heavy way;
+        // sculk's lights go out at an even count and want the straight line.
+        if (FamilySettings.PATTERN_FLESH.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_TAINT.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return CURVE_EVEN;
+        if (FamilySettings.PATTERN_CLOUD.equals(pattern)) return CURVE_RUB;
+        // The seven made for the older families, measured the same way (0.9.229-found.md, "A second set of tailored
+        // wear patterns").
+        if (FamilySettings.PATTERN_SAND_TRODDEN.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_GRAVEL_PARTED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_COBBLE_POLISHED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_SNOW_PACKED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_ICE_SCUFFED.equals(pattern)) return CURVE_EVEN;
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return CURVE_RUB;
         return CURVE_RUB;
     }
 

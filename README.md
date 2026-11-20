@@ -10,10 +10,12 @@ The line between your base and the mine is a path whether you built one or not. 
 like one, and lets it fade again once you stop using it.
 
 This is milkucha's [The Roads More Travelled](https://github.com/milkucha/trmt) rebuilt for a pack
-with hundreds of mods in it. The rebuild changed one thing that changes everything else: no block is
-ever written into the world. The server keeps a compact wear record per chunk and your client paints
+with hundreds of mods in it. The rebuild changed one thing that changes everything else: ordinary wear
+writes no block into the world. The server keeps a compact wear record per chunk and your client paints
 cosmetic blocks over its own copy of the terrain, so the mod is removable, switchable per player,
-switchable per server, and invisible in a world opened without it.
+switchable per server, and invisible in a world opened without it. What does change real blocks is
+named under [Removing the mod](#removing-the-mod): Faithful Mode's trampling of plants and leaves, five
+settings, and converting a world made with The Roads More Travelled, which replaces its worn blocks.
 
 | | |
 |---|---|
@@ -27,14 +29,14 @@ switchable per server, and invisible in a world opened without it.
 | 1.16.5 | Forge, Fabric | release |
 | 1.20.1 | Forge, Fabric | release |
 | 1.21.1 | NeoForge, Forge, Fabric | release |
-| 26.1.2, 26.2, 26.3 | NeoForge, Forge, Fabric | beta |
+| 26.1.2, 26.2, 26.3 | NeoForge, Forge, Fabric | release |
 
 Every edition has a settings screen of its own, so Cloth Config is optional everywhere. [Install](#install) says which
 jar to take and what it needs.
 
 One mod, one version number, eight editions: they do the same thing, by the same numbers, and read
 the same settings file, so a pack can move between Minecraft versions and find its edits where it
-left them. Sixty-three classes are shared between them byte for byte. Where an edition cannot match
+left them. A hundred and twenty-three classes are shared between them byte for byte. Where an edition cannot match
 the others it is because the Minecraft version took away what the behaviour was built on, and the
 section it belongs to says so rather than leaving you to find out. They are collected in
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) if you would rather see them all at once.
@@ -79,14 +81,17 @@ The mod is free and always will be. If you would like to put something in the ha
 - [Waila and Hwyla](#waila-and-hwyla)
 - [Tuning](#tuning)
 - [Presets](#presets)
+- [Faithful Mode](#faithful-mode)
 - [The config screen](#the-config-screen)
 - [The wear table](#the-wear-table)
 - [Commands](#commands)
 - [Pinning a position](#pinning-a-position)
 - [Servers](#servers)
+- [Wear backups](#wear-backups)
 - [Update notice](#update-notice)
 - [Performance](#performance)
 - [Optional integrations](#optional-integrations)
+- [For mod and pack authors](#for-mod-and-pack-authors)
 - [How this differs from The Roads More Travelled](#how-this-differs-from-the-roads-more-travelled)
 - [Upgrading](#upgrading)
 - [Removing the mod](#removing-the-mod)
@@ -116,7 +121,7 @@ Drop the jar for your Minecraft version and loader - `trmtr-1.7.10-<version>-for
 `trmtr-1.12.2-<version>-forge.jar`, `trmtr-1.16.5-<version>-forge.jar` / `-fabric.jar`,
 `trmtr-1.20.1-<version>-forge.jar` / `-fabric.jar`,
 `trmtr-1.21.1-<version>-neoforge.jar` / `-forge.jar` / `-fabric.jar`, or
-`trmtr-26.1.2-<version>-beta-neoforge.jar` / `-forge.jar` / `-fabric.jar`, and the same for 26.2 and 26.3 - into
+`trmtr-26.1.2-<version>-neoforge.jar` / `-forge.jar` / `-fabric.jar`, and the same for 26.2 and 26.3 - into
 your pack's `mods` folder, on **both** the client and the server. That is the only file you need; the
 `-dev` and `-sources` jars are for development.
 
@@ -133,11 +138,12 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
 **Requirements, 1.12.2**
 
 - Minecraft 1.12.2 with Forge 14.23.5.2847 or newer.
-- **[MixinBooter](https://github.com/CleanroomMC/MixinBooter).** The jar's manifest declares its mixin config the way MixinBooter documents, and
-  the mod declares `required-after:mixinbooter`, so a pack without it is told at the loading screen
-  rather than left to wonder why. **UniMixins** states partial 1.12.2 support and is expected to read
-  the same manifest attribute, but nobody has run this jar under it, so it is not claimed - and with
-  the dependency declared it would have to be installed alongside rather than instead.
+- **[MixinBooter](https://github.com/CleanroomMC/MixinBooter)**, in any pack that does not start Mixin itself. The
+  jar's manifest declares its mixin config the way MixinBooter documents, and in a game with no Mixin at all the mod
+  asks Forge for MixinBooter, so a pack without it is told at the loading screen rather than left to wonder why. A
+  pack that starts its own Mixin 0.8 or newer through its mods' tweakers, as RLCraft does, needs no MixinBooter: the
+  mod registers its config under that Mixin itself. A game whose Mixin is older than 0.8 is stopped with a screen
+  saying so. **UniMixins** states partial 1.12.2 support, but nobody has run this jar under it, so it is not claimed.
 - **With JourneyMap 6 installed** - it brings a Mixin of its own, which starts before MixinBooter, and
   MixinBooter then reads no mod's manifest - a small loading plugin in the jar registers the mixin
   config itself. It transforms nothing and does nothing at all when MixinBooter started Mixin. Without
@@ -178,7 +184,7 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
   carries and the upgrade fitted to it, its stacks put through the game's own item upgrade before they are read. A
   world from before 1.18 keeps its golems, as on 1.20.1.
 
-**Requirements, 26.1.2, 26.2 and 26.3 (beta)**
+**Requirements, 26.1.2, 26.2 and 26.3**
 
 - Minecraft 26.1.2, 26.2 or 26.3 with NeoForge 26.1.2.71, 26.2.0.57 or 26.3.0.0-beta or newer, Forge 64 for 26.1.2, 65 for
   26.2 or 66 for 26.3, **or** Fabric Loader 0.19.1 on 26.1.2, 0.19.4 on 26.2 or 0.19.5 on 26.3 or newer, on Java 25,
@@ -190,6 +196,9 @@ your pack's `mods` folder, on **both** the client and the server. That is the on
   Fabric.
 - A world opened for the first time on 26.1.2 from 1.21.1, on 26.2 from 26.1.2, or on 26.3 from 26.2 keeps its wear,
   and heals on from where it was. A Golem of Ways keeps what it carries and the upgrade fitted to it.
+
+A world made with milkucha's The Roads More Travelled converts as it loads on 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3:
+[`docs/CONVERTED-WORLDS.md`](docs/CONVERTED-WORLDS.md) says how.
 
 Nothing else is required. Every integration listed under
 [Optional integrations](#optional-integrations) is behind a mod-loaded check and the whole mod
@@ -309,14 +318,16 @@ default, puts them back. **OptiFine on 1.7.10 with a shader pack on** loses the 
 its sort reads each face at the size it had before the pack grew it. Water, glass and real ice in
 the same chunk are sorted by the same rule; nothing a block can say about itself changes it.
 
-A block placed directly on worn ground stops the ground dipping under it
-(`general.hideWearUnderBlocks`, on by default). What that means is decided by
-`general.flattenWearUnderBlocks`, also on: the square keeps the texture of the wear it has and
-fills its own cube again, so a path that runs under a floor still reads as a path and only the
-hollow goes. Turn that second one off and the wear is not drawn at all and the plain block shows
-through. Either way the record is untouched and comes straight back when the block on top is
-broken - paving over a path is a way to stop tripping in it, not a way to repair it. Both settings
-are yours alone despite sitting under `general`; nothing ever sends either of them to a client.
+A solid block placed directly on worn ground stops the ground dipping under it, always: the square
+fills its own cube again in its picture and in its collision, on the server and on every client
+alike, so nothing is left hollow under the block. Whether the covered square still shows its wear
+is yours. With `general.hideWearUnderBlocks` on, as it ships, `general.flattenWearUnderBlocks`,
+also on, keeps the texture of the wear it has, so a path that runs under a floor still reads as a
+path and only the hollow goes; turn that second one off and the plain block shows through. Either
+way the record is untouched, heals on its own clock, and its rut comes straight back when the
+block on top is broken - paving over a path is a way to stop tripping in it, not a way to repair
+it. Both settings are yours alone despite sitting under `general`; nothing ever sends either of
+them to a client, and neither changes the depth.
 
 Writes go into the client world with no neighbour notification and no per-block render update - 
 each chunk gets one range invalidation instead - and the queue is drained against a per-tick
@@ -324,9 +335,26 @@ budget, because flying into a well-travelled area can queue thousands of positio
 Overlays further out than `client.overlayDistanceChunks` (twelve by default) are not painted at
 all, independent of render distance.
 
-Rotation is a pure function of the horizontal coordinates: four rotations of the same texture
-scattered across neighbouring blocks, so a path reads as organic wear rather than a repeating
-tile. Nothing is stored and nothing is sent - both sides derive the same answer.
+Rotation is a pure function of the position and how far the block has sunk: four wear patterns,
+each turned its own quarter, scattered so that no block shares its turn with the four beside it and
+no row repeats another, so a path reads as organic wear rather than a repeating tile. Nothing is
+stored and nothing is sent - both sides derive the same answer - and a block's turn changes only
+when it sinks another pixel. Only the top of a worn block turns, and only where its face has
+no direction: dirt, grass, sand, gravel, snow, stone, cobble, netherrack, end stone and the like.
+Whether a face has a direction is read from its own pixels (lines, a grain, straight edges across
+it) and its name (brick, plank, tile, log, polished, carved and the rest), so bricks, planks and
+tiles keep their way up in a modded pack as in vanilla; a looks file's `turns` key decides for a
+block over both. `client.wearTurns` chooses **Turn and vary** (the default), **Turn only** (one
+pattern turned four ways, a quarter of the room in the block atlas) or **Vary only** (four
+patterns never turned, as earlier releases drew them).
+
+**When worn blocks start turning**, `client.wearTurnStart`, chooses the stage the turn begins at:
+
+- **Match the game, then sink** (the default) - until a block first sinks, its worn top keeps the
+  turn the game gives the unworn block: none in 1.7.10, and the game's own random turn of dirt, sand,
+  grass tops and the like from 1.12.2. From the first pixel of sinking, each depth takes its own turn.
+- **When it first sinks** - the faint stages before the first sink are drawn unturned.
+- **From the first stage** - turned from the first, faintest stage of wear.
 
 ## Wear textures built from each block's own pixels
 
@@ -341,7 +369,8 @@ The result: a Biomes O' Plenty grass wears into Biomes O' Plenty earth, red sand
 GregTech stone wears grey, and a resource pack that retextures dirt changes worn ground for free.
 
 Every other look is fully procedural, worked from the block's own pixels with no art behind it at
-all, so all of them are safe on a block nobody ever drew wear for. There are **eleven**:
+all, so all of them are safe on a block nobody ever drew wear for. There are **twenty-two**. The first eleven are
+general looks, any of which suits many surfaces:
 
 | Look | What it does |
 |---|---|
@@ -361,6 +390,35 @@ The compounds run in the order their ids name, and the order was measured rather
 crack run last blurs a track's edge away to a quarter of what it was, while a track worn last
 leaves two fifths of the face carrying the fracture network pixel for pixel.
 
+The other eleven were each made for one material, are named for it, and are what that material wears out of the box.
+Each still takes every color it uses from the block itself, so any family can be set to any of them:
+
+| Look | Made for | What it does |
+|---|---|---|
+| `sand_trodden` | sand | packs a firmer line, its grain closed and a little darker, with grains lifted lighter along its edge |
+| `gravel_parted` | gravel | roughens and darkens from the first steps, with small dark patches that grow; the gaps between the stones darken and the flint stands out more |
+| `cobble_polished` | cobble | roughens and darkens from the first steps, with small dark patches that grow; polishes the stone tops, grinds the joints and opens cracks that widen and darken |
+| `snow_packed` | snow | flattens a walked-in track toward the face's average, a little darker and dirtier, with a few glints |
+| `ice_scuffed` | ice | a haze and short scratches toward frost, never darker, and cracks only in the last quarter |
+| `nether_charred` | nether | flattens, darkens and greys toward ash, with flecks of it |
+| `end_bleached` | end | flattens and goes paler in patches, with grit, and from three tenths of the way cracks in the ender dragon's purple |
+| `flesh` | flesh | a trodden patch darkens toward a bruise and closes its grain, with wet highlights |
+| `taint` | taint | the ground blights darker in blotches that spread to the end of the run, while its own veins swell, widening and brightening over the last third |
+| `sculk` | sculk | most of its glints go out one at a time and about a fifth stay lit to the end, while the face goes flat and grey |
+| `cloud` | cloud | the whole face packs down, and a denser track opens with its fluff pushed up beside it |
+
+**Classic wear** brings back the look each of those surfaces had before its own was made: `client.classicWear` for
+every one, `families.<name>.classicWear` for one, both off as the mod ships, and both the first two rows of the wear
+table's look picker. A look you chose by name is kept whichever switch is on. A settings file from an earlier release
+whose look is still the default it was written with moves to the new look once, and the log says so.
+
+**Glowing wear.** Worn end stone's purple cracks, the ash on worn nether ground and the glints sculk keeps lit are drawn
+a second time at a light of their own - 9 of 15 on the end, 5 on the nether, 7 on sculk - and that light is only ever
+raised, never lowered. At night they stay lit while the ground around them goes dark; by day they are a few percent
+brighter than the ground at most. `client.glowingWear` is on as the mod ships. Off, the glow is not made at all and
+takes no room in the block atlas, which suits a shader pack that handles light itself. It takes effect on the next
+resource reload.
+
 Two ids that were looks once are not in that table and are still read: a family set to `sand` or to
 `polish` lands on the rub, so an older config file goes on working rather than being refused.
 
@@ -371,10 +429,24 @@ How finely the run is drawn is also yours. `client.wearGradations` defaults to *
 one distinct picture per step of the chain, so no two consecutive steps look the same - and can
 be taken down to sixteen, where consecutive steps share a picture five ways.
 `client.wearRotations` defaults to four. The block atlas is measured at every stitch and the wear
-textures are planned into the room it actually has, so a very large pack, or one drawn at
-thirty-two pixels, gets a coarser ramp first, never below sixteen gradations, and past that the
-faces last in registry-name order wear their family's generic art rather than their own; the log
-says which, every stitch. The room is an 8192 square unless `client.largerAtlas` is on, which plans the
+textures are planned into the room it actually has. A very large pack, or one drawn at
+thirty-two pixels, first lets up to a tenth of the gradations around the middle of the run draw
+their neighbour's picture, every step still counted; then gives up patterns, four down to one;
+then gets a coarser ramp, never below sixteen gradations; and only past that do the faces last in
+registry-name order wear their family's generic art rather than their own. The log says which,
+every stitch. A picture that comes out the same as another is stored once.
+**Under Angelica on 1.7.10**, which gives every block texture a border so its mipmaps stay clean,
+this mod's worn pictures take a border of their own, `client.angelicaWearGutter`: **Automatic**, the
+default, tries Angelica's own width and then 8, 4, 2, 1 and no border, keeps the widest at which
+everything asked for fits, or none where nothing wider does, and names its choice in the log. Under the client tab's
+**Advanced** heading in the settings screen, **Automatic, at least 2 pixels** chooses the same way but gives up
+patterns and then wear stages before it goes below 2, and a fixed 1, 2, 4, 8 or 16 pixels forces one; where a border
+is kept, patterns give way first and then stages, and only where not every surface fits at it even at one pattern and
+one stage is a narrower one taken, which the log says. In GT New Horizons 2.9.0 as it ships it takes 4 pixels, with all four patterns and all eighty wear stages.
+On 1.7.10 the room is also held to what the stitcher in use packs: vanilla's never fills more than half of the card's
+largest square, so with it (lwjgl3ify's STB stitching off, or no lwjgl3ify) a plan made to that square is priced at
+45% of it; with Angelica's border, lwjgl3ify's STB stitcher is held to nine tenths. OptiFine's stitcher fills the whole
+square and is held to nine tenths of it; FastCraft packs the atlas itself, worn pictures and all, which are composed before it packs as they are before vanilla's stitcher, can fill as little as half, and is held to 45%. The room is an 8192 square unless `client.largerAtlas` is on, which plans the
 wear up to 16384 where your card says it can address one - four times the video memory, and a card that
 cannot really hold one draws every block black with nothing in the log, so it is off unless you ask.
 `client.maxWearSprites` can only ask for less than that room, and at its
@@ -396,10 +468,10 @@ The price of a gradation is not the same all the way along a run. Each family na
 
 | Curve | Shape | Families that ship with it |
 |---|---|---|
-| `flat` | the hundredth scuff costs what the first did | cobble, stone, netherrack, end stone |
+| `flat` | the hundredth scuff costs what the first did | cobble, stone, netherrack, end stone, taint |
 | `sod` | turf tears at a touch; the earth beneath does not | grass, dirt |
 | `settle` | displaces under the first passes, then settles into a shape it will not give up | sand, gravel |
-| `pack` | one footfall in fresh powder is a whole gradation; packed snow is four times dearer | snow |
+| `pack` | one footfall in fresh powder is a whole gradation; packed snow is four times dearer | snow, flesh, sculk, cloud |
 | `glaze` | climbs in a straight line the whole way and never levels off | ice |
 
 Every curve is **normalised against the family's own gradation count**, so the total a run costs
@@ -458,7 +530,9 @@ All of that waits on `general.wearThroughToOtherSurfaces`, which ships **off**, 
 every surface but turf hollows out as more of itself and the lists above sit ready rather than in
 use. Turf is the exception because it has no choice: it is a face rather than a substance, with no
 depth of its own to sink into, so the earth beneath it is the only rut it can have - which is why
-it answers to `general.grassWearsThroughToDirt` instead, and why that one ships on. Turning the
+it answers to `general.grassWearsThroughToDirt` instead, and why that one ships on. Sculk is the other exception: it
+is a skin over the deepslate it grows on, so it answers to its own list alone, which ships as `stone`, and a deep rut
+in it shows the rock beneath. Turning the
 wholesale switch on costs nothing in steps or in price; a run is the same length either way and
 each step costs the same, so it changes what a rut looks like on the way down and nothing else.
 
@@ -477,6 +551,11 @@ A **slab** walks the same chain at the same prices, with its rut drawn half as d
 shows every gradation of its wear in its face and none of it underfoot: a stair states its own
 shape and never has a height clamped onto it. Both are found by detection and both have their own
 per-family switch (`families.<name>.slabs`, `.stairs`).
+
+**A slab or stair takes its full block's ruling.** It wears in the family its full block wears in, and stays unworn
+where its full block is left unworn: a sandstone slab wears as sandstone does, a blackstone stair as nether, a Better
+End jadestone slab as end stone, and a slab of planks, bricks or stone bricks not at all. Where a mod's slab is named in
+a data file, it is named at its full block's family.
 
 With **Chisel** installed, the liquid inside a layered block - the lava and water in lavastone and
 waterstone - is painted into the worn texture rather than leaving a grey block full of holes, on 1.7.10
@@ -576,8 +655,9 @@ light each refuse it, so anything you have deliberately marked is safe from it.
 
 Naming every erodable block in a config would go stale the moment the pack updated, so the mod
 walks the block registry at startup and classifies by what a block **is** - superclass, material,
-and a name check to keep the material rule from swallowing near-misses like farmland, sandstone
-and soul sand. Detection is identical on client and server and touches no client-only API. What a
+and a name check to keep the material rule from swallowing near-misses like farmland and sandstone.
+The rules alone turn soul sand away too, as they do every block shorter than its cell; it wears as sand because the
+mod's own data file names it, beside vanilla mud as dirt from 1.20.1, and mycelium wears as grass. Detection is identical on client and server and touches no client-only API. What a
 client concludes for itself is only the starting point, though: a server names the fingerprint of
 the table it is actually using, and a client whose own table differs asks for it and uses the
 server's for the visit, so two machines that classify a modded block differently do not end up
@@ -590,26 +670,49 @@ freeze the list, turn `surfaces.autoDetect` off and edit by hand - with detectio
 entry does nothing because it gets put straight back. To drop a single block while leaving
 detection running, put it in `surfaces.exclude`, which always wins.
 
-`/trmt surfaces` reports what it found.
+Above detection sit **data files**: small JSON files that name a block's family, shape and look, shipped by this mod
+for the blocks detection gets wrong, and by any other mod or pack that wants to (see
+[For mod and pack authors](#for-mod-and-pack-authors)). Data beats detection, and your settings beat data, with one
+refinement: a line in a family's block list that says only what detection would have said counts as detection's,
+because detection wrote it there. So a correction shipped in a later release reaches a world that already ran, and a
+line you wrote that disagrees with detection still wins over everything.
+
+Detection and the shipped data have been checked against ten large modpacks and three sets of terrain mods across the
+eight editions, and what
+each one's natural ground does is in [`docs/MODDED-TERRAIN.md`](docs/MODDED-TERRAIN.md).
+
+**Mycelium and soul sand, in a settings file an older release wrote.** Both used to be in the shipped `surfaces.exclude`,
+and a settings file keeps what it was written with, so in an existing world neither wears until
+`minecraft:mycelium` and `minecraft:soul_sand` are taken out of that list. A new settings file leaves them out.
+
+`/trmt surfaces` reports what it found, and `/trmt data [block]` says which file, if any, decided a block.
 
 ## Surface families
 
-Twelve families. Ten of them wear; leaves and vegetation exist only as trampling targets and are
-never staged or priced.
+Sixteen families. Fourteen of them wear; leaves and vegetation exist only as trampling targets and are
+never staged or priced. Flesh, taint, sculk and cloud are found only where something places them - vanilla's sculk from
+1.19 and Et Futurum Requiem's on 1.7.10, and Biomes O' Plenty's flesh, Thaumcraft's taint, Deeper and Darker's sculk and the Twilight Forest's fluffy cloud
+where those mods are installed - and the settings screen shows a family's rows only when the pack holds a block of it.
 
 | Family | Look | Curve | Wear per gradation | Crossings per gradation | Crossings, end to end | Sinks to | In-game days to recover fully |
 |---|---|---|---|---|---|---|---|
-| `snow` | `crack_dirt_lite` | `pack` | 0.8 - 1.6 | 2.4 | 192 | 8px | **6** |
-| `sand` | `smooth_dirt` | `settle` | 1.2 - 2.4 | 3.6 | 288 | 8px | **30** |
-| `gravel` | `dirt` | `settle` | 1.4 - 2.8 | 4.2 | 336 | 8px | **45** |
-| `ice` | `crack_dirt` | `glaze` | 10 - 16 | 26 | 1,248 | 4px | **31** |
+| `cloud` | `cloud` | `pack` | 0.8 - 1.6 | 2.4 | 115 | 4px | **6** |
+| `snow` | `snow_packed` | `pack` | 0.8 - 1.6 | 2.4 | 192 | 8px | **6** |
+| `sand` | `sand_trodden` | `settle` | 1.2 - 2.4 | 3.6 | 288 | 8px | **30** |
+| `flesh` | `flesh` | `pack` | 1.2 - 2.4 | 3.6 | 288 | 8px | **37.5** |
+| `sculk` | `sculk` | `pack` | 1.2 - 2.4 | 3.6 | 288 | 8px, into stone | **100** |
+| `gravel` | `gravel_parted` | `settle` | 1.4 - 2.8 | 4.2 | 336 | 8px | **45** |
+| `ice` | `ice_scuffed` | `glaze` | 10 - 16 | 26 | 1,248 | 4px | **31** |
 | `dirt` | `dirt` | `sod` | 8 - 12 | 20 | 1,580 | 8px | **100** |
 | `grass` | `grass` | `sod` | 8 - 16 | 24 | 1,920 | via dirt | **125** |
-| `cobble` | `crack_dirt` | `flat` | 12.5 - 20 | 32.5 | 2,600 | 8px | **170** |
+| `cobble` | `cobble_polished` | `flat` | 12.5 - 20 | 32.5 | 2,600 | 8px | **170** |
+| `taint` | `taint` | `flat` | 12.5 - 20 | 32.5 | 2,600 | 8px | **125** |
 | `stone` | `crack` | `flat` | 25 - 40 | 65 | 5,200 | 8px | **320** |
-| `nether` | `smooth_crack` | `flat` | 25 - 40 | 65 | 5,200 | 8px | **400** |
-| `end` | `smooth_crack` | `flat` | 25 - 40 | 65 | 5,200 | 8px | **400** |
+| `nether` | `nether_charred` | `flat` | 25 - 40 | 65 | 5,200 | 8px | **400** |
+| `end` | `end_bleached` | `flat` | 25 - 40 | 65 | 5,200 | 8px | **400** |
 | `leaves`, `vegetation` | - | - | - | - | - | - | trampling only |
+
+Flesh, taint, sculk and cloud take no discount from rain.
 
 **Wear per gradation** is the random threshold drawn per position. **Crossings per gradation** is
 what that works out to for a player on foot at the shipped multipliers, averaged across the whole
@@ -979,7 +1082,7 @@ sampling budgets under `performance`.
 
 A line of `Name:0` in `mobs` keeps that mob off the ground while it walks loose, whatever the switches say, because
 a named line outranks its group; the Wayfarer's Tamper's *Stop this wearing the ground* button writes it. A settings
-file from before 0.9.228 is read into the switches so the ground wears exactly as it did. A mob on a lead still wears while `fromLeashedMobs` is on, because that
+file written before the group switches existed is read into them so the ground wears exactly as it did. A mob on a lead still wears while `fromLeashedMobs` is on, because that
 counts anything being led.
 
 `/trmt reload` re-reads the file from disk and re-runs detection without a restart.
@@ -1023,13 +1126,43 @@ pack without it draws every ramp more coarsely first. To keep the ramp and chang
 the settings to move are `client.animateInnerLayers`, `client.innerLayerAnimationBudgetMb` and
 `client.innerLayerUploadsPerTick`.
 
+## Faithful Mode
+
+The first row of the presets, above the five choosers, is **Faithful Mode** (`presets.faithful`, off as the mod ships):
+grass, dirt, sand, leaves and plants wear and heal as milkucha's The Roads More Travelled has them, by that mod's own
+numbers, read from its own jars and its own settings file. Under the row, a fold lists everything it overrides.
+
+- **Stages**: grass in ten, dirt in four, sand in five. Grass and dirt never sink; sand sinks 0, 2, 2, 4 and 6 pixels
+  as it goes, and under Faithful Mode is drawn in the original's own worn sand pictures.
+- **Wear**: a player's step counts by `faithful.player`, a ridden step by `faithful.mounted` times that, and a step on a
+  lead by `faithful.leashed`, on its own square only; other mobs do not wear. A fifth of each step goes to the square
+  ahead and half to each side, and nothing fades.
+- **Healing**: each stage waits its own count of days (`faithful.grassHealDays`, `dirtHealDays`, `coarseHealDays` and
+  `sandHealDays`), a square on its own heals faster, covered ground goes back to untouched at the next sweep, and rain
+  does not hurry it. With `faithful.dirtHealsToGrass`, on as it ships, worn dirt heals into grass, which may sprout
+  short grass as it does.
+- **Extras**: trampled tall grass becomes short grass; bone meal mends one stage of grass or dirt and gives no
+  experience, and is refused on sand; leaves and plants are trampled by the original's numbers; and from 1.20.1 a brush
+  mends worn sand, one stage every second stroke.
+- **Switching keeps what was earned**: a square is placed at the same fraction of the other run whichever way the switch
+  is turned. On a server the server's switch decides, and the client wears by it.
+
+Every figure has a setting of its own under the `faithful` heading, in folds for walking and healing and for each
+surface.
+
+**Use your TRMT settings.** Put the original's settings file, `trmt.json`, in this mod's config folder and the presets
+tab offers a row that turns Faithful Mode on with that file's figures, as one step that can be undone. Its detail says
+what it changed and what could not be matched: a key with no counterpart here, a plant the edition has not got, a value
+out of range. `/trmt reload` looks for the file again. A world made with the original is a separate matter, covered in
+[`docs/CONVERTED-WORLDS.md`](docs/CONVERTED-WORLDS.md).
+
 ## The config screen
 
 Every edition opens a settings screen of this mod's own: from the mods list, from a small button just right of the
 Options screen's top row (`client.optionsButton` hides it), from a key you bind - none is bound until you do - and
 with `/trmt config`. Presets come first, then the client category - the part a player on someone else's server can
-actually change - then everything else, each a tab, with the twelve surface families under one Surfaces tab and a
-search across them all.
+actually change - then everything else, each a tab, with the surface families under one Surfaces tab, the original
+mod's world conversion on a Conversion tab on the editions that convert, and a search across them all.
 
 Numbers are sliders, drawn as wearing ground, and fields that show their range and refuse what is outside it; every
 chooser opens a dropdown with a line on each choice and a picture where one helps; a color opens a picker whose
@@ -1055,9 +1188,10 @@ says so where a reader will meet it.
 
 ## The wear table
 
-An in-game screen that draws **all eleven looks on your own blocks**, at your own resolution,
+An in-game screen that draws **all twenty-two looks on your own blocks**, at your own resolution,
 before you pick one - because a look is a picture and no argument about one predicts what it will
-do to snow.
+do to snow. The look picker scrolls, and its first two rows are the classic wear switches: every surface, or the one
+on screen.
 
 Alongside the pictures it draws each family's numbers: what a gradation costs, what a whole run
 costs, how long it takes to come back, and a bar showing where along the run the cost sits under
@@ -1090,6 +1224,8 @@ All but `version` require permission level 2; `version` is for any player.
                   [quick=<n>] [quicktp=<n>] [cleararea[=n]] [samearea[=x,z]]
                   [tight|nogap] [overwrite|force] [tp]
 /trmt mapcolor
+/trmt wear [list | restore <backup> | undo]
+/trmt clientrules [list | set <setting> <value> force|suggest | clear <setting> | clearall | copy [force|suggest]]
 ```
 
 - **`version`** - this jar's build, the newest build for it as the server last found, and each required mod's
@@ -1130,6 +1266,13 @@ All but `version` require permission level 2; `version` is for any player.
   beside the first. `nogolems` leaves the pens out.
 - **`mapcolor`** (`mapcolor` also works) - lists the ghost blocks and what a map mod makes of
   each, which is how the "worn sand draws as flat grey on the minimap" class of bug gets caught.
+- **`wear`** - this world's [wear backups](#wear-backups): `list` shows them newest first,
+  `restore <backup>` fills the chunks whose wear is missing from one, and `undo` takes the last
+  restore back.
+- **`clientrules`** - the settings this server sets for its players: `list` shows them, `set` adds or changes one,
+  `clear` takes one away and `clearall` all of them, and `copy` makes your own current settings the list, each
+  suggested unless you say `copy force`. Every change is written to the server's settings file and sent to everyone
+  online. See [Setting your players' settings](#setting-your-players-settings).
 
 ## Pinning a position
 
@@ -1167,10 +1310,87 @@ Three things an operator should know:
   the server's own surface table is sent and used for the visit. All of it is dropped on
   disconnect.
 
+### Setting your players' settings
+
+A server can set any of its players' own settings: the looks, the glow, the turns, classic wear, the atlas and every
+other setting a player would otherwise choose for themselves. They are listed in the server's settings file under
+`clientrules.rules`, one a line, each a setting's place in the file, a value, and how strongly it is held:
+
+```
+clientrules {
+    S:rules <
+        client.glowingWear = false force
+        client.wearTurns = turn suggest
+        families.sand.classicWear = true suggest
+     >
+}
+```
+
+- **`force`** holds the setting at the server's value while a player is connected. Their settings menu shows it
+  locked at that value, marked set by this server.
+- **`suggest`** applies it when they join and leaves it theirs to change. A change lasts for that visit.
+- **Anything not listed stays each player's own.** A player is told in one line at join how many of their settings
+  the server sets.
+- **What can be listed**: every setting under `client` but `settleOnWornGround`, which the server's own rules carry
+  already; `presets.quality`; and each family's `wearPattern`, `classicWear` and `wearStrength`, as
+  `families.<name>.<setting>`. A listed `presets.quality` decides the settings it moves, over any of them listed
+  beside it. Server settings cannot be listed: they are the server's already. A line naming anything else, or giving
+  a value the setting would not take, is refused in the log and not sent.
+- **Nothing is written to a player's own file.** Leaving, or the server taking a setting off its list, gives them
+  their own value back. A setting that rebuilds the wear pictures is applied with one rebuild at join, and given back
+  with one only where it changes.
+- **`/trmt clientrules`** changes the list live, for operators: `list`, `set <setting> <value> force|suggest`,
+  `clear <setting>`, `clearall`, and `copy`, which asks your own game for its current settings and makes them the
+  list, `copy force` to force them. Each change is written to the file and sent to everyone online.
+- A player on a release older than 1.0.0 keeps their own settings, and a single-player or LAN host's own game is
+  never held to its list: the list is what its guests are sent.
+
 `general.enabled` is a master switch that stops accumulation and clears every client's overlay
 while leaving the stored data alone. `general.familyEditorOperatorsOnly` defaults **on**,
 because editing which blocks wear, and which creatures wear it, writes the server's config file and
 reloads it.
+
+## Wear backups
+
+Wear lives inside each chunk's own save data, so a damaged chunk record, a world opened once without
+the mod, or a bad update could lose it with nothing to come back from. So the mod keeps copies of its
+own, under the world's `trmtgtnh` folder:
+
+- **The mirror.** Every time a chunk saves, its wear is also written to a small file in
+  `trmtgtnh/wear`, laid out as the region files are. It is always the newest copy, and covers chunks
+  that are not loaded.
+- **Backups.** The mirror and the rest of this mod's world data, the heal clock among it, are kept as
+  a dated backup in `trmtgtnh/backups`: five minutes after the server or world starts when the newest
+  is older than `general.wearBackupHours`, then every `general.wearBackupHours` of play (6), before
+  the first load of a world by a different version of this mod, and before a command clears wear in
+  bulk: `purge`, `showcase`, `demonstrate` over standing ground, and a `reload` that changes which
+  blocks wear. `general.wearBackupsKept` (5) and `general.wearBackupDiskMb` (256) bound them; past
+  either the oldest go, never the newest, never the one taken before a mod update, and not the one an
+  undo stands on until another restore replaces it or seven days of play have passed.
+- **An older world.** A world from a release before wear backups has its mirror built from its region
+  files in the background, and a second pre-update backup, with its wear, follows.
+
+**When wear goes missing.** A chunk that loads with its wear missing or damaged, where the mirror
+holds the wear of that same save, is put back quietly - up to 16 chunks a session, with one line in
+the log. A bigger loss - more chunks than that, wear whose only copy is older than the chunk's last
+save (the world was played without the mod), a world last opened by a newer version, or the world's
+wear or this mod's world data gone as a whole - is handled by who is playing:
+
+- **In single player** a screen says how many chunks lost their wear and when the newest backup was
+  taken, with **Restore**, **Ignore** and **Don't ask again for this world**. **Restore a backup**,
+  in the settings screen, lists every backup newest first, with its date, how many chunks it holds
+  and what restoring it would change.
+- **On a dedicated server** the missing wear is put back by itself as its chunks load and logged,
+  and operators are told in chat as they join. `/trmt wear list` shows the backups, `/trmt wear restore <backup>` puts
+  another back, and `/trmt wear undo` takes the last restore back.
+
+This mod's own world records, the heal clock and the spawn grants, are put back from the newest
+backup as the world opens if they are missing, and the player, or a server's operators, are told.
+
+A restore fills only chunks whose wear is missing or damaged, never overwrites newer wear, and heals
+what it puts back by the time since the backup. A backup is taken just before it, which is what
+**Undo restore** puts back. `general.wearBackups` turns all of
+it off; nothing already written is touched.
 
 ## Update notice
 
@@ -1277,6 +1497,13 @@ wear table and the config screen.
 | **[Et Futurum Requiem](https://github.com/Roadhog360/Et-Futurum-Requiem)** | two registry names in default block lists, and nothing more |
 | **[Mod Menu](https://github.com/TerraformersMC/ModMenu)** (1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, Fabric) | a Config button in the mod list; the settings screen is also reached from the Options screen, a key and `/trmt config` |
 | **[Cloth Config](https://github.com/shedaniel/cloth-config)** (1.16.5, 1.20.1, 1.21.1; 26.1.2, 26.2 and 26.3 NeoForge; 26.3 Fabric) | Cloth's own settings screen, one button away from this mod's and back, listing every category |
+| **Distant Horizons** 3.3.3, and 3.3.4 on 26.3 (1.12.2 Forge, 1.16.5 and 1.20.1 Forge and Fabric, 1.21.1, 26.1.2, 26.2 and 26.3 NeoForge and Fabric) | worn ground drawn in its worn color on the far terrain, off with the overlay; with the overlay off, far terrain stored before keeps Distant Horizons' own color for it. Not on 1.7.10, where Distant Horizons alpha20 gives another mod no way to color a block, so far terrain in GT New Horizons shows no wear |
+| **Presence Footsteps** (1.16.5 to 26.3, Fabric and its Forge and NeoForge ports) | worn ground heard as the ground it is, never gravel |
+| **Serene Seasons** (1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.2 and 26.3) | worn snow and ice mended by snow only while it really snows; the healing pace does not change with the season |
+| **Dynamic Surroundings** (1.21.1 NeoForge and Fabric) | its footprints laid on worn squares, worn stone included, at any particle setting above Minimal |
+| **Countered's Terrain Slabs** (1.20.1 Forge and Fabric; 1.21.1, 26.1.2, 26.2 and 26.3 NeoForge and Fabric) | its slab hillsides wear at half depth, and plants on them come down with the slab; Countered's Smooth Steps eases the camera out of a rut with no change here |
+| **BetterGrassify**, **LambdaBetterGrass** and the **Fast Better Grass** pack (1.16.5 to 26.3, as each exists) | a worn lawn wall drawn as earth under the grass fringe, never grey |
+| **Oh The Biomes We've Gone**, **Regions Unexplored**, **Nature's Spirit**, **Terrestria**, **Grass Overhaul** and **TerraFirmaCraft** (1.20.1 to 26.3, as each exists; TerraFirmaCraft on 1.20.1 Forge and 1.21.1 NeoForge) | their soils, muds, sods, ash and rock named in shipped data files; Grass Overhaul's podzol sods wear as dirt and its nylium sods not at all, and TerraFirmaCraft's worn grass keeps its green |
 
 `integration.gtnhEnhanced` flips on when GregTech is present and switches the mod to pack-tuned
 recipes; without it, plain recipes, a golem built from vanilla blocks, a Wayfarer that no longer
@@ -1287,6 +1514,32 @@ and the tooltip readouts are not reached by it either, because they change no ga
 `integration.gtnhEnhanced` and `integration.trophies` take their default from what is installed the
 first time the config file is written and keep it, so a mod added to a pack that has already run
 leaves its switch off until it is turned on.
+
+Two other mods that wear the ground are named once, never switched off. With The Roads More Travelled installed too
+(1.20.1, 1.21.1 and 26.1.2), the first operator or host to join is told that its worn blocks are left to it; this mod
+never takes one of that mod's blocks into a family either way. With Worn Path installed too (1.21.1, 26.1.2 and 26.2),
+they are told that both mods wear grass, and that `families.grass.enabled` set to false leaves grass to Worn Path.
+
+## For mod and pack authors
+
+**trmtr-api 1.0.0** lets another mod, a resource pack or a data pack tell this one about its own blocks, in every
+edition.
+
+- **Data files**, format 1, no code: a block's family (or none), how hard it wears, what mends it, whether it is cover
+  that breaks or holds and what it wears through to; what its wear looks like, from a look's id and strength to up to
+  sixteen hand-drawn stages; the shape it wears in and how far it sinks; and how hard a mob wears the ground. They are
+  read from mod jars, resource packs (looks only) and `config/trmtr/` in every edition, and from data packs from
+  1.16.5; again on `/trmt reload`, and from 1.16.5 on `/reload`. A pack's files and a mod's own describe the blocks the
+  same way, so a pack maker can correct a mod without waiting for it.
+- **The Java API**, `com.trmtgtnh:trmtr-api:1.0.0`: one compile-only jar, the same for every edition and loader, never
+  shaded. Listeners before and after wear, rules for ground and for wearers, questions about any square, actions on one,
+  and a hook for drawing a mod's own worn blocks. A hook that throws is switched off and its mod named in the log.
+- **Its own versioning.** The API is numbered apart from the mod, keeps format 1 and its 1.0 surface under a written
+  deprecation policy, and is MIT-licensed, where the mod is CC BY-NC 4.0. An example mod and an example pack for every
+  edition show every part of it.
+
+The documents, the example and the Maven repository are at
+[Xeptix/TRMTR-API](https://github.com/Xeptix/TRMTR-API).
 
 ## How this differs from The Roads More Travelled
 
@@ -1301,10 +1554,10 @@ Beyond being a port:
   hours would grow a single global file without bound and pay for it on every save.
 - **Healing runs while chunks are unloaded**, from the world clock, applied in one pass on load - 
   and pauses while nobody is connected.
-- **Surfaces are detected, not listed.** Twelve families - grass, dirt, sand, gravel, stone,
-  cobblestone, snow, ice, netherrack, end stone, plus leaves and vegetation as trampling targets - 
-  against upstream's vanilla grass, dirt and sand. Modded variants are found by what they are.
-- **Wear textures are generated per block** from that block's own pixels, in eleven looks, at a
+- **Surfaces are detected, not listed.** Sixteen families - grass, dirt, sand, gravel, stone,
+  cobblestone, snow, ice, netherrack, end stone, flesh, taint, sculk and cloud, plus leaves and vegetation as
+  trampling targets - against upstream's vanilla grass, dirt and sand. Modded variants are found by what they are.
+- **Wear textures are generated per block** from that block's own pixels, in twenty-two looks, at a
   resolution and detail level the player chooses - rather than shipped as finished art drawn on
   vanilla textures.
 - **Eighty gradations** from untouched to a rut half a block deep, against upstream's handful of
@@ -1357,7 +1610,8 @@ Beyond being a port:
   nineteen hook `RenderBlocks`, which 1.8 deleted, and in the later editions a baked model, a block
   override or a Forge event does each of those jobs instead. Every server-side hook upstream mixes in
   for has a Forge event in the Forge editions, and a mixin of its own on Fabric.
-- **Brush-based sand recovery is removed** (there is no brush item in either version). The
+- **Brush-based sand recovery is part of [Faithful Mode](#faithful-mode)** from 1.20.1, where the game has a brush, and
+  not otherwise. Faithful Mode is how to have the original's own numbers. The
   **Draught of Lightness** is here with the original's own ingredients, mixed at a bench rather
   than brewed in a stand for the reasons under [Draughts](#draughts), and a
   **Draught of the Heavy Foot** is added as its opposite.
@@ -1366,7 +1620,8 @@ Beyond being a port:
 
 ## Upgrading
 
-Dropping a newer jar in over an older one is safe.
+Dropping a newer jar in over an older one is safe, and the first load of a world by a different
+version takes a [wear backup](#wear-backups) before anything touches its wear.
 
 If a release ever retires a block or an item that an older save still names, **1.7.10** lets that
 name go as the game starts rather than refusing the world, says which one in the log, and blocks the
@@ -1383,13 +1638,26 @@ those in the log.
 A world carried up a Minecraft version keeps its wear: from 1.16.5 to 1.20.1, from 1.20.1 to 1.21.1, from 1.21.1 to
 26.1.2, from 26.1.2 to 26.2 and from 26.2 to 26.3, and from 1.20.1 on a Golem of Ways also keeps what it carries and
 the upgrade fitted to it. A world from before 1.18 keeps its golems when opened in 1.20.1 or 1.21.1, and a golem's
-tools from 1.12.2 keep their wear in 1.16.5 and later, read through the game's own upgrade of a stored item. See
-[Install](#install).
+tools from 1.12.2 keep their wear in 1.16.5 and later, read through the game's own upgrade of a stored item, and so do
+a golem's block targets and a chunk tamper's. See [Install](#install).
+
+A world made with The Roads More Travelled converts as it loads, on the editions that have the original's games:
+[`docs/CONVERTED-WORLDS.md`](docs/CONVERTED-WORLDS.md).
+
+Two things in a settings file from an earlier release are worth knowing. A family's look still at the default that file
+was written with moves to that family's new look once, and the log says so; classic wear brings the old ones back, as
+under [Wear textures](#wear-textures-built-from-each-blocks-own-pixels). And mycelium and soul sand stay in
+`surfaces.exclude` until you take them out, as under [Which blocks erode](#which-blocks-erode).
+
+A client and a server of different releases still meet: the rules a server sends carry a version, and whichever side
+is older is told so in one line in the chat.
 
 ## Removing the mod
 
 Delete the jar and every block is the block it always was. There are no eroded blocks in the save
 to go missing, and the wear tag inside each chunk becomes an unrecognised key that Forge ignores.
+The world's `trmtgtnh` folder, which holds the [wear backups](#wear-backups), is read by nothing else
+and can be deleted with it.
 
 **Five settings are the exception**, and each says so in its own help text:
 
@@ -1404,6 +1672,12 @@ to go missing, and the wear tag inside each chunk becomes an unrecognised key th
 Those edit the world, so what they did stays done. The three that ship on do so on the reasoning
 that they only ever fire where a route has visibly formed - but if you want the guarantee above to
 be unconditional, those are the lines to turn off.
+
+Two more change real blocks. **Faithful Mode** tramples plants and leaves by the original's own
+switches, `faithful.vegetation.wears` and `faithful.leaves.wears`, both on, in place of the two
+`trampling` lines while it is on. **Converting a world made with The Roads More Travelled** replaces
+each of its worn blocks with the grass, dirt, coarse dirt or sand it was worn from, for good; that
+world's wear is this mod's data from then on.
 
 One caveat: the ghost blocks are registered, so their names end up in `level.dat`'s Forge id map.
 Deleting the jar makes Forge show its *"found ID mismatches / missing blocks"* screen once. Continue
@@ -1443,12 +1717,12 @@ not check it.
 
 The storage layer, the texture maths, the wear chain, the atlas plan, the config model, the
 presets, the server rules, the pricing ledgers and the quest and loot bookkeeping have no Minecraft
-types in them and are unit tested - **1,000 tests on 1.7.10, 1,162 on 1.12.2, 1,239 on 1.16.5, 1,296 on 1.20.1, 1,317 on
-1.21.1, 1,321 on 26.1.2, 1,323 on 26.2 and 1,337 on 26.3**, every one
+types in them and are unit tested - **1,959 tests on 1.7.10, 2,253 on 1.12.2, 2,436 on 1.16.5, 2,595 on 1.20.1, 2,609 on
+1.21.1, 2,620 on 26.1.2, 2,617 on 26.2 and 2,629 on 26.3**, every one
 passing before a release is built - with `CoreStaysPortableTest` there to keep that boundary from
 eroding. The tests stay in development: this repository carries what builds the jars.
 
-**Sixty-three of those classes are shared between the editions byte for byte**, and a test in each
+**A hundred and twenty-three of those classes are shared between the editions byte for byte**, and a test in each
 reads its own copy and the one in the edition it was carried from, failing the build on any
 difference and naming the files.
 

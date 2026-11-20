@@ -60,6 +60,44 @@ public final class GroundCover {
     private GroundCover() {}
 
     /**
+     * Whether a solid block stands on this square, so that it is drawn and stood on at its full height whatever depth
+     * its record has reached (0.9.229; Xep, 2026-11-16: depth goes away while covered and comes back when the block is
+     * removed, and the texture keeps its stage). The record is never touched: take the block away and the rut is back.
+     *
+     * <p>
+     * The one rule for it, as in the 1.7.10 edition. The picture and this client's collision ask it through the
+     * ghost's record ({@code ghostRecordAt}) and the painter, and the server's collision asks it
+     * ({@link PhysicalDecay#sinkAt}), so the three cannot disagree: until it existed the server held a covered rut
+     * eight pixels down under a block the picture had filled in, and a client's collision followed its own setting
+     * (found in play, 2026-11-16). It is asked of the world alone - no setting either side keeps for itself - so a
+     * client and its server always reach the same answer. Snow, carpets and covered stairs keep the rules they have: a
+     * carpet is no solid block, and a snow layer is left to its own, a full drift's shelter being a server setting no
+     * client is sent.
+     *
+     * <p>
+     * On a client a worn square above is a ghost, which stands in for the block the server has there: that block
+     * decides, and a square above whose own top is sunk is no roof on either side - the client draws it sunk and the
+     * server stands it hollow.
+     */
+    public static boolean roofedAt(net.minecraft.world.IBlockAccess world, int x, int y, int z) {
+        if (world == null || y < 0 || y >= 255) return false;
+        net.minecraft.block.state.IBlockState above = world
+            .getBlockState(new net.minecraft.util.math.BlockPos(x, y + 1, z));
+        if (above.getBlock() instanceof com.trmtgtnh.block.BlockGhost) {
+            int origin = com.trmtgtnh.Trmt.proxy.ghostOriginAt(x, y + 1, z);
+            net.minecraft.block.state.IBlockState stood = origin < 0 ? null
+                : net.minecraft.block.Block.getStateById(origin);
+            return stood != null && stood.isOpaqueCube()
+                && com.trmtgtnh.block.BlockGhost
+                    .drawnSinkAt(com.trmtgtnh.Trmt.proxy.ghostRecordAt(world, x, y + 1, z), origin) == 0;
+        }
+        if (!above.isOpaqueCube()) return false;
+        if (world instanceof net.minecraft.world.World && !((net.minecraft.world.World) world).isRemote)
+            return PhysicalDecay.sinkAt((net.minecraft.world.World) world, x, y + 1, z) == 0;
+        return true;
+    }
+
+    /**
      * Whether something planted is holding this square together.
      *
      * <p>

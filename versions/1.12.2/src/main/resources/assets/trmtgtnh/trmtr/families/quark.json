@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "_": [
+    "From RLCraft 2.9.3's census of 1.12.2 (W4 R5, judged 2026-11-12). Elder prismarine is the natural rock of Quark's underground prismarine caves, and jasper solid natural rock of the deserts and mesas, any color of it: stone, though the rules read prismarine as decorative and find no stone word in jasper. Basalt is seen only in the Nether, as that place's own rock, so nether, where the rules read stone in its word.",
+    "Named at the values the census judged and no others, so the polished and brick forms, the slabs, stairs, walls and speleothems of each stay as the rules leave them; a file reaches a config that already holds detection's line, where a changed rule does not.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.12.2 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["quark:elder_prismarine:0", "quark:jasper:0", "quark:jasper:1"], "family": "stone" },
+    { "blocks": ["quark:basalt:0"], "family": "nether" },
+    { "blocks": ["quark:cobblestone_mossy_slab_double"], "family": "cobble" },
+    { "blocks": ["quark:stone_basalt_slab", "quark:stone_basalt_slab_double", "quark:stone_basalt_stairs"], "family": "nether" },
+    { "blocks": ["quark:elder_prismarine_slab", "quark:elder_prismarine_slab_double", "quark:elder_prismarine_stairs", "quark:stone_andesite_slab_double", "quark:stone_diorite_slab_double", "quark:stone_granite_slab_double", "quark:stone_jasper_slab_double", "quark:stone_limestone_slab_double", "quark:stone_marble_slab_double", "quark:stone_slate_slab_double"], "family": "stone" }
+  ]
+}

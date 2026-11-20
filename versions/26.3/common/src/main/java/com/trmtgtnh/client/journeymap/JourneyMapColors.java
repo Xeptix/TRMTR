@@ -428,16 +428,22 @@ public final class JourneyMapColors {
             if (origin != null && !(origin.getBlock() instanceof BlockGhost)) {
                 // The chain is the covered block's, not the ghost's - a worn lawn walks into
                 // dirt partway down, and it is grass's eighty steps it is walking.
-                SurfaceFamily base = SurfaceRegistry.familyOf(origin.getBlock());
+                SurfaceFamily base = SurfaceRegistry.familyOf(origin);
                 SurfaceFamily walking = base == null ? appearance : base;
                 int own = journeyMaps.applyAsInt(origin);
                 if (own < 0) own = GhostMapColor.coveredRgb(origin, world, at, appearance);
-                return shaded(at, wornFraction(walking, appearance, record), own, GhostMapColor.rgbOf(endOf(walking)));
+                // Along the chain the covered block follows: its own, where a data file gives it one (W3 T9).
+                SurfaceFamily[] through = base == null ? null : SurfaceRegistry.throughOf(origin);
+                return shaded(
+                    at,
+                    wornFraction(walking, through, appearance, record),
+                    own,
+                    GhostMapColor.rgbOf(endOf(walking)));
             }
         }
         return shaded(
             at,
-            wornFraction(appearance, appearance, record),
+            wornFraction(appearance, null, appearance, record),
             GhostMapColor.rgbOf(appearance),
             GhostMapColor.rgbOf(endOf(appearance)));
     }
@@ -487,11 +493,14 @@ public final class JourneyMapColors {
     }
 
     /** How far along its run this square is, nought to one. */
-    private static float wornFraction(SurfaceFamily base, SurfaceFamily appearance, short record) {
+    private static float wornFraction(SurfaceFamily base, SurfaceFamily[] through, SurfaceFamily appearance,
+        short record) {
         if (base == null) return 0f;
-        int length = ErosionChain.length(base);
+        // Along the chain the block follows: its own, where a data file gives it one (W3 T9).
+        ErosionChain.Chain chain = ErosionChain.of(base, through);
+        int length = chain.length();
         if (length <= 1) return 0f;
-        int index = ErosionChain.indexOf(base, appearance, ErosionState.layerOf(record), ErosionState.sinkOf(record));
+        int index = chain.indexOf(appearance, ErosionState.layerOf(record), ErosionState.sinkOf(record));
         if (index < 0) index = 0;
         if (index > length - 1) index = length - 1;
         return index / (float) (length - 1);

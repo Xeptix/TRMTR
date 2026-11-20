@@ -60,6 +60,11 @@ public final class ClientRules {
         // Whether snow and carpet settle is the server's now (0.9.223), and it decides the footing as well as the
         // picture: the set both read is made again from what was just held.
         com.trmtgtnh.erosion.PhysicalDecay.markSettlingBlocks();
+        // Faithful Mode is the server's for the visit (0.9.229 W5, spec 2.7): where its switch is not the one this
+        // client wears by, the settings are read again, which writes Faithful Mode's numbers in or gives the player's
+        // back, and builds the server's chains. Leaving reads the file with the rules released, so its own switch.
+        boolean faithfulMoved = ServerRules.faithfulMoved();
+        if (faithfulMoved) TrmtConfig.read();
 
         if (forceOverlay && !wasForced && !TrmtConfig.showErosion) {
             OverlayPainter.get()
@@ -84,7 +89,7 @@ public final class ClientRules {
             WearRestitch.get()
                 .requestRestitch("This server's ground wears through to different materials than your config draws.");
         }
-        if (ServerRules.overrode() > 0 && !WearRestitch.get()
+        if ((ServerRules.overrode() > 0 || faithfulMoved) && !WearRestitch.get()
             .pending()) {
             // What a worn block draws, and how deep, is worked out from the live settings as a chunk's mesh
             // is built, so geometry that moved under an already-built chunk goes on showing the old picture
@@ -97,6 +102,67 @@ public final class ClientRules {
             Minecraft client = Minecraft.getInstance();
             if (client.levelExtractor != null) client.levelExtractor.allChanged();
         }
+    }
+
+    /**
+     * Takes a server's rules for this player's own settings (0.9.229; Xep, 2026-11-18), at join and whenever the
+     * server's list changes. Nothing is taken in a world of one's own: the host's settings are its own. Where anything
+     * held moved, the settings are read again with the rules in and acted on as the settings screen's Done is, so a
+     * setting that rebuilds the wear pictures asks for one rebuild, which a join's own rebuild shares; the file is not
+     * saved and never holds a server's value. The 1.7.10 edition's client proxy's method line for line.
+     */
+    public void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {
+        if (com.trmtgtnh.Trmt.runningServer() != null) return;
+        boolean wasHeld = com.trmtgtnh.config.ClientSettingsHeld.held();
+        if (!com.trmtgtnh.config.ClientSettingsHeld.hold(rules)) return;
+        com.trmtgtnh.config.ConfigReload.fromClientRules();
+        int count = com.trmtgtnh.config.ClientSettingsHeld.count();
+        if (count > 0 || wasHeld) {
+            com.trmtgtnh.Trmt.LOG.info(
+                "This server sets {} of your TRMT settings for the visit; your own file is untouched and they come back when you leave",
+                Integer.valueOf(count));
+        }
+        tellClientRules(count, wasHeld);
+    }
+
+    /**
+     * The player's one line about a server's rules for their settings, from the shared words: translated here, on the
+     * client, as the settings screen's words are, since only this build's language file has them. Said straight to
+     * the player rather than through the quiet second of {@link #tell}, which a join's other lines would take: this
+     * is the one line a visit's rules get.
+     */
+    private void tellClientRules(int count, boolean wasHeld) {
+        if (count <= 0 && !wasHeld) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.player == null) return;
+        net.minecraft.network.chat.MutableComponent line;
+        if (count <= 0) {
+            line = net.minecraft.network.chat.Component
+                .translatable(com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_NONE);
+        } else if (count == 1) {
+            line = net.minecraft.network.chat.Component
+                .translatable(com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_ONE);
+        } else {
+            line = net.minecraft.network.chat.Component
+                .translatable(com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_MANY, Integer.valueOf(count));
+        }
+        int notHere = count > 0 ? com.trmtgtnh.config.ClientSettingsHeld.notApplying()
+            .size() : 0;
+        if (notHere > 0) {
+            line.append("; ");
+            line.append(
+                net.minecraft.network.chat.Component.translatable(
+                    com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_NOT_HERE,
+                    Integer.valueOf(notHere)));
+        }
+        line.withStyle(ChatFormatting.GRAY);
+        // The mark as every line of this mod's has it (Notices.line), a component of its own so its color stays its own.
+        net.minecraft.network.chat.MutableComponent said = net.minecraft.network.chat.Component.literal("");
+        said.append(
+            net.minecraft.network.chat.Component.literal("[TRMT] ")
+                .withStyle(ChatFormatting.DARK_GRAY));
+        said.append(line);
+        client.player.sendSystemMessage(said);
     }
 
     /**
@@ -143,8 +209,14 @@ public final class ClientRules {
             return;
         }
         com.trmtgtnh.surface.SurfaceTableCodec.Table decoded;
+        com.trmtgtnh.surface.ChainTable.Unwrapped sent;
+        com.trmtgtnh.surface.StateTable.Unwrapped states;
         try {
-            decoded = com.trmtgtnh.surface.SurfaceTableCodec.decode(bytes);
+            // The states the server's files set apart, then the codec's table, with the blocks' own chains after it (W3 T9).
+            states = com.trmtgtnh.surface.StateTable.unwrap(bytes);
+            bytes = states.table;
+            sent = com.trmtgtnh.surface.ChainTable.unwrap(bytes);
+            decoded = com.trmtgtnh.surface.SurfaceTableCodec.decode(sent.table);
         } catch (IllegalArgumentException malformed) {
             tableAskedFor = fingerprint;
             com.trmtgtnh.Trmt.LOG.warn("This server's surface table could not be read; keeping your own", malformed);
@@ -152,7 +224,7 @@ public final class ClientRules {
         }
         OverlayPainter painter = OverlayPainter.get();
         painter.restoreAll();
-        if (!SurfaceRegistry.holdServerTable(decoded, holdsSwitch, fingerprint, keysCarryForm)) {
+        if (!SurfaceRegistry.holdServerTable(decoded, sent.chains, states.rows, holdsSwitch, fingerprint, keysCarryForm)) {
             // Nothing was held, so the table in use is still this client's own; the ground is only put back.
             tableAskedFor = fingerprint;
             com.trmtgtnh.Trmt.LOG

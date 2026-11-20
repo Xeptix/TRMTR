@@ -44,7 +44,7 @@ public class BlockGhostStair extends BlockGhost {
      */
     @Override
     public VoxelShape getOcclusionShape(BlockState state, BlockGetter world, BlockPos pos) {
-        BlockState stair = coveredStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        BlockState stair = lightStair(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
         if (stair == null) return super.getOcclusionShape(state, world, pos);
         try {
             return stair.getOcclusionShape(world, pos);

@@ -41,12 +41,12 @@ public final class GhostWindows {
     /**
      * Whether the block a square stands in for is a window - the 1.7.10 edition's OverlayPainter.wantedGhost,
      * {@code TrmtConfig.seeThroughInnerLayers && InnerLayers.isWindow(origin, originMeta)}. Meta is nought on this
-     * version (GhostSides.metaOf).
+     * version for every state but one a data file sets apart (GhostSides.metaOf).
      */
     public static boolean windowOf(int origin) {
         if (!TrmtConfig.seeThroughInnerLayers || origin < 0) return false;
         BlockState under = stateOf(origin);
-        return under != null && InnerLayers.isWindow(under.getBlock(), 0);
+        return under != null && InnerLayers.isWindow(under.getBlock(), com.trmtgtnh.client.texture.StateSets.metaOf(under));
     }
 
     /**

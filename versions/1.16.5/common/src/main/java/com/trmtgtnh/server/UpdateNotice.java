@@ -164,6 +164,14 @@ public final class UpdateNotice {
     private UpdateNotice() {}
 
     /**
+     * Whether the loader that started the mod calls this a development game: asked by the wear backups too (0.9.229),
+     * whose test interval and threshold are read only there or under the harness.
+     */
+    public static boolean development() {
+        return development;
+    }
+
+    /**
      * Which jar this is, whether its game is a development one, and the mods it requires. Called once by each loader
      * module.
      */

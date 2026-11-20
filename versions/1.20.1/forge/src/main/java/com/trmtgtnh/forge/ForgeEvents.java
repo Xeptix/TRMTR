@@ -56,6 +56,31 @@ public final class ForgeEvents {
     }
 
     // ------------------------------------------------------------------
+    // Data packs (W3 spec 2.2; T18)
+    // ------------------------------------------------------------------
+
+    /**
+     * The data packs' data files, read on every data reload - the world's first load and every {@code /reload} - by a
+     * listener of the server's own reload. See {@code dataload.DataPackListener}.
+     */
+    @SubscribeEvent
+    public static void onAddReloadListener(net.minecraftforge.event.AddReloadListenerEvent event) {
+        event.addListener(new com.trmtgtnh.dataload.DataPackListener());
+    }
+
+    /**
+     * A data reload's tags are bound, which Forge says as the reload is put in force: the surface table is resolved
+     * from the files just read, with every tag a file names. Not on a client receiving a server's tags, which is the
+     * other cause of this event.
+     */
+    @SubscribeEvent
+    public static void onTagsUpdated(net.minecraftforge.event.TagsUpdatedEvent event) {
+        if (event.getUpdateCause() == net.minecraftforge.event.TagsUpdatedEvent.UpdateCause.SERVER_DATA_LOAD) {
+            ServerEvents.dataReloaded();
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Movement
     // ------------------------------------------------------------------
 

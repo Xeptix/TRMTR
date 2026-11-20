@@ -13,6 +13,7 @@ import net.minecraftforge.oredict.OreDictionary;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.surface.SurfaceData;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 
@@ -103,7 +104,9 @@ public final class HealingCost {
             aimedAt,
             Item.getItemFromBlock(covered),
             covered.damageDropped(covered.getStateFromMeta(meta)),
-            settings == null ? null : settings.repairBlocks);
+            // The family's list and what a data file says of this very block (repairWith, W3 T5): both pay.
+            SurfaceData
+                .joined(settings == null ? null : settings.repairBlocks, SurfaceRegistry.repairWithOf(covered, meta)));
     }
 
     /**

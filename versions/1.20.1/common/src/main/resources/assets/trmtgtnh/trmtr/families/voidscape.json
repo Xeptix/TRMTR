@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "Voidscape, from All the Mods 9's census (W4 R7, judged 2026-11-11). Named one by one, only the blocks that census saw as ground and judged, all on a material no rule reads, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Antirock, astralrock and the thunder wood were not judged and are left to the rules.",
+    "Stone: null black, null white and thunderrock are the natural rock of the Void's ground. Nether: thunder nylium is a nylium over that rock, judged by its top as the Nether's nyliums are."
+  ],
+  "entries": [
+    { "blocks": ["voidscape:null_black", "voidscape:null_white", "voidscape:thunderrock"], "family": "stone" },
+    { "blocks": ["voidscape:thunder_nylium"], "family": "nether" }
+  ]
+}

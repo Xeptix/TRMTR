@@ -159,6 +159,43 @@ public final class Weather {
     }
 
     /** Lets go of a chunk's reading when it unloads, so the map does not grow for ever. */
+    /** Serene Seasons' mod id, the same in every edition it has a build for. */
+    private static final String SEASONS = "sereneseasons";
+
+    /** Whether Serene Seasons is here, asked once and kept, so a game without it pays one read of a field. */
+    private static Boolean seasonsHere;
+
+    private static boolean seasonsHere() {
+        Boolean known = seasonsHere;
+        if (known == null) {
+            known = Boolean.valueOf(com.trmtgtnh.ModsPresent.has(SEASONS));
+            seasonsHere = known;
+        }
+        return known.booleanValue();
+    }
+
+    /**
+     * Whether what falls on a square is snow.
+     *
+     * <p>
+     * The biome's answer, unless seasons have changed it. Serene Seasons turns rain to snow where the game asks
+     * whether snow may settle and whether it is raining at a position, and not where this asks what a biome's weather
+     * is, so a plains in winter with snow falling read as rain here and snow and ice lying there were never snowed on
+     * (W6, read from its jars). Where it is loaded, a biome with weather at all is asked of the sky: raining there or
+     * not. A biome with none stays dry. A tropical biome's dry season reads as snow, which only the two cold families
+     * ask and a tropical biome does not have them. Only what falls changes: the healing pace does not follow the season
+     * (Xep, 2026-11-06: "No, rain truth only").
+     *
+     * @param biomeSnows    the biome's own answer
+     * @param precipitates  whether the biome has weather at all
+     * @param seasonal      whether Serene Seasons is here
+     * @param rainingHere   whether the sky says rain, asked only when {@code seasonal}
+     */
+    static boolean snowFalls(boolean biomeSnows, boolean precipitates, boolean seasonal, boolean rainingHere) {
+        if (!seasonal || !precipitates) return biomeSnows;
+        return !rainingHere;
+    }
+
     public static void forget(long chunkKey) {
         LAST_PAID.remove(Long.valueOf(chunkKey));
     }
@@ -191,7 +228,13 @@ public final class Weather {
         Biome biome = world.getBiome(new net.minecraft.util.math.BlockPos(x, 0, z));
         if (biome == null) return false;
 
-        boolean cold = biome.getEnableSnow();
+        boolean wet = biome.canRain() || biome.getEnableSnow();
+        boolean seasonal = seasonsHere();
+        // Asked at the top of the column rather than at the square: isRainingAt also tests the sky, which is
+        // wetHealingNeedsOpenSky's to decide, and the square may be under a roof with that off. The vanilla question
+        // seasons do hook, by name alone, so nothing of Serene Seasons is linked; its licence is all rights reserved.
+        boolean cold = snowFalls(biome.getEnableSnow(), wet, seasonal,
+            seasonal && world.isRainingAt(world.getPrecipitationHeight(new net.minecraft.util.math.BlockPos(x, y, z))));
         if (base == SurfaceFamily.SNOW || base == SurfaceFamily.ICE) {
             // Snow and ice want snow, and in Minecraft that is the same event: it is raining
             // everywhere at once and the biome decides what arrives. A snow block sitting somewhere
@@ -203,6 +246,7 @@ public final class Weather {
         // filled back in is sand's whole character, and what fills it is wind, which this game does
         // not have. Hence the setting: off, a dry biome counts as wet rather than as never.
         if (!TrmtConfig.wetHealingNeedsRainyBiome) return true;
-        return biome.canRain() || cold;
+        // Rain or snow, as it always was; not "rain or cold", because in a season a cold biome can rain.
+        return wet;
     }
 }

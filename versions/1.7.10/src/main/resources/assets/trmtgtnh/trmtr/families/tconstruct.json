@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). GravelOre is an ore seam set in gravel, every value of it, and is built on the game's sand class, which the rules take as sand; a road worn across a seam should wear the ground around it, so it stands aside.",
+    "Value 5 of CraftedSoil is Slimy Mud by the mod's own words, the bare earth of a slime island; the soil in the name reads as worked ground to the rules, which stays right for its other values."
+  ],
+  "entries": [
+    { "blocks": ["TConstruct:GravelOre"], "family": "none" },
+    { "blocks": ["TConstruct:CraftedSoil:5"], "family": "dirt" }
+  ]
+}

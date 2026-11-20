@@ -84,7 +84,7 @@ public enum MaterialKind {
         SoundType sound = state.getSoundType();
         NoteBlockInstrument instrument = state.instrument();
         if (block instanceof CactusBlock) return CACTUS;
-        if (block instanceof LeavesBlock || state.is(BlockTags.LEAVES)) return LEAVES;
+        if (block instanceof LeavesBlock || inLeavesTag(state)) return LEAVES;
         if (block instanceof CarpetBlock) return CLOTH_DECORATION;
         if (block instanceof SnowLayerBlock) return TOP_SNOW;
         if (sound == SoundType.SNOW) return SNOW;
@@ -116,6 +116,27 @@ public enum MaterialKind {
         if ((sound == SoundType.GRAVEL || sound == SoundType.SOUL_SOIL || sound == SoundType.ROOTED_DIRT)
             && instrument != NoteBlockInstrument.FLUTE) return DIRT;
         return OTHER;
+    }
+
+    /**
+     * Whether the block is in the leaves tag, asked only of a block that holds its tags.
+     *
+     * <p>
+     * From 26.1 a block's holder holds no tags until its registry binds them, and a holder asked before that throws
+     * "Tags not bound" where 1.21.1's held an empty set. The game's own blocks are bound as it starts, but Forge binds
+     * a mod's when it freezes the registries, in the last of its loading states, which runs after the first resource
+     * reload has prepared the block atlas - and the atlas's stitch is where detection first runs, so on Forge every
+     * block a mod registers was asked too early and stopped the game. A holder cannot be asked whether its tags are
+     * bound (only whether its key and value are), so the throw is what says so. Such a block is in no tag here, which
+     * is what every block is on the other loaders at that moment, before any data has been read; the table is
+     * resolved again when a world's data is bound, and the tag answers then.
+     */
+    private static boolean inLeavesTag(BlockState state) {
+        try {
+            return state.is(BlockTags.LEAVES);
+        } catch (IllegalStateException tagsNotBound) {
+            return false;
+        }
     }
 
     /** A plant makes a plant's sound - what keeps torches, wire, webs and fire, built as plants are, out of it. */

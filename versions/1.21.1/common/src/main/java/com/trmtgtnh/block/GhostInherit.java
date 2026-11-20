@@ -220,6 +220,16 @@ public final class GhostInherit {
     }
 
     /**
+     * Flesh's and crusted taint's own hardness where a square answers through their stand-in, or NaN: soul sand and
+     * mycelium are the nearest vanilla ground, and softer than the real blocks (0.9.229, W4 T17; see
+     * {@link GhostFamily#ownHardness}).
+     */
+    static float standInHardness(Block ghost, BlockGetter world, BlockPos pos) {
+        if (coveredAt(ghost, pos) != null) return Float.NaN;
+        return GhostFamily.ownHardness(GhostFamily.familyAt(world, pos));
+    }
+
+    /**
      * The real block under a ghost at a square, or null when nothing trustworthy is recorded - the 1.7.10 edition's
      * {@code GhostLogic.coveredAt}: never the ghost itself, never another ghost.
      */
@@ -259,6 +269,14 @@ public final class GhostInherit {
         if (covered == null) return Float.NaN;
         if (!enter()) return Float.NaN;
         try {
+            float own = standInHardness(ghost, world, pos);
+            if (!Float.isNaN(own)) {
+                // Flesh and crusted taint answer through a stand-in softer than the real block: its progress at
+                // the real block's hardness, as progress goes as one over hardness (0.9.229, W4 T17).
+                float its = covered.getDestroySpeed(world, pos);
+                float progress = covered.getDestroyProgress(player, new OriginView(world, pos, covered), pos);
+                return its > 0F ? progress * its / own : progress;
+            }
             return covered.getDestroyProgress(player, new OriginView(world, pos, covered), pos);
         } catch (RuntimeException awkwardBlock) {
             return Float.NaN;

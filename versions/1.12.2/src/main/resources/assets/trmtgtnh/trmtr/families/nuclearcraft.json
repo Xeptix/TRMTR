@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "From Enigmatica 2 Expert 1.93a's census of 1.12.2 (W4 R8, judged 2026-11-12). Dry earth is the bare top of NuclearCraft's nuclear wasteland, dry earth of rock material with no word the rules read as ground, so dirt. Named at the value the census judged and no other; NuclearCraft's ores and every made block stay as the rules leave them."
+  ],
+  "entries": [
+    { "blocks": ["nuclearcraft:dry_earth:0"], "family": "dirt" }
+  ]
+}

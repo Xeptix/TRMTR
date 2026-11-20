@@ -198,9 +198,10 @@ final class SettingsCanvas implements Canvas {
             return;
         }
         if (ref instanceof com.trmtgtnh.surface.SurfaceFamily) {
-            // A surface, as its sub-tab draws it: its road block (spec M1.2), for the Advanced fold's rows (M16.2).
-            Object block = com.trmtgtnh.command.CommandTrmt.roadBlock((com.trmtgtnh.surface.SurfaceFamily) ref);
-            if (block != null) picture(block, x, y);
+            // A family, as its sub-tab (spec M1.2), its Advanced fold row (M16.2) and its chip draw it: its own
+            // block, the pack's first block of it, or its stand-in, never nothing (0.9.229, WearIcons.familyPicture).
+            Object shown = WearIcons.familyPicture((com.trmtgtnh.surface.SurfaceFamily) ref);
+            if (shown != null) picture(shown, x, y);
             return;
         }
         if (ref instanceof ChooserPictures.Picture) {
@@ -239,9 +240,21 @@ final class SettingsCanvas implements Canvas {
         hoverY = y;
     }
 
+    /**
+     * What is drawn after this lies over every picture drawn before it (0.9.229; Xep, from GT New Horizons: the
+     * Surfaces sub-tabs' blocks stood on a family's hover). From 0.9.228 an item is drawn as the game draws a
+     * slot's, 100 deep with the depth test on ({@code BlockIconArrayEntry.SLOT_Z}), so a block is not hollow; the
+     * screen's flat fills and its text are at nought, so a hover or a dropdown drawn over a picture after it came out
+     * under it. Clearing the depth gives the order the screen paints in, nearest last, as 1.12.2's canvas does.
+     */
+    void overPictures() {
+        GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
+    }
+
     /** The hover asked for this frame, drawn last, over everything. */
     void drawHover() {
         if (hoverLines == null || hoverLines.isEmpty()) return;
+        overPictures();
         HoverText.Box box = HoverText.box(this, hoverLines, hoverX, hoverY, screenWidth, screenHeight);
         HoverText.draw(this, box);
         hoverLines = null;

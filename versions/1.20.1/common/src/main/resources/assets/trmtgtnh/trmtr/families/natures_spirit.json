@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "_": "Nature's Spirit's sandy soil wears as dirt: the mod tags it dirt, and the rules refuse it by the word soil, which keeps worked ground out. Chert and travertine, the rock of its biomes, wear as stone: neither name carries a word the rules read as rock. The rest of the mod is detection's.",
+  "entries": [
+    { "blocks": ["natures_spirit:sandy_soil"], "family": "dirt" },
+    { "blocks": ["natures_spirit:chert", "natures_spirit:travertine"], "family": "stone" }
+  ]
+}

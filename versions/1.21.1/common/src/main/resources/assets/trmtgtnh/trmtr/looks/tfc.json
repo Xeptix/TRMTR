@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "_": "TerraFirmaCraft draws each grass from parts, and the first part is the soil's own underside, so the top read from it is the soil's earth. Every grass of the mod wears the mod's own grass top, the picture its top parts draw over the soil; its underside is still its own soil.",
+  "entries": [
+    {
+      "blocks": [
+        "tfc:grass/entisol", "tfc:grass/aridisol", "tfc:grass/oxisol", "tfc:grass/fluvisol",
+        "tfc:grass/andisol", "tfc:grass/podzol", "tfc:grass/alfisol", "tfc:grass/mollisol",
+        "tfc:clay_grass/entisol", "tfc:clay_grass/aridisol", "tfc:clay_grass/oxisol", "tfc:clay_grass/fluvisol",
+        "tfc:clay_grass/andisol", "tfc:clay_grass/podzol", "tfc:clay_grass/alfisol", "tfc:clay_grass/mollisol",
+        "tfc:peat_grass", "tfc:kaolin_clay_grass"
+      ],
+      "face": "tfc:block/grass_top"
+    }
+  ]
+}

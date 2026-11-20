@@ -7,9 +7,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import net.minecraft.block.Block;
@@ -28,6 +30,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.surface.SurfaceRegistry;
+import com.trmtgtnh.surface.SurfaceShape;
 
 /**
  * Which texture a block draws on each of its faces, read out of its model before the model is baked.
@@ -101,25 +104,33 @@ public final class ModelFaces {
      * whose {@code getIcon} refuses.
      */
     public static void survey(Collection<SurfaceRegistry.SurfaceState> states) {
+        List<Block> blocks = new ArrayList<Block>(states.size());
+        for (SurfaceRegistry.SurfaceState surface : states) {
+            blocks.add(surface.block);
+        }
+        survey(blocks, GameModels.INSTANCE);
+    }
+
+    /** {@link #survey(Collection)}, of these blocks, with their models asked of {@code models}. */
+    static void survey(List<Block> blocks, Models models) {
         Map<Block, String[][]> built = new IdentityHashMap<Block, String[][]>();
         Map<Block, String[]> snowedBuilt = new IdentityHashMap<Block, String[]>();
         firstReason = null;
+        passedOverBuilt = new LinkedHashSet<String>();
         int read = 0;
         int missed = 0;
-        for (SurfaceRegistry.SurfaceState surface : states) {
-            Block block = surface.block;
+        for (Block block : blocks) {
             if (built.containsKey(block)) continue;
             String[][] byMeta = new String[16][];
             String[] snowedByMeta = new String[16];
             Map<IBlockState, ModelResourceLocation> variants;
             try {
-                net.minecraft.client.renderer.block.statemap.BlockStateMapper mapper = stateMapper();
-                if (mapper == null) {
+                variants = models.variants(block);
+                if (variants == null) {
                     noteReason("the game's block state mapper could not be reached");
                     missed++;
                     continue;
                 }
-                variants = mapper.getVariants(block);
             } catch (RuntimeException awkwardBlock) {
                 noteReason("its state mapper threw " + awkwardBlock);
                 missed++;
@@ -136,7 +147,7 @@ public final class ModelFaces {
                 if (meta < 0 || meta > 15) continue;
                 // The snowy variant is read for its flank alone, and never stands for the meta (SC20).
                 if (isSnowy(state)) {
-                    String[] snowySides = sidesOf(entry.getValue(), layerBehind(block, meta));
+                    String[] snowySides = sidesOf(models, block, entry.getValue(), layerBehind(block, meta));
                     if (snowySides != null && snowySides[2] != null) snowedByMeta[meta] = snowySides[2];
                     continue;
                 }
@@ -144,9 +155,11 @@ public final class ModelFaces {
                 // is the one to read, since that is the state a record's origin is filed under.
                 boolean canonical = sameState(block, meta, state);
                 if (byMeta[meta] != null && !canonical) continue;
-                String[] sides = sidesOf(entry.getValue(), layerBehind(block, meta));
+                String[] sides = sidesOf(models, block, entry.getValue(), layerBehind(block, meta));
                 if (sides == null) continue;
-                if (byMeta[meta] == null || canonical) byMeta[meta] = sides;
+                if (byMeta[meta] == null || canonical) {
+                    byMeta[meta] = lawnFaces(sides, SurfaceShape.of(block, meta) != SurfaceShape.STAIR);
+                }
             }
             boolean any = false;
             for (String[] sides : byMeta) {
@@ -170,6 +183,56 @@ public final class ModelFaces {
         snowed = snowedBuilt;
         surveyed = read;
         unread = missed;
+        passedOver = Collections.unmodifiableList(new ArrayList<String>(passedOverBuilt));
+        // Said once a survey, bounded, and only where the loader itself would not answer: see vanillaModel.
+        if (!passedOver.isEmpty()) {
+            Trmt.LOG.warn(
+                "Wear texture faces: the model loader could not read the models of {} surface block(s), which wear the "
+                    + "texture named after them or their family's instead: {}",
+                Integer.valueOf(passedOver.size()),
+                com.trmtgtnh.util.LogSample.of(passedOver));
+        }
+    }
+
+    /**
+     * Where the survey's models come from: the game's state mapper and Forge's model loader in a game, a stand-in in a
+     * test, since neither can be reached without a running client.
+     */
+    interface Models {
+
+        /** Which model each of a block's states draws with, or null where the game's state mapper cannot be reached. */
+        Map<IBlockState, ModelResourceLocation> variants(Block block);
+
+        /** The unbaked model at a location, or the missing model, as {@code ModelLoaderRegistry.getModelOrMissing}. */
+        IModel model(ResourceLocation location);
+    }
+
+    /** The game's own: kept in a class of its own so that a test which never surveys the game never loads it. */
+    private static final class GameModels implements Models {
+
+        static final GameModels INSTANCE = new GameModels();
+
+        @Override
+        public Map<IBlockState, ModelResourceLocation> variants(Block block) {
+            net.minecraft.client.renderer.block.statemap.BlockStateMapper mapper = stateMapper();
+            return mapper == null ? null : mapper.getVariants(block);
+        }
+
+        @Override
+        public IModel model(ResourceLocation location) {
+            return ModelLoaderRegistry.getModelOrMissing(location);
+        }
+    }
+
+    /** The blocks the last survey asked the loader about and could not read, each with what it threw. */
+    private static volatile List<String> passedOver = Collections.emptyList();
+
+    /** The same, while a survey is being taken; only the survey's own thread touches it. */
+    private static Set<String> passedOverBuilt = new LinkedHashSet<String>();
+
+    /** {@link #passedOver}, as the last survey left it. */
+    static List<String> passedOver() {
+        return passedOver;
     }
 
     /** The side a block's snowy variant draws, or null where it has none or its model did not say (SC20). */
@@ -285,9 +348,30 @@ public final class ModelFaces {
         }
     }
 
+    /**
+     * A lawn whose model draws its top on a face keeps a lawn's face, so everything downstream treats it as the lawn it
+     * is: see {@link FaceRules#lawnFace}. Here rather than in {@code GhostSides} because the wall made at the stitch and
+     * the flank drawn on a mesher thread have to read the same name, and this is the one table both read.
+     *
+     * <p>
+     * Never a stair: the 1.7.10 edition's stair stand-in is never grass's, every face of a worn stair takes the covered
+     * block's own tint ({@code GhostSides.stair}), and on that face the top is green and vanilla's flank would not be.
+     *
+     * @param sides      the six faces a model draws, changed in place
+     * @param lawnShaped whether this block can be a lawn: anything but a stair
+     */
+    static String[] lawnFaces(String[] sides, boolean lawnShaped) {
+        if (!lawnShaped) return sides;
+        for (int side = 0; side < sides.length; side++) {
+            String lawn = FaceRules.lawnFace(sides[1], sides[side], side);
+            if (lawn != null) sides[side] = "minecraft:blocks/" + lawn;
+        }
+        return sides;
+    }
+
     /** The six faces a model draws, by side, or null where it cannot be read as a vanilla model. */
-    private static String[] sidesOf(ModelResourceLocation location, ResourceLocation behind) {
-        ModelBlock model = vanillaModel(location);
+    private static String[] sidesOf(Models models, Block block, ModelResourceLocation location, ResourceLocation behind) {
+        ModelBlock model = vanillaModel(models, block, location);
         if (model == null) return null;
         String[] sides = sidesOf(model, behind);
         // Said rather than counted as read. Six sides that are all null used to count, and that is how every
@@ -402,9 +486,10 @@ public final class ModelFaces {
      * only then the bases it names. For a vanilla blockstate the two are the same model; for a Forge one they are
      * not, and only the first can say what a face draws. See {@link #variantModels}.
      */
-    private static ModelBlock vanillaModel(ModelResourceLocation location) {
+    private static ModelBlock vanillaModel(Models models, Block block, ModelResourceLocation location) {
         try {
-            IModel model = ModelLoaderRegistry.getModelOrMissing(location);
+            IModel model = load(models, block, location);
+            if (model == null) return null;
             Optional<ModelBlock> direct = model.asVanillaModel();
             if (direct.isPresent()) return direct.get();
             for (IModel variant : variantModels(model)) {
@@ -412,8 +497,9 @@ public final class ModelFaces {
                 if (made.isPresent()) return made.get();
             }
             for (ResourceLocation part : model.getDependencies()) {
-                Optional<ModelBlock> inner = ModelLoaderRegistry.getModelOrMissing(part)
-                    .asVanillaModel();
+                IModel dependency = load(models, block, part);
+                if (dependency == null) return null;
+                Optional<ModelBlock> inner = dependency.asVanillaModel();
                 if (inner.isPresent()) return inner.get();
             }
             noteReason(
@@ -425,10 +511,37 @@ public final class ModelFaces {
                     + model.getDependencies()
                     + ", none of which unwraps into a vanilla model");
         } catch (RuntimeException unreadable) {
-            noteReason("reading its model " + location + " threw " + unreadable);
-            Trmt.LOG.debug("Could not read the model {} for its faces", location, unreadable);
+            passOver(block, location, unreadable);
         }
         return null;
+    }
+
+    /**
+     * A model asked of the loader, or null where the loader could not read it, the block recorded as passed over.
+     *
+     * <p>
+     * A LinkageError is passed over here and only here (E2E, 2026-11-11): VintageFix's overwrite of
+     * VariantLoader.loadModel throws a MissingVariantException through a constructor the game's own jar keeps protected,
+     * so for a variant its blockstate does not name - Extra Utilities 2 ships none - the throw fails as
+     * IllegalAccessError. VintageFix's own loading catches Throwable there; StellarCore's getModel and Forge's
+     * getModelOrMissing catch Exception, and the error took the stitch down. The same error from reading a model the
+     * loader did hand back is a binary fault in this mod or the model API, and goes on up, as does any other Error.
+     */
+    private static IModel load(Models models, Block block, ResourceLocation location) {
+        try {
+            return models.model(location);
+        } catch (LinkageError unlinkable) {
+            passOver(block, location, unlinkable);
+            return null;
+        }
+    }
+
+    /** Notes a block whose model could not be read, once, with what it threw. */
+    private static void passOver(Block block, ResourceLocation location, Throwable unreadable) {
+        noteReason("reading its model " + location + " threw " + unreadable);
+        passedOverBuilt.add(block.getRegistryName() + " (" + unreadable.getClass()
+            .getSimpleName() + ")");
+        Trmt.LOG.debug("Could not read the model {} for its faces", location, unreadable);
     }
 
     /** The field each model class keeps its variants' models in, found once per class; empty where it has none. */

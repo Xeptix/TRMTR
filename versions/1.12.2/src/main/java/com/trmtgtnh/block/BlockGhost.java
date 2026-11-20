@@ -20,6 +20,7 @@ import net.minecraftforge.common.property.IUnlistedProperty;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.erosion.ErosionState;
 import com.trmtgtnh.erosion.SinkProfile;
+import com.trmtgtnh.surface.DataShape;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceShape;
 
@@ -80,6 +81,13 @@ public class BlockGhost extends Block {
      */
     public static final IUnlistedProperty<Integer> FRINGE_TURN = number("fringe_turn");
 
+    /**
+     * The turn the game itself gives the unworn block at this square, kept for the square's top before it first sinks
+     * while client.wearTurnStart matches the game (0.9.229, "When the turn starts"); nought otherwise. Read here, the
+     * last place that knows where the square is, by the client proxy from the block's own model.
+     */
+    public static final IUnlistedProperty<Integer> GAME_TURN = number("game_turn");
+
     /** Whether snow lies on this square, which decides what a lawn shows on its flanks. */
     public static final IUnlistedProperty<Integer> SNOWED = number("snowed");
 
@@ -116,6 +124,52 @@ public class BlockGhost extends Block {
      * {@link #stairCodeAt}, which asks the block for its actual state and packs what that answers.
      */
     public static final IUnlistedProperty<Integer> STAIR = number("stair");
+
+    /**
+     * Where the square is, as {@code BlockPos.toLong} (0.9.229, W3 T8): what trmtr-api's render hook hands a plugin as
+     * its {@code x}, {@code y} and {@code z}, and the key the model keeps one block's hooked drawing under while the
+     * renderer asks it face by face. The model is handed a state and nothing else, so it travels as the record does.
+     */
+    public static final IUnlistedProperty<Long> POS = new IUnlistedProperty<Long>() {
+
+        @Override
+        public String getName() {
+            return "pos";
+        }
+
+        @Override
+        public boolean isValid(Long value) {
+            return value != null;
+        }
+
+        @Override
+        public Class<Long> getType() {
+            return Long.class;
+        }
+
+        @Override
+        public String valueToString(Long value) {
+            return String.valueOf(value);
+        }
+    };
+
+    /**
+     * The light over the square, packed as the game packs it, read only while a plugin's render hook is registered
+     * (W3 T8): {@code WearDraw.light()}, which the model, handed no world, cannot ask for itself.
+     */
+    public static final IUnlistedProperty<Integer> HOOK_LIGHT = number("hook_light");
+
+    /**
+     * The square's one color, as tint slot nought gives it, read only while a plugin's render hook is registered (W3
+     * T8): {@code WearDraw.tint}, for the same reason.
+     */
+    public static final IUnlistedProperty<Integer> HOOK_TINT = number("hook_tint");
+
+    /**
+     * Whether the game draws the square's face toward the cell above, 1 or 0, read only while a plugin's render hook is
+     * registered (0.9.229): what a quad filed under that face needs (ApiDraw, "Light"), for the same reason.
+     */
+    public static final IUnlistedProperty<Integer> HOOK_OPEN = number("hook_open");
 
     private static IUnlistedProperty<Integer> number(final String name) {
         return new IUnlistedProperty<Integer>() {
@@ -203,7 +257,8 @@ public class BlockGhost extends Block {
         return new ExtendedBlockState(
             this,
             new net.minecraft.block.properties.IProperty[0],
-            new IUnlistedProperty[] { RECORD, ORIGIN, ROTATION, FRINGE_TURN, SNOWED, OUTLINE, STAIR });
+            new IUnlistedProperty[] { RECORD, ORIGIN, ROTATION, GAME_TURN, FRINGE_TURN, SNOWED, OUTLINE, STAIR, POS, HOOK_LIGHT,
+                HOOK_TINT, HOOK_OPEN });
     }
 
     /**
@@ -226,9 +281,24 @@ public class BlockGhost extends Block {
         // The square's picture moves while it is on the ground near the player, and this is the last place that knows
         // where the square is (0.9.221, SeenPictures).
         Trmt.proxy.ghostDrawn(record, origin, rotation, pos.getX(), pos.getY(), pos.getZ());
-        return ((IExtendedBlockState) state).withProperty(RECORD, Integer.valueOf(record))
+        IExtendedBlockState told = (IExtendedBlockState) state;
+        // What trmtr-api's render hook hands a plugin and the model cannot read for itself (W3 T8), only while one is
+        // registered, so a pack without one pays one volatile read a square.
+        if (com.trmtgtnh.apiload.ApiLoad.host()
+            .draws()) {
+            told = told.withProperty(POS, Long.valueOf(pos.toLong()))
+                .withProperty(HOOK_LIGHT, Integer.valueOf(world.getCombinedLight(pos.up(), 0)))
+                .withProperty(HOOK_TINT, Integer.valueOf(hookTint(state, world, pos)))
+                .withProperty(
+                    HOOK_OPEN,
+                    Integer.valueOf(state.shouldSideBeRendered(world, pos, net.minecraft.util.EnumFacing.UP) ? 1 : 0));
+        }
+        return told.withProperty(RECORD, Integer.valueOf(record))
             .withProperty(ORIGIN, Integer.valueOf(origin))
             .withProperty(ROTATION, Integer.valueOf(rotation))
+            .withProperty(
+                GAME_TURN,
+                Integer.valueOf(Trmt.proxy.gameTurnAt(record, origin, pos.getX(), pos.getY(), pos.getZ())))
             .withProperty(
                 FRINGE_TURN,
                 Integer.valueOf(com.trmtgtnh.erosion.Rotations.forPosition(pos.getX(), pos.getZ())))
@@ -259,6 +329,12 @@ public class BlockGhost extends Block {
         if (stairCodeAt(world, pos, origin) >= 0) {
             return FULL_BLOCK_AABB;
         }
+        // A data file's boxes before the block's own footing (W3 T6): the file says what shape the block is, and the
+        // server's PhysicalDecay.boxAt asks them first as well. One box round them all here; collision proper takes
+        // them one by one in addCollisionBoxToList.
+        if (boxesOf(origin) != null) {
+            return solidBox(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
+        }
         // A block narrower than its own square keeps its own footing, worn or not - see
         // GhostInherit.ownFootingAt. Wear is a height off the top of a full cell, which is the wrong
         // shape for a pad that only covers part of one: handing back a full cell over a cloud turns
@@ -280,7 +356,21 @@ public class BlockGhost extends Block {
     @Override
     public void addCollisionBoxToList(IBlockState state, World world, BlockPos pos, AxisAlignedBB entityBox,
         java.util.List<AxisAlignedBB> colliding, @Nullable net.minecraft.entity.Entity entity, boolean actual) {
-        int stair = stairCodeAt(world, pos, Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
+        // A data file's boxes collide one by one, as the server's PhysicalDecay.boxesAt gives them, the walked ones
+        // sunk by the collision depth (W3 T6); everything else keeps its one box.
+        double[][] boxes = boxesAt(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin, true);
+        if (boxes != null) {
+            for (double[] box : boxes) {
+                addCollisionBoxToList(
+                    pos,
+                    entityBox,
+                    colliding,
+                    new AxisAlignedBB(box[0], box[1], box[2], box[3], box[4], box[5]));
+            }
+            return;
+        }
+        int stair = stairCodeAt(world, pos, origin);
         if (stair < 0) {
             super.addCollisionBoxToList(state, world, pos, entityBox, colliding, entity, actual);
             return;
@@ -310,6 +400,10 @@ public class BlockGhost extends Block {
         if (stairCodeAt(world, pos, origin) >= 0) {
             return FULL_BLOCK_AABB;
         }
+        // Round a data file's boxes (W3 T6), before the block's own footing, as the collision asks them.
+        if (boxesOf(origin) != null) {
+            return solidBox(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
+        }
         AxisAlignedBB own = GhostInherit.ownFootingAt(world, pos, origin);
         AxisAlignedBB solid = own != GhostInherit.ORDINARY ? own
             : solidBox(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ()), origin);
@@ -338,7 +432,17 @@ public class BlockGhost extends Block {
      */
     static AxisAlignedBB solidBox(short record, int origin) {
         IBlockState covered = coveredState(origin);
-        SurfaceShape shape = SurfaceShape.of(covered == null ? null : covered.getBlock());
+        Block block = blockOf(covered);
+        int meta = metaOf(covered);
+        // A data file's boxes (W3 T6): one box round them all, the walked ones sunk by the collision depth, as the
+        // server's PhysicalDecay.boxAt builds it from the same shape.
+        DataShape boxes = boxesOf(block, meta);
+        if (boxes != null) {
+            double[] round = boxes.outline(sunk(record, block, meta, true));
+            return new AxisAlignedBB(round[0], round[1], round[2], round[3], round[4], round[5]);
+        }
+        // A data file's shape first, then the class (W3 T6), and the depth held by it (SurfaceShape.sunk).
+        SurfaceShape shape = SurfaceShape.of(block, meta);
         if (shape.isPartial()) {
             double floor = SurfaceShape.bottomOf(shape, covered);
             double top = SurfaceShape.topOf(shape, covered);
@@ -347,16 +451,68 @@ public class BlockGhost extends Block {
                 floor,
                 0.0D,
                 1.0D,
-                Math.max(floor, top - collisionSink(record, shape) / 16.0D),
+                Math.max(floor, top - sunk(record, block, meta, true) / 16.0D),
                 1.0D);
         }
-        return new AxisAlignedBB(
-            0.0D,
-            0.0D,
-            0.0D,
-            1.0D,
-            SinkProfile.heightFor(collisionSink(record, SurfaceShape.FULL)),
-            1.0D);
+        return new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, SinkProfile.heightFor(sunk(record, block, meta, true)), 1.0D);
+    }
+
+    /**
+     * The boxes worn ground over a data file's boxes is drawn ({@code footing} false) or stood on as, in block units
+     * from the block's corner, or null where the covered block has none (W3 spec 2.4, T6): the walked boxes' tops
+     * lowered by the depth, the rest as the file gives them. The 1.7.10 edition's {@code GhostLogic.boxesAt}; the same
+     * boxes the server's {@code PhysicalDecay.boxesAt} builds.
+     */
+    public static double[][] boxesAt(short record, int origin, boolean footing) {
+        IBlockState covered = coveredState(origin);
+        Block block = blockOf(covered);
+        int meta = metaOf(covered);
+        DataShape boxes = boxesOf(block, meta);
+        if (boxes == null) return null;
+        return boxes.boxesSunk(sunk(record, block, meta, footing));
+    }
+
+    /** The boxes a data file gives the block a square covers, or null where its shape is anything but boxes. */
+    public static DataShape boxesOf(int origin) {
+        IBlockState covered = coveredState(origin);
+        return boxesOf(blockOf(covered), metaOf(covered));
+    }
+
+    private static DataShape boxesOf(Block block, int meta) {
+        DataShape data = com.trmtgtnh.surface.SurfaceRegistry.shapeOf(block, meta);
+        return data != null && data.kind == DataShape.BOXES ? data : null;
+    }
+
+    /**
+     * How far a record has sunk at the block it covers, drawn or ({@code collision}) stood on: the family's depth for
+     * the shape, held by the block's data shape - nothing for {@code "sinks": false}, no deeper than its
+     * {@code maxSinkPixels}, a pixel short of its walked box (W3 T6). The one number the server's
+     * {@code PhysicalDecay.sinkAt} takes as well, through the same {@code SurfaceShape.sunk}.
+     */
+    static int sunk(short record, Block block, int meta, boolean collision) {
+        SurfaceFamily appearance = ErosionState.familyOf(record);
+        if (appearance == null || !shows(record)) return 0;
+        return SurfaceShape.sunk(appearance, ErosionState.sinkOf(record), block, meta, collision);
+    }
+
+    /** The drawn depth of a record over the block a square covers, as {@link #heightAt} draws it (W3 T6). */
+    public static int drawnSinkAt(short record, int origin) {
+        IBlockState covered = coveredState(origin);
+        return sunk(record, blockOf(covered), metaOf(covered), false);
+    }
+
+    private static Block blockOf(@Nullable IBlockState covered) {
+        return covered == null ? null : covered.getBlock();
+    }
+
+    private static int metaOf(@Nullable IBlockState covered) {
+        if (covered == null) return 0;
+        try {
+            return covered.getBlock()
+                .getMetaFromState(covered);
+        } catch (RuntimeException awkwardBlock) {
+            return 0;
+        }
     }
 
     /**
@@ -372,20 +528,31 @@ public class BlockGhost extends Block {
      */
     public static double heightAt(short record, int origin, int outline, boolean footing) {
         IBlockState covered = coveredState(origin);
-        SurfaceShape shape = SurfaceShape.of(covered == null ? null : covered.getBlock());
+        Block block = blockOf(covered);
+        int meta = metaOf(covered);
+        // A data file's boxes (W3 T6): worn from the walked box's top, and never through it.
+        DataShape boxes = boxesOf(block, meta);
+        if (boxes != null) return boxes.walkedTop() / 16.0D - sunk(record, block, meta, footing) / 16.0D;
+        SurfaceShape shape = SurfaceShape.of(block, meta);
         if (shape.isPartial()) {
             double top = SurfaceShape.topOf(shape, covered);
             double floor = SurfaceShape.bottomOf(shape, covered);
-            int sunk = footing ? collisionSink(record, shape) : drawnSink(record, shape);
-            return Math.max(floor, top - sunk / 16.0D);
+            return Math.max(floor, top - sunk(record, block, meta, footing) / 16.0D);
         }
-        return Math.min(topOf(outline), SinkProfile.heightFor(drawnSink(record, SurfaceShape.FULL)));
+        return Math.min(topOf(outline), SinkProfile.heightFor(sunk(record, block, meta, false)));
     }
 
-    /** Where the space a square stands in begins - only ever above nought for an upper slab. 1.7.10's bottomAt. */
+    /**
+     * Where the space a square stands in begins - only ever above nought for an upper slab, or a data file's boxes
+     * that stand off the floor. 1.7.10's bottomAt.
+     */
     public static double bottomAt(int origin) {
         IBlockState covered = coveredState(origin);
-        SurfaceShape shape = SurfaceShape.of(covered == null ? null : covered.getBlock());
+        Block block = blockOf(covered);
+        int meta = metaOf(covered);
+        DataShape boxes = boxesOf(block, meta);
+        if (boxes != null) return boxes.floor() / 16.0D;
+        SurfaceShape shape = SurfaceShape.of(block, meta);
         return shape.isPartial() ? SurfaceShape.bottomOf(shape, covered) : 0.0D;
     }
 
@@ -406,10 +573,13 @@ public class BlockGhost extends Block {
         }
     }
 
-    /** The shape of the block a square stands in for, by its class as SurfaceShape.of decides it (0.9.228). */
+    /**
+     * The shape of the block a square stands in for: a data file's first, then its class as SurfaceShape.of decides it
+     * (0.9.228; W3 T6).
+     */
     public static SurfaceShape coveredShape(int origin) {
         IBlockState covered = coveredState(origin);
-        return SurfaceShape.of(covered == null ? null : covered.getBlock());
+        return SurfaceShape.of(blockOf(covered), metaOf(covered));
     }
 
     // ------------------------------------------------------------------
@@ -435,7 +605,10 @@ public class BlockGhost extends Block {
         if (origin < 0 || world == null) return -1;
         try {
             IBlockState stored = Block.getStateById(origin);
-            if (SurfaceShape.of(stored.getBlock()) != SurfaceShape.STAIR) return -1;
+            // A data file's shape first (W3 T6): a data "full" on a stair is a cube, and a data "stair" on a block
+            // that is not one reads its metadata as a stair's.
+            if (SurfaceShape.of(stored.getBlock(), metaOf(stored)) != SurfaceShape.STAIR) return -1;
+            if (!(stored.getBlock() instanceof net.minecraft.block.BlockStairs)) return stairCodeOfMeta(metaOf(stored));
             IBlockState actual = stored.getBlock()
                 .getActualState(stored, world, pos);
             int facing = ((net.minecraft.util.EnumFacing) actual.getValue(net.minecraft.block.BlockStairs.FACING))
@@ -450,6 +623,19 @@ public class BlockGhost extends Block {
             // drawn as a cube rather than crashing a chunk rebuild.
             return -1;
         }
+    }
+
+    /**
+     * A data file's stair over a block that is not a stair (W3 T6, the 1.7.10 edition's choice: a stair stand-in
+     * reading the origin's metadata as a stair's), packed as {@link #stairCodeAt} packs one: the facing and half
+     * 1.12.2's own {@code BlockStairs.getStateFromMeta} reads from those bits, and the straight shape, since the
+     * corner a stair turns comes from its neighbours' stair properties, which such a block has none of.
+     */
+    static int stairCodeOfMeta(int meta) {
+        int facing = net.minecraft.util.EnumFacing.byIndex(5 - (meta & 3))
+            .getHorizontalIndex();
+        boolean top = (meta & 4) != 0;
+        return (facing & 3) | (top ? 4 : 0) | (net.minecraft.block.BlockStairs.EnumShape.STRAIGHT.ordinal() << 3);
     }
 
     /**
@@ -788,7 +974,10 @@ public class BlockGhost extends Block {
         // never sinks, a real stair stops all light at this version as at 1.7.10, and the server still holds one -
         // the 1.7.10 edition's stair stand-in sets 255 for every family, ice included. Until 0.9.222 a deep-worn
         // stair answered as sunk here and let all of it through (spec GF8).
-        if (coveredStair(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) != null) return 255;
+        // A data file's stair too (W3 T6), which stands as a stair whatever its block is.
+        if (coveredShape(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())) == SurfaceShape.STAIR) {
+            return 255;
+        }
         if (sunkAt(world, pos)) return 0;
         // Worn ice stops the light ice stops - the 1.7.10 edition's {@code clear ? lightOpacityFor :
         // 255}, missing here until 0.9.219, when a path across a frozen lake darkened the water under it.
@@ -884,7 +1073,10 @@ public class BlockGhost extends Block {
     @Nullable
     public static IBlockState coveredStair(int origin) {
         IBlockState covered = coveredState(origin);
-        return covered != null && SurfaceShape.of(covered.getBlock()) == SurfaceShape.STAIR ? covered : null;
+        // A real stair a data file has not made something else (W3 T6): vanilla's stair rules this is handed to read a
+        // stair's own facing, half and shape, which a data file's stair over another block does not carry.
+        return covered != null && covered.getBlock() instanceof net.minecraft.block.BlockStairs
+            && SurfaceShape.of(covered.getBlock(), metaOf(covered)) == SurfaceShape.STAIR ? covered : null;
     }
 
     /**
@@ -950,6 +1142,45 @@ public class BlockGhost extends Block {
     }
 
     /**
+     * The same question as {@link #litFromNeighboursAt}, as Alfheim asks it (G17, the W4 census's E2E crash,
+     * 2026-11-11).
+     *
+     * <p>
+     * Alfheim, a lighting engine for 1.12.2, overwrites the three reads {@code MixinGhostNeighbourLight} answers, so
+     * nothing there reads the flag any more. Its own light at a square asks the block's flag, then, side by side, a
+     * question of its own that it adds to every block: does this block take the light of the neighbour on that side? It
+     * answers "the one above" for any block, and for a stair or a slab the open side of its half. Named here exactly as
+     * Alfheim names it, so this overrides Alfheim's answer for the ghost, and nothing of Alfheim's is named or needed: in
+     * a game without it this method is never called. The ghost answers as Alfheim answers the block it covers, as it
+     * does without Alfheim: a covered stair by the stair's half, worn clear ice from its own cell, anything else from
+     * above.
+     */
+    public boolean alfheim$useNeighborBrightness(IBlockState state, net.minecraft.util.EnumFacing facing,
+        IBlockAccess world, BlockPos pos) {
+        return litFromSide(
+            facing,
+            coveredStair(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ())),
+            clearCovers(world, pos) != null);
+    }
+
+    /**
+     * Whether a worn square takes the light of the neighbour on one side, under Alfheim's rule: a covered stair from the
+     * open side of its half (Alfheim's {@code BlockStairsMixin}: below for a top half, above for a bottom one), worn
+     * clear ice from no side, as {@link #litFromNeighboursAt} lights it from its own cell, and anything else from above,
+     * Alfheim's answer for every block that takes its neighbours' light.
+     */
+    public static boolean litFromSide(net.minecraft.util.EnumFacing facing, @Nullable IBlockState coveredStair,
+        boolean clear) {
+        if (coveredStair != null) {
+            return facing == (coveredStair.getValue(net.minecraft.block.BlockStairs.HALF)
+                == net.minecraft.block.BlockStairs.EnumHalf.TOP ? net.minecraft.util.EnumFacing.DOWN
+                    : net.minecraft.util.EnumFacing.UP);
+        }
+        if (clear) return false;
+        return facing == net.minecraft.util.EnumFacing.UP;
+    }
+
+    /**
      * The one color a worn square takes: the covered block's own color, asked of it through a view that holds it at
      * its own square - the 1.7.10 edition's {@code GhostRendering.colorFor}, {@code
      * origin.colorMultiplier(new OriginView(...))} - or white where the square no longer wears as the covered block's
@@ -959,9 +1190,12 @@ public class BlockGhost extends Block {
      * and the flanks of anything but a lawn (spec GS11, GS12, GT14, GT17).
      *
      * <p>
-     * That edition gives a block one color for all its faces; this version asks a color per tint slot, and slot nought
-     * is the one a block that tints at all answers on - grass, leaves, vines. White where the block answers nothing,
-     * as a block with no color of its own answers white there. The path light is multiplied in by the color handler.
+     * That edition gives a block one color for all its faces; this version asks a color per tint slot, so the block's
+     * one color is the one it gives its own top: asked at the slot its own model tints its top with ({@link #topSlot}).
+     * Slot nought for vanilla's grass, leaves and vines, and for a block whose top takes no tint, which answers white
+     * there. Not slot nought for every block: a block may color its top at another slot and answer nothing at nought,
+     * as TerraFirmaCraft's grass does on 1.20.1 and 1.21.1, whose worn top drew in the grey of the picture as stored
+     * (0.9.229 W6 R9). The path light is multiplied in by the color handler.
      */
     @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
     public static int coveredTint(IBlockAccess world, BlockPos pos,
@@ -980,16 +1214,98 @@ public class BlockGhost extends Block {
             own = null;
         }
         if (!takesCoveredTint(own, ErosionState.familyOf(record))) return 0xFFFFFF;
+        // Sunk only where the block's shape sinks (W3 T6 follow-up): a "sinks": false lawn is drawn as unsunk turf.
         if (untintedHollow(
             own,
-            ErosionState.sinkOf(record),
-            SurfaceShape.of(covered.getBlock()) == SurfaceShape.STAIR)) {
+            SurfaceShape.sinks(covered.getBlock(), metaOf(covered)) ? ErosionState.sinkOf(record) : 0,
+            SurfaceShape.of(covered.getBlock(), metaOf(covered)) == SurfaceShape.STAIR)) {
             return 0xFFFFFF;
         }
         try {
-            return opaqueTint(colors.colorMultiplier(covered, new OriginView(world, pos, covered), pos, 0));
+            return ownColor(
+                slot -> colors.colorMultiplier(covered, new OriginView(world, pos, covered), pos, slot),
+                topTints(covered));
         } catch (RuntimeException awkwardBlock) {
             return 0xFFFFFF;
+        }
+    }
+
+    /**
+     * A covered block's one color: its color handler's answer at the slot its own top is tinted at, as a tint.
+     *
+     * @param answerAt the block's color handler at its square, by tint slot
+     * @param topTints the tint slot of each quad the block's own model draws on its top, in order, -1 for none
+     */
+    static int ownColor(java.util.function.IntUnaryOperator answerAt, int[] topTints) {
+        return opaqueTint(answerAt.applyAsInt(topSlot(topTints)));
+    }
+
+    /**
+     * The slot a block tints its own top at: its first tinted top quad's, and nought where none is tinted, the slot
+     * every block was asked at before (0.9.229 W6 R9). TerraFirmaCraft's grass draws its top from a part whose one face
+     * is {@code tintindex} 1, and its color handler answers only there: read from TerraFirmaCraft-Forge-1.20.1-3.2.28
+     * ({@code ClientEventHandler}, the grass handler {@code snowy || tintIndex != 1 ? -1 : grassColor}) and the same in
+     * TerraFirmaCraft-NeoForge-1.21.1-4.2.13.
+     */
+    static int topSlot(int[] topTints) {
+        if (topTints != null) {
+            for (int tint : topTints) {
+                if (tint >= 0) return tint;
+            }
+        }
+        return 0;
+    }
+
+    /** What each top quad of a model is tinted at, kept per state with the model it was read from. */
+    private static final java.util.Map<IBlockState, Top> TOPS = new java.util.concurrent.ConcurrentHashMap<IBlockState, Top>();
+
+    /**
+     * A model's top slots, with the model they were read from held as a plain object, so that this class, which a
+     * server loads, names nothing of the client's.
+     */
+    private static final class Top {
+
+        final Object model;
+
+        final int[] tints;
+
+        Top(Object model, int[] tints) {
+            this.model = model;
+            this.tints = tints;
+        }
+    }
+
+    /**
+     * The tint slot of each quad a block's own model draws on its top, from its baked model as the game draws it - the
+     * quads on the up side, else the unculled quads that face up, with the seed {@code GhostBakedModel} asks the
+     * covered block's own quads with. Kept per state and read again once the models are baked anew. Empty where the
+     * model will not say; never throws.
+     */
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    static int[] topTints(IBlockState covered) {
+        try {
+            net.minecraft.client.renderer.block.model.IBakedModel model = net.minecraft.client.Minecraft.getMinecraft()
+                .getBlockRendererDispatcher()
+                .getModelForState(covered);
+            if (model == null) return new int[0];
+            Top known = TOPS.get(covered);
+            if (known != null && known.model == model) return known.tints;
+            java.util.List<net.minecraft.client.renderer.block.model.BakedQuad> quads = model
+                .getQuads(covered, net.minecraft.util.EnumFacing.UP, 0L);
+            java.util.List<net.minecraft.client.renderer.block.model.BakedQuad> up = new java.util.ArrayList<net.minecraft.client.renderer.block.model.BakedQuad>();
+            if (quads != null) up.addAll(quads);
+            if (up.isEmpty()) {
+                for (net.minecraft.client.renderer.block.model.BakedQuad quad : model.getQuads(covered, null, 0L)) {
+                    if (quad.getFace() == net.minecraft.util.EnumFacing.UP) up.add(quad);
+                }
+            }
+            int[] tints = new int[up.size()];
+            for (int i = 0; i < tints.length; i++) tints[i] = up.get(i)
+                .getTintIndex();
+            TOPS.put(covered, new Top(model, tints));
+            return tints;
+        } catch (RuntimeException | LinkageError awkwardModel) {
+            return new int[0];
         }
     }
 
@@ -1009,6 +1325,22 @@ public class BlockGhost extends Block {
      */
     static boolean untintedHollow(@Nullable SurfaceFamily own, int sink, boolean stair) {
         return own == SurfaceFamily.GRASS && sink > 0 && !stair;
+    }
+
+    /**
+     * The square's one color as tint slot nought gives it, path light and all (W3 T8): what trmtr-api's render hook
+     * reads as {@code WearDraw.tint}. Asked of the game's own block colors, which hold this block's handler.
+     */
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    static int hookTint(IBlockState state, IBlockAccess world, BlockPos pos) {
+        try {
+            return opaqueTint(
+                net.minecraft.client.Minecraft.getMinecraft()
+                    .getBlockColors()
+                    .colorMultiplier(state, world, pos, com.trmtgtnh.client.model.GhostBakedModel.GRASS_TINT));
+        } catch (RuntimeException awkward) {
+            return 0xFFFFFF;
+        }
     }
 
     /** A color handler's answer as a tint: white for none (-1), the alpha left off. */
@@ -1044,7 +1376,12 @@ public class BlockGhost extends Block {
      * sunken variant of each ghost rather than by asking the position.
      */
     private static boolean sunkAt(IBlockAccess world, BlockPos pos) {
-        return ErosionState.sinkOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) > 0;
+        if (ErosionState.sinkOf(Trmt.proxy.ghostRecordAt(world, pos.getX(), pos.getY(), pos.getZ())) <= 0) return false;
+        // The record's sink is the chain's step; a block a data file keeps flat ("sinks": false) has not sunk whatever
+        // that step says, as its drawn top and its collision say, so it stops light and is lit as unsunk ground (W3 T6
+        // follow-up, 2026-11-04: 1.7.10's OverlayPainter.wantedGhost and GhostRendering.sunkHere).
+        IBlockState covered = coveredState(Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()));
+        return covered == null || SurfaceShape.sinks(covered.getBlock(), metaOf(covered));
     }
 
     /**
@@ -1080,7 +1417,8 @@ public class BlockGhost extends Block {
         // Nothing known about what it covers: 1.7.10's isShort(null), which is no.
         if (origin < 0) return true;
         IBlockState covered = Block.getStateById(origin);
-        if (com.trmtgtnh.surface.SurfaceShape.of(covered.getBlock())
+        // A data file's shape counts too (W3 T6): a file's boxes are never a whole cube to look at.
+        if (com.trmtgtnh.surface.SurfaceShape.of(covered.getBlock(), metaOf(covered))
             .isPartial()) return false;
         try {
             return covered.getBoundingBox(world, pos).maxY >= 0.999D;
@@ -1180,7 +1518,7 @@ public class BlockGhost extends Block {
         if (family != SurfaceFamily.GRASS) return false;
         int origin = Trmt.proxy.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ());
         IBlockState covered = origin < 0 ? null : Block.getStateById(origin);
-        if (covered != null && SurfaceShape.of(covered.getBlock()) == SurfaceShape.STAIR) return false;
+        if (covered != null && SurfaceShape.of(covered.getBlock(), metaOf(covered)) == SurfaceShape.STAIR) return false;
         return !wholeAt(world, pos);
     }
 

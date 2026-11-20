@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureUtil;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.client.resources.data.AnimationMetadataSection;
+import net.minecraft.util.IIcon;
 import net.minecraft.util.ResourceLocation;
 
 import org.lwjgl.opengl.GL11;
@@ -19,6 +20,7 @@ import org.lwjgl.opengl.GL11;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.dataload.BlockLooks;
 import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
@@ -179,6 +181,76 @@ public class WearSprite extends TextureAtlasSprite {
         this.stageCount = stageCount;
         this.rotation = rotation;
         this.edge = edge;
+        this.glow = false;
+    }
+
+    /**
+     * True when this sprite is the glow overlay of a wear picture rather than the picture itself: the pixels of it that
+     * glow, in the color the picture draws them in, everything else clear (real glow; Xep, 2026-11-15). It is composed
+     * from the same source as the picture it goes with and drawn over it a second time at a baked light, so the pixels
+     * shine in the dark. Never shares a place with a wear picture, and never offered the atlas where it is empty.
+     */
+    private final boolean glow;
+
+    /**
+     * The overlay that goes over this wear picture, or null where its appearance has none. Set once, at registration,
+     * on the stitch thread, before anything draws: 1.7.10's face methods are handed a picture and nothing else, so the
+     * face that drew the picture finds its overlay here (GhostGlow).
+     */
+    private WearSprite overlay;
+
+    private WearSprite(String name, WearSprite base) {
+        super(name);
+        this.mendSide = false;
+        this.wallDegreen = false;
+        this.origin = base.origin;
+        this.originMeta = base.originMeta;
+        this.originFamily = base.originFamily;
+        this.appearance = base.appearance;
+        this.stage = base.stage;
+        this.stageCount = base.stageCount;
+        this.rotation = base.rotation;
+        this.edge = base.edge;
+        this.glow = true;
+    }
+
+    /**
+     * The glow overlay of a wear picture: the same block, surface, gradation, rotation and edge, under its own name, so
+     * it is composed from the picture's source and stitched at the picture's size.
+     */
+    static WearSprite glowOf(WearSprite base, String name) {
+        WearSprite glow = new WearSprite(name, base);
+        base.overlay = glow;
+        return glow;
+    }
+
+    /** Whether this is a glow overlay rather than a wear picture. */
+    public boolean isGlow() {
+        return glow;
+    }
+
+    /** The light level this overlay is baked with, set when it is composed; 0 until then and where it is empty. */
+    private volatile int glowLevel;
+
+    public int glowLevelOf() {
+        return glowLevel;
+    }
+
+    /**
+     * The overlay to draw over this wear picture where it is drawn, or null: none where its appearance has no glow, and
+     * none where nothing in it is lit, which is every gradation before the glowing pixels begin and every look that has
+     * no glow, since an empty overlay is never installed.
+     */
+    public IIcon glowIcon() {
+        WearSprite own = overlay;
+        return own != null && own.usable ? own : null;
+    }
+
+    /** Placed by the game, then pulled in to the shared inset (0.9.229, SpriteEdges). */
+    @Override
+    public void initSprite(int atlasWidth, int atlasHeight, int originX, int originY, boolean rotated) {
+        super.initSprite(atlasWidth, atlasHeight, originX, originY, rotated);
+        SpriteEdges.inset(this, atlasWidth, atlasHeight);
     }
 
     @Override
@@ -346,6 +418,21 @@ public class WearSprite extends TextureAtlasSprite {
 
         final float earthStrength;
 
+        /**
+         * A looks file's authored stage pictures (W3 T5), each at the source's edge, which replace the generated ones
+         * on the block's own surface; null where there are none. Set by the harvest before the source is handed to any
+         * worker, and never written after, so it is shared as the final fields are.
+         */
+        int[][] authored;
+
+        /**
+         * The original mod's five sand pictures as ratios, one set per rotation, for the look Faithful Mode gives sand
+         * ({@code FamilySettings.ORIGINAL_SAND_LOOK}, 0.9.229 W5 T4); null for every other look, or where the
+         * pictures will not read, and then the face wears as an unrecognised look does. Set by the harvest as
+         * {@link #authored} is.
+         */
+        float[][][] originalSand;
+
         Source(int edge, int[] top, int[] bottom, int[] mendUnder, float[][] grassOrder, String pattern, float strength,
             float curve, boolean improvised, boolean revealsEarth, int[] innerLayer, int[][] layerFrames,
             AnimationMetadataSection layerAnimation, boolean seeThrough, boolean scaled) {
@@ -477,7 +564,10 @@ public class WearSprite extends TextureAtlasSprite {
         // unless somebody asks it to - and only while the sprite is still drawing its own surface,
         // because once it has worn through into a successor the cover is already gone.
         FamilySettings look = TrmtConfig.family(appearance);
-        boolean cover = FaceRules.drawsCover(originFamily, appearance, FaceSource.coverLook(look));
+        // A looks file's look for this very block (W3 T5), on its own surface only: worn through into a successor,
+        // the successor's look draws. Asked as the plan asked it, so the set and its sprites agree about the cover.
+        BlockLooks.Look own = appearance == originFamily ? FaceSource.lookOf(origin, originMeta) : BlockLooks.Look.NONE;
+        boolean cover = FaceRules.drawsCover(originFamily, appearance, FaceSource.coverLook(look, origin, originMeta));
 
         // Grass that has worn through shows the earth it was sitting on; everything else wears the
         // face you were already looking at.
@@ -583,14 +673,14 @@ public class WearSprite extends TextureAtlasSprite {
             }
         }
 
-        return new Source(
+        Source made = new Source(
             size,
             top,
             bottom,
             null,
             cover ? WearPatterns.orders(rotationsInUse()) : null,
-            look == null ? "" : look.wearPattern,
-            look == null ? 1f : look.wearStrength,
+            own.patternOr(look == null ? "" : look.wearPattern),
+            own.strengthOr(look == null ? 1f : look.wearStrength),
             TrmtConfig.wearCurve <= 0f ? 1f : TrmtConfig.wearCurve,
             improvised,
             revealsEarth,
@@ -602,6 +692,47 @@ public class WearSprite extends TextureAtlasSprite {
             earthHead,
             earthLook == null ? "" : earthLook.wearPattern,
             earthLook == null ? 1f : earthLook.wearStrength);
+        made.authored = authoredStages(manager, own, size);
+        if (FamilySettings.ORIGINAL_SAND_LOOK.equals(made.pattern)) made.originalSand = originalSand(manager);
+        return made;
+    }
+
+    /** The original's sand pictures at every rotation in use, or null if any will not read. Render thread. */
+    private static float[][][] originalSand(IResourceManager manager) {
+        float[][][] out = new float[rotationsInUse()][][];
+        for (int rotation = 0; rotation < out.length; rotation++) {
+            out[rotation] = WearPatterns.originalSandRatios(manager, rotation);
+            if (out[rotation] == null) return null;
+        }
+        return out;
+    }
+
+    /** Stage pictures named but not readable, said once each a session rather than once a sprite. Render thread. */
+    private static final java.util.Set<String> UNREAD_STAGES = new java.util.HashSet<String>();
+
+    /**
+     * A looks file's authored stage pictures (W3 T5), read at the sprite's edge, or null where there are none or any
+     * one of them will not read - then the generated wear is drawn, and the picture is named once at WARN as the
+     * file's to mend, never as TRMTR's.
+     */
+    private int[][] authoredStages(IResourceManager manager, BlockLooks.Look own, int size) {
+        if (own.stages.isEmpty()) return null;
+        int[][] pictures = new int[own.stages.size()][];
+        for (int i = 0; i < pictures.length; i++) {
+            String name = own.stages.get(i);
+            BufferedImage picture = WearPatterns.readIcon(manager, name);
+            if (picture == null) {
+                if (UNREAD_STAGES.add(name)) {
+                    Trmt.LOG.warn(
+                        "TRMTR data: the stage picture {} a looks file names for {} could not be read, so that block wears its generated pictures - report this to the mod or pack that names it",
+                        name,
+                        com.trmtgtnh.surface.SurfaceRegistry.registryName(origin));
+                }
+                return null;
+            }
+            pictures[i] = WearPatterns.toPixels(picture, size);
+        }
+        return pictures;
     }
 
     /** One face of this sprite's block as the pass reads it, noting when it was not the block's own loaded pixels. */
@@ -628,6 +759,7 @@ public class WearSprite extends TextureAtlasSprite {
         if (source == null || source.isUnreadable()) return null;
         int size = source.edge;
         if (size <= 0) return null;
+        if (glow) return composeGlow(source, size);
         if (wallDegreen) return WearCompositor.degreenTopEdge(source.top, size);
         if (source.mendUnder != null) {
             // Cloned rather than handed back. One Source feeds every gradation and rotation of a
@@ -635,6 +767,16 @@ public class WearSprite extends TextureAtlasSprite {
             // whose pixels ARE its Source's array would share one upload with all of them.
             if (source.mendUnder.length == 0) return source.top.clone();
             return WearCompositor.over(source.mendUnder, source.top, size);
+        }
+        if (source.authored != null) {
+            // A looks file's own pictures (W3 T5) in place of the generated ones, the gradations spread across them
+            // in order; the layer behind still goes under them, as under a generated shell. Copied, since one source
+            // feeds every gradation and rotation, and the copy is uniquely this sprite's shell.
+            int[] drawn = source.authored[BlockLooks.stagePicture(stage, stageCount, source.authored.length)].clone();
+            if (source.innerLayer == null) return drawn;
+            if (source.layerFrames != null) pendingShell = drawn;
+            return source.seeThrough ? WearCompositor.overThroughHoles(source.innerLayer, drawn, size)
+                : WearCompositor.over(source.innerLayer, drawn, size);
         }
         if (source.grassOrder != null) {
             float[] order = source.grassOrder[rotation % Math.max(1, source.grassOrder.length)];
@@ -653,10 +795,11 @@ public class WearSprite extends TextureAtlasSprite {
 
         int[] pixels = source.revealsEarth ? source.bottom : source.top;
         if (pixels == null) return null;
-        float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
-        if (source.revealsEarth && source.earthHead > 0f)
-            progress = FaceRules.earthProgress(progress, source.earthHead);
-        int[] worn = wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
+        float progress = runProgress(source);
+        // Faithful Mode's sand draws the original's own pictures, the gradation choosing which (0.9.229 W5 T4).
+        int[] worn = source.originalSand != null ? WearPatterns
+            .originalSand(pixels, size, source.originalSand[rotation % source.originalSand.length], stage, stageCount)
+            : wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
         // Only this branch, and only because it is the only one whose source is a single face of the
         // block being worn. The three above compose two faces into one or lay a mended side over
         // vanilla's, and what shows through those is earth or turf rather than the world.
@@ -675,6 +818,63 @@ public class WearSprite extends TextureAtlasSprite {
         if (source.layerFrames != null) pendingShell = worn;
         return source.seeThrough ? WearCompositor.overThroughHoles(source.innerLayer, worn, size)
             : WearCompositor.over(source.innerLayer, worn, size);
+    }
+
+    /**
+     * The glow overlay's pixels, or null where there are none to draw, from the picture's own source and down the
+     * picture's own branch of {@link #compose}: the face the picture wears, at the picture's progress, handed to
+     * {@link #glowPass} for the same look, then clear wherever the face is clear, as the picture takes the face's own
+     * alpha. A face with a layer behind it glows too, since the glowing pixels are the shell's and the layer only shows
+     * through its holes. Null where the picture draws no look that glows - a mended side or a grass wall, a grass cover
+     * taken off, Faithful Mode's sand, or a looks file's own stage pictures, which are a pack's art and carry none of
+     * the look's cracks or ash - and where no pixel of this gradation glows. An overlay with nothing to light is never
+     * installed, and never offered the atlas. Safe on any thread, as compose is.
+     */
+    private int[] composeGlow(Source source, int size) {
+        if (wallDegreen || mendSide
+            || source.mendUnder != null
+            || source.authored != null
+            || source.grassOrder != null
+            || source.originalSand != null) return null;
+        int[] pixels = source.revealsEarth ? source.bottom : source.top;
+        if (pixels == null) return null;
+        float progress = runProgress(source);
+        int[] glow = glowPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
+        if (glow == null || glow.length != size * size || pixels.length != glow.length) return null;
+        for (int i = 0; i < glow.length; i++) {
+            if (((pixels[i] >>> 24) & 0xFF) == 0) glow[i] = 0;
+        }
+        if (!anyLit(glow)) return null;
+        // Written on the worker that composes this sprite, read once the pass is done.
+        glowLevel = glowLevel(source.pattern);
+        // A clear pixel keeps the worn face's color under its nought alpha, so a filtered or mipmapped edge of a lit
+        // pixel blends toward the face it is drawn over and not toward black; found on GT New Horizons 2.9.0, where a
+        // one-texel dark rim stood round every crack by day.
+        int[] worn = wearPass(pixels, size, source.pattern, progress, source.strength, rotation, source.curve);
+        for (int i = 0; i < glow.length && i < worn.length; i++) {
+            if ((glow[i] >>> 24) == 0) glow[i] = worn[i] & 0xFFFFFF;
+        }
+        return glow;
+    }
+
+    /**
+     * How far along its run this sprite's face is, 0 to 1, for a face worn by its look: its gradation, and under the
+     * ground, where a lawn's first run left its own earth (FaceRules.earthProgress). One answer for the worn face and
+     * its glow.
+     */
+    private float runProgress(Source source) {
+        float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
+        if (source.revealsEarth && source.earthHead > 0f)
+            progress = FaceRules.earthProgress(progress, source.earthHead);
+        return progress;
+    }
+
+    /** Whether any pixel of a picture is not wholly clear. */
+    private static boolean anyLit(int[] pixels) {
+        for (int pixel : pixels) {
+            if ((pixel >>> 24) != 0) return true;
+        }
+        return false;
     }
 
     /** As {@link #rescale}, but never the argument itself, so a shared Source is never handed on. */
@@ -715,6 +915,13 @@ public class WearSprite extends TextureAtlasSprite {
         frames.add(frame);
         setFramesTextureData(frames);
         generateMipmaps(mipmapLevels);
+        if (glow) {
+            // An overlay never moves: it is drawn over its picture's shell, and the shell's glowing pixels are what it
+            // holds. Not counted as a guess either, so a surface worn from a stand-in is named once, by its picture.
+            improvised = false;
+            usable = true;
+            return true;
+        }
         usable = true;
         adoptLayer(source, worn, wanted);
         return true;
@@ -798,6 +1005,20 @@ public class WearSprite extends TextureAtlasSprite {
     /** Whether this picture's layer moves, so where it is drawn is noted (SeenPictures). */
     public boolean moves() {
         return layerFrames != null && shell != null && layerAnimation != null;
+    }
+
+    /**
+     * Whether the set this picture belongs to turns with its position where it is drawn on a worn top (0.9.229,
+     * FaceDirection, WearTextures.quarterTurns). Set once, as the sprite is registered, before anything draws it.
+     */
+    private boolean turns;
+
+    void markTurns(boolean turns) {
+        this.turns = turns;
+    }
+
+    public boolean turns() {
+        return turns;
     }
 
     @Override
@@ -911,7 +1132,7 @@ public class WearSprite extends TextureAtlasSprite {
 
     /** How many rotations this stitch is building, which the cover look needs one order for each of. */
     private static int rotationsInUse() {
-        return Math.max(1, Math.min(4, TrmtConfig.wearRotations));
+        return WearTextures.drawnRotations();
     }
 
     /**
@@ -1018,14 +1239,14 @@ public class WearSprite extends TextureAtlasSprite {
      * relief, because the rub flattens the fissures it does claim to about a quarter of theirs.
      *
      * <p>
-     * Both halves of this look run at once, which is what makes it the only one of the eleven that had
+     * Both halves of this look run at once, which is what made it the only one of the eleven then offered that had
      * to be pulled back on brightness rather than tuned for legibility. On the eight vanilla faces
      * at four rotations a fully worn face of this look sat 93.12 levels below the unworn ground it
      * stands beside, where the darkest of the other nine - the plain crack - sits at 69.74 and their
      * median at 43.64. A player picking down a list of ten pictures saw one of them go black. This
      * fraction and {@link #CRACKED_RUB_RUN} together answered that first, and neither does it alone:
      * 79.47 levels, which closed thirteen and a half of the twenty-three levels between this look
-     * and the next darkest. It was still the darkest of the eleven by ten levels after that, so a
+     * and the next darkest. It was still the darkest of those eleven by ten levels after that, so a
      * third fraction followed on {@link #CRACKED_RUB_SETTLE} and took it to 72.02, against the next
      * darkest at 69.74.
      *
@@ -1155,7 +1376,7 @@ public class WearSprite extends TextureAtlasSprite {
     private static final float COVERAGE_FLOOR = 0.12f;
 
     /** The eased value a coverage argument is driven by, floored. One at one, so a run's end never moves. */
-    private static float spread(float eased) {
+    static float spread(float eased) {
         if (eased <= 0f) return 0f;
         if (eased >= 1f) return eased;
         return COVERAGE_FLOOR + (1f - COVERAGE_FLOOR) * eased;
@@ -1185,9 +1406,11 @@ public class WearSprite extends TextureAtlasSprite {
      *
      * <p>
      * The eleventh takes the cover off and shows what is underneath. That one needs two faces rather
-     * than one and lives in {@link #grassPass} next door. Anything unrecognised - including the old
-     * sand and polish names still sitting in people's configs - falls to the default, so no file
-     * breaks.
+     * than one and lives in {@link #grassPass} next door. The rest were made for one material each - flesh,
+     * taint, sculk and cloud, 0.9.229's four new families, in {@link TailoredWear}, and seven for the older
+     * families, in {@link TailoredGround} - because each is that material's own wear rather than an arrangement
+     * of the three operators. Anything unrecognised - including the old sand and polish names still sitting in
+     * people's configs - falls to the default, so no file breaks.
      *
      * @param progress how far along its run this face is, from 0 to 1
      */
@@ -1300,6 +1523,45 @@ public class WearSprite extends TextureAtlasSprite {
                 run * strength,
                 rotation);
         }
+        // The four looks made for one material each (0.9.229; TailoredWear). Strength is handed in whole, as the
+        // family's own setting, and each look scales its own changes by it. The two that grow a trodden patch take
+        // the floored coverage as the rubs do, for the same reason: the step off untouched ground.
+        if (FamilySettings.PATTERN_FLESH.equals(pattern)) {
+            return TailoredWear.flesh(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_TAINT.equals(pattern)) {
+            return TailoredWear.taint(pixels, size, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) {
+            return TailoredWear.sculk(pixels, size, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_CLOUD.equals(pattern)) {
+            return TailoredWear.cloud(pixels, size, spread, eased, strength, rotation);
+        }
+        // The seven made for the older families (0.9.229; TailoredGround), on the same terms: strength whole, and the
+        // floored coverage for every one that grows a trodden track. Ice grows none; its haze and scratches follow
+        // the eased progress alone.
+        if (FamilySettings.PATTERN_SAND_TRODDEN.equals(pattern)) {
+            return TailoredGround.sand(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_GRAVEL_PARTED.equals(pattern)) {
+            return TailoredGround.gravel(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_COBBLE_POLISHED.equals(pattern)) {
+            return TailoredGround.cobble(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_SNOW_PACKED.equals(pattern)) {
+            return TailoredGround.snow(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_ICE_SCUFFED.equals(pattern)) {
+            return TailoredGround.ice(pixels, size, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) {
+            return TailoredGround.nether(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) {
+            return TailoredGround.end(pixels, size, spread, eased, strength, rotation);
+        }
         // Ranked once and shared, because both looks below want the same ranking of the same pixels
         // and it is the dearest thing either of them does.
         float[] order = WearCompositor.sourceWearOrder(pixels, size, rotation);
@@ -1307,6 +1569,64 @@ public class WearSprite extends TextureAtlasSprite {
             return WearCompositor.applyOverlay(pixels, size, order, size, lite * 0.72f * strength, lite);
         }
         return WearCompositor.applyOverlay(pixels, size, order, size, eased * 0.72f * strength, eased);
+    }
+
+    /**
+     * The pixels of one worn face that glow (real glow; Xep, 2026-11-15), or null where its look has no glow.
+     *
+     * <p>
+     * The same ease and the same spread {@link #wearPass} hands the same look, so every lit pixel is the pixel the worn
+     * face draws, and everything else is clear: end stone's strong crack pixels and the nether's ash flecks
+     * ({@link TailoredGround#endGlow}, {@link TailoredGround#netherGlow}), and sculk's glints that never go out
+     * ({@link TailoredWear#sculkSurvivors}). A glow overlay of the worn sprite carries this picture, and the renderer
+     * draws it over the worn face at {@link #glowLevel}, the brighter of that and the world's light, so by day nothing
+     * changes. Every other look returns null, classic wear included: a classic look is what a family's look resolves to
+     * while classic wear is on, so a family under classic wear never reaches the three below.
+     */
+    public static int[] glowPass(int[] pixels, int size, String pattern, float progress, float strength, int rotation) {
+        return glowPass(pixels, size, pattern, progress, strength, rotation, TrmtConfig.wearCurve);
+    }
+
+    /** The same, told the player's curve rather than reading it, as {@link #wearPass} is. */
+    public static int[] glowPass(int[] pixels, int size, String pattern, float progress, float strength, int rotation,
+        float curve) {
+        float eased = ease(progress, pattern, curve);
+        float spread = spread(eased);
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) {
+            return TailoredGround.netherGlow(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) {
+            return TailoredGround.endGlow(pixels, size, spread, eased, strength, rotation);
+        }
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) {
+            return TailoredWear.sculkGlow(pixels, size, eased, strength, rotation);
+        }
+        return null;
+    }
+
+    /**
+     * The light, out of fifteen, a look's glow is drawn at, and nought for a look with no glow: whether a worn sprite
+     * is given a glow sibling at all is asked here, so {@link #glowPass} and this answer for the same looks.
+     */
+    public static int glowLevel(String pattern) {
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return TailoredGround.END_GLOW_LEVEL;
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) return TailoredGround.NETHER_GLOW_LEVEL;
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return TailoredWear.SCULK_GLOW_LEVEL;
+        return 0;
+    }
+
+    /**
+     * Whether the glow overlay of this gradation of a look can light any pixel at all, asked before anything is
+     * composed (GlowStagesTest): only where the eased progress passes the depth the look first lights at, at the
+     * strongest strength, so a stage that answers no composes nothing. Stage 0 never lights, nor a look with no glow.
+     */
+    public static boolean glowCanLight(String pattern, int stage, int stageCount) {
+        if (glowLevel(pattern) <= 0) return false;
+        float progress = stageCount <= 1 ? 1f : stage / (float) (stageCount - 1);
+        float eased = ease(progress, pattern, TrmtConfig.wearCurve);
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return eased > TailoredGround.END_CRACK_START;
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return eased >= TailoredWear.SCULK_GLOW_START;
+        return eased > 0f;
     }
 
     /**
@@ -1460,6 +1780,23 @@ public class WearSprite extends TextureAtlasSprite {
         if (FamilySettings.PATTERN_CRACK_DIRT.equals(pattern)) return CURVE_EVEN;
         if (FamilySettings.PATTERN_CRACK_DIRT_LITE.equals(pattern)) return CURVE_EVEN;
         if (FamilySettings.PATTERN_DIRT_LITE.equals(pattern)) return CURVE_RUB;
+        // The tailored four, each on its own measured best of the numbers above, taken on its own family's face at
+        // eighty gradations and all four rotations (0.9.229-found.md, "Four tailored wear patterns"). Flesh and cloud
+        // grow a ranked patch as the rub does and peak where it does; taint's blotches open in the same late-heavy way;
+        // sculk's lights go out at an even count and want the straight line.
+        if (FamilySettings.PATTERN_FLESH.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_TAINT.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return CURVE_EVEN;
+        if (FamilySettings.PATTERN_CLOUD.equals(pattern)) return CURVE_RUB;
+        // The seven made for the older families, measured the same way (0.9.229-found.md, "A second set of tailored
+        // wear patterns").
+        if (FamilySettings.PATTERN_SAND_TRODDEN.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_GRAVEL_PARTED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_COBBLE_POLISHED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_SNOW_PACKED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_ICE_SCUFFED.equals(pattern)) return CURVE_EVEN;
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) return CURVE_RUB;
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return CURVE_RUB;
         return CURVE_RUB;
     }
 
@@ -1494,7 +1831,7 @@ public class WearSprite extends TextureAtlasSprite {
      * picture is a fixed point of every change here. Measured bit-identical across exponents from
      * 0.45 to 1.60 on all eight looks, eight faces and four rotations.
      */
-    private static float ease(float progress, String pattern, float curve) {
+    static float ease(float progress, String pattern, float curve) {
         if (progress <= 0f) return 0f;
         float tilt = curve <= 0f ? 1f : curve;
         return (float) Math.pow(progress, curveFor(pattern) * tilt);

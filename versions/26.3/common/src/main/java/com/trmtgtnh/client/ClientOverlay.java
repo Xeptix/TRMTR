@@ -33,6 +33,12 @@ public final class ClientOverlay {
         OverlayPainter.get()
             .restoreVanished(Minecraft.getInstance().level, previous, keys);
         cache.put(chunkX, chunkZ, ClientErosionCache.build(chunkX, chunkZ, keys, states, previous));
+        // Distant Horizons' far terrain told of every square this statement no longer lists, healed while away or just
+        // lifted above, so it stops drawing them worn (0.9.229 W6 T17; see DistantColors). Nothing where it is not loaded.
+        if (DistantColors.pluginRegistered()) {
+            net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+            DistantColors.restated(level, heldChunk(level, chunkX, chunkZ), chunkX, chunkZ, keys, previous);
+        }
         // Any square already painted whose record has just crossed into or out of sunk. See relightIfMoved.
         if (keys != null && states != null) {
             for (int i = 0; i < keys.length && i < states.length; i++) {
@@ -212,8 +218,37 @@ public final class ClientOverlay {
      * are filed, the cell is weighed as the stair it is.
      */
     static boolean answersLightOwnWay(short record, int glow, int origin) {
-        if (com.trmtgtnh.block.BlockGhost.coveredStair(origin) != null) return true;
+        if (com.trmtgtnh.block.BlockGhost.lightStair(origin) != null) return true;
+        // Nor is a stair the only block that lets light into its cell: a slab does, and so does anything else short of a
+        // whole opaque block. The engine's check of the ghost's own write asked it with no block behind it, took the
+        // light out of the cell, and nothing asked again - worn slabs read sky 14, 12, 11 and 10 under open sky where
+        // the slab they replace reads 15 (2026-11-13, found by the light probe in the mods scene).
+        if (com.trmtgtnh.block.BlockGhost.litUnlikeEarth(origin)) return true;
         return answersLightOwnWay(record, glow);
+    }
+
+    /**
+     * Re-lights one painted square if it answers the light engine its own way, once the painter has filed what it
+     * covers: the single-square counterpart of {@link #relightPainted}, for a square the painter put back alone.
+     */
+    static void relightIfOwnWay(int x, int y, int z) {
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) return;
+        BlockPos pos = new BlockPos(x, y, z);
+        BlockState standing = level.getBlockState(pos);
+        if (!(standing.getBlock() instanceof com.trmtgtnh.block.BlockGhost)) return;
+        ClientErosionCache.ChunkOverlay overlay = ClientErosionCache.get()
+            .overlay(x >> 4, z >> 4);
+        if (overlay == null) return;
+        int index = overlay.indexOf(com.trmtgtnh.erosion.ErosionKey.packWorld(x, y, z));
+        if (index < 0) return;
+        if (!answersLightOwnWay(
+            overlay.stateAtIndex(index),
+            standing.getValue(com.trmtgtnh.block.BlockGhost.LIGHT)
+                .intValue(),
+            overlay.originAtIndex(index))) return;
+        level.getLightEngine()
+            .checkBlock(pos);
     }
 
     public void handleDelta(int x, int y, int z, short state) {
@@ -229,6 +264,12 @@ public final class ClientOverlay {
                 .restoreSingle(Minecraft.getInstance().level, chunkX, chunkZ, key, previous.originAt(key));
         }
         cache.put(chunkX, chunkZ, ClientErosionCache.withSingle(previous, chunkX, chunkZ, key, state));
+        // Distant Horizons' far terrain told the square has healed, so it stops drawing it worn (0.9.229 W6 T17; see
+        // DistantColors). Nothing where it is not loaded.
+        if (state == com.trmtgtnh.erosion.ErosionState.NONE && DistantColors.pluginRegistered()) {
+            net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+            DistantColors.cleared(level, heldChunk(level, chunkX, chunkZ), x, y, z, previous != null && previous.indexOf(key) >= 0);
+        }
         relightIfMoved(
             previous == null ? com.trmtgtnh.erosion.ErosionState.NONE : previous.stateAt(key),
             state,
@@ -248,6 +289,12 @@ public final class ClientOverlay {
     }
 
     public void handleClearAll() {
+        // The chunks that held wear, for Distant Horizons' far terrain below: taken before the caches go.
+        java.util.List<long[]> held = new java.util.ArrayList<long[]>();
+        if (DistantColors.pluginRegistered()) {
+            for (ClientErosionCache.ChunkOverlay overlay : ClientErosionCache.get()
+                .overlays()) held.add(new long[] { overlay.chunkX, overlay.chunkZ });
+        }
         // Put back before the caches go, since the caches are the only record of what to put back.
         OverlayPainter.get()
             .restoreAll();
@@ -255,6 +302,23 @@ public final class ClientOverlay {
             .clear();
         ClientLightCache.get()
             .clear();
+        // Distant Horizons' far terrain: nothing remembered stands, and each chunk whose ghosts were just lifted is
+        // handed to it again (0.9.229 W6 T17; see DistantColors).
+        DistantColors.forgetAll();
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        for (long[] chunk : held) {
+            DistantColors.painted(level, heldChunk(level, (int) chunk[0], (int) chunk[1]), (int) chunk[0], (int) chunk[1]);
+        }
+    }
+
+    /**
+     * A chunk of the client's world as it holds it, or null where it holds none - for Distant Horizons to read again,
+     * which must never be handed the empty stand-in the client gives for a chunk it has not got (0.9.229 W6 T17). Asked
+     * of DistantColors.heldChunk and never of hasChunk, which this level answers true for every chunk, so until shift 28
+     * a chunk not held was handed over as that stand-in.
+     */
+    static Object heldChunk(net.minecraft.client.multiplayer.ClientLevel level, int chunkX, int chunkZ) {
+        return DistantColors.heldChunk(level, chunkX, chunkZ);
     }
 
     public void handleChunkLight(int chunkX, int chunkZ, int[] keys, byte[] values) {
@@ -368,14 +432,11 @@ public final class ClientOverlay {
      *
      * <p>
      * Said to the renderer rather than to the world, which has no such method here: a level knows what
-     * blocks it holds and nothing about who is drawing them.
+     * blocks it holds and nothing about who is drawing them. OverlayPainter's, widened by a block on every side
+     * because Sodium does not widen it (0.9.229; see OverlayPainter.redraw).
      */
     private static void redraw(int x0, int y0, int z0, int x1, int y1, int z1) {
-        Minecraft client = Minecraft.getInstance();
-        // 26.2 split the level renderer: what is dirty is now kept by LevelExtractor, whose setBlocksDirty has
-        // 26.1.2's LevelRenderer body unchanged (client/renderer/extract/LevelExtractor.java in 26.2's jar).
-        if (client.levelExtractor == null) return;
-        client.levelExtractor.setBlocksDirty(x0, y0, z0, x1, y1, z1);
+        OverlayPainter.redraw(x0, y0, z0, x1, y1, z1);
     }
 
     /** Asks for the mesh around one square to be rebuilt. The game widens it by a block itself. */
@@ -426,13 +487,14 @@ public final class ClientOverlay {
 
         if (packedOrigin >= 0 && com.trmtgtnh.erosion.GroundCover.holdsAt(world, x, y, z)) {
             BlockState under = net.minecraft.world.level.block.Block.stateById(packedOrigin);
-            com.trmtgtnh.surface.SurfaceFamily base = com.trmtgtnh.surface.SurfaceRegistry.familyOf(under);
-            int flat = base == null ? -1 : com.trmtgtnh.erosion.ErosionChain.lastFlatIndex(base);
+            // The chain the block underneath follows: its own, where a data file gives it one (W3 T9).
+            com.trmtgtnh.erosion.ErosionChain.Chain chain = com.trmtgtnh.surface.SurfaceRegistry.chainOf(under);
+            int flat = chain.base == null ? -1 : chain.lastFlatIndex();
             if (flat >= 0) {
-                int at = com.trmtgtnh.erosion.ErosionChain.indexOf(base, appearance, layer, sink);
+                int at = chain.indexOf(appearance, layer, sink);
                 if (at < 0 || at > flat) {
-                    com.trmtgtnh.surface.SurfaceFamily held = com.trmtgtnh.erosion.ErosionChain.familyAt(base, flat);
-                    int heldLayer = com.trmtgtnh.erosion.ErosionChain.stageAt(base, flat);
+                    com.trmtgtnh.surface.SurfaceFamily held = chain.familyAt(flat);
+                    int heldLayer = chain.stageAt(flat);
                     if (held != null && heldLayer >= 0) {
                         appearance = held;
                         layer = heldLayer;
@@ -443,8 +505,10 @@ public final class ClientOverlay {
             }
         }
 
-        if (sink > 0 && com.trmtgtnh.config.TrmtConfig.flattenWearUnderBlocks
-            && OverlayPainter.covered(world, x, y, z)) {
+        // A solid block standing on it holds it full on both sides whatever this player's settings say (0.9.229): see
+        // GroundCover.roofedAt. Under a full drift the settings decide, as they always have.
+        if (sink > 0 && (com.trmtgtnh.erosion.GroundCover.roofedAt(world, x, y, z)
+            || com.trmtgtnh.config.TrmtConfig.flattenWearUnderBlocks && OverlayPainter.covered(world, x, y, z))) {
             sink = 0;
             changed = true;
         }

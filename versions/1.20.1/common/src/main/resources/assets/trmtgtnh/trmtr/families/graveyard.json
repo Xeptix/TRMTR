@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "The Graveyard, from Prominence's census (W4 R7, judged 2026-11-12). Named one by one, only the blocks that census saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. The turf already wears as grass by detection.",
+    "Stone: gloom stone is the solid natural rock of the graveyard dimension, on a material no rule reads. Dirt: soil is that dimension's bare earth, which the rules refuse for the soil in its name, the word they read as worked ground."
+  ],
+  "entries": [
+    { "blocks": ["graveyard:gloom_stone"], "family": "stone" },
+    { "blocks": ["graveyard:soil"], "family": "dirt" }
+  ]
+}

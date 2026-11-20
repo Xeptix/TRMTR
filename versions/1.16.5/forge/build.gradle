@@ -71,6 +71,11 @@ dependencies {
         exclude group: "net.fabricmc.fabric-api"
     }
 
+    // Distant Horizons' API, compile only and never shipped (0.9.229 W6 T17, as the Fabric module's): that mod is
+    // LGPL-3.0, and the plugin that names it (com.trmtgtnh.forge.dh) is loaded only where a player has it installed.
+    // From Modrinth's Maven; 7.2.0 is the API inside DistantHorizons-3.3.3-1.16.5-fabric-forge.jar, one jar for both.
+    compileOnly "maven.modrinth:distanthorizonsapi:${rootProject.distanthorizons_api_version}"
+
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowBundle project(path: ":common", configuration: "transformProductionForge")
 }
@@ -101,4 +106,99 @@ remapJar {
     inputFile.set shadowJar.archiveFile
     dependsOn shadowJar
     archiveClassifier = "forge"
+}
+
+// ---------------------------------------------------------------------------
+// The TRMTR API's example mod, on the development runs only
+// ---------------------------------------------------------------------------
+//
+// The example mod (0.9.229, W3 spec 2.8, carried in T17) lives in the 1.7.10 tree's api/example/: its portable plugin
+// and data in common/, and this loader's one registration class in 1.16.5/forge/. That tree is found through the
+// untracked sibling.properties at the root: its apiHome line where one is given (a worktree names its own 1.7.10
+// worktree there), otherwise by following otherEdition - the 1.12.2 tree - to the tree its own sibling.properties
+// names. Where neither leads to the folder, this tree and its public repository build exactly as before. It is a source
+// set of its own so that nothing a shipped jar takes - shadowJar and remapJar read the main source set and the common
+// module alone - can reach it, and its jar is written to build/example/, outside build/libs, where staging and the jar
+// checks look. It compiles against the game and TRMTR's classes because the dev run needs both on one classpath; that
+// it uses nothing of TRMTR's but trmtr-api, and that no shipped jar holds it, are checked by guards in the 1.7.10
+// tree's tools.
+//
+// Forge 36 loads a second mod in development from the run's classpath: its userdev ClasspathLocator (the forge
+// 1.16.5-36.2.34 sources, net/minecraftforge/userdev/ClasspathLocator.java) takes every jar on the system class path
+// holding META-INF/mods.toml as a mod file of its own - the way Cloth Config reaches this run - and skips directories,
+// which is why the example goes on as a jar. TRMTR then reads its plugin.json and data from that jar as it would a
+// player's.
+def exampleHome = null
+def exampleTrees = []
+def exampleFirst = rootProject.file('sibling.properties')
+if (exampleFirst.exists()) {
+    Properties heldForExample = new Properties()
+    exampleFirst.withInputStream { heldForExample.load(it) }
+    String apiTree = heldForExample.getProperty('apiHome', '').trim()
+    if (!apiTree.isEmpty()) exampleTrees << new File(apiTree)
+    // otherEdition, then the tree each one names in turn, a few steps at most: 1.16.5 names 1.12.2, which names 1.7.10.
+    String olderTree = heldForExample.getProperty('otherEdition', '').trim()
+    for (int step = 0; step < 3 && !olderTree.isEmpty(); step++) {
+        File older = rootProject.file(olderTree)
+        exampleTrees << older
+        File olderSibling = new File(older, 'sibling.properties')
+        olderTree = ''
+        if (olderSibling.exists()) {
+            Properties olderHeld = new Properties()
+            olderSibling.withInputStream { olderHeld.load(it) }
+            olderTree = olderHeld.getProperty('otherEdition', '').trim()
+        }
+    }
+}
+for (File tree : exampleTrees) {
+    if (exampleHome == null && new File(tree, 'api/example/1.16.5/forge').isDirectory()) {
+        exampleHome = new File(tree, 'api/example')
+    }
+}
+if (exampleHome != null) {
+    sourceSets {
+        example {
+            java.srcDirs = [new File(exampleHome, 'common/java'), new File(exampleHome, '1.16.5/forge/java')]
+            resources.srcDirs = [new File(exampleHome, 'common/resources'), new File(exampleHome, '1.16.5/forge/resources')]
+            compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        }
+    }
+
+    def exampleJar = tasks.register('exampleJar', Jar) {
+        description = 'The TRMTR API example mod, for the development runs only.'
+        from(sourceSets.example.output)
+        archiveFileName.set('example-1.16.5-forge.jar')
+        destinationDirectory.set(layout.buildDirectory.dir('example'))
+    }
+
+    // Loom's run tasks keep a classpath of their own, and classpath() adds to it whether the run goes by an argument
+    // file or a bare class path (architectury-loom 1.7's AbstractRunTask).
+    ['runClient', 'runServer'].each { taskName ->
+        tasks.matching { it.name == taskName }.configureEach { JavaExec task ->
+            task.dependsOn(exampleJar)
+            task.classpath(exampleJar)
+        }
+    }
+}
+
+// Forge's maven now answers 404 for the version listings (maven-metadata.xml) under cpw.mods and friends, and for
+// forge-1.16.5-36.2.34-installer.jar (seen 2026-11-16). Loom resolves Forge's libraries at every configure, and the
+// POMs of modlauncher and eventbus ask for ranges (grossjava9hacks 1.3.+, typetools 0.8.+, modlauncher 6.1.+ and
+// 5.1.+, forgespi 3.1.+) that can no longer be listed once Gradle's cached listings expire or are refreshed. Each range
+// is pinned to the version Forge 36.2.34 ships, so the build needs no listing at all. The installer is only fetched
+// when Loom rebuilds its cache, which it does after a failed or killed configure: see WORKING.md on the lock loop.
+def forgeRangePins = ["cpw.mods:grossjava9hacks": "1.3.3", "net.jodah:typetools": "0.8.3",
+                      "cpw.mods:modlauncher": "8.1.3", "net.minecraftforge:forgespi": "3.2.0"]
+dependencies.components.all { details ->
+    details.allVariants {
+        withDependencies { deps ->
+            deps.each { d ->
+                def pin = forgeRangePins[d.group + ":" + d.name]
+                def wanted = d.versionConstraint.requiredVersion
+                if (pin != null && wanted != null && wanted.endsWith("+")) {
+                    d.version { require pin }
+                }
+            }
+        }
+    }
 }

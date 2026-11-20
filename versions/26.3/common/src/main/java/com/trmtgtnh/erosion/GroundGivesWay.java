@@ -5,7 +5,6 @@ import net.minecraft.world.level.Level;
 
 import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.network.TrmtNetwork;
-import com.trmtgtnh.surface.SurfaceFamily;
 
 /**
  * What happens to ground that has been walked all the way through.
@@ -55,8 +54,8 @@ public final class GroundGivesWay {
      * a rule whose whole cost is a real block being destroyed is not a rule to leave to whoever
      * calls next.
      */
-    public static boolean dueToGo(Level world, int x, int y, int z, SurfaceFamily base, ErosionEntry entry) {
-        if (world == null || world.isClientSide() || entry == null || base == null) return false;
+    public static boolean dueToGo(Level world, int x, int y, int z, ErosionChain.Chain chain, ErosionEntry entry) {
+        if (world == null || world.isClientSide() || entry == null || chain == null || chain.base == null) return false;
         if (!TrmtConfig.enabled || !TrmtConfig.groundWearsAway) return false;
         if (!Dimensions.allowed(world)) return false;
         if (y < TrmtConfig.minY || y > TrmtConfig.maxY) return false;
@@ -68,9 +67,10 @@ public final class GroundGivesWay {
         // the whole run promises ground stops where it is told to, and this used to read the capped
         // end as the end: at a quarter, a flat and barely darkened path went to air after one more
         // threshold of traffic.
-        int full = ErosionChain.length(base);
-        if (full <= 0 || ErosionChain.cappedLength(base) < full) return false;
-        if (ErosionChain.indexOf(base, entry.getFamily(), entry.getStage(), entry.getSink()) != full - 1) {
+        // On the chain the block follows: its own, where a data file gives it one (W3 T9).
+        int full = chain.length();
+        if (full <= 0 || chain.cappedLength() < full) return false;
+        if (chain.indexOf(entry.getFamily(), entry.getStage(), entry.getSink()) != full - 1) {
             return false;
         }
         if (entry.getWear() < entry.effectiveThreshold() * PAST_THE_END) return false;

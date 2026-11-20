@@ -83,10 +83,18 @@ public final class ConfigScreen {
         ConfigFile config = TrmtConfig.raw();
         if (config == null) return null;
 
+        // Solid (1.0.0): the dark dirt behind the list and the lighter dirt above and below it, opaque, as Forge's screen
+        // draws it in the 1.7.10 edition and Cloth 11 draws it at 1.20.1. Cloth 15 starts every builder transparent
+        // (ConfigBuilderImpl's constructor, read in 15.0.140's jar), and a transparent Cloth screen draws only the
+        // game's blur and its quarter-dark in-world menu texture, so the world showed through every word. Solid, it
+        // draws no veil over its tab row and no texture behind its list, and asks for the menu background where Cloth
+        // 11 drew its dirt - and there its dirt is drawn for it (drawBackground, MixinClothDrawsItsDirt), because
+        // Cloth 15 lays that dirt out and never draws it.
         ConfigBuilder builder = ConfigBuilder.create()
             .setParentScreen(parent)
             .setTitle(Component.literal(Trmt.NAME))
-            .setSavingRunnable(ConfigScreen::saved);
+            .setSavingRunnable(ConfigScreen::saved)
+            .solidBackground();
         ConfigEntryBuilder entries = builder.entryBuilder();
 
         boolean first = true;
@@ -110,6 +118,54 @@ public final class ConfigScreen {
         // The way back to the own screen is added to this screen once it has laid itself out (ConfigScreens.afterInit).
         ConfigScreens.builtCloth(built, parent);
         return built;
+    }
+
+    /** The game's dirt, which Cloth's screen is drawn on (its default background, {@code textures/block/dirt.png}). */
+    static final net.minecraft.resources.ResourceLocation DIRT = net.minecraft.resources.ResourceLocation
+        .withDefaultNamespace("textures/block/dirt.png");
+
+    /** The shade of Cloth's dirt above and below its list, out of 255: 64, as Cloth 11 drew it at 1.20.1. */
+    static final int HOLE_SHADE = 64;
+
+    /** The shade of Cloth's dirt behind its list, out of 255: 32, as Cloth 11 drew it at 1.20.1. */
+    static final int LIST_SHADE = 32;
+
+    /** How deep the shadow inside the list's top and bottom edges is, in GUI pixels: 4, as Cloth 11 drew it. */
+    static final int SHADOW = 4;
+
+    /**
+     * Cloth's solid background, drawn for it (1.0.0): the dirt above and below the list at {@link #HOLE_SHADE} (the tab
+     * row on it, as at 1.20.1), behind the list at {@link #LIST_SHADE} and moving with its scroll, and the shadow inside
+     * the list's edges - what Cloth 15.0.140 lays out and never draws (MixinClothDrawsItsDirt), in Cloth's own tiling,
+     * sixteen pixels of dirt over 32 GUI pixels. Measured against 1.20.1's photograph of the same screen, the dirt above
+     * the list is the same to the pixel and the list's the same on average. So the screen reads as Forge's does in the
+     * 1.7.10 edition and Cloth 11's at 1.20.1: opaque. The shadow is drawn under the list's rows, where Cloth 11 drew it
+     * over them, since this is drawn before them. False, and nothing drawn, for a screen that is not Cloth's tabbed one.
+     */
+    static boolean drawBackground(Screen screen, net.minecraft.client.gui.GuiGraphics graphics) {
+        if (!(screen instanceof me.shedaniel.clothconfig2.gui.ClothConfigScreen)) return false;
+        me.shedaniel.clothconfig2.gui.ClothConfigScreen cloth = (me.shedaniel.clothconfig2.gui.ClothConfigScreen) screen;
+        if (cloth.listWidget == null) return false;
+        int width = screen.width;
+        int height = screen.height;
+        int top = cloth.listWidget.top;
+        int bottom = cloth.listWidget.bottom;
+        dirt(graphics, 0, 0, width, top, 0, HOLE_SHADE);
+        dirt(graphics, 0, bottom, width, height, 0, HOLE_SHADE);
+        dirt(graphics, 0, top, width, bottom, (int) cloth.listWidget.getScroll(), LIST_SHADE);
+        graphics.fillGradient(0, top, width, top + SHADOW, 0xFF000000, 0x00000000);
+        graphics.fillGradient(0, bottom - SHADOW, width, bottom, 0x00000000, 0xFF000000);
+        return true;
+    }
+
+    /** The game's dirt over a rectangle at one shade, tiled from the screen's own corner and moved down by {@code scroll}. */
+    private static void dirt(net.minecraft.client.gui.GuiGraphics graphics, int x0, int y0, int x1, int y1, int scroll,
+        int shade) {
+        if (x1 <= x0 || y1 <= y0) return;
+        float tone = shade / 255F;
+        graphics.setColor(tone, tone, tone, 1F);
+        graphics.blit(DIRT, x0, y0, (float) x0, (float) (y0 + scroll), x1 - x0, y1 - y0, 32, 32);
+        graphics.setColor(1F, 1F, 1F, 1F);
     }
 
     /**

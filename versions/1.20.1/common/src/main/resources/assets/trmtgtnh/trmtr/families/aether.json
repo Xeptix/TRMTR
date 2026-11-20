@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "The Aether, from All the Mods 9's census (W4 R7, judged 2026-11-11). Quicksoil is the loose sand of the Aether's islands, on the game's own sand material, and the rules refuse it for the soil in its name, which they read as worked ground. Named alone, the one block that census judged and detection left out, because a file reaches a config that already holds detection's line where a changed rule does not. Quicksoil glass and its panes were not judged and are left to the rules; Aether dirt and grass already wear by detection."
+  ],
+  "entries": [
+    { "blocks": ["aether:quicksoil"], "family": "sand" }
+  ]
+}

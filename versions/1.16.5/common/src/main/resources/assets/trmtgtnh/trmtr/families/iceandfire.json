@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "Ice and Fire, from ATM6's census (W4 R6, judged 2026-11-11). Crackled gravel and frozen gravel are the gravel a dragon's fire or ice leaves behind, loose coarse grains, on dirt's material and not of the gravel block's class, so detection gave them dirt. Named one by one, only the blocks that census saw and judged, because a file reaches a config that already holds detection's line where a changed rule does not. The crackled and frozen dirt, grass and stone beside them were already right and are left to the rules."
+  ],
+  "entries": [
+    { "blocks": ["iceandfire:crackled_gravel", "iceandfire:frozen_gravel"], "family": "gravel" }
+  ]
+}

@@ -44,6 +44,13 @@ public class FringeSprite extends TextureAtlasSprite {
         this.rotation = rotation;
     }
 
+    /** Placed by the game, then pulled in to the shared inset (0.9.229, SpriteEdges). */
+    @Override
+    public void initSprite(int atlasWidth, int atlasHeight, int originX, int originY, boolean rotated) {
+        super.initSprite(atlasWidth, atlasHeight, originX, originY, rotated);
+        SpriteEdges.inset(this, atlasWidth, atlasHeight);
+    }
+
     @Override
     public boolean hasCustomLoader(IResourceManager manager, ResourceLocation location) {
         return true;

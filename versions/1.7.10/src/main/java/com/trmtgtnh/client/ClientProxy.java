@@ -86,6 +86,9 @@ public class ClientProxy extends CommonProxy {
         // The mod list is settled before any mod's pre-init, so this answer never changes. Read here
         // rather than in init, which only the common proxy has.
         inspectionRead = cpw.mods.fml.common.Loader.isModLoaded("Waila");
+        // The enabled resource packs' data files, before Trmt.preInit's first data read, and again after every
+        // resource reload (W3 spec 2.2).
+        PackData.start();
     }
 
     // ------------------------------------------------------------------
@@ -307,6 +310,11 @@ public class ClientProxy extends CommonProxy {
         // change, redraws what moved.
         PhysicalDecay.markSettlingBlocks();
         markSettlingBlocks();
+        // Faithful Mode is the server's for the visit (0.9.229 W5, spec 2.7): where its switch is not the one this
+        // client wears by, the settings are read again, which writes Faithful Mode's numbers in or gives the player's
+        // back, and builds the server's chains. Leaving reads the file with the rules released, so its own switch.
+        boolean faithfulMoved = ServerRules.faithfulMoved();
+        if (faithfulMoved) TrmtConfig.read();
 
         if (forceOverlay && !wasForced && !TrmtConfig.showErosion) {
             OverlayPainter.get()
@@ -338,7 +346,7 @@ public class ClientProxy extends CommonProxy {
             // back identical to the pixel.
             requestRestitch("This server's ground wears through to different materials than your config draws.");
         }
-        if (ServerRules.overrode() > 0 && restitchWanted == null) {
+        if ((ServerRules.overrode() > 0 || faithfulMoved) && restitchWanted == null) {
             // What a worn block draws is worked out from the live settings at the moment a chunk's
             // mesh is built, so geometry that moved under an already-built chunk goes on showing
             // the old picture until the meshes are built again. The stitch above is about the
@@ -349,6 +357,60 @@ public class ClientProxy extends CommonProxy {
             net.minecraft.client.renderer.RenderGlobal renderGlobal = Minecraft.getMinecraft().renderGlobal;
             if (renderGlobal != null) renderGlobal.loadRenderers();
         }
+    }
+
+    /**
+     * Takes a server's rules for this player's own settings (0.9.229; Xep, 2026-11-18), at join and whenever the
+     * server's list changes. Nothing is taken in a world of one's own: the host's settings are its own. Where anything
+     * held moved, the settings are read again with the rules in and acted on as the settings screen's Done is, so a
+     * setting that rebuilds the wear pictures asks for one rebuild, which a join's own rebuild shares; the file is not
+     * saved and never holds a server's value.
+     */
+    @Override
+    public void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {
+        if (Trmt.runningServer() != null) return;
+        boolean wasHeld = com.trmtgtnh.config.ClientSettingsHeld.held();
+        if (!com.trmtgtnh.config.ClientSettingsHeld.hold(rules)) return;
+        ConfigReload.fromClientRules();
+        int count = com.trmtgtnh.config.ClientSettingsHeld.count();
+        if (count > 0 || wasHeld) {
+            Trmt.LOG.info(
+                "This server sets {} of your TRMT settings for the visit; your own file is untouched and they come back when you leave",
+                Integer.valueOf(count));
+        }
+        tellClientRules(count, wasHeld);
+    }
+
+    /** The player's one line about a server's rules for their settings, from the shared words. */
+    private void tellClientRules(int count, boolean wasHeld) {
+        if (count <= 0 && !wasHeld) return;
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.thePlayer == null) return;
+        net.minecraft.util.IChatComponent line;
+        if (count <= 0) {
+            line = new net.minecraft.util.ChatComponentTranslation(
+                com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_NONE);
+        } else if (count == 1) {
+            line = new net.minecraft.util.ChatComponentTranslation(
+                com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_ONE);
+        } else {
+            line = new net.minecraft.util.ChatComponentTranslation(
+                com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_MANY,
+                Integer.valueOf(count));
+        }
+        int notHere = count > 0 ? com.trmtgtnh.config.ClientSettingsHeld.notApplying()
+            .size() : 0;
+        if (notHere > 0) {
+            line.appendText("; ");
+            line.appendSibling(
+                new net.minecraft.util.ChatComponentTranslation(
+                    com.trmtgtnh.client.settings.SettingsKeys.SERVER_SETS_NOT_HERE,
+                    Integer.valueOf(notHere)));
+        }
+        net.minecraft.util.IChatComponent said = new ChatComponentText("[TRMT] ").appendSibling(line);
+        said.getChatStyle()
+            .setColor(EnumChatFormatting.GRAY);
+        mc.thePlayer.addChatMessage(said);
     }
 
     /**
@@ -409,8 +471,11 @@ public class ClientProxy extends CommonProxy {
             return;
         }
         com.trmtgtnh.surface.SurfaceTableCodec.Table decoded;
+        com.trmtgtnh.surface.ChainTable.Unwrapped sent;
         try {
-            decoded = com.trmtgtnh.surface.SurfaceTableCodec.decode(bytes);
+            // The codec's table, with the blocks' own chains after it (W3 T9).
+            sent = com.trmtgtnh.surface.ChainTable.unwrap(bytes);
+            decoded = com.trmtgtnh.surface.SurfaceTableCodec.decode(sent.table);
         } catch (IllegalArgumentException malformed) {
             tableAskedFor = fingerprint;
             Trmt.LOG.warn("This server's surface table could not be read; keeping your own", malformed);
@@ -418,7 +483,7 @@ public class ClientProxy extends CommonProxy {
         }
         OverlayPainter painter = OverlayPainter.get();
         painter.restoreAll();
-        if (!SurfaceRegistry.holdServerTable(decoded, holdsSwitch, fingerprint)) {
+        if (!SurfaceRegistry.holdServerTable(decoded, sent.chains, holdsSwitch, fingerprint)) {
             // Nothing was held, so the table in use is still this client's own; the ground is only put
             // back as it was.
             tableAskedFor = fingerprint;
@@ -524,6 +589,12 @@ public class ClientProxy extends CommonProxy {
      * than the one they had when the atlas was stitched, and whether each still reads back as itself; a
      * move back to the ids the atlas was stitched under therefore reports none.
      */
+    @Override
+    public boolean onClientThread() {
+        return Minecraft.getMinecraft()
+            .func_152345_ab();
+    }
+
     @Override
     public void idsMoved() {
         boolean inPlace = Minecraft.getMinecraft()
@@ -638,6 +709,13 @@ public class ClientProxy extends CommonProxy {
     @Override
     public boolean modifierHeld() {
         return net.minecraft.client.gui.GuiScreen.isCtrlKeyDown();
+    }
+
+    /** The world's own server has found wear lost: its question, shown once the player is in the world (0.9.229). */
+    @Override
+    public void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+        boolean dataPutBack) {
+        com.trmtgtnh.client.gui.GuiWearRestore.offer(chunks, newestBackupMillis, newerWorld, mirrorHolds, dataPutBack);
     }
 
     @Override
@@ -793,6 +871,8 @@ public class ClientProxy extends CommonProxy {
         // A press of the settings key or a /trmt config, answered once the chat that ran it has closed.
         com.trmtgtnh.client.gui.SettingsAccess.tick(mc);
         if (mc.theWorld == null || mc.thePlayer == null) return;
+        // The wear backups' question in single player, once the world is in view and nothing else is open (0.9.229).
+        com.trmtgtnh.client.gui.GuiWearRestore.tick(mc);
         // The moving pictures near the player, let go of beyond the render distance once a second (SeenPictures).
         if (mc.theWorld.getTotalWorldTime() % 20L == 0L) {
             com.trmtgtnh.client.texture.InnerLayers
@@ -1004,6 +1084,47 @@ public class ClientProxy extends CommonProxy {
                     + "[TRMT] Your look changed for now, but the config file failed to read, so it will not be kept. Fix it and use /trmt reload.");
         }
         requestRestitch("Your wear look changed.");
+    }
+
+    /**
+     * Turns classic wear on or off for this client, for one family or (family null) for every family with a classic
+     * look, and remembers it: the switch written to the config, every family's look worked out again from what its
+     * file names ({@link FamilySettings#effectiveLook}), and the atlas rebuilt, as a look chosen in the wear table is.
+     */
+    @Override
+    public void setClassicWear(SurfaceFamily family, boolean on) {
+        Configuration config = TrmtConfig.raw();
+        String category = family == null ? TrmtConfig.CATEGORY_CLIENT
+            : TrmtConfig.CATEGORY_FAMILIES + Configuration.CATEGORY_SPLITTER + family.key();
+        if (family == null) {
+            TrmtConfig.classicWear = on;
+        } else {
+            FamilySettings settings = TrmtConfig.family(family);
+            if (settings == null || FamilySettings.classicLook(family) == null) return;
+            settings.classicWear = on;
+        }
+        for (SurfaceFamily each : SurfaceFamily.values()) {
+            FamilySettings settings = TrmtConfig.family(each);
+            if (settings == null || FamilySettings.classicLook(each) == null) continue;
+            String chosen = settings.wearPattern;
+            if (config != null) {
+                Property look = config
+                    .getCategory(TrmtConfig.CATEGORY_FAMILIES + Configuration.CATEGORY_SPLITTER + each.key())
+                    .get("wearPattern");
+                if (look != null) chosen = look.getString();
+            }
+            settings.wearPattern = FamilySettings
+                .effectiveLook(each, chosen, TrmtConfig.classicWear, settings.classicWear);
+        }
+        if (config != null) {
+            Property property = config.getCategory(category)
+                .get("classicWear");
+            if (property != null) {
+                property.set(on);
+                TrmtConfig.save();
+            }
+        }
+        requestRestitch("Classic wear " + (on ? "on." : "off."));
     }
 
     /**
@@ -1249,6 +1370,13 @@ public class ClientProxy extends CommonProxy {
         markSettlingBlocks();
         if (tableHandedBack) com.trmtgtnh.client.gui.WearIcons.reset();
         if (appearancesHandedBack) requestRestitch("Back on the materials your own config draws.");
+        // The server's rules for this player's own settings last (0.9.229): let go and read again on their own, after
+        // the hand-back above, so what the read moves is theirs alone and a rebuild of the pictures is asked for only
+        // where a setting they are built from actually changes - as a server clearing its list does.
+        if (com.trmtgtnh.config.ClientSettingsHeld.held()) {
+            com.trmtgtnh.config.ClientSettingsHeld.release();
+            ConfigReload.fromClientRules();
+        }
         Trmt.LOG.debug("Disconnected; overlay cache cleared");
     }
 

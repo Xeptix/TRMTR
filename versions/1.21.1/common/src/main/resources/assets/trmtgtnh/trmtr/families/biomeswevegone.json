@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "_": [
+    "Oh The Biomes We've Gone's own rock wears as stone: dacite and red rock are whole biomes' ground, built as the game's stone is, and neither name carries a word the rules read as rock. Its pale mud wears as dirt, as the families' table has mud: it is built as the game's own mud is, a block short of its cell with mud's sound, which the rules refuse. The rest of the mod is detection's, read from its jars: its grass blocks and the turfs over its rock wear as grass and its dirts and peat as dirt by their sounds, its sands as sand by their class, its paths and farmland are refused by their words, and its quicksand, which has no collision, is short of its cell and never wears.",
+    "From All the Mods 10's census (W4 R9, judged 2026-11-12): black sandstone is the natural rock under its black sand beaches, which the rules leave out for the decorative word in sandstone. Named alone, as the census judged it; its smooth form, slabs, stairs and walls were not judged and are left to the rules.",
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.21.1 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was. Where an earlier note here leaves this mod's slabs and stairs to the rules, or to detection's family, the ones named below no longer are."
+  ],
+  "entries": [
+    { "blocks": ["biomeswevegone:dacite", "biomeswevegone:red_rock"], "family": "stone" },
+    { "blocks": ["biomeswevegone:pale_mud"], "family": "dirt" },
+    { "blocks": ["biomeswevegone:black_sandstone"], "family": "stone" },
+    { "blocks": ["biomeswevegone:black_sandstone_slab", "biomeswevegone:black_sandstone_stairs"], "family": "stone" }
+  ]
+}

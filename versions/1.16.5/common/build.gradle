@@ -53,6 +53,38 @@ test {
         })
         .withPropertyName('theSourceTheseTestsRead')
         .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // The census goldens DetectionReplayTest puts through the rules (W4 spec 3.2, T9). They live in the 1.7.10 tree's
+    // docs/census, which this tree has no copy of. tools/census.py --diff names the folder with -Dtrmt.census on
+    // Gradle's command line, and a -D there reaches Gradle and not the test worker, so it is handed on here. With none
+    // given, the trees this checkout's sibling.properties leads to are followed, a few at most, to the first that holds
+    // docs/census: this tree's sibling is 1.12.2, whose own is 1.7.10, so an ordinary suite run replays them too.
+    // Either way the goldens are inputs, or a changed golden would leave this task up to date and unread. With neither,
+    // the test says so and skips. Its replay is written to this tree's build/census-replay, where census.py reads it,
+    // not to this module's: the tests run in common/.
+    def census = System.getProperty('trmt.census') ?: (rootProject.findProperty('trmt.census') ?: null)
+    def tree = rootProject.projectDir
+    for (int hop = 0; hop < 3 && census == null && tree != null; hop++) {
+        def sibling = new File(tree, 'sibling.properties')
+        if (!sibling.isFile()) break
+        def held = new Properties()
+        sibling.withInputStream { held.load(it) }
+        def other = held.getProperty('otherEdition')
+        if (other == null || other.trim().isEmpty()) break
+        def next = new File(other.trim())
+        if (!next.isAbsolute()) next = new File(tree, other.trim())
+        if (new File(next, 'docs/census').isDirectory()) census = new File(next, 'docs/census').path
+        tree = next
+    }
+    systemProperty 'trmt.census.out', rootProject.file('build/census-replay').absolutePath
+    if (census != null) {
+        systemProperty 'trmt.census', census.toString()
+        // pack-data.tsv beside them: which packs ship no TRMT data of their own, whose data lines the test holds
+        // to the shipped files.
+        inputs.files(fileTree(census.toString()) { include '*/registry.tsv'; include 'pack-data.tsv' })
+            .withPropertyName('theCensusGoldens')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
 }
 
 // ---------------------------------------------------------------------------

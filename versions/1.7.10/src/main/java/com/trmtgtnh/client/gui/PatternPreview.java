@@ -26,9 +26,10 @@ import cpw.mods.fml.relauncher.SideOnly;
  * Small pictures of what each wear look does, drawn on the blocks it will be done to.
  *
  * <p>
- * The eleven looks are not describable in a word - crack, smooth, rub and cover-coming-off, four of
- * them again with a lighter or heavier hand, and three that do two of those at once, say roughly what
- * they do and nothing about what they look like on stone as against on snow - so the
+ * The looks are not describable in a word - crack, smooth, rub and cover-coming-off, four of them
+ * again with a lighter or heavier hand, three that do two of those at once, and the ones made for a
+ * single material, say roughly what they do and nothing about what they look like on stone as against
+ * on snow - so the
  * picker shows them instead of naming them. Three per look, at the start of a run, halfway along it
  * and at the end, because what separates them is as much how they get there as where they end up.
  *
@@ -120,12 +121,18 @@ final class PatternPreview {
      * the three compounds come last. A picker exists to be compared down, and a variation is only
      * judgeable against the thing it varies, while a compound is something gone looking for rather
      * than landed on. The four original looks keep the order they have always had relative to one
-     * another, so a habit still finds them.
+     * another, so a habit still finds them. The four made for one material each (0.9.229) come after
+     * everything, in the order their families arrived, so no older row moves, and the seven made for the older
+     * families after those, in the order of the families they were made for.
      */
     private static final String[] LOOKS = { FamilySettings.PATTERN_GRASS, FamilySettings.PATTERN_CRACK,
         FamilySettings.PATTERN_CRACK_LITE, FamilySettings.PATTERN_SMOOTH, FamilySettings.PATTERN_SMOOTH_HEAVY,
         FamilySettings.PATTERN_DIRT, FamilySettings.PATTERN_DIRT_LITE, FamilySettings.PATTERN_SMOOTH_CRACK,
-        FamilySettings.PATTERN_SMOOTH_DIRT, FamilySettings.PATTERN_CRACK_DIRT, FamilySettings.PATTERN_CRACK_DIRT_LITE };
+        FamilySettings.PATTERN_SMOOTH_DIRT, FamilySettings.PATTERN_CRACK_DIRT, FamilySettings.PATTERN_CRACK_DIRT_LITE,
+        FamilySettings.PATTERN_FLESH, FamilySettings.PATTERN_TAINT, FamilySettings.PATTERN_SCULK,
+        FamilySettings.PATTERN_CLOUD, FamilySettings.PATTERN_SAND_TRODDEN, FamilySettings.PATTERN_GRAVEL_PARTED,
+        FamilySettings.PATTERN_COBBLE_POLISHED, FamilySettings.PATTERN_SNOW_PACKED, FamilySettings.PATTERN_ICE_SCUFFED,
+        FamilySettings.PATTERN_NETHER_CHARRED, FamilySettings.PATTERN_END_BLEACHED };
 
     static String[] looks() {
         return LOOKS.clone();
@@ -179,6 +186,17 @@ final class PatternPreview {
         if (FamilySettings.PATTERN_SMOOTH_DIRT.equals(pattern)) return "smoothed rubbed";
         if (FamilySettings.PATTERN_CRACK_DIRT.equals(pattern)) return "cracked rubbed";
         if (FamilySettings.PATTERN_CRACK_DIRT_LITE.equals(pattern)) return "cracked rubbed lite";
+        if (FamilySettings.PATTERN_FLESH.equals(pattern)) return "bruised wet";
+        if (FamilySettings.PATTERN_TAINT.equals(pattern)) return "blighted";
+        if (FamilySettings.PATTERN_SCULK.equals(pattern)) return "dimmed dead";
+        if (FamilySettings.PATTERN_CLOUD.equals(pattern)) return "pressed";
+        if (FamilySettings.PATTERN_SAND_TRODDEN.equals(pattern)) return "trodden firm";
+        if (FamilySettings.PATTERN_GRAVEL_PARTED.equals(pattern)) return "parted";
+        if (FamilySettings.PATTERN_COBBLE_POLISHED.equals(pattern)) return "polished";
+        if (FamilySettings.PATTERN_SNOW_PACKED.equals(pattern)) return "packed glossy";
+        if (FamilySettings.PATTERN_ICE_SCUFFED.equals(pattern)) return "scuffed frosty";
+        if (FamilySettings.PATTERN_NETHER_CHARRED.equals(pattern)) return "charred";
+        if (FamilySettings.PATTERN_END_BLEACHED.equals(pattern)) return "bleached";
         return "rubbed away";
     }
 

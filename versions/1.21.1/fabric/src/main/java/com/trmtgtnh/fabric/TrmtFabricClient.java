@@ -40,6 +40,9 @@ public final class TrmtFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // The enabled resource packs' data files after every resource reload from now on (W3 spec 2.2); each block-atlas
+        // stitch reads them itself as it begins, the first one included.
+        com.trmtgtnh.client.PackData.start();
         // No relay of a tamper's left-click here (0.9.227, spec RL19): Fabric API at this version sends the dig itself when
         // the attack callback's answer accepts it - read from its interaction module's jar - so the relay 1.16.5 needs
         // (FabricEvents.sendClickToServer, for Fabric API 0.42, which sends nothing) sent every click twice. A stray
@@ -61,6 +64,13 @@ public final class TrmtFabricClient implements ClientModInitializer {
 
         // The ghost's model, swapped in after baking, as on Forge - see GhostModelProvider.
         ModelLoadingPlugin.register(new GhostModelProvider());
+
+        // Distant Horizons' far terrain told what a worn square looks like (0.9.229 W6 T16), only where that mod is
+        // loaded: the plugin is the one class that names it, and a game without it never loads that class. See DhPlugin.
+        if (net.fabricmc.loader.api.FabricLoader.getInstance()
+            .isModLoaded("distanthorizons")) {
+            com.trmtgtnh.fabric.dh.DhPlugin.register();
+        }
 
         // Which pass the ghost draws in, and what color it is at a place. Both are things a block
         // tells the client rather than the game, both are one line per loader, and neither was said
@@ -142,6 +152,12 @@ public final class TrmtFabricClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents.CHUNK_LOAD
             .register((level, chunk) -> ClientSide.chunkLoaded(chunk.getPos().x, chunk.getPos().z));
 
+        // The client logged in to a server, as the game handles its login (Fabric's JOIN, at the end of handleLogin) - a
+        // proxy moving it to another server included, which reaches no tick without a world: the last server's protocol
+        // is forgotten before this one's rules name its own (review R30, 0.9.229, TrmtNetwork.joinedServer).
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN
+            .register((handler, sender, client) -> com.trmtgtnh.network.TrmtNetwork.joinedServer());
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.level == null || client.player == null) {
                 if (left) {
@@ -157,6 +173,8 @@ public final class TrmtFabricClient implements ClientModInitializer {
 
             // The settings key and /trmt config, asked for since the last tick (0.9.228, SettingsAccess).
             com.trmtgtnh.client.gui.SettingsAccess.tick(client);
+            // The wear backups' question in single player, once the world is in view and nothing else is open (0.9.229).
+            com.trmtgtnh.client.gui.GuiWearRestore.tick(client);
         });
 
         // The ways to the settings besides Mod Menu, which is optional (0.9.228): a key, unbound until a player binds it;

@@ -271,6 +271,14 @@ public final class ShaderMaterial {
                 return Blocks.SNOW_BLOCK;
             case ICE:
                 return Blocks.ICE;
+            case FLESH:
+                return Blocks.SOUL_SAND;
+            case TAINT:
+                return Blocks.MYCELIUM;
+            case SCULK:
+                return Blocks.SCULK;
+            case CLOUD:
+                return Blocks.WHITE_WOOL;
             default:
                 return Blocks.DIRT;
         }

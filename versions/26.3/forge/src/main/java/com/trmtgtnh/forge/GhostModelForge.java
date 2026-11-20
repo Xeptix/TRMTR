@@ -109,12 +109,20 @@ public class GhostModelForge implements BlockStateModel {
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), ErosionState.sinkOf(record));
+        int rotation = com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin);
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
 
+        // Through the level-aware build, where trmtr-api's render hook is asked for a ghost over a block a plugin draws
+        // (W3 T8). The part carries the square's glow overlays too (0.9.228, real glow), each in the cutout pass and
+        // giving off its own light, which Forge 66's VertexConsumer.putBlockBakedQuad keeps the brighter of with the
+        // cell's. Forge's renderer reads smooth lighting for a whole block from its first part and has no word per
+        // quad, so the overlays are lit as the picture under them is - their light held, their corners shaded alike -
+        // where NeoForge's are flat (GhostModelNeoForge.flat).
         output.add(
             GhostQuads.part(
+                level,
+                pos,
                 record,
                 origin,
                 outline,

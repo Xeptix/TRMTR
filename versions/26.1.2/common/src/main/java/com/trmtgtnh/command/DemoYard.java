@@ -24,7 +24,6 @@ import com.trmtgtnh.config.TrmtConfig;
 import com.trmtgtnh.entity.EntityGolemOfWays;
 import com.trmtgtnh.entity.GolemUpgrade;
 import com.trmtgtnh.erosion.ChunkErosionData;
-import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.erosion.ErosionEngine;
 import com.trmtgtnh.erosion.ErosionStore;
 import com.trmtgtnh.item.ItemChunkTamper;
@@ -291,7 +290,10 @@ final class DemoYard {
                     set(world, x, y + up, z, Blocks.AIR, 0);
                 }
 
-                int length = ErosionChain.length(family);
+                // Along the chain the placed block follows, its own where a data file gives it one (W3 T9), as
+                // forceStage reads the index.
+                int length = ErosionEngine.chainFor(world, x, y, z, family)
+                    .length();
                 if (length <= 1) continue;
                 // Across the quarter rather than along it, so each strip of three reads as one run
                 // from untouched to gone and the four runs sit side by side.
@@ -334,36 +336,45 @@ final class DemoYard {
         // Set into the wall rather than standing in the pen, because six squares of ground is what
         // was asked for and a chest in the corner of it is five and a half. Reachable from the
         // apron, and each pair is a double chest because vanilla joins two that touch. The fence
-        // above them stays: it is not a solid cube, so it does not stop a chest opening.
+        // above them stays: it is not a solid cube, so it does not stop a chest opening. Each pair
+        // faces out onto its own apron, the front one towards the sign and the back one away from it.
         int at = FOOTPRINT / 2 - 1;
-        stock(world, penX + at, baseY + 2, penZ, toolChest());
-        stock(world, penX + at, baseY + 2, penZ + FOOTPRINT - 1, healingChest());
+        stock(world, penX + at, baseY + 2, penZ, toolChest(), net.minecraft.core.Direction.NORTH);
+        stock(world, penX + at, baseY + 2, penZ + FOOTPRINT - 1, healingChest(), net.minecraft.core.Direction.SOUTH);
     }
 
-    /** Puts a pair of containers into two squares of the wall and fills them. */
-    private static void stock(Level world, int x, int y, int z, List<ItemStack> contents) {
+    /** Puts a pair of containers into two squares of the wall, fills them and joins them facing one way. */
+    private static void stock(Level world, int x, int y, int z, List<ItemStack> contents, net.minecraft.core.Direction facing) {
         if (!loadedAt(world, x, y, z) || !loadedAt(world, x + 1, y, z)) return;
+        // The second stands even when the first holds everything: the pair is what makes the double chest
+        // (CM78), and placed only on overflow it never stood, since neither list fills a chest.
         int placed = CommandTrmt.placeContainer(world, x, y, z, contents, 0);
-        if (placed < contents.size()) CommandTrmt.placeContainer(world, x + 1, y, z, contents, placed);
-        joinChests(world, x, y, z);
+        CommandTrmt.placeContainer(world, x + 1, y, z, contents, placed);
+        joinChests(world, x, y, z, facing);
     }
 
     /**
-     * Makes two chests side by side one double chest, as the other edition's do by touching. At this version two
-     * chests join only when a player places the second against the first, so the pair stood as two singles until
-     * 0.9.222 (spec CM78). Facing the same way, the west one is the left half and connects east.
+     * Makes two chests side by side one double chest facing one way, as the other edition's join by touching. At this
+     * version two chests join only when a player places the second against the first, so the pair stood as two singles
+     * until 0.9.222 (spec CM78), and until 0.9.229 it was joined facing north whichever wall it stood in, so the back
+     * wall's pair faced into the pen. A half connects to its facing turned clockwise when it is the left one and
+     * anticlockwise when it is the right (ChestBlock.getConnectedDirection), so the west chest, which connects east, is
+     * the left half facing north and the right half facing south. A container of another kind, set as demoContainer,
+     * keeps the placement it made.
      */
-    private static void joinChests(Level world, int x, int y, int z) {
+    private static void joinChests(Level world, int x, int y, int z, net.minecraft.core.Direction facing) {
         net.minecraft.core.BlockPos west = new net.minecraft.core.BlockPos(x, y, z);
         net.minecraft.core.BlockPos east = west.east();
         net.minecraft.world.level.block.state.BlockState one = world.getBlockState(west);
         net.minecraft.world.level.block.state.BlockState other = world.getBlockState(east);
         if (!(one.getBlock() instanceof net.minecraft.world.level.block.ChestBlock) || other.getBlock() != one.getBlock()) return;
-        net.minecraft.core.Direction facing = net.minecraft.core.Direction.NORTH;
+        net.minecraft.world.level.block.state.properties.ChestType westHalf = facing.getClockWise() == net.minecraft.core.Direction.EAST
+            ? net.minecraft.world.level.block.state.properties.ChestType.LEFT
+            : net.minecraft.world.level.block.state.properties.ChestType.RIGHT;
         world.setBlock(west, one.setValue(net.minecraft.world.level.block.ChestBlock.FACING, facing)
-            .setValue(net.minecraft.world.level.block.ChestBlock.TYPE, net.minecraft.world.level.block.state.properties.ChestType.LEFT), 2);
+            .setValue(net.minecraft.world.level.block.ChestBlock.TYPE, westHalf), 2);
         world.setBlock(east, other.setValue(net.minecraft.world.level.block.ChestBlock.FACING, facing)
-            .setValue(net.minecraft.world.level.block.ChestBlock.TYPE, net.minecraft.world.level.block.state.properties.ChestType.RIGHT), 2);
+            .setValue(net.minecraft.world.level.block.ChestBlock.TYPE, westHalf.getOpposite()), 2);
     }
 
     /**

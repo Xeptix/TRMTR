@@ -4,12 +4,12 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.Redirect;
+
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.Boat;
-import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.block.GhostFamily;
 
@@ -22,6 +22,11 @@ import com.trmtgtnh.block.GhostFamily;
  * the five places vanilla reads a block's friction, all of which Forge patches to ask the block at the square. The
  * squares are visited in a loop with one position object moved along it; each is noted as vanilla looks it up and read
  * straight after, before the loop moves it on. See {@link MixinGhostLivingEntity}.
+ *
+ * <p>
+ * <strong>Changed after the read, not redirected</strong> (0.9.229; see {@link MixinGhostLivingEntity} for the crash):
+ * each square's read is taken as it is made, before the game adds it to the sum, so a worn square adds the ghost's
+ * friction and any other adds what the game - or another mod's redirect of the read - gave.
  */
 @Mixin(Boat.class)
 public abstract class MixinGhostBoatFriction {
@@ -39,10 +44,10 @@ public abstract class MixinGhostBoatFriction {
         return pos;
     }
 
-    @Redirect(
+    @ModifyExpressionValue(
         method = "getGroundFriction",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;getFriction()F"))
-    private float trmt$frictionOfTheSquare(Block block) {
-        return GhostFamily.frictionOf(block, ((Entity) (Object) this).level(), trmt$groundAt);
+    private float trmt$frictionOfTheSquare(float friction) {
+        return GhostFamily.frictionOver(friction, ((Entity) (Object) this).level(), trmt$groundAt);
     }
 }

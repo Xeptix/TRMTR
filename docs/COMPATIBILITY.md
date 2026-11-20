@@ -1,7 +1,7 @@
 # Where the editions differ
 
 TRMT: Reimagined is one mod with one version number. Every edition does the same thing by the same
-numbers and reads the same settings file, and sixty-three classes are shared between them byte for
+numbers and reads the same settings file, and a hundred and twenty-three classes are shared between them byte for
 byte, with a test in each edition's development tree that fails if the copies drift.
 
 This page is everything that is *not* the same, in one place. The manual says each of these in the
@@ -13,13 +13,13 @@ moving a pack from one to the other.
 | Minecraft | Loader | Status | Needs |
 |---|---|---|---|
 | **1.7.10** | Forge 10.13.4.1614+ | released | [UniMixins](https://github.com/LegacyModdingMC/UniMixins), or the older [GTNHMixins](https://github.com/GTNH-Museum/GTNHMixins) |
-| **1.12.2** | Forge 14.23.5.2847+ | released | [MixinBooter](https://github.com/CleanroomMC/MixinBooter) |
+| **1.12.2** | Forge 14.23.5.2847+ | released | [MixinBooter](https://github.com/CleanroomMC/MixinBooter), unless a pack starts Mixin 0.8 or newer itself, as RLCraft does |
 | **1.16.5** | Forge 36.0.42+ **or** Fabric Loader 0.11.1+ | released | Nothing on Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.30.0+. [Cloth Config](https://github.com/shedaniel/cloth-config) and [Mod Menu](https://github.com/TerraformersMC/ModMenu) optional |
 | **1.20.1** | Forge 47.0.34+ **or** Fabric Loader 0.14.22+ | released | Nothing on Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.86.0+. [Cloth Config](https://github.com/shedaniel/cloth-config) and [Mod Menu](https://github.com/TerraformersMC/ModMenu) optional |
 | **1.21.1** | NeoForge 21.1+, Forge 52+ **or** Fabric Loader 0.16.1+, on Java 21 | released | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.102.0+. [Cloth Config](https://github.com/shedaniel/cloth-config) and [Mod Menu](https://github.com/TerraformersMC/ModMenu) optional |
-| **26.1.2** | NeoForge 26.1.2.71+, Forge 64 **or** Fabric Loader 0.19.1+, on Java 25 | beta | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.145.4+. Cloth Config optional on NeoForge, Mod Menu on Fabric |
-| **26.2** | NeoForge 26.2.0.57+, Forge 65 **or** Fabric Loader 0.19.4+, on Java 25 | beta | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.152.1+. Cloth Config optional on NeoForge, Mod Menu on Fabric |
-| **26.3** | NeoForge 26.3.0.76+, Forge 66 **or** Fabric Loader 0.19.5+, on Java 25 | beta | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.160.5+. Cloth Config optional on NeoForge and Fabric, Mod Menu on Fabric |
+| **26.1.2** | NeoForge 26.1.2.71+, Forge 64 **or** Fabric Loader 0.19.1+, on Java 25 | released | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.145.4+. Cloth Config optional on NeoForge, Mod Menu on Fabric |
+| **26.2** | NeoForge 26.2.0.57+, Forge 65 **or** Fabric Loader 0.19.4+, on Java 25 | released | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.152.1+. Cloth Config optional on NeoForge, Mod Menu on Fabric |
+| **26.3** | NeoForge 26.3.0.0-beta+, Forge 66 **or** Fabric Loader 0.19.5+, on Java 25 | released | Nothing on NeoForge or Forge; on Fabric [Fabric API](https://github.com/FabricMC/fabric-api) 0.160.5+. Cloth Config optional on NeoForge and Fabric, Mod Menu on Fabric |
 
 All eight run on plain Forge - or plain NeoForge, or plain Fabric - with nothing else installed. Every other
 integration is behind a mod-loaded check.
@@ -27,7 +27,7 @@ integration is behind a mod-loaded check.
 1.16.5 and 1.20.1 are each one codebase and two jars, and 1.21.1, 26.1.2, 26.2 and 26.3 are each one codebase and
 three. Take the one that matches your loader. 1.20.1 is a release, carried from 1.16.5 and held to 1.7.10 rule for
 rule. 1.21.1 is a release, carried from 1.20.1 and held to 1.7.10 the same way, and it runs on Java 21, as Minecraft
-1.21.1 does. 26.1.2, 26.2 and 26.3 are betas, held to 1.7.10 the same way, and
+1.21.1 does. 26.1.2, 26.2 and 26.3 are releases, held to 1.7.10 the same way, and
 they run on Java 25, which those versions require. In every table below 1.20.1 answers as 1.16.5 does, and 1.21.1 as
 1.20.1 does, unless the table says otherwise. 26.1.2, 26.2 and 26.3 have a column in the settings screen's table, the
 text under the maps, shaders and companion mods tables says what has been seen on them, and the other tables compare
@@ -154,7 +154,9 @@ on.
 None of this does anything without a shader pack loaded. Every combination in the table but Canvas
 and 1.20.1's has been photographed under Complementary Reimagined and Sildurs Vibrant, beside the same
 renderer without a pack and again after the pack was turned off mid-session; Canvas draws through its
-own pipeline and was photographed under that. 1.20.1's four were photographed under Complementary Reimagined, beside 1.16.5's same renderers under it - OptiFine
+own pipeline and was photographed under that. OptiFine on 1.7.10 does not draw Complementary Reimagined correctly,
+with this mod or without it: the frame comes out blurred and darkened, with smaller copies of it in one corner.
+Angelica draws that pack on 1.7.10 as it should, and OptiFine on 1.7.10 draws Sildurs Vibrant as it should. 1.20.1's four were photographed under Complementary Reimagined, beside 1.16.5's same renderers under it - OptiFine
 and OptiFabric among them, each saying in its log that the claim reached OptiFine's stack.
 1.21.1's Iris, with Sodium on NeoForge and on Fabric, was run under a shader pack, and each run's log counted the
 claims that landed; OptiFine HD U J1 on Forge was run under Complementary Reimagined and said in its log that the
@@ -206,6 +208,20 @@ others refuse - so a hook every loader needs exists once for each, with identica
 holds more of them, because Forge 52 runs Mojang's own names, so a shared hook may name a vanilla member there, which
 on 1.20.1 it could not.
 
+### The block atlas
+
+Angelica on 1.7.10 gives every block texture a border so its mipmaps stay clean, which no renderer
+does in the later editions. There, and only there, this mod's worn pictures take a border of their own,
+`client.angelicaWearGutter`, **Automatic** by default: the widest at which every worn picture still fits
+in the block atlas, or none where nothing wider does, and the atlas stays within 16384 pixels; GT New Horizons 2.9.0
+as it ships takes 4 pixels, with all four patterns and all eighty wear stages. The settings screen offers it under
+the client tab's **Advanced** heading: Automatic; Automatic, at least 2 pixels; or a fixed 1, 2, 4, 8 or 16 pixels.
+The other editions show it too, and it changes nothing there. On 1.7.10 the plan is also held to
+what the stitcher in use packs: vanilla's fills at most half of the card's largest square, so with it (lwjgl3ify's STB
+stitching off, or no lwjgl3ify) a plan to that square is priced at 45% of it. OptiFine's stitcher fills all of it and is
+held to nine tenths; FastCraft packs the atlas itself, worn pictures and all, which are composed before it packs as they are before vanilla's stitcher, can fill as little as half, and is held to 45%. In every edition alike, a pack too large for the
+atlas gives up patterns before wear stages, and a picture the same as another is stored once.
+
 ### Settings screen
 
 | | 1.7.10 | 1.12.2 | 1.16.5 | 1.20.1 | 1.21.1 | 26.1.2, 26.2 and 26.3 |
@@ -214,9 +230,16 @@ on 1.20.1 it could not.
 | Built on | this mod's own screen | this mod's own screen | this mod's own screen | this mod's own screen | this mod's own screen | this mod's own screen |
 | The other screen, one button away | Forge's config screen | Forge's config screen | Cloth Config, where installed | Cloth Config, where installed | Cloth Config, where installed | Cloth Config, where installed, on NeoForge and on 26.3 Fabric |
 
-From 0.9.228 every edition opens a settings screen of this mod's own, so no edition requires Cloth Config. A button on it
+Every edition opens a settings screen of this mod's own, so no edition requires Cloth Config. A button on it
 opens the other screen - Forge's own on 1.7.10 and 1.12.2, Cloth Config's where Cloth is installed - and back, and the
 choice is remembered; both list every category. Cloth Config has no Forge build for 26.1.2, 26.2 and 26.3.
+
+A server's `clientrules.rules` (see the manual's Servers section) works the same in every edition: the same lines,
+the same `/trmt clientrules` words, the same lock in the settings menu and the same line at join. Every edition has
+the same client settings, those that act in one edition alone included, such as 1.7.10's
+`client.angelicaWearGutter`, so a list written for one edition's server is taken whole by any other's. A line naming
+no such setting, or giving a value the setting would not take, is refused in the server's log; a listed setting a
+player's game does not have is counted in the line at join as not applying to their game.
 
 ### Upgrading a world
 
@@ -233,7 +256,12 @@ carries and the upgrade fitted to it.
 **A world from before 1.18 keeps its golems when opened in 1.20.1 or 1.21.1.** Minecraft's own 1.18 chunk upgrade
 drops a chunk's whole list of creatures when one of them is a mod's; the list is kept and put back, each vanilla
 creature upgraded by the game itself. And a golem's tools from 1.12.2 keep their wear in 1.16.5 and later, read
-through the game's own upgrade of a stored item.
+through the game's own upgrade of a stored item, as do a golem's block targets and a chunk tamper's.
+
+**A world made with The Roads More Travelled converts as it loads on 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3**; the
+original has no edition for 1.7.10, 1.12.2 or 1.16.5, so they have nothing to convert. [`CONVERTED-WORLDS.md`](CONVERTED-WORLDS.md)
+says how. Faithful Mode, the original's own pace, is in every edition. Brushing worn sand under it is from 1.20.1,
+where the game has a brush.
 
 ## What is the same
 
@@ -242,5 +270,5 @@ curve, physical sinking, wearing through into other surfaces, slabs and stairs, 
 meal, what a route does to what is standing in it, surface families and detection, made ground, all
 three tampers, reinforcement, warding, path light, the Golem of Ways and its eleven upgrades, both
 draughts, all four guide books, the enchanted books, world-gen loot, spawn grants, every command,
-the config screen, the wear table, the wear editor, presets, snapshots, server rules, and the
-settings file itself.
+the config screen, the wear table, the wear editor, presets, snapshots, server rules, glowing wear,
+worn blocks that turn, wear backups, and the settings file itself.

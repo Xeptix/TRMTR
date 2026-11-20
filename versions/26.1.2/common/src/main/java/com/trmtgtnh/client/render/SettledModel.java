@@ -43,6 +43,7 @@ import com.trmtgtnh.erosion.PhysicalDecay;
  * <strong>Which models are wrapped: every block that rests on the ground</strong> ({@code PhysicalDecay
  * .restsOnTheGround}), asked at the bake whatever the switch says, because {@code markSettlingBlocks} can change with a
  * server's rules while the models stay baked; the drop itself asks the live switch, through {@link Settling#offset}.
+ * And whatever Terrain Slabs draws down on a slab, which has to follow that slab when it wears ({@link SlabPlants}).
  *
  * <p>
  * The hit shape, the outline, the collision and the face rule keep their own hooks ({@link Settling#hitShape},
@@ -56,12 +57,15 @@ public final class SettledModel {
     public static boolean wraps(BlockState state) {
         if (state == null) return false;
         Block block = state.getBlock();
-        Boolean known = WRAPS.get(block);
-        if (known == null) {
-            known = Boolean.valueOf(PhysicalDecay.restsOnTheGround(block));
-            WRAPS.put(block, known);
+        Boolean rests = WRAPS.get(block);
+        if (rests == null) {
+            rests = Boolean.valueOf(PhysicalDecay.restsOnTheGround(block));
+            WRAPS.put(block, rests);
         }
-        return known.booleanValue();
+        // And what Terrain Slabs draws down on a slab, which has to come down with it when it wears: see SlabPlants.
+        // Asked of each state and never kept by block, because its rule takes a state: the first state baked would
+        // answer for the rest. This runs at the bake, so the cost is one reflective call per state a block has.
+        return rests.booleanValue() || SlabPlants.onTop(state);
     }
 
     private static final Map<Block, Boolean> WRAPS = new ConcurrentHashMap<Block, Boolean>();
@@ -80,8 +84,9 @@ public final class SettledModel {
      * faces wanted, which the drawing itself keeps.
      */
     public static double quietDropAt(BlockState state, BlockGetter view, BlockPos pos) {
-        if (state == null || !Settling.settles(state.getBlock())) return 0.0D;
-        return Settling.dropFor(view, pos);
+        if (state == null) return 0.0D;
+        double onSlab = SlabPlants.dropUnder(state, view, pos);
+        return Settling.settles(state.getBlock()) ? onSlab + Settling.dropFor(view, pos) : onSlab;
     }
 
     /** The quads a settling block draws at this square of the view: its own, lowered by the drop under it. */

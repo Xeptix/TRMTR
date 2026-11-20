@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "Allthemodium, from ATM6's census, as 1.20.1's and 1.21.1's censuses ruled it, so the editions match (W4 R14, 2026-11-13). Ancient grass is the turf of the Other, the mod's own dimension, judged by its living top, and the rules make it dirt by its ground material on this edition. Named alone, because a file reaches a config that already holds detection's line where a changed rule does not. Ancient dirt and ancient stone already wear by detection, and the bricks, slabs, stairs and walls are left to the rules."
+  ],
+  "entries": [
+    { "blocks": ["allthemodium:ancient_grass"], "family": "grass" }
+  ]
+}

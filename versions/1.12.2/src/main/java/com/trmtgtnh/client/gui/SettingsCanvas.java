@@ -210,9 +210,10 @@ final class SettingsCanvas implements Canvas {
             return;
         }
         if (ref instanceof com.trmtgtnh.surface.SurfaceFamily) {
-            // A surface, as its sub-tab draws it: its road block (spec M1.2), for the Advanced fold's rows (M16.2).
-            Object block = com.trmtgtnh.command.CommandTrmt.roadBlock((com.trmtgtnh.surface.SurfaceFamily) ref);
-            if (block != null) picture(block, x, y);
+            // A family, as its sub-tab (spec M1.2), its Advanced fold row (M16.2) and its chip draw it: its own
+            // block, the pack's first block of it, or its stand-in, never nothing (0.9.229, WearIcons.familyPicture).
+            Object shown = WearIcons.familyPicture((com.trmtgtnh.surface.SurfaceFamily) ref);
+            if (shown != null) picture(shown, x, y);
             return;
         }
         if (ref instanceof ChooserPictures.Picture) {

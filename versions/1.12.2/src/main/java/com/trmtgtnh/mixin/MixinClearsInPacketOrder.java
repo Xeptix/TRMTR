@@ -34,6 +34,12 @@ import com.trmtgtnh.client.ClientProxy;
 @Mixin(NetHandlerPlayClient.class)
 public class MixinClearsInPacketOrder {
 
+    /**
+     * A join, which also forgets the server's protocol: a join is a new server, or a proxy's move to another without
+     * leaving this one, which reaches no tick without a world, so the last server's protocol is forgotten before this
+     * one's rules name its own (review R30, 0.9.229, TrmtNetwork.joinedServer). On both runs a join has: each comes
+     * before the hello this world's first tick sends, and so before the rules that answer it.
+     */
     @Inject(method = "handleJoinGame", at = @At("HEAD"), require = 1)
     private void trmt$joined(SPacketJoinGame packet, CallbackInfo ci) {
         ClearsInPacketOrder.joined(
@@ -41,6 +47,7 @@ public class MixinClearsInPacketOrder {
                 .isCallingFromMinecraftThread(),
             packet.getDimension(),
             ClientProxy::forgetWorld);
+        com.trmtgtnh.network.TrmtNetwork.joinedServer();
     }
 
     @Inject(method = "handleRespawn", at = @At("HEAD"), require = 1)

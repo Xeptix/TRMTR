@@ -92,6 +92,9 @@ public class CommonProxy {
     public void applyServerRules(boolean forceOverlay, String decayMode,
         com.trmtgtnh.config.ServerRules.Geometry geometry) {}
 
+    /** A server's rules for this player's own settings (0.9.229). Only a client has settings of that kind. */
+    public void applyClientRules(java.util.List<com.trmtgtnh.util.ClientSettingRules.Rule> rules) {}
+
     /** A server named its surface table's fingerprint. Only a client has anything to do with it. */
     public void considerServerTable(boolean sent, long fingerprint) {}
 
@@ -100,6 +103,14 @@ public class CommonProxy {
      * it: a newer client tells its player once a visit that the server runs an older build.
      */
     public void considerServerBuild(boolean sent, int protocol, String build) {}
+
+    /**
+     * Whether this is the client's own thread, the one its world is read on (trmtr-api's position queries, Codex review
+     * R16). A dedicated server has no client.
+     */
+    public boolean onClientThread() {
+        return false;
+    }
 
     /**
      * Block ids moved under the surface table, so it is rebuilt under the ids now in force.
@@ -186,6 +197,15 @@ public class CommonProxy {
     public void tellServerOwnsGeometry() {}
 
     /**
+     * Offers the single-player screen that asks whether to restore lost wear (0.9.229, wear backups): how many chunks
+     * lost it, when the newest backup was taken (-1 with none), and whether the world was last opened by a newer version
+     * of this mod; whether the mirror holds the newest copy, and whether this mod's world data was missing and was put
+     * back. Only a client has anyone to ask; a dedicated server puts the wear back by itself.
+     */
+    public void offerWearRestore(int chunks, long newestBackupMillis, boolean newerWorld, boolean mirrorHolds,
+        boolean dataPutBack) {}
+
+    /**
      * Copies edits made on the config screen into the real settings.
      *
      * <p>
@@ -207,6 +227,14 @@ public class CommonProxy {
      * {@code TamperModifiers}, which is why this is asked through the proxy rather than of the game.
      */
     public boolean modifierHeld() {
+        return false;
+    }
+
+    /**
+     * Whether this is the physical client, where the settings screen runs (0.9.229 W5 T9: {@code /trmt reload} looks
+     * for the original mod's file there). Asked through the proxy so the command names no loader; 1.7.10 asks FML.
+     */
+    public boolean physicalClient() {
         return false;
     }
 
@@ -244,6 +272,12 @@ public class CommonProxy {
      * question about pictures, which only a client has.
      */
     public void setWearLook(com.trmtgtnh.surface.SurfaceFamily family, String pattern) {}
+
+    /**
+     * Turns classic wear on or off for one family, or for every family when {@code family} is null (0.9.229). As
+     * cosmetic as a look, and as much this client's own: nothing on a server draws, so nothing here.
+     */
+    public void setClassicWear(com.trmtgtnh.surface.SurfaceFamily family, boolean on) {}
 
     /**
      * The exact numbers a server keeps for one square, come back.
@@ -303,6 +337,14 @@ public class CommonProxy {
 
     /** Notes a ghost square about to be drawn, for the moving pictures near the player. Only a client draws. */
     public void ghostDrawn(short record, int origin, int rotation, int x, int y, int z) {}
+
+    /**
+     * The turn the game gives the unworn block at a ghost square, for its top before it first sinks (0.9.229, "When
+     * the turn starts"). Only a client draws, so nought here.
+     */
+    public int gameTurnAt(short record, int origin, int x, int y, int z) {
+        return 0;
+    }
 
     /**
      * Whether the block a ghost stands over is drawn through the holes in its worn picture. Only a client has

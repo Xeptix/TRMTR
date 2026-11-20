@@ -166,6 +166,16 @@ public final class Edits {
         group(reset);
     }
 
+    /**
+     * The values the screen opened with taken as the defaults, for a photograph of "Changed only": what is left is what
+     * the photograph itself edited, not what the rig's development settings happen to hold (0.9.229, D3). It reaches no
+     * file; a screen in a game never asks it.
+     */
+    public void restAtOpening() {
+        defaults.clear();
+        defaults.putAll(opening);
+    }
+
     /** Whether a setting differs from what the screen opened with. */
     public boolean changed(String id) {
         return !same(values.get(id), opening.get(id));

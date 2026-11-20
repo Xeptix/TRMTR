@@ -12,24 +12,20 @@ import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockDirt;
 import net.minecraft.block.BlockFlower;
 import net.minecraft.block.BlockFrostedIce;
-import net.minecraft.block.BlockGrass;
-import net.minecraft.block.BlockGravel;
-import net.minecraft.block.BlockLeaves;
-import net.minecraft.block.BlockSand;
 import net.minecraft.block.BlockSapling;
-import net.minecraft.block.BlockSlab;
-import net.minecraft.block.BlockStairs;
-import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
 import net.minecraft.init.Blocks;
 import net.minecraftforge.common.IPlantable;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.FamilySettings;
+import com.trmtgtnh.data.DataTable;
+import com.trmtgtnh.dataload.DataLoad;
+import com.trmtgtnh.erosion.ErosionChain;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.original.OriginalBlocks;
 
 /**
  * Decides which blocks erode and what they erode as.
@@ -85,6 +81,12 @@ public final class SurfaceRegistry {
     /** Distinct block states that erode with stages, in a stable order, for texture generation. */
     private static volatile List<SurfaceState> texturable = Collections.emptyList();
 
+    /** The families the table in force holds a block of: see {@link #familiesHeld}. */
+    private static volatile java.util.Set<SurfaceFamily> familiesHeld = Collections.emptySet();
+
+    /** The states a data file or a plugin brought into this side's own table ({@link SurfaceData#brought}). */
+    private static volatile Set<Integer> brought = Collections.emptySet();
+
     /**
      * Block states that wear more slowly, mapped to how much more traffic they take.
      *
@@ -94,6 +96,9 @@ public final class SurfaceRegistry {
      * dirt beside it.
      */
     private static volatile Map<Integer, Float> resistance = Collections.emptyMap();
+
+    /** What a data file says also pays for mending a block state ({@code repairWith}, W3 T5), by state. */
+    private static volatile Map<Integer, String[]> repairWith = Collections.emptyMap();
 
     /**
      * Block states that stand on a surface rather than being one, and go down when it wears.
@@ -128,6 +133,19 @@ public final class SurfaceRegistry {
      */
     private static volatile Set<Integer> groundCoverHolds = Collections.emptySet();
 
+    /**
+     * The shapes data files give block states (W3 spec 2.4, T6), by packed key: the server's while its table is held,
+     * because a shape decides where somebody stands and so must be the server's on both sides.
+     */
+    private static volatile Map<Integer, DataShape> shapes = Collections.emptyMap();
+
+    /**
+     * The chains data files give block states of their own (W3 T9), by packed key: the families each wears through to,
+     * in order, and none for one that sinks as itself. The server's while its table is held, because a block's chain
+     * decides which of its records the server keeps and what its ruts show.
+     */
+    private static volatile Map<Integer, SurfaceFamily[]> ownChains = Collections.emptyMap();
+
     /** The fingerprint of the table published above, and of the one this side's own config builds. */
     private static volatile long publishedFingerprint;
 
@@ -161,15 +179,21 @@ public final class SurfaceRegistry {
 
         final Set<Integer> holds;
 
+        final Map<Integer, DataShape> shapes;
+
+        final Map<Integer, SurfaceFamily[]> chains;
+
         final boolean holdsSwitch;
 
         final long fingerprint;
 
-        Held(Map<Integer, SurfaceFamily> table, Set<Integer> cover, Set<Integer> holds, boolean holdsSwitch,
-            long fingerprint) {
+        Held(Map<Integer, SurfaceFamily> table, Set<Integer> cover, Set<Integer> holds, Map<Integer, DataShape> shapes,
+            Map<Integer, SurfaceFamily[]> chains, boolean holdsSwitch, long fingerprint) {
             this.table = table;
             this.cover = cover;
             this.holds = holds;
+            this.shapes = shapes;
+            this.chains = chains;
             this.holdsSwitch = holdsSwitch;
             this.fingerprint = fingerprint;
         }
@@ -192,6 +216,57 @@ public final class SurfaceRegistry {
         int id = Block.getIdFromBlock(block);
         if (id < 0) return null;
         return current.get(Integer.valueOf(key(id, meta)));
+    }
+
+    /**
+     * Whether a data file or a plugin brought this block state into the family table rather than the mod's own
+     * detection and the player's lists ({@link SurfaceData#brought}). The quick demos lay none of these.
+     */
+    public static boolean broughtByData(Block block, int meta) {
+        if (block == null || meta < 0 || meta > 15) return false;
+        Set<Integer> current = brought;
+        if (current.isEmpty()) return false;
+        int id = Block.getIdFromBlock(block);
+        if (id < 0) return false;
+        return current.contains(Integer.valueOf(key(id, meta)));
+    }
+
+    /**
+     * The shape a data file gives this block state, or null where none does and its class decides
+     * ({@link SurfaceShape#of(Block, int)}). On the collision path, so one map read and no more.
+     */
+    public static DataShape shapeOf(Block block, int meta) {
+        if (block == null) return null;
+        Map<Integer, DataShape> current = shapes;
+        if (current.isEmpty()) return null;
+        int id = Block.getIdFromBlock(block);
+        if (id < 0) return null;
+        return current.get(Integer.valueOf(key(id, meta)));
+    }
+
+    /**
+     * The block's own list a data file gives it (W3 T9), the families it wears through to in order, or null where it
+     * follows its family's chain. An empty list sinks as itself. Not to be written to.
+     */
+    public static SurfaceFamily[] throughOf(Block block, int meta) {
+        if (block == null) return null;
+        Map<Integer, SurfaceFamily[]> current = ownChains;
+        if (current.isEmpty()) return null;
+        int id = Block.getIdFromBlock(block);
+        if (id < 0) return null;
+        return current.get(Integer.valueOf(key(id, meta)));
+    }
+
+    /**
+     * The chain the ground of this block state follows: its family's, or the block's own where a data file gives it one
+     * (W3 T9; {@link ErosionChain#of(SurfaceFamily, SurfaceFamily[])}). Every question about where a record sits on its
+     * chain is asked of this, so a block with a list of its own is worn, healed and placed along it. A chain with no
+     * steps where the block does not erode.
+     */
+    public static ErosionChain.Chain chainOf(Block block, int meta) {
+        SurfaceFamily family = familyOf(block, meta);
+        if (family == null) return ErosionChain.of(null);
+        return ErosionChain.of(family, throughOf(block, meta));
     }
 
     /** True when this block state erodes into stages the client can paint. */
@@ -265,7 +340,10 @@ public final class SurfaceRegistry {
         long wanted = publishedFingerprint;
         byte[] cached = encoded;
         if (cached != null && encodedFor == wanted) return cached;
-        byte[] made = SurfaceTableCodec.encode(ordinals(table), groundCover, groundCoverHolds);
+        // The blocks' own chains beside the codec's table (W3 T9), so a client draws each block on the server's chain.
+        byte[] made = ChainTable.wrap(
+            SurfaceTableCodec.encode(ordinals(table), groundCover, groundCoverHolds, shapes),
+            chainOrdinals(ownChains));
         encoded = made;
         encodedFor = wanted;
         return made;
@@ -276,7 +354,8 @@ public final class SurfaceRegistry {
      *
      * @return false, holding nothing, when the table names a family this build does not have
      */
-    public static boolean holdServerTable(SurfaceTableCodec.Table decoded, boolean holdsSwitch, long fingerprint) {
+    public static boolean holdServerTable(SurfaceTableCodec.Table decoded, Map<Integer, int[]> chains,
+        boolean holdsSwitch, long fingerprint) {
         SurfaceFamily[] all = SurfaceFamily.values();
         Map<Integer, SurfaceFamily> families = new HashMap<Integer, SurfaceFamily>(decoded.families.size() * 2);
         for (Map.Entry<Integer, Integer> entry : decoded.families.entrySet()) {
@@ -285,14 +364,27 @@ public final class SurfaceRegistry {
             if (ordinal < 0 || ordinal >= all.length) return false;
             families.put(entry.getKey(), all[ordinal]);
         }
+        // The blocks' own chains (W3 T9), each list held by ChainTable to families this build has with stages.
+        Map<Integer, SurfaceFamily[]> chained = new HashMap<Integer, SurfaceFamily[]>(chains.size() * 2);
+        for (Map.Entry<Integer, int[]> entry : chains.entrySet()) {
+            int[] ordinals = entry.getValue();
+            SurfaceFamily[] list = new SurfaceFamily[ordinals.length];
+            for (int i = 0; i < ordinals.length; i++) {
+                if (ordinals[i] < 0 || ordinals[i] >= all.length) return false;
+                list[i] = all[ordinals[i]];
+            }
+            chained.put(entry.getKey(), list);
+        }
         Held visiting = new Held(
             Collections.unmodifiableMap(families),
             decoded.cover,
             decoded.holds,
+            decoded.shapes,
+            Collections.unmodifiableMap(chained),
             holdsSwitch,
             fingerprint);
         held = visiting;
-        publish(visiting.table, visiting.cover, visiting.holds);
+        publish(visiting.table, visiting.cover, visiting.holds, visiting.shapes, visiting.chains);
         return true;
     }
 
@@ -308,13 +400,47 @@ public final class SurfaceRegistry {
     }
 
     /** Writes a table into the published fields, with the fingerprint that belongs to it. */
-    private static void publish(Map<Integer, SurfaceFamily> families, Set<Integer> cover, Set<Integer> holds) {
+    private static void publish(Map<Integer, SurfaceFamily> families, Set<Integer> cover, Set<Integer> holds,
+        Map<Integer, DataShape> shaped, Map<Integer, SurfaceFamily[]> chained) {
         table = families;
+        shapes = shaped;
+        ownChains = chained;
+        // The blocks' own lists, by the family each block wears as, so the chains know what this ground may show.
+        Map<SurfaceFamily, List<SurfaceFamily[]>> byFamily = new EnumMap<SurfaceFamily, List<SurfaceFamily[]>>(
+            SurfaceFamily.class);
+        Set<String> seen = new HashSet<String>();
+        for (Map.Entry<Integer, SurfaceFamily[]> each : chained.entrySet()) {
+            SurfaceFamily family = families.get(each.getKey());
+            if (family == null) continue;
+            if (!seen.add(family.key() + java.util.Arrays.toString(each.getValue()))) continue;
+            List<SurfaceFamily[]> into = byFamily.get(family);
+            if (into == null) {
+                into = new ArrayList<SurfaceFamily[]>();
+                byFamily.put(family, into);
+            }
+            into.add(each.getValue());
+        }
+        ErosionChain.ownLists(byFamily);
         texturable = collectTexturableStates(families);
+        java.util.Set<SurfaceFamily> holding = java.util.EnumSet.noneOf(SurfaceFamily.class);
+        holding.addAll(families.values());
+        familiesHeld = java.util.Collections.unmodifiableSet(holding);
         groundCover = cover;
         groundCoverHolds = holds;
         Held visiting = held;
         publishedFingerprint = visiting != null ? visiting.fingerprint : ownFingerprint;
+    }
+
+    /** The blocks' own lists as the codec carries them: family ordinals in order. */
+    private static Map<Integer, int[]> chainOrdinals(Map<Integer, SurfaceFamily[]> chained) {
+        Map<Integer, int[]> out = new HashMap<Integer, int[]>(chained.size() * 2);
+        for (Map.Entry<Integer, SurfaceFamily[]> entry : chained.entrySet()) {
+            SurfaceFamily[] list = entry.getValue();
+            int[] ordinals = new int[list.length];
+            for (int i = 0; i < list.length; i++) ordinals[i] = list[i].ordinal();
+            out.put(entry.getKey(), ordinals);
+        }
+        return out;
     }
 
     private static Map<Integer, Integer> ordinals(Map<Integer, SurfaceFamily> families) {
@@ -334,34 +460,83 @@ public final class SurfaceRegistry {
     }
 
     /**
+     * The families the table in force holds at least one block of. The settings screen's Advanced fold gives a family
+     * rows only when it is here (0.9.229, W4 T17; Xep, 2026-11-09: "Rows only for held families"), so flesh and taint,
+     * which only other mods' blocks wear as, never lengthen a vanilla player's fold.
+     */
+    public static java.util.Set<SurfaceFamily> familiesHeld() {
+        return familiesHeld;
+    }
+
+    /**
      * Rebuilds the table from the current block registry and config. Safe to call again at
      * runtime - {@code /trmt reload} does exactly that.
      */
     public static void resolve() {
-        Map<Integer, SurfaceFamily> built = new HashMap<Integer, SurfaceFamily>();
+        Map<Integer, SurfaceFamily> found = new HashMap<Integer, SurfaceFamily>();
         Map<SurfaceFamily, Set<String>> detected = new EnumMap<SurfaceFamily, Set<String>>(SurfaceFamily.class);
-        Set<String> excluded = parseNameSet(TrmtConfig.surfaceExclude);
+        final Set<String> excluded = parseNameSet(TrmtConfig.surfaceExclude);
+
+        // The data files' families, cover, resistance and repair (W3 spec 2.2, T5), read once from the one table
+        // the last data read published, so this rebuild sees one read and never half of the next.
+        DataTable dataTable = DataLoad.table();
+        SurfaceData.Read data = SurfaceData.read(dataTable, dataNames(excluded));
 
         if (TrmtConfig.surfaceAutoDetect) {
-            autoDetect(built, excluded, detected);
+            autoDetect(found, excluded, detected, data.family);
         }
 
+        // The player's lists, in family order as they always were applied, kept apart from detection so the files
+        // sit between the two: data beats detection, and the player beats data (SurfaceData.families).
+        Map<Integer, SurfaceFamily> listed = new HashMap<Integer, SurfaceFamily>();
         for (SurfaceFamily family : SurfaceFamily.values()) {
             FamilySettings settings = TrmtConfig.family(family);
             if (settings == null) continue;
-            applyList(built, excluded, settings.extra, family);
+            applyList(listed, excluded, settings.extra, family);
         }
 
-        dropDisabledFamilies(built);
+        Map<Integer, SurfaceFamily> built = SurfaceData.families(found, listed, data.family);
 
-        resistance = collectResistance(excluded);
+        dropDisabledFamilies(built);
+        // What the files brought, measured against this side's table with only the mod's own shipped files; kept apart
+        // from what is published, so a server's table held for a visit changes nothing here.
+        brought = Collections.unmodifiableSet(
+            SurfaceData.brought(
+                built,
+                found,
+                listed,
+                data,
+                new SurfaceData.Vanilla() {
+
+                    @Override
+                    public boolean isVanilla(int blockId) {
+                        String name = registryName(Block.getBlockById(blockId));
+                        return name != null && name.startsWith("minecraft:");
+                    }
+                }));
+
+        resistance = collectResistance(excluded, data.resistance);
+        repairWith = data.repairWith;
 
         Set<String> cover = new java.util.TreeSet<String>();
-        Set<Integer> builtCover = collectGroundCover(built, cover);
+        Set<Integer> builtCover = collectGroundCover(built, cover, data.cover);
         Set<String> holds = new java.util.TreeSet<String>();
-        Set<Integer> builtHolds = collectHolders(builtCover, holds);
-        ownFingerprint = SurfaceTableCodec
-            .fingerprint(ordinals(built), builtCover, builtHolds, TrmtConfig.groundCoverHolds);
+        Set<Integer> builtHolds = collectHolders(builtCover, holds, data.cover);
+        // The shapes the files give (W3 spec 2.4, T6), resolved for the blocks this game has; sent in the table, so a
+        // client that has other shape data, or none, stands where the server says.
+        Map<Integer, DataShape> builtShapes = Collections
+            .unmodifiableMap(SurfaceData.shapes(dataTable, dataNames(excluded)));
+        // The blocks' own chains (W3 T9): a file's wearsThroughTo, on the states that wear as the family it was written
+        // for. Sent in the table, so a client draws each block on the server's chain.
+        Map<Integer, SurfaceFamily[]> builtChains = Collections.unmodifiableMap(SurfaceData.chains(built, found, data));
+        // The server's data folded in (W3 spec 2.2): a client whose mods or packs give it other families, shapes or
+        // wearers uses the server's table for the visit. No data leaves the fingerprint as it always was.
+        ownFingerprint = SurfaceData.withData(
+            ChainTable.fingerprint(
+                SurfaceTableCodec
+                    .fingerprint(ordinals(built), builtCover, builtHolds, TrmtConfig.groundCoverHolds, builtShapes),
+                chainOrdinals(builtChains)),
+            dataTable.fingerprint());
 
         // A server's table in use for the visit is published again rather than this side's own, so no
         // rebuild made while connected - a reload, the config screen, a family changing hands - can
@@ -369,14 +544,15 @@ public final class SurfaceRegistry {
         // runs and is still written down below; only what is published waits for the visit to end.
         Held visiting = held;
         if (visiting != null) {
-            publish(visiting.table, visiting.cover, visiting.holds);
+            publish(visiting.table, visiting.cover, visiting.holds, visiting.shapes, visiting.chains);
         } else {
-            publish(Collections.unmodifiableMap(built), builtCover, builtHolds);
+            publish(Collections.unmodifiableMap(built), builtCover, builtHolds, builtShapes, builtChains);
         }
 
         // Detection is only useful if you can see and override what it decided, so what it
         // found is written back into the per-family block lists. Turn autoDetect off and those
-        // lists become the whole story, editable by hand.
+        // lists become the whole story, editable by hand. Detection's findings only: what the data
+        // files say is never written here, so removing a mod leaves nothing of it in the config.
         if (TrmtConfig.writeDetectedSurfaces) {
             TrmtConfig.recordDetectedSurfaces(detected);
             TrmtConfig.recordDetectedGroundCover(cover);
@@ -395,7 +571,7 @@ public final class SurfaceRegistry {
     // ------------------------------------------------------------------
 
     private static void autoDetect(Map<Integer, SurfaceFamily> out, Set<String> excluded,
-        Map<SurfaceFamily, Set<String>> detected) {
+        Map<SurfaceFamily, Set<String>> detected, Map<Integer, String> decidedByData) {
         // Iterated as Object because Forge's registry is generic while vanilla's is raw;
         // this compiles against either without a cast warning at the call site.
         for (Object candidate : Block.REGISTRY) {
@@ -409,8 +585,12 @@ public final class SurfaceRegistry {
             // detection would happily classify them as terrain and start generating wear
             // textures for the things that draw wear textures.
             if (name.startsWith(Trmt.MODID + ":")) continue;
+            // The original TRMT's eroded blocks copy grass, dirt and sand, so detection would claim them and paint
+            // over that mod's wear; its namespace is never a surface here, loaded or not (D60, W5 spec 2.11).
+            if (OriginalBlocks.standsAside(name)) continue;
 
-            SurfaceFamily whole = classifyMaterial(block, name);
+            BlockFacts facts = BlockFacts.of(block, name);
+            SurfaceFamily whole = Detection.classify(facts);
             if (whole == null) continue;
 
             int id = Block.getIdFromBlock(block);
@@ -423,7 +603,7 @@ public final class SurfaceRegistry {
             SurfaceFamily[] byMeta = new SurfaceFamily[16];
             boolean split = false;
             for (int meta = 0; meta < 16; meta++) {
-                byMeta[meta] = gateShape(block, refineSlab(block, name, whole, meta));
+                byMeta[meta] = gateShape(facts, Detection.atValue(facts, whole, meta));
                 if (byMeta[meta] != byMeta[0]) split = true;
             }
 
@@ -435,6 +615,10 @@ public final class SurfaceRegistry {
                 if (settings == null || !settings.autoDetect) continue;
 
                 out.put(Integer.valueOf(key(id, meta)), family);
+
+                // A state a data file decides is not written into the lists: it would read back as the player's
+                // line, and detection's own record would overrule the file that beat it.
+                if (decidedByData.containsKey(Integer.valueOf(key(id, meta)))) continue;
 
                 Set<String> names = detected.get(family);
                 if (names == null) {
@@ -449,21 +633,6 @@ public final class SurfaceRegistry {
         }
     }
 
-    /**
-     * Classifies one block.
-     *
-     * <p>
-     * Material leads, name only excludes. An earlier version required the name to say "grass"
-     * or "dirt" as well, and that quietly missed things: Biomes O' Plenty's mud registers as
-     * {@code mud} on the <em>sand</em> material, so it matched neither the dirt rule nor the
-     * sand one. Asking what a block is made of and then ruling out the near-misses by name
-     * catches modded terrain whatever its author decided to call it.
-     *
-     * <p>
-     * Leading with material is only safe because detection now writes what it decided into the
-     * config. Anything it over-reaches on is visible in a list and one edit away, which is a far
-     * better failure than terrain that silently never wears.
-     */
     /**
      * True for the one block that is never ground, however it is named or listed: frosted ice, which is
      * ice by material, laid by Frost Walker and melted again by the game within seconds. Counted, it put
@@ -487,79 +656,32 @@ public final class SurfaceRegistry {
      * name-matching would have been enough; the question was never what a block is called.
      *
      * <p>
-     * Asked of every metadata because a block may carry one for some subtypes and not others,
-     * and asked defensively because it reaches arbitrary code in a 233-mod pack.
+     * Asked of each metadata value on its own, as the game asks it: {@code Chunk} holds a tile entity
+     * only where {@code hasTileEntity} says so for the state at that position, whether it makes one
+     * itself or is handed one, and refuses one anywhere else. Forge's own answer for an
+     * {@code ITileEntityProvider} is yes for every state, so a provider is asked no differently: one
+     * that says no for a value holds nothing there and makes nothing there, and that value wears.
+     * Galacticraft's moon and Mars rock on 1.7.10 are the ones that found this: one block for the
+     * ground, the rock under it and the boss spawner, with the spawner's tile entity at one value
+     * alone, and asked of the block as a whole that one value kept all sixteen out (Xep, 2026-11-09:
+     * "Fix it, per-value rule").
+     *
+     * <p>
+     * A value that says yes is kept out even where {@code createTileEntity} makes nothing: the game
+     * still lets one be set there, which is how the moving piston gets its own (its block makes none,
+     * and the piston hands it one).
+     *
+     * <p>
+     * Asked defensively because it reaches arbitrary code in a 233-mod pack: a value that cannot
+     * answer is a value to leave alone.
      */
-    private static boolean keepsItsOwnState(Block block) {
-        if (block instanceof ITileEntityProvider) return true;
-        for (int meta = 0; meta < 16; meta++) {
-            try {
-                if (block.hasTileEntity(stateOf(block, meta))) return true;
-            } catch (RuntimeException awkwardBlock) {
-                // A block that cannot answer is a block to leave alone.
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Which family this block belongs to, or null for one that does not wear.
-     *
-     * <p>
-     * The shape is asked last rather than first. What a slab is made of is the same question as
-     * what a whole block of it is made of, and it is answered by the same rules; whether a family
-     * lets its slabs wear is a separate decision that cannot be taken until the family is known.
-     */
-    private static SurfaceFamily classify(Block block, String registryName) {
-        return gateShape(block, classifyMaterial(block, registryName));
-    }
-
-    /**
-     * Which family one metadata value of a slab belongs to.
-     *
-     * <p>
-     * A slab block is several materials wearing one name. Vanilla packs stone, sandstone, wood,
-     * cobble, brick, stone brick, nether brick and quartz into a single id, and the doubled form -
-     * two slabs stacked, which is a different block again and a full cube - packs the same eight.
-     * Classifying by the block's registry name therefore answers for all of them at once and gets
-     * seven of the eight wrong: a cobblestone double slab came out as stone, because "stone" is in
-     * the name and cobble is not.
-     *
-     * <p>
-     * {@code BlockSlab} already knows the answer and will say so per metadata value. What it
-     * returns is an unlocalized name - "tile.stoneSlab.cobble" - so the last segment is the word
-     * that says what the thing is made of, and the shape words come off it for the same reason
-     * they come off a registry name. That word then goes through the ordinary rules, so a slab is
-     * classified by exactly what a whole block of the same stuff would be.
-     *
-     * <p>
-     * The upper-half bit is masked off first: it says which half of the cell a slab occupies and
-     * has nothing to do with what it is made of, and a doubled slab does not use it at all.
-     */
-    private static SurfaceFamily refineSlab(Block block, String registryName, SurfaceFamily whole, int meta) {
-        if (!(block instanceof BlockSlab)) return whole;
-
-        String subtype;
+    static boolean keepsItsOwnState(Block block, int meta) {
         try {
-            subtype = ((BlockSlab) block).getTranslationKey(meta & 7);
-        } catch (RuntimeException awkwardSlab) {
-            // A slab that cannot say what it is is left as whatever its name suggested, which is
-            // what every slab got before this existed.
-            return whole;
+            return block.hasTileEntity(stateOf(block, meta));
+        } catch (RuntimeException awkwardBlock) {
+            // A value that cannot answer is a value to leave alone.
+            return true;
         }
-        if (subtype == null || subtype.isEmpty()) return whole;
-
-        String word = withoutShapeWords(
-            subtype.substring(subtype.lastIndexOf('.') + 1)
-                .toLowerCase(Locale.ROOT));
-        if (word.isEmpty()) return whole;
-
-        // Whatever the word says, including nothing. A slab of stone brick is stone brick, and a
-        // whole block of stone brick is decorative stonework this mod leaves alone, so a slab of it
-        // is left alone too - falling back on the block's name here would have wandered off in the
-        // other direction and worn it as plain stone.
-        return classifyMaterial(block, "minecraft:" + word);
     }
 
     /**
@@ -570,225 +692,14 @@ public final class SurfaceRegistry {
      * made of does not depend on what shape it was cut into, and whether that shape wears is the
      * family's decision rather than the block's.
      */
-    private static SurfaceFamily gateShape(Block block, SurfaceFamily family) {
+    static SurfaceFamily gateShape(BlockFacts facts, SurfaceFamily family) {
         if (family == null) return null;
-        SurfaceShape shape = SurfaceShape.of(block);
+        SurfaceShape shape = facts.shape();
         if (!shape.isPartial()) return family;
 
         FamilySettings settings = TrmtConfig.family(family);
         if (settings == null) return null;
-        if (shape == SurfaceShape.SLAB && !settings.slabs) return null;
-        if (shape == SurfaceShape.STAIR && !settings.stairs) return null;
-        return family;
-    }
-
-    private static SurfaceFamily classifyMaterial(Block block, String registryName) {
-        String lower = registryName.toLowerCase(Locale.ROOT);
-        String simple = lower.substring(lower.indexOf(':') + 1);
-        Material material = block.getDefaultState()
-            .getMaterial();
-        SurfaceShape shape = SurfaceShape.of(block);
-        // A slab is named for the block it was cut from with the shape tacked on, and every rule
-        // below that reads a name wants the material rather than the shape: "stone_slab" must
-        // reach the same answer "stone" does, and "sandstone_slab" must be refused for the same
-        // reason sandstone is. Stripping the word is what makes one set of rules serve both.
-        //
-        // Asked of the class rather than of the shape, because a doubled slab is a full cube and
-        // still a slab by name - and "slab" is on the decorative-stonework list, so leaving the
-        // word on refused every doubled slab in the game before its metadata was ever consulted.
-        if (shape.isPartial() || block instanceof BlockSlab || block instanceof BlockStairs) {
-            simple = withoutShapeWords(simple);
-        }
-
-        if (block instanceof BlockLeaves || material == Material.LEAVES) return SurfaceFamily.LEAVES;
-
-        if ((material == Material.PLANTS || material == Material.VINE) && !block.getDefaultState()
-            .isFullCube()) {
-            return SurfaceFamily.VEGETATION;
-        }
-
-        // Anything that is not a full opaque cube cannot carry a path overlay: a slab or a
-        // fence would show the ghost block's geometry rather than its own. This is also what
-        // keeps farmland and grass paths out, both of which stand a pixel short.
-        // Ice is the exception to opacity, not to shape: it fills its space exactly, it is
-        // simply clear. Asking for a full cube by sight would refuse every frozen surface in
-        // the game, so this asks whether the block fills its space instead.
-        boolean clearButSolid = material == Material.ICE || material == Material.PACKED_ICE;
-        // And a block that says outright it fills its whole cell while saying it is no opaque cube
-        // is the same exception by its own word. Chisel's waterstone is the one this is for: GTNH's
-        // Chisel on 1.7.10 makes it a plain opaque cube, so that edition wears it, while Chisel for
-        // 1.12.2 builds it opaque(false) - its water shows through a carved shell drawn in the pass
-        // that blends - so it answers no to both questions below and yes only to isFullBlock, and was
-        // never detected at all until 2026-10-08. Chisel's ice is built the same way and was missed
-        // for the same reason, ice by material or not, where the other edition wears chisel:ice and
-        // chisel:ice_pillar. Vanilla's isFullBlock is its opacity, set from the same answer when a
-        // block is made, so no vanilla block moves.
-        boolean wholeButSeenThrough = block.getDefaultState()
-            .isFullBlock() && !block.isOpaqueCube(block.getDefaultState());
-        // A slab is the one thing that is not a full cube and is still plainly ground: you walk on
-        // it, and the top of it is the same sixteen by sixteen picture the block it was cut from
-        // has. Whether it counts is the family's own decision, taken once the family is known, so
-        // the shape is let past here and refused further down.
-        if (!shape.isPartial() && !wholeButSeenThrough
-            && (!block.getDefaultState()
-                .isFullCube() || (!block.isOpaqueCube(block.getDefaultState()) && !clearButSolid))) {
-            return null;
-        }
-
-        if (keepsItsOwnState(block)) return null;
-
-        // Extending the vanilla class is the strongest signal there is, and costs one check.
-        if (block instanceof BlockGrass) return SurfaceFamily.GRASS;
-        if (block instanceof BlockDirt) return SurfaceFamily.DIRT;
-        if (block instanceof BlockGravel) return SurfaceFamily.GRAVEL;
-        if (block instanceof BlockSand) return SurfaceFamily.SAND;
-
-        if (isWorkedGround(simple)) return null;
-
-        if (material == Material.GRASS) return SurfaceFamily.GRASS;
-        if (material == Material.GROUND) return SurfaceFamily.DIRT;
-
-        // Snow and ice are led by material rather than by name, and for once that is the safe
-        // way round: these materials name exactly the blocks meant, where "ice" as a word turns
-        // up inside pumice, lattice and half the pack's chemistry.
-        if (material == Material.CRAFTED_SNOW || material == Material.SNOW) return SurfaceFamily.SNOW;
-        // Except frosted ice, which is ice by material and not ground at all: Frost Walker lays it and
-        // the game melts it again within seconds. Counted, it put a platform of it in every
-        // demonstrate yard, which melted and poured off the edge - found by the 0.9.219 photograph
-        // pass, as a waterfall the 1.7.10 yard does not have. That edition has no such block, so
-        // leaving it out is what its rule, the ground of frozen water, means here.
-        if (neverGround(block)) return null;
-        if (material == Material.ICE || material == Material.PACKED_ICE) return SurfaceFamily.ICE;
-
-        if (material == Material.SAND) {
-            if (contains(simple, "soul")) return null;
-            if (contains(simple, "gravel")) return SurfaceFamily.GRAVEL;
-            // Mud, silt and clay are earth that happens to be built on sand's material; they
-            // should wear like ground rather than like a beach.
-            if (contains(simple, "mud", "loam", "silt", "clay", "earth")) return SurfaceFamily.DIRT;
-            if (contains(simple, "stone")) return null; // sandstone and its many cousins
-            return SurfaceFamily.SAND;
-        }
-
-        // The nether and the end are checked before the decorative-stonework filter rather
-        // than after, because their brick and tile forms are simply the ground of those places
-        // rather than something a builder laid, and that filter would throw them out on the
-        // word "brick" alone. Ores are still excluded: a road worn across an ore seam should
-        // wear the seam's surroundings, not the seam.
-        if (material == Material.ROCK && !contains(simple, "ore")) {
-            if (contains(simple, "nether") && !contains(simple, "quartz")) return SurfaceFamily.NETHER;
-            if (contains(simple, "endstone", "end_stone", "purpur", "endbrick", "end_brick")) {
-                return SurfaceFamily.END;
-            }
-        }
-
-        // Rock stays name-led: the material covers ores, casings and half the decorative blocks
-        // in the pack, so leading with it here would sweep up far more than ground.
-        if (material == Material.ROCK && !isDecorativeStonework(simple)) {
-            if (contains(simple, "cobble")) return SurfaceFamily.COBBLE;
-            if (contains(simple, "stone", "granite", "diorite", "andesite", "marble", "basalt", "limestone", "slate")) {
-                return SurfaceFamily.STONE;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Ground somebody has already made something of, which should stay as they left it.
-     *
-     * <p>
-     * The bale entries are not tilled ground at all - a hay bale is built on the grass material,
-     * so leading with material sweeps it in as turf. It is a stored crop sitting in a barn, not
-     * a field anyone walks a path across.
-     */
-    /**
-     * A shaped block's name with the shape taken off it.
-     *
-     * <p>
-     * Only ever applied to a block whose class already said what shape it is, so this is not
-     * guessing from a name - it is removing a word the name is known to contain. That matters,
-     * because "step" and "slab" turn up inside plenty of blocks that are neither.
-     */
-    private static String withoutShapeWords(String simple) {
-        String out = simple;
-        for (String word : SHAPE_WORDS) {
-            if (out.endsWith(word)) {
-                out = out.substring(0, out.length() - word.length());
-                break;
-            }
-        }
-        while (out.endsWith("_") || out.endsWith(".")) out = out.substring(0, out.length() - 1);
-        // And the front, because two slabs stacked are a block of their own and vanilla names it
-        // by saying so: double_stone_slab has to reach the same answer stone does.
-        if (out.startsWith("double_")) out = out.substring("double_".length());
-        else if (out.startsWith("double")) out = out.substring("double".length());
-        while (out.startsWith("_") || out.startsWith(".")) out = out.substring(1);
-        return out.isEmpty() ? simple : out;
-    }
-
-    /** Longest first, so "_slabs" is not left with a trailing s by the shorter match. */
-    private static final String[] SHAPE_WORDS = { "_halfslab", "halfslab", "_slabs", "_slab", "slabs", "slab",
-        "_stairs", "_stair", "stairs", "stair", "_steps", "_step", "steps" };
-
-    private static boolean isWorkedGround(String simple) {
-        return contains(
-            simple,
-            "path",
-            "farmland",
-            "tilled",
-            "soil",
-            "crop",
-            "garden",
-            "planter",
-            "hay",
-            "bale",
-            "thatch",
-            "straw");
-    }
-
-    /**
-     * Filters out worked stone and everything wearing a stone material for other reasons.
-     * GregTech alone contributes a great many rock-material blocks that are machinery,
-     * casings or ores rather than ground you could wear a track into.
-     */
-    private static boolean isDecorativeStonework(String simple) {
-        return contains(
-            simple,
-            "ore",
-            "brick",
-            "casing",
-            "machine",
-            "wall",
-            "stair",
-            "slab",
-            "chiseled",
-            "carved",
-            "pillar",
-            "sandstone",
-            "redstone",
-            "lodestone",
-            "grindstone",
-            "gemstone",
-            "furnace",
-            "block_of",
-            "polished",
-            "tile",
-            "pressure",
-            "button",
-            "monster",
-            "spawner",
-            "obsidian",
-            "netherrack",
-            "endstone",
-            "end_stone");
-    }
-
-    private static boolean contains(String haystack, String... needles) {
-        for (String needle : needles) {
-            if (haystack.contains(needle)) return true;
-        }
-        return false;
+        return Detection.letIn(family, shape, settings.slabs, settings.stairs);
     }
 
     // ------------------------------------------------------------------
@@ -820,6 +731,8 @@ public final class SurfaceRegistry {
             }
 
             if (excluded.contains(name.toLowerCase(Locale.ROOT))) continue;
+            // Not even by the player's own line: the other mod's blocks are its own (D60, W5 spec 2.11).
+            if (OriginalBlocks.standsAside(name)) continue;
 
             Block block = Block.getBlockFromName(name);
             if (block == null) {
@@ -832,11 +745,8 @@ public final class SurfaceRegistry {
             // A list is taken at its word about which family a block belongs to, but not about
             // whether it can carry an overlay at all. Detection writes what it finds back into
             // these lists and never removes an entry, so one bad name recorded on an older
-            // build would otherwise be re-added on every load for ever.
-            if (keepsItsOwnState(block)) {
-                Trmt.LOG.debug("Surface entry '{}' keeps a tile entity, skipping", entry);
-                continue;
-            }
+            // build would otherwise be re-added on every load for ever. Value by value, as detection
+            // asks it, where the values are taken below.
             // Nor about whether it is ground at all, for the block that never is. Detection on 0.9.218
             // and earlier recorded frosted ice in the ice list of every config it ran in, and the list
             // keeps it, so refusing it in detection alone left every world opened before the fix still
@@ -848,15 +758,18 @@ public final class SurfaceRegistry {
 
             if (meta == ANY_META) {
                 for (int m = 0; m < 16; m++) {
+                    if (keepsItsOwnState(block, m)) continue;
                     out.put(Integer.valueOf(key(id, m)), family);
                 }
+            } else if (keepsItsOwnState(block, meta & 0xF)) {
+                Trmt.LOG.debug("Surface entry '{}' keeps a tile entity, skipping", entry);
             } else {
                 out.put(Integer.valueOf(key(id, meta & 0xF)), family);
             }
         }
     }
 
-    private static Set<String> parseNameSet(String[] entries) {
+    public static Set<String> parseNameSet(String[] entries) {
         Set<String> set = new HashSet<String>();
         if (entries != null) {
             for (String entry : entries) {
@@ -941,7 +854,7 @@ public final class SurfaceRegistry {
         return found == null ? 1f : found.floatValue();
     }
 
-    private static Map<Integer, Float> collectResistance(Set<String> excluded) {
+    private static Map<Integer, Float> collectResistance(Set<String> excluded, Map<Integer, Float> fromData) {
         Map<Integer, Float> built = new HashMap<Integer, Float>();
         for (SurfaceFamily family : SurfaceFamily.values()) {
             FamilySettings settings = TrmtConfig.family(family);
@@ -953,7 +866,102 @@ public final class SurfaceRegistry {
                 built.put(state, Float.valueOf(settings.resistance));
             }
         }
-        return Collections.unmodifiableMap(built);
+        // A file's resistance under the player's resistant lists, which win where both name a state.
+        return Collections.unmodifiableMap(SurfaceData.resistance(fromData, built));
+    }
+
+    /**
+     * What else a data file says pays for mending this block state ({@code repairWith}), in the config lists'
+     * spelling, besides what its family's repairBlocks names. Empty for most blocks. Server side; read by
+     * {@code HealingCost}, which bone meal, the chunk tamper and the golem all pay through.
+     */
+    public static String[] repairWithOf(Block block, int meta) {
+        if (block == null) return new String[0];
+        Map<Integer, String[]> current = repairWith;
+        if (current.isEmpty()) return new String[0];
+        int id = Block.getIdFromBlock(block);
+        if (id < 0) return new String[0];
+        return SurfaceData.repairWith(current, id, meta);
+    }
+
+    /**
+     * The id of a block a data file names, or -1 where it has none here: not installed, excluded by the player, this
+     * mod's own, or another wear mod's (D60) - the same guards detection and the lists keep, for the same reasons. A
+     * value keeping a tile entity is the fourth, asked value by value ({@link #dataValueKeepsState}).
+     */
+    private static int dataBlockId(String name, Set<String> excluded) {
+        if (name == null || excluded.contains(name.toLowerCase(Locale.ROOT))) return -1;
+        if (name.startsWith(Trmt.MODID + ":")) return -1;
+        if (OriginalBlocks.standsAside(name)) return -1;
+        Block block = Block.getBlockFromName(name);
+        if (block == null || block == Blocks.AIR) return -1;
+        return Block.getIdFromBlock(block);
+    }
+
+    /** Whether one value of a block a data file names keeps a tile entity, and so does not wear, as detection asks. */
+    private static boolean dataValueKeepsState(String name, int meta) {
+        Block block = Block.getBlockFromName(name);
+        if (block == null || !keepsItsOwnState(block, meta)) return false;
+        Trmt.LOG.debug(
+            "A data file names {}:{}, which keeps a tile entity, so it does not wear",
+            name,
+            Integer.valueOf(meta));
+        return true;
+    }
+
+    /**
+     * How a data file's block names are found in this game: each name's id past {@link #dataBlockId}'s guards, and each
+     * state's properties, so a selector naming them ({@code ns:name[half=bottom]}, read from 1.12.2 on) matches the
+     * metadata values whose state has them.
+     */
+    private static SurfaceData.Names dataNames(final Set<String> excluded) {
+        return new SurfaceData.Names() {
+
+            @Override
+            public int idOf(String blockName) {
+                return dataBlockId(blockName, excluded);
+            }
+
+            @Override
+            public boolean keepsStateAt(String blockName, int meta) {
+                return dataValueKeepsState(blockName, meta);
+            }
+
+            @Override
+            public Map<String, String> properties(int blockId, int meta) {
+                return propertiesOf(Block.getBlockById(blockId), meta);
+            }
+        };
+    }
+
+    /**
+     * The properties of the state a block takes at this metadata value, names and values as the game spells them in a
+     * block-state string ({@code half=bottom}), sorted by name; null for no block. What a data file's
+     * {@code [prop=value]} selector is matched against, here and by the looks a client reads.
+     */
+    public static Map<String, String> propertiesOf(Block block, int meta) {
+        if (block == null) return null;
+        net.minecraft.block.state.IBlockState state = stateOf(block, meta);
+        Map<String, String> out = new java.util.TreeMap<String, String>();
+        for (Map.Entry<net.minecraft.block.properties.IProperty<?>, Comparable<?>> each : state.getProperties()
+            .entrySet()) {
+            out.put(
+                each.getKey()
+                    .getName(),
+                valueName(each.getKey(), each.getValue()));
+        }
+        return out;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static String valueName(net.minecraft.block.properties.IProperty property, Comparable value) {
+        return property.getName(value);
+    }
+
+    /** The block a packed state key belongs to, by its registry name lower-cased, or null. */
+    private static String lowerNameOf(int packed) {
+        String name = registryName(Block.getBlockById(packed >> 4));
+        return name == null ? null : name.toLowerCase(Locale.ROOT);
     }
 
     // ------------------------------------------------------------------
@@ -1006,11 +1014,12 @@ public final class SurfaceRegistry {
      */
     private static boolean looksPlanted(Block block, String simple) {
         if (block instanceof BlockSapling || block instanceof BlockFlower) return true;
-        return contains(simple, "sapling", "seedling", "sprout_tree");
+        return Detection.contains(simple, "sapling", "seedling", "sprout_tree");
     }
 
     /** Builds the holding set out of the cover set, by detection and by hand. */
-    private static Set<Integer> collectHolders(Set<Integer> cover, Set<String> detected) {
+    private static Set<Integer> collectHolders(Set<Integer> cover, Set<String> detected,
+        Map<Integer, String> fromData) {
         Set<String> excluded = parseNameSet(TrmtConfig.groundCoverHoldsExclude);
         Set<Integer> holds = new HashSet<Integer>();
 
@@ -1034,7 +1043,8 @@ public final class SurfaceRegistry {
                     Integer at = Integer.valueOf(key(id, meta));
                     if (!cover.contains(at)) continue;
                     holds.add(at);
-                    any = true;
+                    // Recorded only where no data file says whether it holds: the file's answer is never written in.
+                    if (!fromData.containsKey(at)) any = true;
                 }
                 if (any) detected.add(name);
             }
@@ -1042,14 +1052,24 @@ public final class SurfaceRegistry {
 
         Map<Integer, SurfaceFamily> listed = new HashMap<Integer, SurfaceFamily>();
         applyList(listed, excluded, TrmtConfig.groundCoverHoldsBlocks, SurfaceFamily.VEGETATION);
+        Set<Integer> listedHolds = new HashSet<Integer>();
         for (Integer at : listed.keySet()) {
             if (!cover.contains(at)) continue;
-            holds.add(at);
+            listedHolds.add(at);
             Integer ready = growthTwin(at.intValue());
-            if (ready != null) holds.add(ready);
+            if (ready != null) listedHolds.add(ready);
         }
 
-        return Collections.unmodifiableSet(holds);
+        // A data file's holds or breaks between detection and the player's list (W3 T5), and never for a block the
+        // player keeps from holding.
+        Map<Integer, String> data = new HashMap<Integer, String>();
+        for (Map.Entry<Integer, String> each : fromData.entrySet()) {
+            String name = lowerNameOf(
+                each.getKey()
+                    .intValue());
+            if (name != null && !excluded.contains(name)) data.put(each.getKey(), each.getValue());
+        }
+        return Collections.unmodifiableSet(SurfaceData.holds(cover, holds, listedHolds, data));
     }
 
     /**
@@ -1114,8 +1134,8 @@ public final class SurfaceRegistry {
         }
         if (block.getDefaultState()
             .isFullCube()) return false;
-        if (!(block instanceof IPlantable)) return false;
-        return !keepsItsOwnState(block);
+        // A value keeping a tile entity is left out where the values are taken, one by one, as detection leaves it.
+        return block instanceof IPlantable;
     }
 
     /**
@@ -1132,7 +1152,8 @@ public final class SurfaceRegistry {
      * whether to switch it on. That is the same bargain the surface detection already makes, and
      * it costs a walk that has just happened anyway.
      */
-    private static Set<Integer> collectGroundCover(Map<Integer, SurfaceFamily> built, Set<String> detected) {
+    private static Set<Integer> collectGroundCover(Map<Integer, SurfaceFamily> built, Set<String> detected,
+        Map<Integer, String> fromData) {
         Set<String> excluded = parseNameSet(TrmtConfig.groundCoverExclude);
         Set<Integer> cover = new HashSet<Integer>();
 
@@ -1150,11 +1171,17 @@ public final class SurfaceRegistry {
                 int id = Block.getIdFromBlock(block);
                 if (id < 0) continue;
                 // All sixteen, for the reason detection claims all sixteen everywhere else: which
-                // metadata values a block actually uses is not a question the registry answers.
+                // metadata values a block actually uses is not a question the registry answers. All
+                // but a value keeping a tile entity, which detection leaves alone value by value.
+                boolean any = false;
                 for (int meta = 0; meta < 16; meta++) {
+                    if (keepsItsOwnState(block, meta)) continue;
                     cover.add(Integer.valueOf(key(id, meta)));
+                    any = true;
                 }
-                detected.add(name);
+                if (!any) continue;
+                // Not written into the list where a data file already says it is cover (W3 T5).
+                if (!SurfaceData.decidedAnywhere(fromData, id)) detected.add(name);
             }
         }
 
@@ -1164,6 +1191,16 @@ public final class SurfaceRegistry {
         Map<Integer, SurfaceFamily> listed = new HashMap<Integer, SurfaceFamily>();
         applyList(listed, excluded, TrmtConfig.groundCoverBlocks, SurfaceFamily.VEGETATION);
         cover.addAll(listed.keySet());
+
+        // Every block a data file gives a cover (W3 T5), unless the player excluded it from the cover.
+        Map<Integer, String> data = new HashMap<Integer, String>();
+        for (Map.Entry<Integer, String> each : fromData.entrySet()) {
+            String name = lowerNameOf(
+                each.getKey()
+                    .intValue());
+            if (name != null && !excluded.contains(name)) data.put(each.getKey(), each.getValue());
+        }
+        cover = SurfaceData.cover(cover, data);
 
         // Nothing that wears may also be knocked over. The material rule makes this impossible on
         // its own, but a hand-written entry can put any name in any list, and a config that

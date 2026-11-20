@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "ZyCraft, from ATM6's census (W4 R6, judged 2026-11-11). Zychorite is natural rock its worlds lay in the ground, and the rules leave it out for having no stone word. Named alone, the one block that census judged, because a word a rule could read would take other mods' blocks with it. Its bricks and made blocks were not judged and are left to the rules."
+  ],
+  "entries": [
+    { "blocks": ["zycraft:zychorite"], "family": "stone" }
+  ]
+}

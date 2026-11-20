@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "_": [
+    "A slab or stair takes its full block's ruling (Xep, 2026-11-13: Can we make it so all slabs of blocks that wear, also wear, in their own like the full blocks do? and: Same with stairs as slabs; W4 R15). These are this mod's slabs and stairs whose full blocks a census of 1.20.1 judged, each named at its full block's family so it wears on its own texture as the full block does. A slab or stair of a block the census excluded, or never judged, is left as it was."
+  ],
+  "entries": [
+    { "blocks": ["absentbydesign:slab_mud", "absentbydesign:stairs_mud"], "family": "dirt" },
+    { "blocks": ["absentbydesign:slab_end_stone", "absentbydesign:stairs_end_stone"], "family": "end" },
+    { "blocks": ["absentbydesign:slab_moss", "absentbydesign:stairs_moss"], "family": "grass" },
+    { "blocks": ["absentbydesign:slab_blue_ice", "absentbydesign:slab_packed_ice", "absentbydesign:stairs_blue_ice", "absentbydesign:stairs_packed_ice"], "family": "ice" },
+    { "blocks": ["absentbydesign:slab_basalt", "absentbydesign:slab_magma", "absentbydesign:slab_netherrack", "absentbydesign:slab_soul_soil", "absentbydesign:stairs_basalt", "absentbydesign:stairs_magma", "absentbydesign:stairs_netherrack", "absentbydesign:stairs_soul_soil"], "family": "nether" },
+    { "blocks": ["absentbydesign:slab_soul_sand", "absentbydesign:stairs_soul_sand"], "family": "sand" },
+    { "blocks": ["absentbydesign:slab_sculk", "absentbydesign:stairs_sculk"], "family": "sculk" },
+    { "blocks": ["absentbydesign:slab_amethyst", "absentbydesign:slab_calcite", "absentbydesign:slab_deepslate", "absentbydesign:slab_dripstone", "absentbydesign:slab_obsidian", "absentbydesign:slab_smooth_basalt", "absentbydesign:slab_terracotta", "absentbydesign:slab_tuff", "absentbydesign:stairs_amethyst", "absentbydesign:stairs_calcite", "absentbydesign:stairs_deepslate", "absentbydesign:stairs_dripstone", "absentbydesign:stairs_obsidian", "absentbydesign:stairs_smooth_basalt", "absentbydesign:stairs_terracotta", "absentbydesign:stairs_tuff"], "family": "stone" }
+  ]
+}

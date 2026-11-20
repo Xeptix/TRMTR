@@ -95,7 +95,13 @@ public class GhostModelNeoForge implements IDynamicBakedModel {
         if (square == null) return IDynamicBakedModel.super.getRenderTypes(state, random, data);
         net.minecraft.client.renderer.RenderType only = com.trmtgtnh.client.GhostLayers
             .of(Client.ghostOriginAt(square.pos.getX(), square.pos.getY(), square.pos.getZ()));
-        return only == null ? IDynamicBakedModel.super.getRenderTypes(state, random, data) : ChunkRenderTypeSet.of(only);
+        if (only == null) return IDynamicBakedModel.super.getRenderTypes(state, random, data);
+        // A square with a glow overlay is drawn in the cutout pass as well, where the overlay is: its clear pixels are
+        // discarded, so only the pixels that glow are drawn there (0.9.228, real glow).
+        if (only != net.minecraft.client.renderer.RenderType.cutout() && squareGlows(square)) {
+            return ChunkRenderTypeSet.of(only, net.minecraft.client.renderer.RenderType.cutout());
+        }
+        return ChunkRenderTypeSet.of(only);
     }
 
     @Override
@@ -122,6 +128,21 @@ public class GhostModelNeoForge implements IDynamicBakedModel {
         //
         // Null outside a chunk rebuild, which is something else asking; those are drawn. The pass being built is
         // handed to this method from Forge 41, where 1.16.5 read it from MinecraftForgeClient.getRenderLayer.
+        // The glow overlay alone in the cutout pass of a square that draws in another (0.9.228, real glow); in its own
+        // pass, which is cutout, the overlay follows the picture.
+        net.minecraft.client.renderer.RenderType own = com.trmtgtnh.client.GhostLayers.of(origin);
+        if (building == net.minecraft.client.renderer.RenderType.cutout()
+            && own != net.minecraft.client.renderer.RenderType.cutout()) {
+            return GhostQuads.glow(
+                record,
+                origin,
+                BlockGhost.outlineAt(level, pos, origin),
+                com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin),
+                Rotations.forPosition(pos.getX(), pos.getZ()),
+                BlockGhost.snowedAt(level, pos),
+                side,
+                BlockGhost.stairBoxesAt(level, pos, origin));
+        }
         if (building != null && building != com.trmtgtnh.client.GhostLayers.of(origin)) {
             return Collections.emptyList();
         }
@@ -129,11 +150,26 @@ public class GhostModelNeoForge implements IDynamicBakedModel {
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), ErosionState.sinkOf(record));
+        int rotation = com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin);
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
 
-        return GhostQuads.build(
+        if (building == null || building != own || own != net.minecraft.client.renderer.RenderType.cutout()) {
+            return GhostQuads.build(
+                level,
+                pos,
+                record,
+                origin,
+                outline,
+                rotation,
+                fringeTurn,
+                snowed,
+                side,
+                BlockGhost.stairBoxesAt(level, pos, origin));
+        }
+        List<BakedQuad> drawn = GhostQuads.build(
+            level,
+            pos,
             record,
             origin,
             outline,
@@ -142,6 +178,13 @@ public class GhostModelNeoForge implements IDynamicBakedModel {
             snowed,
             side,
             BlockGhost.stairBoxesAt(level, pos, origin));
+        List<BakedQuad> glow = GhostQuads
+            .glow(record, origin, outline, rotation, fringeTurn, snowed, side, BlockGhost.stairBoxesAt(level, pos, origin));
+        if (glow.isEmpty()) return drawn;
+        List<BakedQuad> both = new java.util.ArrayList<BakedQuad>(drawn.size() + glow.size());
+        both.addAll(drawn);
+        both.addAll(glow);
+        return both;
     }
 
     /**
@@ -158,6 +201,21 @@ public class GhostModelNeoForge implements IDynamicBakedModel {
             this.level = level;
             this.pos = pos;
         }
+    }
+
+    /** Whether this square's top has a glow overlay, which decides the passes it draws in (0.9.228, real glow). */
+    private static boolean squareGlows(Square square) {
+        int x = square.pos.getX();
+        int y = square.pos.getY();
+        int z = square.pos.getZ();
+        short record = Client.ghostRecordAt(square.level, x, y, z);
+        int origin = Client.ghostOriginAt(x, y, z);
+        return GhostQuads.hasGlow(
+            record,
+            origin,
+            Rotations.forPosition(x, z, ErosionState.sinkOf(record)),
+            Rotations.forPosition(x, z),
+            BlockGhost.snowedAt(square.level, square.pos));
     }
 
     /** Where this model keeps its square in the data it is handed back. */
@@ -213,6 +271,26 @@ public class GhostModelNeoForge implements IDynamicBakedModel {
     @Override
     public boolean useAmbientOcclusion() {
         return true;
+    }
+
+    /**
+     * No smooth lighting on a hooked square, as 1.7.10's (ApiDraw, "Light"). {@code HookQuad} says it for vanilla's
+     * renderer and Embeddium, quad by quad; Sodium reads no quad's own word and asks this, square by square, with the
+     * model data (AbstractBlockRenderContext.bufferDefaultModel, sodium-neoforge 0.6.13).
+     */
+    @Override
+    public net.neoforged.neoforge.common.util.TriState useAmbientOcclusion(BlockState state, ModelData data,
+        net.minecraft.client.renderer.RenderType building) {
+        Square square = data.get(SQUARE);
+        // The cutout pass of a square that draws in another holds nothing but the glow overlay (0.9.228, real glow), and
+        // is answered as the square's own pass is: the overlay is shaded exactly as the picture under it, the same
+        // ambient occlusion and face shade, and only its light differs, the brighter of the renderer's and the baked one
+        // (applyBakedLighting; Sodium's own merge). Answered with no smooth lighting at first, it lost the picture's
+        // ambient occlusion and drew up to half as bright again beside a rut's walls by day.
+        if (square != null && GhostQuads.drawnByHook(square.level, square.pos)) {
+            return net.neoforged.neoforge.common.util.TriState.FALSE;
+        }
+        return IDynamicBakedModel.super.useAmbientOcclusion(state, data, building);
     }
 
     @Override

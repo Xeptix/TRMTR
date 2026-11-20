@@ -1,8 +1,418 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 0.9.228 is the same release on Minecraft 1.7.10, 1.12.2,
+One version number across every edition. 1.0.0 is the same release on Minecraft 1.7.10, 1.12.2,
 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 1.0.0 - 2026-11-20
+
+**Every edition is a release.** The nine 26.1.2, 26.2 and 26.3 jars and store files carry no stage from this
+release, where they carried `-beta`; every other edition's already carried none.
+
+*Changes: 26.1.2, 26.2 and 26.3.*
+
+**Detection checked against ten modpacks and three sets of terrain mods, and corrected where it was wrong.** Each edition was run in real packs
+and the ground they generate was read back: GT New Horizons 2.8.4 and FTB Infinity Evolved 3.1.0 on 1.7.10, RLCraft
+2.9.3 and Enigmatica 2 Expert 1.93a on 1.12.2, All the Mods 6 and All of Fabric 3 on 1.16.5, All the Mods 9 and
+Prominence II on 1.20.1, All the Mods 10 and Cobblemon Official on 1.21.1, and a set of the larger terrain mods on each
+of 26.1.2, 26.2 and 26.3, with a plain game of every edition beside them. In every one, each block found as natural
+ground now wears in the family it belongs to or is left unworn on purpose. Every correction is a data file the mod
+ships, never a change to the rules, so nothing a pack did not hold moves: GalaxySpace's planets and moons wear as
+stone, Quark's basalt as nether, Enigmatica 2 Expert's dried sand as sand, Biomes O' Plenty's nether grass as nether, EvilCraft's
+infested nether soul sand as sand, and Ice and Fire's charred grass as grass, among several hundred more. Deeper and
+Darker's sculk jaw is never worn in any edition.
+
+*Changes: every edition.*
+
+**Slabs and stairs follow their full block.** A slab or stair now wears as the block it was cut from wears, or stays
+unworn where that block does: a sandstone slab wears as stone, as sandstone does, a blackstone stair as nether, a
+Better End jadestone slab as end stone. It replaces the old rule that left every slab or stair of anything but
+stone and cobblestone unworn.
+
+*Changes: every edition.*
+
+**Four new families: flesh, taint, sculk and cloud.** Sixteen families now, fourteen of which wear. Flesh (Biomes O'
+Plenty's flesh, RLCraft's parasite stain, Tinkers' congealed slime) wears at sand's prices on snow's curve and comes back
+in 37.5 in-game days. Taint (Thaumcraft's crusted taint) wears at cobblestone's prices and comes back in 125 days. Both
+sink as themselves to half a block. Sculk, vanilla's from 1.19 and Deeper and Darker's, wears through to the stone
+below it, so a deep rut shows deepslate; it comes back in 100 days. Cloud (the Twilight Forest's fluffy cloud) packs
+down four pixels and comes back in 6 days. None of them takes rain's discount. A settings file from an earlier release
+gains the new sections with these figures and keeps everything else. Wear already on fluffy cloud in a 1.7.10 or 1.16.5
+world was recorded as ice, and is lost once.
+
+*Changes: every edition.*
+
+**Mycelium wears as grass and soul sand as sand.** Nether wart keeps its square, so a path through a wart bed does not
+break the crop. Vanilla mud wears as dirt from 1.20.1 on. **A settings file from an earlier release still lists
+mycelium and soul sand in `surfaces.exclude`**, and that line wins, so in an existing world both go on not wearing until
+`minecraft:mycelium` and `minecraft:soul_sand` are taken out of it. A new settings file leaves them out. A worn soul sand
+or mud square is walked on at its worn height and at full speed, while mobs on the real block below stay slowed, and
+Soul Speed does not apply on it.
+
+*Changes: every edition.*
+
+**A line in your block lists that agrees with detection now counts as detection's.** Detection writes what it finds
+into `families.<name>.blocks`, so every settings file holds lines nobody chose. Such a line no longer outranks the data
+files the mod and other mods ship, so a correction reaches a world that already ran. A line that disagrees with
+detection was written by somebody, and still wins over everything.
+
+*Changes: every edition.*
+
+**New looks for eleven surfaces, and classic wear.** Every look is still made from the block's own pixels. Seven new
+ones were drawn for the older surfaces and are now their defaults: `sand_trodden` packs a firmer line, `gravel_parted`
+opens dark gaps between the stones, `cobble_polished` polishes the stone tops while the joints grind and crack,
+`snow_packed` flattens a walked-in track, `ice_scuffed` hazes and scratches toward frost and cracks late in the run,
+`nether_charred` flattens and darkens toward ash, and `end_bleached` goes paler with grit, its cracks opening from three
+tenths of the way in the ender dragon's purple (#AF00DD), shaded by the stone's own pixels. Gravel and cobble are rough
+and darker from their first steps, with small dark patches that grow into the end look, so early wear does not look
+like untouched ground. Four more were drawn for the new families: `flesh` bruises and goes wet, `taint` blights in
+blotches that keep spreading to the end of its run while its veins widen and brighten over the last third, `sculk`
+goes dull and grey while most of its glints go out one by one and about a fifth stay lit to the end, and `cloud` packs
+down with a rim of pushed-up fluff. Twenty-two looks in all; grass, dirt and stone
+keep theirs. **Classic wear** brings back the look a surface had before: `client.classicWear` for every surface and
+`families.<name>.classicWear` for one, both off, and both the first two rows of the wear table's look picker, which now
+scrolls. A settings file whose look is still the old default it was written with moves to the new look once, and says
+so in the log; a look you chose stays chosen.
+
+*Changes: every edition.*
+
+**Glowing wear.** Worn end stone's purple cracks, the ash on worn nether ground and the glints sculk keeps lit glow in
+the dark. Each of those pixels is drawn a second time at a light of its own, 9 of 15 on the end, 5 on the nether and 7
+on sculk, and that light is only ever raised, never lowered: at night they stay lit while the ground around them goes
+dark, and by day they are a few percent brighter than the ground at most. `client.glowingWear` is on by default. Off,
+the glow is not made at all and takes no room in the block atlas, which suits a shader pack that handles light itself.
+It takes effect on the next resource reload.
+
+*Changes: every edition.*
+
+**Worn blocks turn.** The top of a worn block is now turned a quarter at a time as well as given its own wear pattern,
+so a worn path no longer reads as one tile repeated. No block shares its turn with the four beside it, and no row
+repeats another. Only faces with no direction turn: dirt, grass, sand, gravel, snow, stone, cobble, netherrack, end
+stone and the like. Whether a face has a direction is read from its own pixels and its name, so bricks, planks, tiles,
+logs and polished or carved blocks keep their way up, in modded packs as in vanilla, and a looks file's new `turns`
+key decides for a block over both. `client.wearTurns` chooses Turn and vary (the default), Turn only (one pattern
+turned four ways, a quarter of the room in the block atlas) or Vary only (as before). A block's turn is fixed by its
+position and how far it has sunk, so it changes only when the block sinks another pixel. **When worn blocks start
+turning**, `client.wearTurnStart`, chooses Match the game, then sink (the default: until a block first sinks it keeps
+the turn the game gives the unworn block, which is none in 1.7.10 and the game's own random turn of dirt, sand, grass
+tops and the like from 1.12.2, and from the first sink each depth takes its own turn), When it first sinks (unturned
+until the first sink) or From the first stage (turned from the first, faintest stage, as the first builds of this
+update drew it). A worn block already in a world may show a different pattern once after the update; its wear does not
+change.
+
+*Changes: every edition.*
+
+**The world's wear is backed up.** As each chunk saves, its wear is also written to a small mirror in the world's
+`trmtgtnh/wear` folder, and the mirror and the rest of this mod's world data, the heal clock among it, are kept as
+dated backups in `trmtgtnh/backups`: one five minutes after a start when the newest is older than
+`general.wearBackupHours` (6), then one every 6 hours of play, one before the first load of a world by a different
+version of this mod, and one before a `/trmt` command that clears or rewrites wear in bulk: purge, showcase,
+demonstrate over standing ground, and a reload that changes which blocks wear. A world from an earlier release has its
+mirror built from its region files in the background, and a second pre-update backup with its wear follows. A chunk
+that loads with its wear missing or damaged, where the mirror holds the wear of that same save, is put back quietly,
+up to 16 chunks a session, with one line in the log. A bigger loss - more chunks than that, wear whose only copy is
+older than the chunk's last save (the world was played without this mod), a world last opened by a newer version, or
+the world's wear or this mod's world data gone as a whole - asks in single player, with Restore, Ignore and Don't ask
+again for this world; a dedicated server puts the missing wear back by itself, says so in its log and tells its
+operators as they join, with `/trmt wear restore <backup>` to pick another and `/trmt wear undo` to take it back. This
+mod's own world records, the heal clock and spawn grants, are put back from the newest backup as the world opens when
+they are missing. A restore fills only chunks whose wear is missing or damaged, never overwrites newer wear, and heals
+what it puts back by the time since the backup; a backup is taken just before it, so Undo restore puts things as they
+were. The settings screen's Restore a backup lists every backup, newest first, with its date, how many chunks it holds
+and what restoring it would change. `general.wearBackups` (on), `general.wearBackupsKept` (5) and
+`general.wearBackupDiskMb` (256) are its other settings; past either limit the oldest go, never the newest, the one
+taken before a mod update, or, for seven days of play, the one an undo stands on. Undo restore pressed while a
+restore is still being read waits, and runs as soon as the restore starts.
+
+*Changes: every edition.*
+
+**Faithful Mode.** One switch at the top of the presets, `presets.faithful`, wears and heals grass, dirt, sand, leaves
+and plants as milkucha's The Roads More Travelled does, by its own numbers read from its own jars: grass in ten stages,
+dirt in four, sand in five, grass and dirt never sinking and sand sinking to six pixels; a player's step, a ridden step
+and a step on a lead each with its own weight, and a share of each step spread to the squares ahead and beside; each
+stage healing on its own count of days, faster for a square on its own, with worn dirt healing into grass. Trampled tall
+grass becomes short grass, bone meal mends one stage of grass or dirt, and from 1.20.1 a brush mends worn sand. Earned
+wear is kept, at the same fraction of the other run, when the switch is turned either way. On a server the server's
+switch decides. Every figure it uses has a setting of its own under `faithful`.
+
+*Changes: every edition.*
+
+**Use your TRMT settings.** Where The Roads More Travelled's own `trmt.json` is in this mod's config folder, the presets
+tab offers a row that turns Faithful Mode on with that file's numbers, as one step that can be undone, and lists anything
+it could not match. `/trmt reload` looks for the file again.
+
+*Changes: every edition.*
+
+**Worlds made with The Roads More Travelled convert as they load.** Open a world made with the original mod's 0.5.1,
+without the original installed, and each of its worn blocks becomes the plain grass, dirt, coarse dirt or sand it was
+worn from, keeping its wear at the matching gradation, a part of the world at a time as it loads. Sunk sand is drawn
+sunk. Worn dirt becomes worn grass unless `conversion.dirtBecomesGrass` is off, and `conversion.enabled` turns the whole
+of it off; both are on a new Conversion tab and are the server's. The first operator or host to join is told once in
+chat, with a reminder to keep a copy of the world from before, and `/trmt status` gives the count. The original's
+lightness effect and its two potions are not carried: the effect is dropped and the potions load with no potion in
+them.
+With the original installed, nothing converts. The guide is
+[`docs/CONVERTED-WORLDS.md`](https://github.com/Xeptix/TRMTR/blob/master/docs/CONVERTED-WORLDS.md).
+
+*Changes: 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Another wear mod installed alongside is named once.** This mod never takes a block of The Roads More Travelled's own
+into any family. With the original installed too, on 1.20.1, 1.21.1 and 26.1.2, the first operator or host is told once
+that its worn blocks are left to it; with Worn Path installed, on 1.21.1, 26.1.2 and 26.2, that both mods wear grass and
+how to leave grass to Worn Path. Nothing is switched off.
+
+*Changes: 1.20.1, 1.21.1, 26.1.2 and 26.2.*
+
+**A developer API, trmtr-api 1.0.0.** A mod, a resource pack or a data pack can now tell this mod which family a block
+belongs to, how hard it wears and what mends it, what a block's wear looks like, up to sixteen hand-drawn stages of it,
+which shape it wears in and whether it sinks, and how hard a mob wears the ground, in data files of format 1 that need no
+code. They are read from mod jars, resource packs and `config/trmtr/` in every edition, and from data packs from 1.16.5.
+A Java API, `com.trmtgtnh:trmtr-api`, a compile-only jar the same in every edition, adds listeners before and after
+wear, rules for ground and wearers, questions about any square, actions on it and a hook for drawing a mod's own worn
+blocks. `/trmt data` says where a block's data came from. The API is MIT-licensed, documented with its deprecation
+policy, and comes with an example mod and an example pack for every edition. A plugin is loaded after the data files
+are read and before the mod first works out which block is in which family, on every loader, so what it registers in
+code is in the first block atlas.
+
+*Changes: every edition.*
+
+**A pushed or pulled block takes its wear with it.** A piston moving worn ground carries its wear, reinforcement,
+ward, pin and path light to where the block lands, and leaves nothing behind.
+
+*Changes: every edition.*
+
+**A player rejoining a world no longer wears the ground under them** when the world takes long to load. The square an
+arrival is spared from now waits for the client to answer where it was put.
+
+*Changes: every edition.*
+
+**A covered rut stands full height.** A worn square with a solid block on it is now drawn and stood on at full height,
+on the server and on every client alike, where its collision could stay sunk under the block and leave a hidden
+half-block hollow. Its rut comes back when the block is taken away, and its wear and its healing are untouched.
+`general.hideWearUnderBlocks` now decides only whether a covered block shows its worn texture, never its depth.
+
+*Changes: every edition.*
+
+**A line between worn blocks is gone on 1.12.2.** A row of worn blocks could show a line one texel wide where a block
+edge fell on a row of pixel centres and drew the neighbouring picture in the atlas. Worn faces in every edition now keep
+their texture a thirty-second of a texel inside their own picture.
+
+*Changes: every edition.*
+
+**Sunk see-through worn blocks no longer show dark sides over their neighbours on 1.12.2.** A row of worn blocks drawn
+see-through, as worn Chisel waterstone is, could show the hidden sides of its sunk blocks dark over the tops in front of
+them, after the camera had moved and then stood still. The see-through faces near the camera are now sorted again for
+where it stands.
+
+*Changes: 1.12.2.*
+
+**GT New Horizons 2.9.0 no longer stops after the main menu** (issue #3). Its Angelica gives every block texture a
+16-pixel border, which made the worn textures push the block atlas to 32768 pixels square, and JourneyMap stops when it
+copies an atlas that large. Under Angelica this mod's worn pictures now take a border of their own, set by
+`client.angelicaWearGutter`: Automatic, the default, takes the widest border at which every surface, pattern and wear
+stage still fits inside the block atlas, or none where nothing wider fits, and says in the log which it chose and why.
+The settings screen offers it as a dropdown under the client tab's new Advanced heading: Automatic; Automatic, at
+least 2 pixels, which chooses the same way but gives up wear patterns and then stages before it goes below 2 pixels;
+or a fixed 1, 2, 4, 8 or 16 pixels. Where a border is kept, patterns give way first and then stages, and only where
+not every surface fits at it even at one pattern and one stage is a narrower border taken, which the log says. Every
+edition shows the setting, and only 1.7.10 under Angelica uses it. In GT New Horizons 2.9.0 as it ships, Automatic takes 4 pixels and keeps all
+four patterns and all eighty wear stages; the border is what keeps a worn picture's edges clean at a distance. Packs
+without Angelica's border, earlier GT New Horizons among them, are unchanged.
+
+*Changes: 1.7.10.*
+
+**A large pack no longer stops at loading with "Unable to fit" on 1.7.10's own stitcher.** Vanilla 1.7.10's texture
+stitcher fills at most half of the largest square the graphics card allows, and the worn pictures were planned as if
+it filled nearly all of it. They are now planned to what it packs, so GT New Horizons 2.9.0 with lwjgl3ify's STB
+stitching off, a large pack with `client.largerAtlas` on, and a large pack on a card whose largest texture is 8192
+pixels all load, giving up patterns first where the room is short. OptiFine's stitcher, which fills the whole square,
+and FastCraft's own packer, which can fill as little as half of it, are held to what each was measured to pack, and
+under OptiFine the atlas is now measured rather than taken as half full.
+
+*Changes: 1.7.10.*
+
+**Under FastCraft, worn ground shows its wear.** FastCraft packs the block atlas with a packer of its own in place of
+the game's stitcher, and the worn pictures were composed only on the way to the game's stitcher, so with FastCraft
+installed none was composed and no ground showed any wear however far it was walked. They are now composed before
+FastCraft packs, as they are before the game's own stitcher.
+
+*Changes: 1.7.10.*
+
+**A very large pack keeps its wear stages.** Where the block atlas cannot hold every worn picture, a pack now gives up
+patterns first, then stages, never a surface's own look, and a family's one shared look only as the last resort. Up to
+a tenth of the stages may draw their neighbour's picture around the middle of the run first, so all four patterns stay
+and every stage still counts. A picture that is the same as another is stored once in every edition, which leaves more
+room.
+
+*Changes: every edition.*
+
+**A mod that answers block questions with its own sounds no longer stops the game at startup** (issue #2). Sorting
+blocks into families asked every block what sound it makes while the block textures were first built, before such a
+mod was ready; Dungeon's Delight was one. That sorting now waits until the game has finished starting, and the worn
+textures are built once more straight after.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**A recipe viewer's search no longer reaches for the font** (issue #1). A tooltip of this mod's asked for from a
+background thread, as EMI's search index does, now keeps its text whole, where it logged errors.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Natural ground first, and a higher ceiling for textured surfaces.** When a pack has more faces than the atlas has room
+for, vanilla's own ground now takes its places first. `surfaces.maxTexturedSurfaces` defaults to 2048 from 1024, and a
+settings file still at the old default moves once and says so.
+
+*Changes: every edition.*
+
+**Fixes for crashes beside other mods.** On 26.1.2 and 26.2 Forge, 0.9.228 stopped at startup beside any mod that adds
+blocks; that is fixed there and on 26.3 Forge. On 1.12.2 the mod no longer requires MixinBooter where a pack starts Mixin
+0.8 or newer itself, as RLCraft does, so RLCraft starts with it; a game whose Mixin is older than 0.8 is stopped with a
+screen saying so. Beside Alfheim, as in Enigmatica 2 Expert, 1.12.2 no longer crashes at startup, and models that
+VintageFix or StellarCore leave unlinkable are passed over. On Fabric from 1.16.5, beside Biome Makeover, the game no
+longer crashes, and no other mod changing how a block's friction, a snow layer, a stair, a cactus or sugar cane is read
+can stop the game.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Holding a chunk tamper no longer strips reinforcement.** It now acts once for each press, however long the button is
+held and however the client stalls.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**A half-typed pair in a list setting is no longer written.** A pair left as `grass=,80` or `dirt=` broke restoring a
+preset partway through; only whole entries are written now, and a half one already in a file is passed over with one
+warning.
+
+*Changes: every edition.*
+
+**Golem targets and chunk tamper targets from 1.12.2 worlds are kept** when the world is opened on 1.16.5 or later,
+read under their new names.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Leaf blocks are leaves again.** Detection had run before tags were bound and written tagged leaf blocks into the
+vegetation list; it now waits for them, and those lines are taken out once.
+
+*Changes: 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Lighting on worn slabs and stairs.** A worn slab is lit by the sky light of the slab it covers, where it had kept the
+dark it started with. On Fabric, smooth lighting no longer darkens the front of a worn stair's nearest step from its
+first gradation. Under Sodium and its forks, the side faces next to a sunk square are drawn, where the sky could show
+through them: a redraw now reaches the block across a chunk edge, as the game's own does. Under Sodium 0.5 and later,
+from 1.20.1, worn ground painted while its section was still having its first build is drawn once that build is done,
+where it stayed plain until something else rebuilt the section, as could happen on joining a world. A worn stair is
+lit and shaded as the real stair it covers is, on Fabric, Forge and NeoForge, with Sodium or without: on Fabric its
+riser and lower step had drawn without shading, and on 26.1.2, 26.2 and 26.3 black under Sodium on Fabric and darker
+than the real stair's under Sodium on NeoForge.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Other fixes.** A resource reload during a wear rebuild finishes. Steps while wading or under a carpet or snow layer,
+and the sniffer digging, sound like the worn ground on Fabric rather than gravel. Shift-crafting a tamper on Fabric
+gives its advancement. The lesson quests of the FTB Quests chapter on 1.21.1 and 26.x take only the right book. Water
+shows as water in the fluid picker on 26.x. On 1.20.1 and 1.21.1 the wear table editor's look picker hides the card
+beneath it, where the card's words showed through its rows. On 1.21.1 and 26.x the Cloth Config settings screen draws
+its dark dirt behind every setting, and the guide, the tamper, the snapshot screen, the wear editor and the settings
+screen's questions dim the world behind them, where the world showed through. On 1.21.1 and 26.x the game's "Saving
+world" no longer shows over the settings screen's Done button when the settings are opened from play.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**The Wear Table's legend is shown whole.** The line under the table explaining the bar was cut short, and the column
+key and the green/red line sat between Back and Edit at the screen's bottom edge, where the chat and the hotbar draw.
+They now have a band of their own at the foot of the table, each sentence wrapped to its width, and the table scrolls
+for the rows the band takes.
+
+*Changes: every edition.*
+
+**The quick demonstrations lay every block the mod rules on.** `/trmt demonstrate quick=` left out the vanilla blocks
+this mod's own families files place, among them stairs, clay, obsidian and soul sand, and said "Left out N
+surfaces a data file or a plugin brought" in a game with no data file. They are laid now; only another mod's files, a
+pack or the config folder leave a block out of them.
+
+*Changes: every edition.*
+
+**Canvas draws every block from its own place in the atlas.** With more sprites in the block atlas than the card's
+largest texture is tall, 32768 on most cards, Canvas could not upload the texture it finds each sprite by and drew every
+block as smeared stripes. With Canvas installed the worn pictures are now held to what Canvas can index, and give way as
+they do when the atlas is full: a tenth of the wear stages share pictures first, then a pattern rotation goes, then
+stages, and a block's own colors last. The log says what was held back and why.
+
+*Changes: 1.16.5 Fabric.*
+
+**Canvas on 1.20.1 draws blocks right after the wear pictures are rebuilt.** Canvas remembered where each picture sat
+in the block atlas from before the rebuild, so a world opened after one, or a setting changed that rebuilds them, drew
+blocks black or with another block's picture, and could stop the game. Under Canvas the pictures are now rebuilt with
+a full resource reload, as under OptiFine, and Canvas is handed the atlas's new layout each time.
+
+*Changes: 1.20.1 Fabric.*
+
+**A golem pen's chests always stand in pairs**, the second empty when the first holds everything, and each pair faces
+out onto its own apron: the tool pair towards the sign, the healing pair away from it.
+
+*Changes: every edition.*
+
+**A worn block takes the tint of the block it covers.** Where the covered block's model colors its top at a tint slot
+other than the first, as TerraFirmaCraft's grass does, the worn square is now colored at that slot, where it showed the
+grey of the block's stored picture.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Distant Horizons draws worn paths in far terrain.** Beyond your own view distance, worn ground shows in its worn
+color on Distant Horizons' far terrain, and turns off with the overlay. Tested with Distant Horizons 3.3.3, and 3.3.4 on
+26.3.
+
+*Changes: 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Footsteps, seasons and other mods' ground.** Presence Footsteps hears worn ground as the ground it is, never gravel.
+With Serene Seasons, worn snow and ice are mended by snow only while it is really snowing. Dynamic Surroundings lays its
+footprints on worn squares on 1.21.1. Countered's Terrain Slabs' worn slab hillsides wear at half depth, with the plants
+on them coming down with the slab. A worn lawn wall under the Better Grass family's look no longer draws grey. Oh The
+Biomes We've Gone, Regions Unexplored, Nature's Spirit, Terrestria, Grass Overhaul and TerraFirmaCraft each have their
+ground named in shipped data files, and TerraFirmaCraft's worn grass keeps its green.
+
+*Changes: every edition.*
+
+**Covered faces are hidden under vanilla's renderer.** From 1.16.5, a block face a worn square covers is no longer
+drawn when the game draws with its own renderer: a tenth fewer faces. Sodium, Embeddium, Canvas and OptiFine are
+unchanged.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**The settings screen's Advanced fold shows only the families your pack holds.**
+
+*Changes: every edition.*
+
+**A family's hover in the settings screen lies over the Surfaces icons beside it**, where on 1.7.10 and 1.12.2 those
+icons were drawn over it.
+
+*Changes: 1.7.10 and 1.12.2.*
+
+**Every Surfaces icon in the settings screen shows its family.** Flesh, taint, cloud and, before 1.19, sculk show the
+first block of them your pack holds, and otherwise rotten flesh, mycelium, white wool and obsidian, where they showed
+an empty square. Leaves and vegetation show oak leaves and a poppy, where they showed dirt. A family's wear look
+pictures and its page's band are painted on the same block, so flesh, taint and cloud show their looks on the block
+your pack holds.
+
+*Changes: every edition.*
+
+**A server can set its players' own settings.** A new `clientrules.rules` list in the server's settings file names
+any client setting with a value and `force` or `suggest`: `client.glowingWear = false force`. A forced setting is held
+at the server's value while a player is connected and shows locked in their settings menu, marked set by this server;
+a suggested one is applied when they join and stays theirs to change, for that visit. Every setting under `client`
+can be listed, as can `presets.quality` and each family's `wearPattern`, `classicWear` and `wearStrength`. A player
+is told in one line at join how many of their settings the server sets. Nothing is written to a player's own file,
+and leaving gives every setting back; a setting that rebuilds the wear pictures is applied with one rebuild at join.
+`/trmt clientrules list`, `set`, `clear`, `clearall` and `copy` change the list while the server runs and send it to
+everyone online; `copy` makes an operator's own current settings the server's list in one step. A player on an older
+release keeps their own settings, and nothing is set on a single-player or LAN host's own game.
+
+*Changes: every edition.*
+
+**The server's rules carry a new version, 3.** A client of this release on an older server, or an older client on a
+server of this release, is told so in one line in the chat.
+
+*Changes: every edition.*
 
 ## 0.9.228 - 2026-10-27
 

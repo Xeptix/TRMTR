@@ -70,6 +70,13 @@ public final class WearRestitch {
     public void serviceRestitch() {
         if (restitchWanted == null) return;
         Minecraft mc = Minecraft.getInstance();
+        // Held while an overlay stands, a resource reload's as often as not. Only that overlay finishes its reload,
+        // so one put over it leaves the reload's future open for good and two reloads at the model manager at once:
+        // a resource pack and a data pack changed in the same moment, every time on 1.16.5 (0.9.229, T19).
+        if (mc.gui.overlay() != null) {
+            restitchIn = 0;
+            return;
+        }
         // Held while one of this mod's own screens is open. Neither pauses the game, so the work would land
         // with the player still looking at the editor part way through a set of changes; closing it is the
         // moment to spend the time, and holding collapses a session of edits into one rebuild. The 1.7.10

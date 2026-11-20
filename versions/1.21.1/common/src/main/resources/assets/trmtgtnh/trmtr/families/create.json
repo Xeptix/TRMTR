@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "_": [
+    "Create, from All the Mods 10's census (W4 R9, judged 2026-11-12), as 1.20.1's file has them from All the Mods 9's. Asurine, crimsite, ochrum, scorchia, scoria and veridium are natural rock its worlds lay in the ground, and the rules leave them out for having no stone word. Named one by one, only the blocks that census saw and judged, because a word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. Their cut, polished, layered and small brick forms, pillars, slabs, stairs and walls were not judged and are left to the rules; limestone already wears by detection."
+  ],
+  "entries": [
+    { "blocks": ["create:asurine", "create:crimsite", "create:ochrum", "create:scorchia", "create:scoria", "create:veridium"], "family": "stone" }
+  ]
+}

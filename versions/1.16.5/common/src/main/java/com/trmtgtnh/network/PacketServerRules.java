@@ -188,6 +188,27 @@ public class PacketServerRules implements Message {
      */
     int roadGradation = -1;
 
+    /** Guards the Faithful tail, the ninth (0.9.229). */
+    private static final int FAITHFUL_FORMAT = 1;
+
+    /**
+     * Whether the server runs Faithful Mode, 1 or 0, or -1 where an older server sent no Faithful tail (0.9.229 W5,
+     * spec 2.7). It decides which chains grass, dirt and sand wear along, so a client places the server's records on
+     * the server's chains (ServerRules.faithful): a server that sent none has no Faithful Mode, and its client wears
+     * with it off. Written last, so a 0.9.228 client stops reading before it; the protocol steps with it.
+     */
+    int faithful = -1;
+
+    /** Guards the client rules tail, the tenth (0.9.229). */
+    static final int CLIENT_RULES_FORMAT = 1;
+
+    /**
+     * The server's rules for its players' own settings, as ClientSettingRules encodes them, or null where an older
+     * server sent no such tail (0.9.229; Xep, 2026-11-18). Written last, so a client that does not know it stops
+     * before it and keeps its own settings; a client that knows it and finds none sets nothing.
+     */
+    byte[] clientRules;
+
     public PacketServerRules() {}
 
     /** Captures the server's current rules. */
@@ -250,6 +271,9 @@ public class PacketServerRules implements Message {
         packet.serverProtocol = TrmtNetwork.PROTOCOL;
         packet.serverBuild = com.trmtgtnh.Trmt.version();
         packet.roadGradation = -1;
+        packet.faithful = com.trmtgtnh.config.FaithfulProfile.on() ? 1 : 0;
+        packet.clientRules = com.trmtgtnh.util.ClientSettingRules
+            .encode(com.trmtgtnh.config.ClientSettingsBook.rules());
         return packet;
     }
 
@@ -400,6 +424,21 @@ public class PacketServerRules implements Message {
         if (roadFormat < ROAD_FORMAT) return;
         int road = buf.readUnsignedByte();
         roadGradation = road == 255 ? -1 : road;
+
+        // The Faithful tail (0.9.229): a format byte and the server's switch.
+        if (buf.readableBytes() < 2) return;
+        int faithfulFormat = buf.readUnsignedByte();
+        if (faithfulFormat < FAITHFUL_FORMAT) return;
+        faithful = buf.readUnsignedByte() != 0 ? 1 : 0;
+
+        // The client rules tail (0.9.229): a format byte, a length, and that many bytes, read whole or not at all.
+        if (buf.readableBytes() < 5) return;
+        int clientFormat = buf.readUnsignedByte();
+        if (clientFormat < CLIENT_RULES_FORMAT) return;
+        int length = buf.readInt();
+        if (length < 0 || length > buf.readableBytes()) return;
+        clientRules = new byte[length];
+        buf.readBytes(clientRules);
     }
 
     @Override
@@ -454,7 +493,7 @@ public class PacketServerRules implements Message {
             byte[] ordinals = successors[i] == null ? new byte[0] : successors[i];
             // Seven bits for the count and the top one for whether the family wears at all.
             // Seven is more room than the list can use: a family may not name itself and the
-            // set it can name is the twelve families, so the longest honest list is eleven.
+            // set it can name is the sixteen families, so the longest honest list is fifteen.
             int listed = Math.min(ordinals.length, 0x7F);
             boolean on = familyEnabled == null || i >= familyEnabled.length || familyEnabled[i];
             buf.writeByte((on ? 0x80 : 0) | listed);
@@ -484,6 +523,20 @@ public class PacketServerRules implements Message {
 
         buf.writeByte(ROAD_FORMAT);
         buf.writeByte(roadGradation < 0 ? 255 : Math.min(254, roadGradation));
+
+        buf.writeByte(FAITHFUL_FORMAT);
+        buf.writeByte(faithful > 0 ? 1 : 0);
+
+        if (clientRules != null) {
+            buf.writeByte(CLIENT_RULES_FORMAT);
+            buf.writeInt(clientRules.length);
+            buf.writeBytes(clientRules);
+        }
+    }
+
+    /** The client rules this packet carried, or null where it carried none. */
+    byte[] clientRules() {
+        return clientRules;
     }
 
     /** The longest server build name written: UpdateCheck's own limit on a build's name, 48. */
@@ -579,13 +632,19 @@ public class PacketServerRules implements Message {
                             message.chainSwitches,
                             message.settle,
                             message.tamperSteps,
-                            message.tamperReach));
+                            message.tamperReach,
+                            message.faithful));
                     // After the rules, so a table that arrives lands on the geometry it belongs to.
                     Client.considerServerTable(message.hasTable, message.tableFingerprint);
                     // And after the rules are applied: whether the server runs an older build than this client, said
                     // once a visit (0.9.228).
                     Client.considerServerBuild(message.serverBuild != null, message.serverProtocol,
                         message.serverBuild);
+                    // And which messages it reads: one newer than its protocol is not sent to it (RL19, 0.9.229).
+                    TrmtNetwork.heardServerProtocol(message.serverProtocol);
+                    // Last, after the server's own rules are held, so its settings are applied on the ground they
+                    // describe (0.9.229). An older server sent none, and nothing is set.
+                    Client.applyClientRules(TrmtNetwork.clientRulesIn(message.clientRules));
                 }
             });
             return;

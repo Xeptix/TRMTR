@@ -42,6 +42,9 @@ public final class ForgeClientSetup {
 
     /** What client setup does, run by {@link #client} on the game's own thread. */
     private static void onTheGamesThread() {
+        // The enabled resource packs' data files after every resource reload from now on (W3 spec 2.2); each block-atlas
+        // stitch reads them itself as it begins, the first one included.
+        com.trmtgtnh.client.PackData.start();
         // Every pass a covered block might draw in, because one ghost stands in for all of them and
         // which pass a square wants is not known until the square is. The model hands back nothing
         // in the three that are not this square's; see GhostLayers, which both loaders share, and

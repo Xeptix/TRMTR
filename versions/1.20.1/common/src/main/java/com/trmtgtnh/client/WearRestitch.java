@@ -70,6 +70,13 @@ public final class WearRestitch {
     public void serviceRestitch() {
         if (restitchWanted == null) return;
         Minecraft mc = Minecraft.getInstance();
+        // Held while an overlay stands, a resource reload's as often as not. Only that overlay finishes its reload,
+        // so one put over it leaves the reload's future open for good and two reloads at the model manager at once:
+        // a resource pack and a data pack changed in the same moment, every time on 1.16.5 (0.9.229, T19).
+        if (mc.getOverlay() != null) {
+            restitchIn = 0;
+            return;
+        }
         // Held while one of this mod's own screens is open. Neither pauses the game, so the work would land
         // with the player still looking at the editor part way through a set of changes; closing it is the
         // moment to spend the time, and holding collapses a session of edits into one rebuild. The 1.7.10
@@ -122,14 +129,19 @@ public final class WearRestitch {
      *
      * <p>
      * Under OptiFine it is still the whole reload: OptiFine rebuilds its better grass, custom colors and shader layers
-     * from a listener of its own, which is not one of the three. And a narrow run that fails falls back to the whole
+     * from a listener of its own, which is not one of the three. So is Canvas (1.0.0, canvas-120): Canvas for 1.20.1
+     * forgets the place it gave each pair of a material and an atlas sprite (MaterialIndexProvider.reload) only from a
+     * listener of its own, and after a narrow run that moved the atlas's sprites - the first client tick's, with this
+     * mod's full set of pictures - it drew every block from the place a sprite had in the stitch before; the 1.0.0 final
+     * pass found the worn yards black and mismatched. And a narrow run that fails falls back to the whole
      * reload, as 1.7.10 falls back. Either way the line said before it warns that the game will stop responding, and
      * how long it took is logged, so the two can be compared on one machine.
      */
     private void restitchPictures() {
         Minecraft mc = Minecraft.getInstance();
-        if (optiFinePresent() || !(mc.getResourceManager() instanceof net.minecraft.server.packs.resources.ReloadableResourceManager)) {
-            com.trmtgtnh.Trmt.LOG.info("Rebuilding the wear pictures with a full resource reload{}", optiFinePresent() ? ", OptiFine being present" : "");
+        if (optiFinePresent() || canvasPresent() || !(mc.getResourceManager() instanceof net.minecraft.server.packs.resources.ReloadableResourceManager)) {
+            com.trmtgtnh.Trmt.LOG.info("Rebuilding the wear pictures with a full resource reload{}",
+                optiFinePresent() ? ", OptiFine being present" : canvasPresent() ? ", Canvas being present" : "");
             mc.reloadResourcePacks();
             return;
         }
@@ -157,6 +169,11 @@ public final class WearRestitch {
                 "Rebuilt the wear pictures by the model manager alone in {} ms",
                 Long.valueOf((System.nanoTime() - began) / 1000000L));
         }, true));
+    }
+
+    /** Whether Canvas is installed, asked of the loader (see restitchPictures). */
+    private static boolean canvasPresent() {
+        return com.trmtgtnh.ModsPresent.has("canvas");
     }
 
     /** Whether OptiFine is loaded, asked of its own class without starting it. */

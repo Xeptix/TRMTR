@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "_": [
+    "Deeper and Darker, from All the Mods 9's census (W4 R7, judged 2026-11-11). The blooming moss block is a living top over the Otherside's ground, grass-like by what it is, and echo soil is its bare earth; both are on a material no rule reads, and echo soil is refused for the soil in its name. Named one by one, only the blocks that census judged, because a file reaches a config that already holds detection's line where a changed rule does not. Its echo wood is made and left to the rules, and its sculk stone, gloomslate and blooming sculk stone already wear by detection.",
+    "Its four sculk floors, gloomy sculk, infested sculk, the gleam and the geyser, are sculk, the family Xep added on 2026-11-11 (Add both families; 0.9.229, W4). They lie in the Otherside, whose rock is gloomslate and sculk stone and not deepslate, so each wears its own face and sinks as itself (Each sinks as itself).",
+    "The sculk jaw is not named (W4 R10, 2026-11-12). In 1.21.1 it keeps a tile entity, so no file can reach it there and its census excluded it; every edition is to match where it can (Xep, 2026-11-12), so it stays unworn here too, though ATM9's jaw keeps none."
+  ],
+  "entries": [
+    { "blocks": ["deeperdarker:blooming_moss_block"], "family": "grass" },
+    { "blocks": ["deeperdarker:echo_soil"], "family": "dirt" },
+    { "blocks": ["deeperdarker:gloomy_sculk", "deeperdarker:infested_sculk", "deeperdarker:sculk_gleam", "deeperdarker:gloomy_geyser"], "family": "sculk", "wearsThroughTo": ["none"] }
+  ]
+}

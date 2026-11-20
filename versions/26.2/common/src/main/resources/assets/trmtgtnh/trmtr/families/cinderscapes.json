@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "_": [
+    "Cinderscapes, from the modded census of 26.2 (W4 R11, judged 2026-11-12), as 1.16.5's cinderscapes.json has it from All of Fabric 3's census. Named one by one, only the blocks that census saw as ground and judged, because any word a rule could read would take other mods' blocks with it, and because a file reaches a config that already holds detection's line where a changed rule does not. The ash layer was not judged and is left to the rules, and the wart blocks, the hyphae and the quartz and sulfur ores were excluded.",
+    "Nether: umbral nylium is a nylium, the Nether's own ground by what it is, on a rock material the rules leave out for having no stone word. Sand: the ash block is loose fine ash, as 1.16.5's census judged it, though it lies in the Nether; its material is crafted snow's and detection gave it snow."
+  ],
+  "entries": [
+    { "blocks": ["cinderscapes:umbral_nylium"], "family": "nether" },
+    { "blocks": ["cinderscapes:ash_block"], "family": "sand" }
+  ]
+}

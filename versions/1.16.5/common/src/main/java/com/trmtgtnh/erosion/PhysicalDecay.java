@@ -1,5 +1,6 @@
 package com.trmtgtnh.erosion;
 
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
@@ -19,6 +20,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import com.trmtgtnh.Client;
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.config.TrmtConfig;
+import com.trmtgtnh.surface.DataShape;
 import com.trmtgtnh.surface.SurfaceFamily;
 import com.trmtgtnh.surface.SurfaceRegistry;
 import com.trmtgtnh.surface.SurfaceShape;
@@ -162,6 +164,46 @@ public final class PhysicalDecay {
     }
 
     /**
+     * The snow layer's reads of the block below it, newest first, for the loaders that answer them without MixinExtras
+     * (0.9.229): {@code MixinSnowRestsOnWornGround} notes the square straight after the read is made, then answers the
+     * shape the read gave as the game hands it on. A stack, per thread: each note pushes and each answer takes the
+     * newest, so a check run again inside another - by another mod's code at the same place - answers its own square and
+     * leaves the outer one's where it was; the server and the client ask at once. Nothing of the game's runs between a
+     * note and its answer, so a frame is left behind only if another mod's code there throws out of the method; every
+     * later check notes before it answers and so takes its own frame, never that one, and the stack keeps at most
+     * {@value #RESTING_READS_KEPT} frames.
+     */
+    private static final ThreadLocal<ArrayDeque<Object[]>> RESTING_READS = ThreadLocal.withInitial(ArrayDeque::new);
+
+    static final int RESTING_READS_KEPT = 16;
+
+    /** Notes the level and the square a snow layer's read below was made at, for the answer that follows it. */
+    public static void noteRestingRead(BlockGetter access, BlockPos pos) {
+        ArrayDeque<Object[]> reads = RESTING_READS.get();
+        if (reads.size() >= RESTING_READS_KEPT) reads.removeLast();
+        reads.push(new Object[] { access, pos });
+    }
+
+    /** The newest note on this thread, taken off the stack, or null where there is none. */
+    static Object[] takeRestingRead() {
+        return RESTING_READS.get().poll();
+    }
+
+    /**
+     * {@link #restingShape} at the newest read noted on this thread, given the shape the read answered - another mod's,
+     * where one redirects the read - taking the note off the stack. The block is asked of the noted square again, the
+     * same square in the same tick, as the friction is (see {@code GhostFamily.ghostAt}). With no note, the shape as
+     * given.
+     */
+    public static VoxelShape restingShapeOfNoted(VoxelShape asked) {
+        Object[] read = takeRestingRead();
+        if (!active || read == null) return asked;
+        BlockGetter access = (BlockGetter) read[0];
+        BlockPos pos = (BlockPos) read[1];
+        return restingShape(access.getBlockState(pos), access, pos, asked);
+    }
+
+    /**
      * The level behind whatever the collision system happened to be holding.
      *
      * <p>
@@ -262,14 +304,18 @@ public final class PhysicalDecay {
         if (entry == null || !entry.isVisible()) return 0;
         // Something planted here holds the ground level whatever the record says it has taken.
         if (GroundCover.holdsAt(world, x, y, z)) return 0;
+        // A solid block standing on it holds it full for as long as it stands there (0.9.229): see GroundCover.roofedAt.
+        if (GroundCover.roofedAt(world, x, y, z)) return 0;
 
         // By what class the block is, as the ghost decides it on the other side and as the 1.7.10 edition
         // decides it: a slab class is a slab, anything else whole. Until 0.9.220 this judged by thickness;
         // Xep chose the other edition's rule on 2026-10-08.
-        return SinkProfile.collides(
+        // Through the block state's data shape too (W3 T6), so the server's depth is the one the client's ghost takes.
+        return SurfaceShape.sunk(
             entry.getFamily(),
             entry.getSink(),
-            SurfaceShape.of(com.trmtgtnh.util.Worlds.stateAt(world, x, y, z)));
+            com.trmtgtnh.util.Worlds.stateAt(world, x, y, z),
+            true);
     }
 
     /**
@@ -307,12 +353,33 @@ public final class PhysicalDecay {
         if (sink <= 0) return null;
 
         deep();
+        // A data file's boxes (W3 spec 2.4, T6), one by one with the walked ones sunk: before the stair and footing
+        // refusals below, because the file says what shape the block is, and the client's ghost asks them first as
+        // well. The game's own shapes are unions of boxes, so the shape carries every box at once.
+        DataShape boxes = boxesOf(state);
+        if (boxes != null) {
+            VoxelShape all = Shapes.empty();
+            for (double[] box : boxes.boxesSunk(sink)) {
+                all = Shapes.or(all, Shapes.box(box[0], box[1], box[2], box[3], box[4], box[5]));
+            }
+            return all;
+        }
         SurfaceShape shape = SurfaceShape.of(state);
         // A stair answers for its own collision and this must not take it over. Everything below
         // builds ONE box across the whole footprint, which is right for a slab and wrong for a stair
         // - a stair is three boxes. Refused rather than shaped: a stair states its own shape and
         // never has a height clamped onto it, so a worn stair was never meant to sink at all.
-        if (shape == SurfaceShape.STAIR) return null;
+        if (shape == SurfaceShape.STAIR) {
+            // A data file's stair over a block that is not one (W3 T6) is stood on as the straight stair the client's
+            // ghost draws and collides as (SurfaceShape.stairStandIn), never sunk; a real stair keeps its own.
+            BlockState standIn = SurfaceShape.stairStandIn(state);
+            if (standIn == null) return null;
+            try {
+                return standIn.getShape(world, new BlockPos(x, y, z));
+            } catch (RuntimeException awkwardBlock) {
+                return null;
+            }
+        }
         // And the same refusal for anything narrower than the square it stands in: everything below
         // builds one box across the whole footprint, which a block occupying part of its square has
         // already declined to have. Handing back nothing puts it back in charge of its own collision,
@@ -329,6 +396,47 @@ public final class PhysicalDecay {
         // the game offsets one by the position when it uses it. Both older editions build the box in
         // world coordinates because theirs are, and that is the whole of the difference.
         return Shapes.box(0.0D, floor, 0.0D, 1.0D, worn, 1.0D);
+    }
+
+    /**
+     * The boxes the server gives a worn position, in world space, or null when it gives none and the block answers for
+     * itself: a data file's boxes one by one, the walked ones sunk (W3 spec 2.4, T6), and otherwise the boxes of
+     * {@link #shapeOfWorn}'s one shape. The client's ghost builds the same through {@code BlockGhost.boxesAt};
+     * {@link #shapeAt} hands every collision read the same boxes as one shape.
+     */
+    public static net.minecraft.world.phys.AABB[] boxesAt(Level world, int x, int y, int z) {
+        int sink = sinkAt(world, x, y, z);
+        if (sink <= 0) return null;
+        BlockState state = com.trmtgtnh.util.Worlds.stateAt(world, x, y, z);
+        DataShape boxes = boxesOf(state);
+        if (boxes == null) {
+            VoxelShape one = shapeOfWorn(world, x, y, z, state);
+            if (one == null || one.isEmpty()) return null;
+            java.util.List<net.minecraft.world.phys.AABB> parts = one.toAabbs();
+            net.minecraft.world.phys.AABB[] out = new net.minecraft.world.phys.AABB[parts.size()];
+            for (int i = 0; i < out.length; i++) out[i] = parts.get(i)
+                .move(x, y, z);
+            return out;
+        }
+        double[][] sunk = boxes.boxesSunk(sink);
+        net.minecraft.world.phys.AABB[] out = new net.minecraft.world.phys.AABB[sunk.length];
+        for (int i = 0; i < sunk.length; i++) {
+            double[] box = sunk[i];
+            out[i] = new net.minecraft.world.phys.AABB(
+                x + box[0],
+                y + box[1],
+                z + box[2],
+                x + box[3],
+                y + box[4],
+                z + box[5]);
+        }
+        return out;
+    }
+
+    /** The boxes a data file gives a block state, or null where its shape is anything but boxes. */
+    private static DataShape boxesOf(BlockState state) {
+        DataShape data = SurfaceShape.dataOf(state);
+        return data != null && data.kind == DataShape.BOXES ? data : null;
     }
 
     /**
@@ -373,6 +481,10 @@ public final class PhysicalDecay {
         }
         Set<Block> found = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>());
         for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.texturableStates()) {
+            if (canEverSink(state.family)) found.add(state.block);
+        }
+        // A block whose own family never sinks may have states a data file sets apart that do.
+        for (SurfaceRegistry.SurfaceState state : SurfaceRegistry.setApartSurfaces()) {
             if (canEverSink(state.family)) found.add(state.block);
         }
         sinkable = found;

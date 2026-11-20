@@ -97,6 +97,22 @@ public class GhostModelForge implements IDynamicBakedModel {
         // Null outside a chunk rebuild, which is something else asking; those are drawn.
         net.minecraft.client.renderer.RenderType building = net.minecraftforge.client.MinecraftForgeClient
             .getRenderLayer();
+        // The glow overlay alone in the cutout pass of a square that draws in another (0.9.228, real glow); in its own
+        // pass, which is cutout, the overlay follows the picture. The ghost already claims the cutout pass, as it claims
+        // every pass a covered block might use (ForgeClientSetup), so no square has to ask for it.
+        net.minecraft.client.renderer.RenderType own = com.trmtgtnh.client.GhostLayers.of(origin);
+        if (building == net.minecraft.client.renderer.RenderType.cutout()
+            && own != net.minecraft.client.renderer.RenderType.cutout()) {
+            return GhostQuads.glow(
+                record,
+                origin,
+                BlockGhost.outlineAt(level, pos, origin),
+                com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin),
+                Rotations.forPosition(pos.getX(), pos.getZ()),
+                BlockGhost.snowedAt(level, pos),
+                side,
+                BlockGhost.stairBoxesAt(level, pos, origin));
+        }
         if (building != null && building != com.trmtgtnh.client.GhostLayers.of(origin)) {
             return Collections.emptyList();
         }
@@ -104,11 +120,28 @@ public class GhostModelForge implements IDynamicBakedModel {
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), ErosionState.sinkOf(record));
+        int rotation = com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin);
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
 
-        return GhostQuads.build(
+        // Through the level-aware build, where trmtr-api's render hook is asked for a ghost over a block a plugin draws
+        // (W3 T8), after the pass test above, as the ghost's own drawing is.
+        if (building == null || building != own || own != net.minecraft.client.renderer.RenderType.cutout()) {
+            return GhostQuads.build(
+                level,
+                pos,
+                record,
+                origin,
+                outline,
+                rotation,
+                fringeTurn,
+                snowed,
+                side,
+                BlockGhost.stairBoxesAt(level, pos, origin));
+        }
+        List<BakedQuad> drawn = GhostQuads.build(
+            level,
+            pos,
             record,
             origin,
             outline,
@@ -117,6 +150,13 @@ public class GhostModelForge implements IDynamicBakedModel {
             snowed,
             side,
             BlockGhost.stairBoxesAt(level, pos, origin));
+        List<BakedQuad> glow = GhostQuads
+            .glow(record, origin, outline, rotation, fringeTurn, snowed, side, BlockGhost.stairBoxesAt(level, pos, origin));
+        if (glow.isEmpty()) return drawn;
+        List<BakedQuad> both = new java.util.ArrayList<BakedQuad>(drawn.size() + glow.size());
+        both.addAll(drawn);
+        both.addAll(glow);
+        return both;
     }
 
     /**
@@ -204,9 +244,24 @@ public class GhostModelForge implements IDynamicBakedModel {
             Long.valueOf(total));
     }
 
+    /**
+     * No smooth lighting on a hooked square, as 1.7.10's (ApiDraw, "Light"): this BakedQuad has no word of its own for
+     * that, so the model answers, and vanilla's renderer asks it with the seat taken. Embeddium asks with no seat and
+     * keeps smooth lighting over the light baked into the quad (api/API.md). Only in the pass the square draws in: asked
+     * in another, the drawing would stay kept with no quads asked to carry it off, and the square's next rebuild would
+     * be served the old light.
+     */
     @Override
     public boolean useAmbientOcclusion() {
-        return true;
+        BlockPos pos = GhostSeat.pos();
+        if (pos == null) return true;
+        net.minecraft.client.renderer.RenderType building = net.minecraftforge.client.MinecraftForgeClient
+            .getRenderLayer();
+        if (building != null
+            && building != com.trmtgtnh.client.GhostLayers.of(Client.ghostOriginAt(pos.getX(), pos.getY(), pos.getZ()))) {
+            return true;
+        }
+        return !GhostQuads.drawnByHook(GhostSeat.level(), pos);
     }
 
     @Override

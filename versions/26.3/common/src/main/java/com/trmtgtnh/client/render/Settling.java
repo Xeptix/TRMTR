@@ -96,7 +96,7 @@ public final class Settling {
      * 1.7.10 edition's GhostRendering.settledDrop answers 0 there because its stair stand-in is never sunk.
      */
     public static double dropOf(short record, int origin, int outline) {
-        if (BlockGhost.coveredStair(origin) != null) return 0.0D;
+        if (BlockGhost.coveredShape(origin) == com.trmtgtnh.surface.SurfaceShape.STAIR) return 0.0D;
         double drop = BlockGhost.topOf(outline) - BlockGhost.heightAt(record, origin, outline, true);
         return drop > 0.0D ? drop : 0.0D;
     }
@@ -156,12 +156,17 @@ public final class Settling {
      * the model's quads.
      */
     public static Vec3 offset(BlockState state, BlockGetter level, BlockPos pos, Vec3 vanilla) {
-        if (state == null || !settles(state.getBlock())) return null;
-        double drop = dropFor(level, pos);
-        if (drop <= 0.0D) return null;
-        noteShiftRan();
-        if (!cullHookRan && !cullHookWarned) noteCorrectionWanted(state, level, pos);
-        return vanilla == null ? new Vec3(0.0D, -drop, 0.0D) : vanilla.add(0.0D, -drop, 0.0D);
+        if (state == null) return null;
+        // A block Terrain Slabs draws down on a slab stays down when that slab wears (W6): see SlabPlants.
+        double onSlab = SlabPlants.dropUnder(state, level, pos);
+        double drop = settles(state.getBlock()) ? dropFor(level, pos) : 0.0D;
+        if (drop > 0.0D) {
+            noteShiftRan();
+            if (!cullHookRan && !cullHookWarned) noteCorrectionWanted(state, level, pos);
+        }
+        double down = drop + onSlab;
+        if (down <= 0.0D) return null;
+        return vanilla == null ? new Vec3(0.0D, -down, 0.0D) : vanilla.add(0.0D, -down, 0.0D);
     }
 
     /**

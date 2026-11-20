@@ -69,6 +69,13 @@ public final class GhostFamily {
                 return SoundType.SNOW;
             case ICE:
                 return SoundType.GLASS;
+            case SCULK:
+                // Where nothing is recorded, its stand-in's sound (0.9.229, W4; the design's table 3.5): the
+                // 1.7.10 edition gives gravel's, as Et Futurum's own sculk sound cannot be named without it.
+                return SoundType.STONE;
+            case CLOUD:
+                // Fluffy cloud's own, read from Twilight Forest's jar, and white wool's (0.9.229, W4).
+                return SoundType.WOOL;
             default:
                 return SoundType.GRAVEL;
         }
@@ -139,13 +146,89 @@ public final class GhostFamily {
      * The friction of a block at a square: a ghost's family's, anything else its own.
      *
      * <p>
-     * For the Fabric module, whose mixins replace {@code Block.getFriction()} with this in the five places vanilla reads
-     * it - a living thing's movement, an item's, an experience orb's, a flying mob's and a boat's - which are the five
-     * Forge patches to ask {@code getSlipperiness} at a square.
+     * For the Fabric module, whose mixins answer with this in the five places vanilla reads {@code Block.getFriction()}
+     * - a living thing's movement, an item's, an experience orb's, a flying mob's and a boat's - which are the five Forge
+     * patches to ask {@code getSlipperiness} at a square. Since 0.9.229 they take the value the game read and change it
+     * only on a worn square ({@link #frictionOver}), so another mod's redirect of the same read still applies.
      */
     public static float frictionOf(Block block, BlockGetter world, BlockPos pos) {
         if (block instanceof BlockGhost && pos != null) return slipperinessAt(block, world, pos);
         return block.getFriction();
+    }
+
+    /**
+     * The ghost standing at a square, or null where the square holds anything else or is not known.
+     *
+     * <p>
+     * For the Fabric module's friction mixins, which since 0.9.229 no longer replace the game's
+     * {@code Block.getFriction()} call but take the value it gave (see {@link #frictionOver}), and so ask the square
+     * again for the block the game read there. The same square in the same tick, so the same block.
+     */
+    public static Block ghostAt(BlockGetter world, BlockPos pos) {
+        if (world == null || pos == null) return null;
+        Block block = world.getBlockState(pos)
+            .getBlock();
+        return block instanceof BlockGhost ? block : null;
+    }
+
+    /**
+     * The friction the game read at a square, kept unless the square is worn: there, the ghost's answer,
+     * {@link #frictionOf}'s (0.9.229).
+     *
+     * <p>
+     * <strong>Why not a redirect of the read.</strong> Until 0.9.228 the Fabric mixins {@code @Redirect}ed
+     * {@code Block.getFriction()}. Two redirects of one call cannot both apply, and Biome Makeover 1.3.8 redirects the
+     * same call in {@code LivingEntity.travel}, so all of Fabric 3 (1.16.5) died before its first screen. The mixins now
+     * take the value after the call, whatever made it - vanilla, or another mod's redirect - and change it only on a
+     * worn square, where the ghost's family's friction replaces whatever was read there. Everywhere else the value
+     * passes through untouched.
+     */
+    public static float frictionOver(float asked, BlockGetter world, BlockPos pos) {
+        Block ghost = ghostAt(world, pos);
+        return ghost == null ? asked : frictionOf(ghost, world, pos);
+    }
+
+    /**
+     * What a worn square looks like to anything that asks with the square in hand: the block it covers while it still
+     * wears as that block's family, so worn grass is grass and a pack's own lawn is that lawn, and its family's stock
+     * block past that, so a track worn to earth is earth (W6 S1, carried from 1.20.1 for T9). The line is the slide's
+     * and the tint's: a square worn into another family is that family's ground.
+     *
+     * <p>
+     * This edition's loaders have no camouflage hook to answer with it (Forge's {@code IForgeBlock} has none here, and
+     * Fabric API none), so it is handed only to a mod that reads the state itself: Presence Footsteps {@code r29}, at
+     * the reads its solver makes ({@link #groundFor}). A square with no record, or no block recorded under it, stays the
+     * ghost, as it always was. Read from the square's own record, as {@link #soundOf} is.
+     */
+    public static BlockState appearanceAt(BlockState state, BlockGetter world, BlockPos pos) {
+        SurfaceFamily family = familyAt(world, pos);
+        BlockState covered = GhostInherit.coveredAt(state.getBlock(), pos);
+        if (family == null || covered == null) return state;
+        return appearanceOf(family, com.trmtgtnh.surface.SurfaceRegistry.familyOf(covered), covered);
+    }
+
+    /**
+     * The rule itself: the covered block while the square wears as that block's family, the family's stock block past
+     * it. See {@link #appearanceAt}.
+     *
+     * @param wears   the family the square's record says it wears as
+     * @param own     the covered block's family, or null where it has none
+     * @param covered the block under the square
+     */
+    static BlockState appearanceOf(SurfaceFamily wears, SurfaceFamily own, BlockState covered) {
+        return own == wears ? covered : standIn(wears);
+    }
+
+    /**
+     * The state a mod that reads the block at a square itself, and never asks a camouflage hook, should be handed: a
+     * worn square's appearance ({@link #appearanceAt}), anything that is not a ghost as it is. Asked by
+     * {@code MixinPresenceFootstepsGround} in each loader module, where Presence Footsteps {@code r29}'s solver reads the
+     * state under a step (W6 T9; docs/goals/0.9.229-w6-spec.md 3.3 in the 1.7.10 tree), so a worn square is heard as
+     * the ground it stands for and not as the ghost's gravel.
+     */
+    public static BlockState groundFor(BlockState state, BlockGetter world, BlockPos pos) {
+        if (state == null || pos == null || !(state.getBlock() instanceof BlockGhost)) return state;
+        return appearanceAt(state, world, pos);
     }
 
     /**
@@ -178,8 +261,47 @@ public final class GhostFamily {
                 return Blocks.SNOW_BLOCK.defaultBlockState();
             case ICE:
                 return Blocks.ICE.defaultBlockState();
+            case FLESH:
+                // No vanilla flesh: soul sand is the Nether floor it is all but a twin of, and its short box and
+                // drag (0.9.229, W4 T17; the 1.7.10 edition's vanillaCounterpart).
+                return Blocks.SOUL_SAND.defaultBlockState();
+            case TAINT:
+                // No vanilla taint: mycelium, a living crust that spreads over the earth.
+                return Blocks.MYCELIUM.defaultBlockState();
+            case SCULK:
+                // No sculk before 1.19: obsidian is the nearest vanilla face to it and every edition has it
+                // (0.9.229, W4; the 1.7.10 edition's vanillaCounterpart). Its map color is sculk's own.
+                return Blocks.OBSIDIAN.defaultBlockState();
+            case CLOUD:
+                // No vanilla cloud: white wool is fluffy cloud's twin in all a ghost reports, as soft to dig, the
+                // same quiet sound, and as white (0.9.229, W4; the 1.7.10 edition's vanillaCounterpart).
+                return Blocks.WHITE_WOOL.defaultBlockState();
             default:
                 return Blocks.DIRT.defaultBlockState();
         }
+    }
+
+    /**
+     * A family's own hardness where its stand-in's is not the real block's, or NaN: flesh 0.4 and crusted taint 1.75,
+     * read from Biomes O' Plenty's and Thaumcraft's jars, which no vanilla block shares (0.9.229, W4 T17; the 1.7.10
+     * edition's GhostLogic.hardnessFor gives its ghosts those figures). Every other family's stand-in is its own
+     * block, whose hardness is already the family's. Asked only where nothing is recorded under a square.
+     */
+    public static float ownHardness(SurfaceFamily family) {
+        if (family == SurfaceFamily.FLESH) return 0.4F;
+        if (family == SurfaceFamily.TAINT) return 1.75F;
+        // Sculk stands in as obsidian before 1.19, and is vanilla sculk's own 0.2 to dig (0.9.229, W4).
+        if (family == SurfaceFamily.SCULK) return 0.2F;
+        return Float.NaN;
+    }
+
+    /**
+     * The block a square is dug as where nothing is recorded under it and its family has its own hardness
+     * ({@link #ownHardness}): its stand-in, but sculk's is obsidian, which only a diamond pick harvests, and sculk
+     * needs no tool. So sculk is dug as sponge, which needs none either and which a hoe digs fastest, as it does
+     * vanilla's sculk from 1.19; its hardness stays sculk's own (0.9.229, W4; Codex's review of the new families).
+     */
+    public static BlockState dugAs(SurfaceFamily family, BlockState standIn) {
+        return family == SurfaceFamily.SCULK ? Blocks.SPONGE.defaultBlockState() : standIn;
     }
 }

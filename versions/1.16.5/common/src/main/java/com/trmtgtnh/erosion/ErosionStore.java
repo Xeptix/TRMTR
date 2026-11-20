@@ -83,6 +83,18 @@ public final class ErosionStore {
 
     private static volatile CatchUp engine;
 
+    /**
+     * What places a loaded chunk's records on the chains in force when they were last placed on the others (Faithful
+     * Mode switched while the chunk was loaded, or while it was saved; Codex review R17). A seam for the same reason as
+     * {@link CatchUp}: the store does not reach for the engine.
+     */
+    public interface Placing {
+
+        void placeChunk(long key, ChunkErosionData data);
+    }
+
+    private static volatile Placing placer;
+
     /** Loaded chunks only, keyed by level index and chunk coordinate. */
     private final Map<Long, ChunkErosionData> loaded = new HashMap<Long, ChunkErosionData>();
 
@@ -134,6 +146,12 @@ public final class ErosionStore {
     /** Forgets it again. For tests, which must not leak an engine into the next one. */
     public static void forgetEngine() {
         engine = null;
+        placer = null;
+    }
+
+    /** Tells the store what places a chunk found on the other chains. Called once as the mod starts. */
+    public static void usePlacing(Placing placing) {
+        placer = placing;
     }
 
     // ------------------------------------------------------------------
@@ -199,21 +217,39 @@ public final class ErosionStore {
 
     /** The chunk's erosion data, or null when that chunk has none loaded. */
     public ChunkErosionData getChunk(int levelIndex, int chunkX, int chunkZ) {
-        return loaded.get(Long.valueOf(chunkKey(levelIndex, chunkX, chunkZ)));
+        long key = chunkKey(levelIndex, chunkX, chunkZ);
+        return placed(key, loaded.get(Long.valueOf(key)));
     }
 
     public ChunkErosionData getChunk(long key) {
-        return loaded.get(Long.valueOf(key));
+        return placed(key, loaded.get(Long.valueOf(key)));
     }
 
     /** The chunk's erosion data, creating an empty map if absent. */
     public ChunkErosionData getOrCreateChunk(int levelIndex, int chunkX, int chunkZ) {
-        Long key = Long.valueOf(chunkKey(levelIndex, chunkX, chunkZ));
+        long packed = chunkKey(levelIndex, chunkX, chunkZ);
+        Long key = Long.valueOf(packed);
         ChunkErosionData data = loaded.get(key);
         if (data == null) {
             data = new ChunkErosionData();
+            // A new chunk's records are made on the chains in force.
+            data.setPlacedOn(ErosionChain.placing());
             loaded.put(key, data);
+            return data;
         }
+        return placed(packed, data);
+    }
+
+    /**
+     * A chunk's data, its records first placed on the chains in force when they were last placed on the others (Codex
+     * review R17): Faithful Mode was switched while the chunk was loaded, or while it was saved. Every way to a loaded
+     * chunk's records passes here, so nothing reads one of its records before the whole chunk is placed, and a record
+     * is never placed twice. One comparison when nothing has switched.
+     */
+    private ChunkErosionData placed(long key, ChunkErosionData data) {
+        if (data == null || data.placedOn() == ErosionChain.placing()) return data;
+        Placing asking = placer;
+        if (asking != null) asking.placeChunk(key, data);
         return data;
     }
 
@@ -335,11 +371,17 @@ public final class ErosionStore {
      * the main thread, and the healing catch-up it needs to do next wants a live level.
      */
     public void chunkDataLoaded(ResourceLocation levelName, int chunkX, int chunkZ, CompoundTag tag) {
-        if (tag == null || levelName == null || !tag.contains(NBT_KEY)) return;
+        if (tag == null || levelName == null) return;
 
-        ChunkErosionData data = ChunkErosionData.read(tag.getByteArray(NBT_KEY));
-        sayIfUpgrading();
-        if (data.isEmpty()) return;
+        byte[] blob = tag.contains(NBT_KEY) ? tag.getByteArray(NBT_KEY) : null;
+        ChunkErosionData data = blob == null ? null : ChunkErosionData.read(blob);
+        if (blob != null) sayIfUpgrading();
+        // Wear backups (0.9.229): a chunk read without the wear the mirror holds for it, or with damaged records, is
+        // noticed here - asked even with no tag at all, which is the chunk that most needs asking - and the wear it is
+        // to load with comes back: its own, put back from the mirror, or filled by a restore waiting for it.
+        data = com.trmtgtnh.server.WearBackups.get()
+            .chunkRead(levelName, chunkX, chunkZ, tag, blob, data);
+        if (data == null || data.isEmpty()) return;
 
         pending.put(Long.valueOf(chunkKey(indexOf(levelName), chunkX, chunkZ)), data);
     }
@@ -395,6 +437,12 @@ public final class ErosionStore {
             data = loaded.get(Long.valueOf(key));
         }
         if (data == null || data.isEmpty()) return;
+        // Wear put back as the chunk was read (wear backups, 0.9.229), or upgraded from an older format, is written at
+        // the next save rather than only when the chunk unloads: nothing else marks a chunk whose only change is that.
+        if (data.isDirty()) {
+            if (chunk != null) chunk.setUnsaved(true);
+            else markModified(level, chunkX, chunkZ);
+        }
 
         CatchUp asking = engine;
         if (asking != null && chunk != null) asking.catchUpChunk(level, chunk, data);
@@ -416,6 +464,9 @@ public final class ErosionStore {
         if (data == null) data = unloading.get(key);
         if (data == null) {
             unloading.remove(key);
+            // Saved with no wear: the mirror hears it too, so wear that healed away is not put back later.
+            com.trmtgtnh.server.WearBackups.get()
+                .chunkSaved(levelName, chunkX, chunkZ, null);
             return null;
         }
 
@@ -423,6 +474,9 @@ public final class ErosionStore {
         byte[] blob = data.write();
         data.clearDirty();
         unloading.remove(key);
+        // And the same blob to the wear mirror (wear backups, 0.9.229): one more small write, off this thread.
+        com.trmtgtnh.server.WearBackups.get()
+            .chunkSaved(levelName, chunkX, chunkZ, blob);
         return blob;
     }
 

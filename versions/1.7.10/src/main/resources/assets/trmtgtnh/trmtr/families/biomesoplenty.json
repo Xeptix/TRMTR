@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "_": [
+    "From FTB Infinity's census (W4 T13 judged, T14 corrected, 2026-11-08). Value 1 of the mud block is Quicksand, loose grains of the desert, so it wears as sand; the rules give every value of a block one answer in this edition, and mud in the name makes that answer dirt, which stays right for the mud itself.",
+    "Crag Rock is natural rock, Dried Dirt and Hardened Dirt are bare earth and Hardened Ice is ice, each the declared top of its own biome, and each on rock material with no word a rule reads. Named here rather than by a word, which would take other mods' blocks with it.",
+    "Flesh, the floor of five Nether biomes, is its own family (Xep signed it off on 2026-11-07; W4 T17): sponge material, neither rock, earth nor grains, so no other family's chain or pace fits it. Value 0 alone, the one the census saw."
+  ],
+  "entries": [
+    { "blocks": ["BiomesOPlenty:mud:1"], "family": "sand" },
+    { "blocks": ["BiomesOPlenty:cragRock"], "family": "stone" },
+    { "blocks": ["BiomesOPlenty:driedDirt", "BiomesOPlenty:hardDirt"], "family": "dirt" },
+    { "blocks": ["BiomesOPlenty:hardIce"], "family": "ice" },
+    { "blocks": ["BiomesOPlenty:flesh:0"], "family": "flesh" }
+  ]
+}

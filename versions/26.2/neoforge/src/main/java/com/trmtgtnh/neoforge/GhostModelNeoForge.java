@@ -79,6 +79,8 @@ public class GhostModelNeoForge implements DynamicBlockStateModel {
     public Object createGeometryKey(BlockAndTintGetter level, BlockPos pos, BlockState state, RandomSource random) {
         Inputs inputs = inputs(level, pos);
         if (inputs == null) return fallback.createGeometryKey(level, pos, state, random);
+        // A plugin's render hook draws what it likes at each square (W3 T8), which these inputs cannot speak for.
+        if (com.trmtgtnh.apiload.ApiDraw.draws()) return null;
         return inputs;
     }
 
@@ -97,8 +99,15 @@ public class GhostModelNeoForge implements DynamicBlockStateModel {
             fallback.collectParts(level, pos, state, random, parts);
             return;
         }
+        // Through the level-aware build, where trmtr-api's render hook is asked for a ghost over a block a plugin draws
+        // (W3 T8). The plain two-argument form's square is the seat's, as inputs found it.
+        boolean unseen = level == null || level == BlockAndTintGetter.EMPTY || pos == null;
+        // The game's turn the key was made with (When the turn starts), for the top built from it.
+        GhostQuads.gameTurnHere(inputs.gameTurn);
         parts.add(
             GhostQuads.part(
+                unseen ? GhostSeat.level() : level,
+                unseen ? GhostSeat.pos() : pos,
                 inputs.record,
                 inputs.origin,
                 inputs.outline,
@@ -129,16 +138,17 @@ public class GhostModelNeoForge implements DynamicBlockStateModel {
         int outline = BlockGhost.outlineAt(level, pos, origin);
         // Salted by depth, as the top face is, so a rut does not replay its first run's turns at
         // every pixel it sinks.
-        int rotation = Rotations.forPosition(pos.getX(), pos.getZ(), ErosionState.sinkOf(record));
+        int rotation = com.trmtgtnh.client.model.GhostQuads.rotationAt(level, pos, record, origin);
         int fringeTurn = Rotations.forPosition(pos.getX(), pos.getZ());
         boolean snowed = BlockGhost.snowedAt(level, pos);
         List<AABB> boxes = BlockGhost.stairBoxesAt(level, pos, origin);
-        return new Inputs(record, origin, outline, rotation, fringeTurn, snowed,
+        return new Inputs(record, origin, outline, rotation, GhostQuads.gameTurnHere(), fringeTurn, snowed,
             boxes == null ? null : new ArrayList<AABB>(boxes));
     }
 
     /** One square's inputs, which are also its geometry key: equal inputs build equal quads. */
-    private record Inputs(short record, int origin, int outline, int rotation, int fringeTurn, boolean snowed,
+    private record Inputs(short record, int origin, int outline, int rotation, int gameTurn, int fringeTurn,
+        boolean snowed,
         List<AABB> boxes) {}
 
     /** How many times this model has been asked for parts, and how many of those had a square. */

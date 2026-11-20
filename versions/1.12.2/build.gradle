@@ -176,6 +176,11 @@ dependencies {
     compileOnly ('curse.maven:hwyla-253449:2568751') {
         transitive = false
     }
+    // Distant Horizons' API, compile only and never shipped (0.9.229 W6 T17, as 1.20.1's): that mod is LGPL-3.0, and the
+    // plugin that names it (com.trmtgtnh.client.dh) is loaded only where a player has it installed. From Modrinth's Maven,
+    // which gradle/scripts/dependencies.gradle already names for maven.modrinth alone; 7.2.0 is the API inside
+    // DistantHorizons-3.3.3-1.12.2-forge.jar (its ModInfo).
+    compileOnly "maven.modrinth:distanthorizonsapi:${distanthorizons_api_version}"
     // And in the development runtime, so the tooltip this writes into can actually be looked at.
     // Deobfuscated on the way in, because a jar from CurseForge is published against the obfuscated
     // names and this workspace runs against the readable ones.
@@ -221,6 +226,11 @@ apply from: 'gradle/scripts/dependencies.gradle'
         // refreshed on its own. Nothing given means all of them. See the harness's wanted().
         if (project.hasProperty('only')) {
             task.systemProperty('trmt.spike.only', project.property('only').toString())
+        }
+        // A saved walk, by its folder's name, opened instead of walking (0.9.229, W1 T8): the run script copies
+        // the folder into saves/trmt-walk. See the harness's WORLD.
+        if (project.hasProperty('world')) {
+            task.systemProperty('trmt.spike.world', project.property('world').toString())
         }
         // An older edition's walk world, by its folder in saves/, opened and read instead of a new one (0.9.227): the
         // 1.7.10 world carried forward. FML asks before it loads a world saved by another version or with ids it must
@@ -411,6 +421,33 @@ test {
         })
         .withPropertyName('theFilesTheseTestsRead')
         .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // The census goldens DetectionReplayTest puts through the rules (W4 spec 3.2). They live in the 1.7.10 tree's
+    // docs/census, which this tree has no copy of. tools/census.py --diff names the folder with -Dtrmt.census on
+    // Gradle's command line, and a -D there reaches Gradle and not the test worker, so it is handed on here; with none
+    // given, the 1.7.10 tree named by this checkout's own sibling.properties is read, so an ordinary suite run replays
+    // them too. Either way the goldens are inputs, or a changed golden would leave this task up to date and unread.
+    // With neither, the test says so and skips.
+    def census = System.getProperty('trmt.census') ?: (project.findProperty('trmt.census') ?: null)
+    if (census == null) {
+        def sibling = file('sibling.properties')
+        if (sibling.isFile()) {
+            def held = new Properties()
+            sibling.withInputStream { held.load(it) }
+            def other = held.getProperty('otherEdition')
+            if (other != null && new File(other.trim(), 'docs/census').isDirectory()) {
+                census = new File(other.trim(), 'docs/census').path
+            }
+        }
+    }
+    if (census != null) {
+        systemProperty 'trmt.census', census.toString()
+        // pack-data.tsv beside them: which packs ship no TRMT data of their own, whose data lines the test holds
+        // to the shipped files.
+        inputs.files(fileTree(census.toString()) { include '*/registry.tsv'; include 'pack-data.tsv' })
+            .withPropertyName('theCensusGoldens')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
 }
 
 // parserChangelog() removed with the changelog plugin it used. publish_with_changelog is off, and

@@ -4,11 +4,12 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Slice;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -25,6 +26,15 @@ import com.trmtgtnh.block.GhostFamily;
  * across real ice at 0.98, said they had not, and the server put them back. Forge patches both methods to ask the
  * block at the square, and the ghost answers there; these ask {@link GhostFamily} at the same moments. The square is
  * the one vanilla itself looks the block up at, noted as it does so - the only lookup either method makes.
+ *
+ * <p>
+ * <strong>The friction is taken from the local it is stored in, not redirected</strong> (0.9.229). {@code travel}
+ * stores {@code getBlock().getFriction()} straight into a local of its own; this changes that local after the store,
+ * so another mod's {@code @Redirect} of the same call - Biome Makeover 1.3.8's {@code LivingEntityMixin} is one -
+ * still applies, and this sees what it answered. Until 0.9.228 this was a required {@code @Redirect} too: two
+ * redirects of one call cannot both apply, Mixin skipped one, and all of Fabric 3 died before its first screen. Not
+ * MixinExtras, which this jar's Fabric Loader floor (0.14.22) does not bring. {@link GhostFamily#frictionOver} keeps the
+ * value on every square but a worn one.
  */
 @Mixin(LivingEntity.class)
 public abstract class MixinGhostLivingEntity {
@@ -52,10 +62,13 @@ public abstract class MixinGhostLivingEntity {
         return GhostFamily.soundOf(state, ((LivingEntity) (Object) this).level(), trmt$groundAt);
     }
 
-    @Redirect(
+    // The first float stored after the friction read: the friction itself, before the game multiplies it by 0.91.
+    @ModifyVariable(
         method = "travel",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;getFriction()F"))
-    private float trmt$frictionOfTheSquare(Block block) {
-        return GhostFamily.frictionOf(block, ((LivingEntity) (Object) this).level(), trmt$groundAt);
+        at = @At(value = "STORE", ordinal = 0),
+        slice = @Slice(from = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;getFriction()F")),
+        ordinal = 0)
+    private float trmt$frictionOfTheSquare(float friction) {
+        return GhostFamily.frictionOver(friction, ((LivingEntity) (Object) this).level(), trmt$groundAt);
     }
 }

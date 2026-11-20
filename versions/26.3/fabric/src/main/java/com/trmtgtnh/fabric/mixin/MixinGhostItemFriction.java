@@ -4,12 +4,12 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.Redirect;
+
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.block.GhostFamily;
 
@@ -20,6 +20,10 @@ import com.trmtgtnh.block.GhostFamily;
  * One of the five places vanilla reads a block's friction, all of which Forge patches to ask the block at the square;
  * see {@link MixinGhostLivingEntity} for why the square is noted from vanilla's own lookup. A client moves an item
  * between the server's word on where it is, and on worn ice it stopped short and jumped on.
+ *
+ * <p>
+ * <strong>Changed after the read, not redirected</strong> (0.9.229; see {@link MixinGhostLivingEntity} for the crash):
+ * the read is taken before the game multiplies it, so the game's own 0.98 applies to whatever this answers.
  */
 @Mixin(ItemEntity.class)
 public abstract class MixinGhostItemFriction {
@@ -37,8 +41,8 @@ public abstract class MixinGhostItemFriction {
         return pos;
     }
 
-    @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;getFriction()F"))
-    private float trmt$frictionOfTheSquare(Block block) {
-        return GhostFamily.frictionOf(block, ((Entity) (Object) this).level(), trmt$groundAt);
+    @ModifyExpressionValue(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;getFriction()F"))
+    private float trmt$frictionOfTheSquare(float friction) {
+        return GhostFamily.frictionOver(friction, ((Entity) (Object) this).level(), trmt$groundAt);
     }
 }

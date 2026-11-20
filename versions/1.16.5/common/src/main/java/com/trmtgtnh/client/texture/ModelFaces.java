@@ -24,6 +24,7 @@ import net.minecraft.world.level.block.Block;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.surface.SurfaceRegistry;
+import com.trmtgtnh.surface.SurfaceShape;
 
 /**
  * What a block actually draws on each side, as a texture name.
@@ -214,13 +215,46 @@ public final class ModelFaces {
         Map<String, String> textures = texturesOf(resources, model);
         if (textures == null || textures.isEmpty()) return null;
 
+        return sidesOf(textures, SurfaceShape.of(block.defaultBlockState()) != SurfaceShape.STAIR);
+    }
+
+    /**
+     * The name each side draws, from a model's textures with its parents' merged in, or null where none resolves.
+     *
+     * @param lawnShaped whether this block can be a lawn: anything but a stair, see {@link #lawnFaces}
+     */
+    static String[] sidesOf(Map<String, String> textures, boolean lawnShaped) {
         String[] sides = new String[WANTED.length];
         boolean any = false;
         for (int side = 0; side < WANTED.length; side++) {
             sides[side] = resolve(textures, side);
             if (sides[side] != null) any = true;
         }
-        return any ? sides : null;
+        if (!any) return null;
+        return lawnShaped ? lawnFaces(sides) : sides;
+    }
+
+    /**
+     * A lawn whose model draws its top on a face keeps a lawn's face, so everything downstream treats it as the lawn it
+     * is: see {@link FaceRules#lawnFace}. Here rather than in {@code GhostSides} because the wall made at the stitch and
+     * the flank drawn on a mesher thread have to read the same name, and this is the one table both read.
+     *
+     * <p>
+     * Read from the names a model gives its textures, which is what this class has always read, and that decides who
+     * reaches it. Grass Overhaul's {@code grass_sod_block} names {@code all} and does. Fast Better Grass's
+     * {@code grass_block} draws {@code #top} on its flanks from its elements and names no side, so its flank reads as
+     * {@code particle}, its dirt, under the fringe: the earth wall this rule gives anyway.
+     *
+     * <p>
+     * Never a stair: the 1.7.10 edition's stair stand-in is never grass's, every face of a worn stair takes the covered
+     * block's own tint ({@code GhostSides.stair}), and on that face the top is green and vanilla's flank would not be.
+     */
+    private static String[] lawnFaces(String[] sides) {
+        for (int side = 0; side < sides.length; side++) {
+            String lawn = FaceRules.lawnFace(sides[1], sides[side], side);
+            if (lawn != null) sides[side] = "minecraft:block/" + VanillaNames.current(lawn);
+        }
+        return sides;
     }
 
     /**

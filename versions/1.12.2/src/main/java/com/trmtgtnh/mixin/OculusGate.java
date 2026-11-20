@@ -55,14 +55,55 @@ public final class OculusGate implements IMixinConfigPlugin {
     /** The mixin that needs OptiFine. */
     private static final String GATED_OPTIFINE = "MixinOptiFineShaderSeat";
 
+    /**
+     * The mixins that wrap a call through MixinExtras, each with its redirect form (G17 R5, 2026-11-11).
+     *
+     * <p>
+     * MixinExtras comes in MixinBooter's jar. A pack that boots its own Mixin and has no MixinBooter - RLCraft 2.9.3,
+     * whose MixinBooter could not start - has none, and there a wrapped hook would be lost. So there the redirect form
+     * applies instead: the same call in the same methods, answered the same way, at the one cost of a redirect - a
+     * second mod redirecting the same call is refused by Mixin rather than chained. Where MixinExtras runs, the
+     * wrapped form applies, as it always has, and the redirect form never does. One of each pair, never both: both
+     * would answer the call twice. Runs, not merely is there: where the loading plugin starts MixinExtras, its word on
+     * whether the start succeeded decides ({@code TrmtLoadingPlugin.mixinExtrasRuns}), so a jar that will not start
+     * under the game's Mixin gets the redirect forms (Codex's review of R5, 2026-11-11).
+     */
+    public static final String[][] WRAPPED = { { "MixinGhostNeighbourLightCache", "MixinGhostNeighbourLightCacheRedirected" },
+        { "MixinGhostNeighbourLightWorld", "MixinGhostNeighbourLightWorldRedirected" },
+        { "MixinGhostShadeVanilla", "MixinGhostShadeVanillaRedirected" },
+        { "MixinStairNeighbours", "MixinStairNeighboursRedirected" } };
+
+    /**
+     * The priority of the ghost's neighbour-light mixins, both forms (G17, the W4 census's E2E crash, 2026-11-11).
+     *
+     * <p>
+     * Lighting engines overwrite the light reads those mixins inject into: Alfheim 1.6 overwrites
+     * {@code World.getLightFromNeighborsFor}, {@code World.getLight(BlockPos, boolean)} and
+     * {@code ChunkCache.getLightForExt} at the default priority, 1000, and VintageFix 0.7.1 overwrites the last at 500.
+     * Mixin merges every overwrite before any injection is prepared, whatever their priorities, and then lets an
+     * injection at a call into an overwritten method only when the overwrite's priority is below the injecting
+     * mixin's; {@code require = 0} does not spare it. At the default the game stopped beside Alfheim before its first
+     * screen. Above every overwrite below this, the injection is let in: where the overwrite kept the read, as
+     * VintageFix's does, it is answered as before; where it did not, as Alfheim's does, nothing is found and nothing
+     * fails, and the ghost answers through Alfheim's own question instead ({@code BlockGhost.alfheim$useNeighborBrightness}).
+     * An overwrite at this priority or above would still stop the game; none of the 1.12.2 mods read had one.
+     */
+    public static final int ABOVE_OVERWRITES = 2000;
+
+    /** MixinExtras' start, as the loading plugin names it: its bytes are what is asked for, never the class. */
+    static final String MIXINEXTRAS = "com.llamalad7.mixinextras.MixinExtrasBootstrap";
+
     private boolean present;
 
     private boolean optiFinePresent;
+
+    private boolean extras;
 
     @Override
     public void onLoad(String mixinPackage) {
         present = there(HOLDER);
         optiFinePresent = there(OPTIFINE_SEAT);
+        extras = com.trmtgtnh.core.TrmtLoadingPlugin.mixinExtrasRuns(there(MIXINEXTRAS));
         // Said, because a gate that shut is otherwise silent: the seat it holds back never logs a word,
         // and worn ground then simply draws without its shader material. The 1.16.5 edition's line.
         org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
@@ -70,6 +111,12 @@ public final class OculusGate implements IMixinConfigPlugin {
                 "Shader material seats at mixin load: Oculus or Iris {}, OptiFine {}",
                 present ? "found" : "not found",
                 optiFinePresent ? "found" : "not found");
+        org.apache.logging.log4j.LogManager.getLogger("TRMT: Reimagined")
+            .info(
+                "MixinExtras at mixin load: {}, so the {} wrapped hooks apply in their {} forms",
+                extras ? "running" : "not running",
+                WRAPPED.length,
+                extras ? "wrapped" : "redirect");
     }
 
     private static boolean there(String className) {
@@ -83,8 +130,21 @@ public final class OculusGate implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (mixinClassName.endsWith(GATED)) return present;
-        if (mixinClassName.endsWith(GATED_OPTIFINE)) return optiFinePresent;
+        return applies(mixinClassName, present, optiFinePresent, extras);
+    }
+
+    /**
+     * Whether a mixin applies, given what this game holds: the Oculus and OptiFine seams only with their mods, each
+     * wrapped hook only with MixinExtras and its redirect form only without, and everything else always.
+     */
+    public static boolean applies(String mixinClassName, boolean oculus, boolean optiFine, boolean mixinExtras) {
+        String simple = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
+        if (simple.equals(GATED)) return oculus;
+        if (simple.equals(GATED_OPTIFINE)) return optiFine;
+        for (String[] pair : WRAPPED) {
+            if (simple.equals(pair[0])) return mixinExtras;
+            if (simple.equals(pair[1])) return !mixinExtras;
+        }
         return true;
     }
 
