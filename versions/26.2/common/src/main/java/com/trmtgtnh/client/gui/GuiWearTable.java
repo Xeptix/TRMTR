@@ -193,6 +193,16 @@ public class GuiWearTable extends Screen {
     }
 
     /**
+     * Over the world, the world dimmed as in 1.7.10, not the game's blur and quarter-dark texture (ScreenBackdrop; from
+     * 1.0.1, D21, as the other panel screens did from 1.0.0): the background the game draws in its own layer is its
+     * gradient for a screen that says it is in-game UI.
+     */
+    @Override
+    public boolean isInGameUi() {
+        return ScreenBackdrop.overWorld();
+    }
+
+    /**
      * The panel, then the buttons over it. From 26.1 the game draws a screen's background itself, in a layer of its
      * own before this one: the blur and the menu background that 1.21.1 drew by calling {@code super.renderBackground}
      * at the top of {@code render}. So that call is gone, and so is the empty {@code renderBackground} that kept

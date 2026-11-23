@@ -390,9 +390,10 @@ public final class OverlayPainter {
      * <p>
      * Opaque cubes only. A slab or a fence leaves the ground around it in plain view, and a
      * path that vanished under a fence post would be a stranger sight than one that did not.
-     * A sunken ghost is not an opaque cube either, so worn ground under worn ground still shows
-     * the dip it has been given. Which blocks cover is GroundCover.roofedAt, the one rule collision
-     * asks as well (0.9.229); a full drift's shelter is the picture's own question.
+     * A worn square answers as the block it stands in for, sunk or not, so worn ground under worn
+     * ground is covered too (1.0.1, R1's dirt band: its dip under the block above was an open slot).
+     * Which blocks cover is GroundCover.roofedAt, the one rule collision asks as well (0.9.229); a
+     * full drift's shelter is the picture's own question.
      */
     private static boolean covered(WorldClient world, int x, int y, int z) {
         if (!TrmtConfig.hideWearUnderBlocks || y >= 255) return false;

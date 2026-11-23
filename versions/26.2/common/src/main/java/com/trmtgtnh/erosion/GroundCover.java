@@ -78,8 +78,10 @@ public final class GroundCover {
      *
      * <p>
      * On a client a worn square above is a ghost, which stands in for the block the server has there: that block
-     * decides, and a square above whose own top is sunk is no roof on either side - the client draws it sunk and the
-     * server stands it hollow.
+     * decides, whether or not its own top has sunk, because a block whose top is worn down still rests on the square
+     * under it (1.0.1, R1's third image). Until 1.0.1 a square above whose own top had sunk was no roof on either side,
+     * so the square under it was drawn and stood at its own depth: an open slot under the block above, which from the
+     * side was a band at the top of the wall with the world showing through it.
      */
     public static boolean roofedAt(net.minecraft.world.level.BlockGetter world, int x, int y, int z) {
         if (world == null || y + 1 >= com.trmtgtnh.util.Heights.top(world)) return false;
@@ -89,14 +91,9 @@ public final class GroundCover {
             int origin = com.trmtgtnh.Client.ghostOriginAt(x, y + 1, z);
             net.minecraft.world.level.block.state.BlockState stood = origin < 0 ? null
                 : net.minecraft.world.level.block.Block.stateById(origin);
-            return stood != null && !SnowCover.isSnowLayer(stood) && stood.isSolidRender()
-                && com.trmtgtnh.block.BlockGhost
-                    .drawnSinkAt(com.trmtgtnh.Client.ghostRecordAt(world, x, y + 1, z), origin) == 0;
+            return stood != null && !SnowCover.isSnowLayer(stood) && stood.isSolidRender();
         }
         if (SnowCover.isSnowLayer(state) || !com.trmtgtnh.util.Worlds.isOpaque(world, x, y + 1, z)) return false;
-        if (world instanceof net.minecraft.world.level.Level
-            && !((net.minecraft.world.level.Level) world).isClientSide())
-            return PhysicalDecay.sinkAt((net.minecraft.world.level.Level) world, x, y + 1, z) == 0;
         return true;
     }
 

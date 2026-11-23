@@ -12,7 +12,7 @@ package com.trmtgtnh.api;
 public final class TrmtrApi {
 
     /** This API's version, which is not the mod's. */
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.0.1";
 
     /** TRMTR itself, once TRMTR has set it. */
     private static volatile Trmtr trmtr;

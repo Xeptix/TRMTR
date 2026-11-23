@@ -269,6 +269,100 @@ final class WearGeneration {
      * the record of what has been composed, and the look-up of a surface's source - which is the pass's own maps - are
      * that thread's alone, and what a worker is handed is a sprite to call {@code compose} on and its source.
      */
+    /**
+     * The pictures already made, for one pass (1.0.1, W3: {@link WearPictureCache}): the cache, what every key starts
+     * from (the mod's version), and each source's own key, made once a source however many sprites share it. This
+     * edition keeps the composed pixels, which its install takes as it takes a composed picture's.
+     */
+    static final class Cached {
+
+        final WearPictureCache cache;
+
+        private final byte[] context;
+
+        private final Map<WearSprite.Source, byte[]> sources = new IdentityHashMap<WearSprite.Source, byte[]>();
+
+        /** Pictures found, and pictures made and kept. */
+        int found;
+
+        int kept;
+
+        Cached(WearPictureCache cache, byte[] context) {
+            this.cache = cache;
+            this.context = context;
+        }
+
+        /**
+         * One picture's key, or null for a picture the cache does not keep: everything compose reads, which is the
+         * sprite's own fields and the whole of its source, deep. The thread loading the atlas only.
+         */
+        byte[] keyOf(WearSprite sprite, WearSprite.Source source) {
+            if (cache == null || !sprite.cacheable(source)) return null;
+            byte[] from = sources.get(source);
+            if (from == null) {
+                from = new WearPictureCache.Key().add("Source")
+                    .addDeep(source)
+                    .finish();
+                sources.put(source, from);
+            }
+            WearPictureCache.Key key = new WearPictureCache.Key().add("WearPicture")
+                .add(context);
+            sprite.addTo(key);
+            return key.add(from)
+                .finish();
+        }
+
+        /**
+         * Each picture of a batch from the cache where it holds it, the rest made by {@code making} and kept; in the
+         * batch's order. A glow overlay with nothing to light is kept as a picture of no bytes, and a failure is not
+         * kept at all.
+         */
+        Picture[] composeOrFind(List<WearSprite> sprites, List<WearSprite.Source> sources,
+            java.util.function.BiFunction<List<WearSprite>, List<WearSprite.Source>, Picture[]> making) {
+            Picture[] out = new Picture[sprites.size()];
+            byte[][] keys = new byte[sprites.size()][];
+            List<WearSprite> missed = new ArrayList<WearSprite>(sprites.size());
+            List<WearSprite.Source> missedFrom = new ArrayList<WearSprite.Source>(sprites.size());
+            List<Integer> places = new ArrayList<Integer>(sprites.size());
+            for (int i = 0; i < sprites.size(); i++) {
+                WearSprite sprite = sprites.get(i);
+                keys[i] = keyOf(sprite, sources.get(i));
+                WearPictureCache.Entry entry = keys[i] == null ? null : cache.get(keys[i]);
+                int[] pixels = entry == null ? null : WearPictureCache.bytesToPixels(entry.payload);
+                boolean fits = entry != null && pixels != null
+                    && (pixels.length == 0 ? sprite.isGlow() : pixels.length == entry.c * entry.d);
+                if (fits) {
+                    out[i] = new Picture(pixels.length == 0 ? null : pixels, null);
+                    sprite.composedCached(entry.b);
+                    found++;
+                    continue;
+                }
+                missed.add(sprite);
+                missedFrom.add(sources.get(i));
+                places.add(Integer.valueOf(i));
+            }
+            if (missed.isEmpty()) return out;
+            Picture[] made = making.apply(missed, missedFrom);
+            for (int m = 0; m < made.length; m++) {
+                int i = places.get(m)
+                    .intValue();
+                Picture picture = made[m];
+                out[i] = picture;
+                if (keys[i] == null || picture == null || picture.failure != null) continue;
+                WearSprite sprite = sprites.get(i);
+                if (picture.pixels != null) {
+                    int edge = (int) Math.round(Math.sqrt(picture.pixels.length));
+                    cache.put(keys[i], new WearPictureCache.Entry(WearPictureCache.pixelsToBytes(picture.pixels), 0,
+                        sprite.glowLevelOf(), edge, picture.pixels.length / Math.max(1, edge)));
+                    kept++;
+                } else if (sprite.isGlow()) {
+                    cache.put(keys[i], new WearPictureCache.Entry(new byte[0], 0, 0, 0, 0));
+                }
+            }
+            return out;
+        }
+    }
+
     static final class Ahead {
 
         /** The sprites in the order the atlas is expected to load them. */
@@ -316,7 +410,15 @@ final class WearGeneration {
          * @param batch the most pictures composed at once, the one asked for included, and so the most that wait
          * @param pools makes the pool, at the first batch that wants one
          */
+        /** The pictures already made, asked before anything is composed; null composes everything (1.0.1, W3). */
+        private final Cached cached;
+
         Ahead(List<WearSprite> order, int batch, Supplier<ExecutorService> pools) {
+            this(order, batch, pools, null);
+        }
+
+        Ahead(List<WearSprite> order, int batch, Supplier<ExecutorService> pools, Cached cached) {
+            this.cached = cached;
             this.order = new ArrayList<WearSprite>(order);
             this.places = new IdentityHashMap<WearSprite, Integer>(this.order.size() * 2);
             for (int i = 0; i < this.order.size(); i++) {
@@ -379,6 +481,11 @@ final class WearGeneration {
         }
 
         private Picture[] compose(List<WearSprite> sprites, List<WearSprite.Source> sources) {
+            return cached == null ? make(sprites, sources) : cached.composeOrFind(sprites, sources, this::make);
+        }
+
+        /** Each picture of a batch composed on the pool, or here for one picture or where the pool refuses. */
+        private Picture[] make(List<WearSprite> sprites, List<WearSprite.Source> sources) {
             if (sprites.size() > 1 && !refused) {
                 try {
                     if (pool == null) {

@@ -1300,6 +1300,12 @@ public final class TrmtConfig {
     /** Whether that layer moves, where the texture named for it is one that moves. */
     public static boolean animateInnerLayers = true;
 
+    /**
+     * Whether the wear pictures already made are kept, in memory and in {@code trmtr-cache} in the game folder, so an
+     * unchanged one is not made again (1.0.1, W3; D26, D37).
+     */
+    public static boolean wearPictureCache = true;
+
     /** Whether the holes in a worn shell are left see-through rather than filled in. */
     public static boolean seeThroughInnerLayers;
 
@@ -3535,6 +3541,11 @@ public final class TrmtConfig {
             true,
             "Whether the layer behind a worn block moves, when the texture named for it is one that moves. Chisel's lavastone and waterstone are stone with lava or water behind them, and that lava is animated - twenty pictures cycling every two ticks - so worn ground showing a single still frame of it sat dead beside the unworn blocks around it. On, the frame under the worn shell is laid again each time the liquid moves, and stays in step with the liquid in the block next door because it is counted by the same clock read out of the same file, while it is on the ground near you - every such picture, as the unworn blocks beside it move with their liquid, and none elsewhere on the atlas, which is what keeps the cost to the worn liquid in sight. What it costs is memory held for the session: the shell of every worn picture, kept rather than thrown away once it has been drawn, the still picture the atlas keeps beside it for anything that moves, and one copy of the liquid's frames per surface - about seventy-nine megabytes for the sixty-four lava and water faces Chisel for this version builds, at the settings shipped here and the sixty-two gradations an 8192 atlas holds them at, and about a hundred and one with client.largerAtlas on and all eighty drawn. The budget below counts all of it, which is what keeps a config naming fifty blocks from quietly costing far more. Nothing at all when innerLayerTextures is empty or names nothing that moves, or for a block with no worn pictures of its own, which is every block while client.perSurfaceTextures is off, as the potato quality rung also leaves it. No quality rung moves this, client.innerLayerAnimationBudgetMb or client.innerLayerUploadsPerTick. A lower rung lays the layer into fewer pictures and lets fewer blocks keep their own, and neither changes how many pictures one tick may redraw. Takes effect on the next resource reload.");
         raiseAnimationBudget(config, writtenBefore0920);
+        wearPictureCache = config.getBoolean(
+            "wearPictureCache",
+            CATEGORY_CLIENT,
+            true,
+            "Keep the worn pictures already made, so a picture nothing has changed is not made again. They are kept in memory and in the trmtr-cache folder in the game folder, at most 512 megabytes, the oldest let go first, and each is filed under everything it was made from: the block's own pixels, its look, the gradation, rotation and turn, every setting, and this mod's version. A resource pack switch then makes again only the pictures of the blocks the pack changed, and a second start makes almost none. Off, every picture is made afresh at every resource reload and the folder is neither read nor written; what it already holds stays until it is deleted. Deleting the folder is always safe, while the game runs or not: it costs one round of making the pictures again. A file in it that is cut short or damaged is passed over and the picture made afresh. Takes effect on the next resource reload.");
         innerLayerAnimationBudgetMb = config.getInt(
             "innerLayerAnimationBudgetMb",
             CATEGORY_CLIENT,

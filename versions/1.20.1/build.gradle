@@ -48,6 +48,11 @@ subprojects {
                 if (project.hasProperty("memory")) {
                     vmArgs("-Xmx" + project.property("memory") + "m", "-Xms512m")
                 }
+                // Further JVM options for one run, separated by '|' (1.0.1, W3): the pack-switch timer's properties and
+                // a flight recording or GC log, for timing a compose in a dev run. Nothing given adds nothing.
+                if (project.hasProperty("vmargs")) {
+                    vmArgs(project.property("vmargs").toString().split("\\|").findAll { !it.isEmpty() })
+                }
             }
         }
     }

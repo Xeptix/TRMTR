@@ -428,7 +428,7 @@ public final class ErosionStore {
         int nowSeconds) {
         int placed = com.trmtgtnh.original.OriginalChunk.place(data, squares,
             com.trmtgtnh.original.FaithfulChains.on(), nowSeconds, ErosionEngine::thresholdAt);
-        Trmt.LOG.info("[S1] Placed {} of {} converted squares in chunk {},{} on {} chains.", placed, squares.size(),
+        Trmt.LOG.debug("[S1] Placed {} of {} converted squares in chunk {},{} on {} chains.", placed, squares.size(),
             chunkXOf(key.longValue()), chunkZOf(key.longValue()),
             com.trmtgtnh.original.FaithfulChains.on() ? "Faithful Mode's" : "this mod's own");
         return placed;

@@ -2,6 +2,7 @@ package com.trmtgtnh.client.texture;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -70,21 +71,64 @@ final class WearGeneration {
      */
     static void composeAndInstall(ExecutorService pool, List<WearSprite> pending, List<WearSprite.Source> ingredients,
         int mipmapLevels, WearTextures.Tally tally) {
+        composeAndInstall(pool, pending, ingredients, mipmapLevels, tally, null);
+    }
+
+    /**
+     * The pictures already made, for one pass (1.0.1, W3: {@link WearPictureCache}): the cache, what every key starts
+     * from (the mod's version), and each source's own key, made once a source however many sprites share it. This
+     * edition keeps the composed pixels, which its install takes as it takes a composed picture's.
+     */
+    static final class Cached {
+
+        final WearPictureCache cache;
+
+        private final byte[] context;
+
+        private final Map<WearSprite.Source, byte[]> sources = new java.util.IdentityHashMap<WearSprite.Source, byte[]>();
+
+        /** Pictures found, and pictures made and kept. */
+        int found;
+
+        int kept;
+
+        Cached(WearPictureCache cache, byte[] context) {
+            this.cache = cache;
+            this.context = context;
+        }
+
+        /**
+         * One picture's key, or null for a picture the cache does not keep: everything compose reads, which is the
+         * sprite's own fields and the whole of its source, deep. The render thread only.
+         */
+        byte[] keyOf(WearSprite sprite, WearSprite.Source source) {
+            if (cache == null || !sprite.cacheable(source)) return null;
+            byte[] from = sources.get(source);
+            if (from == null) {
+                from = new WearPictureCache.Key().add("Source")
+                    .addDeep(source)
+                    .finish();
+                sources.put(source, from);
+            }
+            WearPictureCache.Key key = new WearPictureCache.Key().add("WearPicture")
+                .add(context);
+            sprite.addTo(key);
+            return key.add(from)
+                .finish();
+        }
+    }
+
+    /**
+     * As {@link #composeAndInstall(ExecutorService, List, List, int, WearTextures.Tally)}, taking from {@code cached}
+     * the pixels of every picture it already holds, installed as composed ones are, and keeping there the pixels of
+     * every one composed here. Null composes everything.
+     */
+    static void composeAndInstall(ExecutorService pool, List<WearSprite> pending, List<WearSprite.Source> ingredients,
+        int mipmapLevels, WearTextures.Tally tally, Cached cached) {
         if (pending.isEmpty()) return;
 
-        List<int[]> composed;
-        try {
-            composed = compose(pool, pending, ingredients);
-        } catch (RuntimeException poolRefused) {
-            // A pool that will not take work, or one interrupted out from under this. Composing here
-            // instead is slower and is exactly what this mod did before it threaded, so the worst
-            // case is a longer loading screen rather than an atlas full of holes.
-            Trmt.LOG.warn("Composing wear textures on the render thread; the worker pool refused", poolRefused);
-            composed = new ArrayList<int[]>(pending.size());
-            for (int i = 0; i < pending.size(); i++) {
-                composed.add(safely(pending.get(i), ingredients.get(i)));
-            }
-        }
+        List<int[]> composed = cached == null ? composeOnPool(pool, pending, ingredients)
+            : composeOrFind(pool, pending, ingredients, cached);
 
         for (int i = 0; i < pending.size(); i++) {
             WearSprite sprite = pending.get(i);
@@ -120,6 +164,83 @@ final class WearGeneration {
 
         pending.clear();
         ingredients.clear();
+    }
+
+    /** Each picture of a batch composed on the pool, or here where the pool refuses. */
+    static List<int[]> composeOnPool(ExecutorService pool, List<WearSprite> pending,
+        List<WearSprite.Source> ingredients) {
+        List<int[]> composed;
+        try {
+            composed = compose(pool, pending, ingredients);
+        } catch (RuntimeException poolRefused) {
+            // A pool that will not take work, or one interrupted out from under this. Composing here
+            // instead is slower and is exactly what this mod did before it threaded, so the worst
+            // case is a longer loading screen rather than an atlas full of holes.
+            Trmt.LOG.warn("Composing wear textures on the render thread; the worker pool refused", poolRefused);
+            composed = new ArrayList<int[]>(pending.size());
+            for (int i = 0; i < pending.size(); i++) {
+                composed.add(safely(pending.get(i), ingredients.get(i)));
+            }
+        }
+
+        return composed;
+    }
+
+    /**
+     * Each picture of a batch from the cache where it holds it, the rest composed on the pool and kept; in the batch's
+     * order. A glow overlay with nothing to light is kept as a picture of no bytes, and a failure is not kept at all.
+     */
+    static List<int[]> composeOrFind(ExecutorService pool, List<WearSprite> pending,
+        List<WearSprite.Source> ingredients, Cached cached) {
+        int[][] held = new int[pending.size()][];
+        boolean[] found = new boolean[pending.size()];
+        byte[][] keys = new byte[pending.size()][];
+        List<WearSprite> missed = new ArrayList<WearSprite>(pending.size());
+        List<WearSprite.Source> missedFrom = new ArrayList<WearSprite.Source>(pending.size());
+        for (int i = 0; i < pending.size(); i++) {
+            WearSprite sprite = pending.get(i);
+            keys[i] = cached.keyOf(sprite, ingredients.get(i));
+            WearPictureCache.Entry entry = keys[i] == null ? null : cached.cache.get(keys[i]);
+            int[] pixels = entry == null ? null : WearPictureCache.bytesToPixels(entry.payload);
+            boolean fits = entry != null && pixels != null
+                && (pixels.length == 0 ? sprite.isGlow() : pixels.length == entry.c * entry.d);
+            if (fits) {
+                held[i] = pixels.length == 0 ? null : pixels;
+                found[i] = true;
+                sprite.composedCached(entry.b);
+                cached.found++;
+                continue;
+            }
+            missed.add(sprite);
+            missedFrom.add(ingredients.get(i));
+        }
+        List<int[]> made = composeOnPool(pool, missed, missedFrom);
+        List<int[]> out = new ArrayList<int[]>(pending.size());
+        for (int i = 0, next = 0; i < pending.size(); i++) {
+            if (found[i]) {
+                out.add(held[i]);
+                continue;
+            }
+            int[] pixels = made.get(next++);
+            out.add(pixels);
+            if (keys[i] == null) continue;
+            WearSprite sprite = pending.get(i);
+            if (pixels != null) {
+                int edge = (int) Math.round(Math.sqrt(pixels.length));
+                cached.cache.put(
+                    keys[i],
+                    new WearPictureCache.Entry(
+                        WearPictureCache.pixelsToBytes(pixels),
+                        0,
+                        sprite.glowLevelOf(),
+                        edge,
+                        pixels.length / Math.max(1, edge)));
+                cached.kept++;
+            } else if (sprite.isGlow()) {
+                cached.cache.put(keys[i], new WearPictureCache.Entry(new byte[0], 0, 0, 0, 0));
+            }
+        }
+        return out;
     }
 
     private static List<int[]> compose(ExecutorService pool, List<WearSprite> pending,

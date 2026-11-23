@@ -530,3 +530,6 @@ idea.project.settings {
 
 apply from: 'gradle/scripts/publishing.gradle'
 apply from: 'gradle/scripts/extra.gradle'
+
+// The build stamp the wear picture cache keys a development build by (t14).
+apply from: rootProject.file("gradle/trmtr-build-stamp.gradle")

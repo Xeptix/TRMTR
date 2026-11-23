@@ -134,6 +134,7 @@ public final class WearTextures {
             2,
             StateFiling.<Block, Integer>empty(),
             StateFiling.<Block, TextureAtlasSprite>empty(),
+            FaceMends.<Block, TextureAtlasSprite>none(),
             StateFiling.<Block, TextureAtlasSprite>empty(),
             null,
             StateFiling.<Block, Boolean>empty(),
@@ -162,6 +163,9 @@ public final class WearTextures {
         /** Mended side textures, for the covered blocks that draw themselves in more than one pass. */
         final StateFiling<Block, TextureAtlasSprite> mended;
 
+        /** The mends of the flanks that draw a picture other than face 2's (1.0.1 W2b). */
+        final FaceMends<Block, TextureAtlasSprite> faceMends;
+
         /** De-greened grass side walls, one per grass block state. */
         final StateFiling<Block, TextureAtlasSprite> walls;
 
@@ -189,7 +193,7 @@ public final class WearTextures {
 
         Lookup(TextureAtlasSprite[] icons, TextureAtlasSprite[] glowIcons, byte[] glowLevels,
             TextureAtlasSprite[] fringes, int layers, int rotations,
-            StateFiling<Block, Integer> sets, StateFiling<Block, TextureAtlasSprite> mended,
+            StateFiling<Block, Integer> sets, StateFiling<Block, TextureAtlasSprite> mended, FaceMends<Block, TextureAtlasSprite> faceMends,
             StateFiling<Block, TextureAtlasSprite> walls, TextureAtlasSprite wallFallback,
             StateFiling<Block, Boolean> filed, int[] filedNumbers, int[] stages, java.util.BitSet turned, String mode) {
             this.turned = turned;
@@ -202,6 +206,7 @@ public final class WearTextures {
             this.rotations = rotations;
             this.sets = sets;
             this.mended = mended;
+            this.faceMends = faceMends;
             this.walls = walls;
             this.wallFallback = wallFallback;
             this.filed = filed;
@@ -218,6 +223,9 @@ public final class WearTextures {
      * knows to draw vanilla's grass side rather than the side with its holes (0.9.223, spec GS15).
      */
     private static volatile StateFiling<Block, Boolean> wantedMends = StateFiling.<Block, Boolean>empty();
+
+    /** The flanks drawing a picture of their own that wanted a mend of their own (1.0.1 W2b, FaceMends). */
+    private static volatile FaceMends<Block, Boolean> wantedFaceMends = FaceMends.<Block, Boolean>none();
 
     /**
      * How the ids in force number a block, and which block an id names. The one place this class
@@ -483,13 +491,70 @@ public final class WearTextures {
         /** Set as the stitch ends: the check runs only on a stitch that finished. */
         boolean stitched;
 
+        /** The resource packs this stitch reads, by id and in order; the atlas it builds is drawn from these. */
+        List<String> packs;
+
+        /** The pictures already made, and what every picture's key starts from; null with the cache off. */
+        final WearGeneration.Cached cached;
+
         Pass(ResourceManager manager, int mipmapLevels,
             Map<Block, Map<String, MovingLayerLedger.Pictures>> layerPictures) {
             this.manager = manager;
             this.mipmapLevels = mipmapLevels;
             this.faces = new FaceSource(manager);
             this.layerPictures = layerPictures;
+            WearPictureCache cache = pictureCache();
+            this.cached = cache == null ? null : new WearGeneration.Cached(cache, contextKey());
         }
+    }
+
+    /** The pictures already made, while client.wearPictureCache is on; null, and let go of, while it is off. */
+    private static WearPictureCache pictureCache;
+
+    /** Writes the cache's new pictures to its folder after a pass, so the stitch never waits on the disk. */
+    private static final java.util.concurrent.ExecutorService CACHE_WRITER = java.util.concurrent.Executors
+        .newSingleThreadExecutor(job -> {
+            Thread thread = new Thread(job, "TRMT wear picture cache");
+            thread.setDaemon(true);
+            return thread;
+        });
+
+    static synchronized WearPictureCache pictureCache() {
+        if (!TrmtConfig.wearPictureCache) {
+            if (pictureCache != null) pictureCache.close();
+            pictureCache = null;
+            return null;
+        }
+        if (pictureCache == null) {
+            Minecraft game = Minecraft.getInstance();
+            java.io.File folder = game == null || game.gameDirectory == null ? null
+                : new java.io.File(game.gameDirectory, WearPictureCache.FOLDER);
+            pictureCache = new WearPictureCache(folder, WearPictureCache.keyedVersion(Trmt.version()));
+        }
+        return pictureCache;
+    }
+
+    /**
+     * What every picture's key starts from (D26): the mod's version, with a development build's stamp (t14,
+     * {@link WearPictureCache#keyedVersion}). The format is in every key already
+     * ({@link WearPictureCache.Key}).
+     *
+     * <p>
+     * <strong>No setting is here, and every setting that shapes a picture is still in its key.</strong> A picture is
+     * composed from its sprite and its source and nothing else: every setting that shapes one - the family's look, its
+     * strength and curve, the earth under grass, see-through layers, the gradations, rotations and turns the plan
+     * chose, the edge - is read into one or the other before anything is composed, and the key holds both whole
+     * ({@code WearGeneration.Cached.keyOf}). {@code WearPictureCacheTest} holds compose to that: every public setting
+     * changed after the source is read leaves every picture as it was. Keyed on the whole settings instead, as this
+     * was first written, every picture missed after joining a world, because the server's rules replace the families'
+     * settings and four more with equal values in other objects (a dev run, 2026-11-21: 0 of 44,318 found at the first
+     * pack switch in a world, against all 44,318 at the restart before it). The version covers the code: a build that
+     * composes otherwise is another version.
+     */
+    static byte[] contextKey() {
+        return new WearPictureCache.Key().add("Context")
+            .add(WearPictureCache.keyedVersion(Trmt.version()))
+            .finish();
     }
 
     /**
@@ -649,13 +714,15 @@ public final class WearTextures {
                 ingredients.add(source);
                 current.sourceOf.put(sprite, source);
                 if (pending.size() >= COMPOSE_BATCH) {
-                    WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished);
+                    WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished, current.cached);
                 }
             }
-            WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished);
+            WearGeneration.composeAndInstall(pool, pending, ingredients, tally, current.finished, current.cached);
         } finally {
             WearGeneration.shutDown(pool);
         }
+        // What was made new goes to the folder behind the stitch, on a thread of its own.
+        if (current.cached != null) CACHE_WRITER.execute(current.cached.cache::flush);
     }
 
     /**
@@ -703,6 +770,14 @@ public final class WearTextures {
                 new Object[] { Integer.valueOf(tally.built),
                     Long.valueOf((System.nanoTime() - current.began) / 1000000L), Integer.valueOf(tally.surfaces),
                     Integer.valueOf(tally.guessed), Integer.valueOf(tally.unreadable), Integer.valueOf(tally.failed) });
+            if (current.cached != null) {
+                int[] counted = current.cached.cache.counted();
+                Trmt.LOG.info(LINE_CACHED,
+                    new Object[] { Integer.valueOf(current.cached.found), Integer.valueOf(current.cached.kept),
+                        Integer.valueOf(counted[2]), Long.valueOf(current.cached.cache.diskBytes() / (1024L * 1024L)) });
+            } else {
+                Trmt.LOG.info("Made every wear picture afresh: client.wearPictureCache is off");
+            }
             if (!tally.improvised.isEmpty()) {
                 // Counted and sampled rather than handed over whole.
                 //
@@ -1101,6 +1176,7 @@ public final class WearTextures {
         final int rotations;
         final StateFiling<Block, Integer> sets;
         final StateFiling<Block, WearSprite> mended;
+        final FaceMends<Block, WearSprite> faceMends;
         final StateFiling<Block, WearSprite> walls;
         final WearSprite wallFallback;
         final StateFiling<Block, Boolean> filed;
@@ -1110,7 +1186,8 @@ public final class WearTextures {
         final String mode;
 
         Planned(WearSprite[] icons, WearSprite[] glowIcons, FringeSprite[] fringes, int layers, int rotations, StateFiling<Block, Integer> sets,
-            StateFiling<Block, WearSprite> mended, StateFiling<Block, WearSprite> walls, WearSprite wallFallback,
+            StateFiling<Block, WearSprite> mended, FaceMends<Block, WearSprite> faceMends,
+            StateFiling<Block, WearSprite> walls, WearSprite wallFallback,
             StateFiling<Block, Boolean> filed, int[] numbers, int[] stages, java.util.BitSet turned, String mode) {
             this.turned = turned;
             this.mode = mode;
@@ -1121,6 +1198,7 @@ public final class WearTextures {
             this.rotations = rotations;
             this.sets = sets;
             this.mended = mended;
+            this.faceMends = faceMends;
             this.walls = walls;
             this.wallFallback = wallFallback;
             this.filed = filed;
@@ -1176,6 +1254,7 @@ public final class WearTextures {
             made.rotations,
             made.sets,
             resolved(made.mended, atlas),
+            resolvedFaces(made.faceMends, atlas),
             resolved(made.walls, atlas),
             made.wallFallback == null || !made.wallFallback.isUsable() ? null
                 : atlas.getSprite(nameOf(placeOf(made.wallFallback))),
@@ -1187,6 +1266,14 @@ public final class WearTextures {
     }
 
     /** One filing of producers, as a filing of the atlas's own sprites. */
+    /** The same for the flanks' own mends (1.0.1 W2b, FaceMends). */
+    private static FaceMends<Block, TextureAtlasSprite> resolvedFaces(FaceMends<Block, WearSprite> named,
+        TextureAtlas atlas) {
+        List<StateFiling<Block, TextureAtlasSprite>> faces = new ArrayList<StateFiling<Block, TextureAtlasSprite>>();
+        for (int face = FaceMends.FIRST_OWN; face <= FaceMends.LAST; face++) faces.add(resolved(named.face(face), atlas));
+        return new FaceMends<Block, TextureAtlasSprite>(named.own(), faces);
+    }
+
     private static StateFiling<Block, TextureAtlasSprite> resolved(StateFiling<Block, WearSprite> named,
         final TextureAtlas atlas) {
         final StateFiling.Builder<Block, TextureAtlasSprite> out = StateFiling.<Block, TextureAtlasSprite>builder();
@@ -1284,10 +1371,14 @@ public final class WearTextures {
         }
 
         // Composed again from the atlas, every picture of a block whose face it draws otherwise, and written into the
-        // sprite that already holds the picture: no second stitch, no second atlas.
+        // sprite that already holds the picture: no second stitch, no second atlas. Harvested here and composed on the
+        // pool (1.0.1, W3: until then one at a time on the render thread), then written into the atlas here, the one
+        // thread that may.
         int recomposed = 0;
         Map<WearSprite.Source, WearSprite.Source> redone = new IdentityHashMap<WearSprite.Source, WearSprite.Source>();
         int mipLevels = current.mipmapLevels;
+        List<WearSprite> pending = new ArrayList<WearSprite>();
+        List<WearSprite.Source> ingredients = new ArrayList<WearSprite.Source>();
         for (Map.Entry<WearSprite, WearSprite.Source> each : current.sourceOf.entrySet()) {
             WearSprite sprite = each.getKey();
             if (sprite.origin() == null || !moved.contains(sprite.origin())) continue;
@@ -1309,10 +1400,26 @@ public final class WearTextures {
                 current.readsOf.put(fresh, current.faces.takeReads());
             }
             if (fresh.isUnreadable()) continue;
-            GeneratedPack.Sheet sheet = sprite.install(sprite.compose(fresh), fresh);
-            if (sheet != null && intoAtlas(atlas, sprite, sheet)) recomposed++;
-            each.setValue(fresh);
+            pending.add(sprite);
+            ingredients.add(fresh);
         }
+        java.util.concurrent.ExecutorService pool = WearGeneration.newPool();
+        List<GeneratedPack.Sheet> sheets;
+        try {
+            sheets = WearGeneration.composeInstalled(pool, pending, ingredients);
+        } finally {
+            WearGeneration.shutDown(pool);
+        }
+        for (int i = 0; i < pending.size(); i++) {
+            WearSprite sprite = pending.get(i);
+            GeneratedPack.Sheet sheet = sheets.get(i);
+            if (sheet != null && intoAtlas(atlas, sprite, sheet)) recomposed++;
+            current.sourceOf.put(sprite, ingredients.get(i));
+        }
+        // A block the finished atlas draws otherwise than its file keeps its pictures apart from every other's for the
+        // rest of the session (1.0.1, W3), so a stitch whose check before it is skipped - a pack switch, D25 - never
+        // shares a place between pictures this atlas would then part, which cost a second build.
+        KEPT_APART.addAll(moved);
         // A picture sharing another's place whose block is drawn otherwise may no longer be the same picture; where it
         // is not, the two are given places of their own by the stitch this asks for (0.9.229, public issue #3).
         int parted = partTwinsDrawnOtherwise(current.sourceOf, moved);
@@ -1349,6 +1456,31 @@ public final class WearTextures {
                 .requestRestitch(
                     wider + " block face(s) are drawn wider than their texture files, so the wear pictures are built again at that size.");
         }
+    }
+
+    /** The resource packs the atlas in force was built from, by id and in order; null before the session's first. */
+    private static volatile List<String> packsAtLastStitch;
+
+    /** Every resource pack the manager reads, by id, in its own order; null where they cannot be listed. */
+    static List<String> packIds(ResourceManager manager) {
+        if (manager == null) return null;
+        List<String> out = new ArrayList<String>();
+        try {
+            manager.listPacks()
+                .forEach(pack -> out.add(pack.getName()));
+        } catch (RuntimeException unlistable) {
+            // A list that cannot be read is no list: the check is skipped rather than run on a guess.
+            return null;
+        }
+        return out;
+    }
+
+    /**
+     * Whether the atlas in force was built from the packs a stitch reads, so it draws what the new atlas will (D25): the
+     * same packs in the same order. Never before the session's first stitch, when no block has a model yet.
+     */
+    static boolean samePacks(List<String> atLastStitch, List<String> now) {
+        return atLastStitch != null && now != null && atLastStitch.equals(now);
     }
 
     /**
@@ -1403,7 +1535,13 @@ public final class WearTextures {
                     }
                 }
                 if (moved.isEmpty()) return;
+                // Kept apart from here on, as the check after the stitch keeps the blocks it finds (checkAgainstAtlas).
+                KEPT_APART.addAll(moved);
                 Map<WearSprite.Source, WearSprite.Source> redone = new IdentityHashMap<WearSprite.Source, WearSprite.Source>();
+                // Harvested here, under the pass's lock, and composed on the pool (1.0.1, W3): until then each picture
+                // was composed and encoded on this thread, one at a time.
+                List<WearSprite> pending = new ArrayList<WearSprite>();
+                List<WearSprite.Source> ingredients = new ArrayList<WearSprite.Source>();
                 for (Map.Entry<WearSprite, WearSprite.Source> each : current.sourceOf.entrySet()) {
                     WearSprite sprite = each.getKey();
                     if (sprite.origin() == null || !moved.contains(sprite.origin())) continue;
@@ -1429,10 +1567,20 @@ public final class WearTextures {
                         if (!fresh.isUnreadable()) current.readsOf.remove(old);
                     }
                     if (fresh.isUnreadable()) continue;
-                    GeneratedPack.Sheet sheet = WearGeneration.encodeSafely(sprite.install(sprite.compose(fresh), fresh));
-                    if (sheet == null) continue;
-                    current.finished.put(sprite, sheet);
-                    each.setValue(fresh);
+                    pending.add(sprite);
+                    ingredients.add(fresh);
+                }
+                java.util.concurrent.ExecutorService pool = WearGeneration.newPool();
+                List<WearSprite> filed;
+                try {
+                    filed = WearGeneration.recompose(pool, pending, ingredients, current.finished);
+                } finally {
+                    WearGeneration.shutDown(pool);
+                }
+                Map<WearSprite, WearSprite.Source> made = new IdentityHashMap<WearSprite, WearSprite.Source>();
+                for (int i = 0; i < pending.size(); i++) made.put(pending.get(i), ingredients.get(i));
+                for (WearSprite sprite : filed) {
+                    current.sourceOf.put(sprite, made.get(sprite));
                     recomposed++;
                 }
             }
@@ -1559,6 +1707,8 @@ public final class WearTextures {
         // Not finished here any more (WP30, 0.9.224): the pass is kept to the end of the model bake, where its faces are
         // asked of the finished atlas - afterBake, which finishes it.
         Pass current = pass;
+        // The packs the atlas now in force was built from, for the next stitch's check before it (D25).
+        if (current != null) packsAtLastStitch = current.packs;
         if (current != null) current.stitched = true;
         // Says what did not run, and clears every figure this stitch measured, the plan with them - so a later
         // stitch is judged and planned on its own. Until 0.9.220 nothing called it here.
@@ -1650,6 +1800,8 @@ public final class WearTextures {
 
     // Word for word what the sprite pass writes, kept in one place so a line found in latest.log leads straight back
     // to the branch that wrote it.
+    static final String LINE_CACHED = "Took {} wear pictures from those already made and kept {} newly made; {} kept ones could not be read and were made again; the trmtr-cache folder holds {} MB";
+
     private static final String LINE_BUILT = "Composed {} wear textures once each in {} ms, from {} surfaces read once apiece, each picture at the size the stitcher reserved for it; {} had to be guessed at, {} had nothing readable to be made from and {} could not be composed or installed. Of those last two, a block's own wear falls through to its family's fallback, a side wall to the fallback wall and a mended side to vanilla grass's side; a family's fallback and the fallback wall have nothing below them, and a family's fallback missing at its first gradation is named in a warning below.";
 
     // One count rather than four, and the wording follows. Both older editions read a face out of the atlas where
@@ -2179,12 +2331,18 @@ public final class WearTextures {
         // a limit that cuts faces cuts decorative variants before the ground a path is worn across.
         List<SurfaceRegistry.SurfaceState> surfaces = AtlasPlan
             .naturalFirst(SurfaceRegistry.texturableStates(), NATURAL_GROUND);
-        StateFiling.Builder<Block, Boolean> mendsWanted = mendedSidesWanted(manager, surfaces);
+        FaceMends.Wanted<Block> faceMendsWanted = mendedSidesWanted(manager, surfaces);
+        StateFiling.Builder<Block, Boolean> mendsWanted = faceMendsWanted.main;
         StateFiling.Builder<Block, Boolean> wallsWanted = grassWallsWanted(surfaces);
         // Every edge worked out once, here, and used both to price the plan and to register the sprites, so what goes
         // to the stitcher is what the plan priced rather than a second reading of the same files.
         int[][] fallbackEdges = pricing.fallbackEdges();
         StateFiling.Builder<Block, Integer> mendEdges = pricing.sideEdges(mendsWanted);
+        // The flanks with a picture of their own, each at the edge of that picture (1.0.1 W2b, FaceMends).
+        List<StateFiling.Builder<Block, Integer>> faceMendEdges = new ArrayList<StateFiling.Builder<Block, Integer>>();
+        for (int face = FaceMends.FIRST_OWN; face <= FaceMends.LAST; face++) {
+            faceMendEdges.add(pricing.sideEdges(faceMendsWanted.face(face), face));
+        }
         StateFiling.Builder<Block, Integer> wallEdges = pricing.sideEdges(wallsWanted);
         int fallbackWallEdge = pricing.fallbackWallEdge();
         int fringeEdge = pricing.fringeEdge();
@@ -2227,8 +2385,8 @@ public final class WearTextures {
             fallbackAppearances(),
             FacePricing.cellsOf(fallbackEdges),
             AtlasPlan.cellsFor(fringeEdge),
-            mendsWanted.states() + wallsWanted.states() + 1, // + the fallback wall
-            FacePricing.cellsOf(mendEdges) + FacePricing.cellsOf(wallEdges) + AtlasPlan.cellsFor(fallbackWallEdge),
+            faceMendsWanted.states() + wallsWanted.states() + 1, // + the fallback wall
+            FacePricing.cellsOf(mendEdges) + FacePricing.cellsOf(faceMendEdges) + FacePricing.cellsOf(wallEdges) + AtlasPlan.cellsFor(fallbackWallEdge),
             census.sets(),
             census.cells(),
             TrmtConfig.maxTexturedSurfaces,
@@ -2276,6 +2434,10 @@ public final class WearTextures {
         StateFiling.Builder<Block, Integer> states = StateFiling.<Block, Integer>builder();
         REGISTERED.clear();
         final StateFiling.Builder<Block, WearSprite> mended = StateFiling.<Block, WearSprite>builder();
+        final List<StateFiling.Builder<Block, WearSprite>> faceMended = new ArrayList<StateFiling.Builder<Block, WearSprite>>();
+        for (int face = FaceMends.FIRST_OWN; face <= FaceMends.LAST; face++) {
+            faceMended.add(StateFiling.<Block, WearSprite>builder());
+        }
         List<SpritePlan> plans = new ArrayList<SpritePlan>();
 
         // Fallbacks first. They are what every surface set falls through to for an appearance its
@@ -2323,9 +2485,22 @@ public final class WearTextures {
 
             @Override
             public void visit(Block block, int meta, Integer sideEdge) {
-                registerMendedSide(into, mended, block, meta, SurfaceFamily.GRASS, sideEdge.intValue());
+                registerMendedSide(into, mended, block, meta, SurfaceFamily.GRASS, sideEdge.intValue(), 2);
             }
         });
+        // And a flank drawing a picture of its own, a mend made from that picture (1.0.1 W2b, FaceMends).
+        for (int face = FaceMends.FIRST_OWN; face <= FaceMends.LAST; face++) {
+            final int side = face;
+            final StateFiling.Builder<Block, WearSprite> held = faceMended.get(face - FaceMends.FIRST_OWN);
+            faceMendEdges.get(face - FaceMends.FIRST_OWN)
+                .forEach(new StateFiling.Visitor<Block, Integer>() {
+
+                    @Override
+                    public void visit(Block block, int meta, Integer sideEdge) {
+                        registerMendedSide(into, held, block, meta, SurfaceFamily.GRASS, sideEdge.intValue(), side);
+                    }
+                });
+        }
 
         // The grass-side wear set, generated whether or not the feature is switched on so a
         // mid-session toggle takes without a re-stitch. A grey receding fringe per gradation and
@@ -2350,11 +2525,14 @@ public final class WearTextures {
         // written when they next move.
         StateFiling<Block, Integer> sets = states.build();
         StateFiling<Block, WearSprite> mendedBuilt = mended.build();
+        List<StateFiling<Block, WearSprite>> faceMendedBuilt = new ArrayList<StateFiling<Block, WearSprite>>();
+        for (StateFiling.Builder<Block, WearSprite> each : faceMended) faceMendedBuilt.add(each.build());
         StateFiling<Block, WearSprite> wallsBuilt = walls.build();
         StateFiling<Block, Boolean> filed = everyStateFiled(sets, mendedBuilt, wallsBuilt);
         // Published now rather than with the lookup: it names blocks, not sprites, so it waits on nothing the
         // atlas has yet to make, and a flank asking in between finds no mend and a wanted one - vanilla's grass
         // side - for the moment the old lookup is still in force.
+        wantedFaceMends = faceMendsWanted.built();
         wantedMends = mendsWanted.build();
         // Held rather than published. Everything in it is a producer, and the Lookup the renderer
         // reads wants the atlas's own sprites - which do not exist until this stitch finishes. See
@@ -2367,6 +2545,7 @@ public final class WearTextures {
             rotations,
             sets,
             mendedBuilt,
+            new FaceMends<Block, WearSprite>(faceMendsWanted.own(), faceMendedBuilt),
             wallsBuilt,
             fallbackWall,
             filed,
@@ -2381,10 +2560,23 @@ public final class WearTextures {
         lastPlan = plan;
         reportPlan(plan, plans.size(), setCount, registeredThisStitch, TrmtConfig.perSurfaceTextures, heldByCanvas);
         beginPass(manager, 0);
+        List<String> packsNow = packIds(manager);
+        if (pass != null) pass.packs = packsNow;
         // The pass now, rather than at the atlas's first read, so only a picture no other has the pixels of is
         // offered to it (0.9.229, public issue #3).
         composeNow();
-        takeFacesDrawnOtherwise();
+        // The atlas in force is asked only where it was built from these same packs (1.0.1, W3; D25). After a pack
+        // switch it draws the packs before it: on the rig's 1.20.1 Prominence copy the check took four hundred faces
+        // from it, composed fourteen thousand pictures again from them, and the check after the stitch then found
+        // those faces drawn otherwise, parted the pictures and asked for the whole build again - two compose passes
+        // and two loading screens for every switch. The check after the stitch still corrects whatever the new atlas
+        // draws.
+        if (samePacks(packsAtLastStitch, packsNow)) {
+            takeFacesDrawnOtherwise();
+        } else if (packsAtLastStitch != null) {
+            Trmt.LOG.info(
+                "Left the atlas in force unasked before the stitch: it was built from other resource packs than this stitch reads");
+        }
         registeredThisStitch = offerDistinct(into, manager);
     }
 
@@ -3486,12 +3678,17 @@ public final class WearTextures {
          * order.
          */
         StateFiling.Builder<Block, Integer> sideEdges(StateFiling.Builder<Block, Boolean> wanted) {
+            return sideEdges(wanted, 2);
+        }
+
+        /** The same, for the picture each state draws on {@code face}: a flank's mend of its own (1.0.1 W2b). */
+        StateFiling.Builder<Block, Integer> sideEdges(StateFiling.Builder<Block, Boolean> wanted, final int face) {
             final StateFiling.Builder<Block, Integer> edges = StateFiling.<Block, Integer>builder();
             wanted.forEach(new StateFiling.Visitor<Block, Boolean>() {
 
                 @Override
                 public void visit(Block block, int meta, Boolean value) {
-                    int width = FaceSource.pricedWidth(manager, block, 2, SurfaceFamily.GRASS);
+                    int width = FaceSource.pricedWidth(manager, block, face, SurfaceFamily.GRASS);
                     edges.file(block, meta, Integer.valueOf(FaceRules.faceEdge(width, 0, wearEdge)));
                 }
             });
@@ -3544,6 +3741,13 @@ public final class WearTextures {
         }
 
         /** The slots a filing of side sprites takes, once each. */
+        /** The cells of every flank's own mends (1.0.1 W2b). */
+        static long cellsOf(List<StateFiling.Builder<Block, Integer>> faces) {
+            long cells = 0L;
+            for (StateFiling.Builder<Block, Integer> each : faces) cells += cellsOf(each);
+            return cells;
+        }
+
         static long cellsOf(StateFiling.Builder<Block, Integer> edges) {
             final long[] cells = { 0L };
             edges.forEach(new StateFiling.Visitor<Block, Integer>() {
@@ -3577,10 +3781,11 @@ public final class WearTextures {
      * need it costs a sprite and changes nothing, where missing one leaves a band you can see
      * through.
      */
-    private static boolean wantsMendedSide(ResourceManager manager, Block block, SurfaceFamily family) {
+    private static void wantsMendedSide(FaceMends.Wanted<Block> out, SideHoles holes, Block block, int meta,
+        SurfaceFamily family) {
         // Grass only, as the 1.7.10 edition gates it: the mend is a hole filled with vanilla's own
         // grass side, which is only the honest filling for a block that is a lawn.
-        if (manager == null || block == null || family != SurfaceFamily.GRASS) return false;
+        if (block == null || family != SurfaceFamily.GRASS) return;
 
         // The signal, at last, and it is the hole itself rather than a proxy for it.
         //
@@ -3592,45 +3797,42 @@ public final class WearTextures {
         // asked directly whether it has holes in it, which is what the other edition's signal was a
         // proxy for all along. Vanilla's grass side is opaque in every pixel on both versions, so it
         // excludes itself and needs no special case.
-        String side = ModelFaces.faceName(block, 2);
-        if (side == null) return false;
-        return hasHoles(WearPatterns.readIcon(manager, side));
+        //
+        // Every flank is asked, not face 2 alone (1.0.1 W2b; Codex's review of W2): a flank whose picture is face
+        // 2's takes the state's own mend, and one drawing a picture of its own wants a mend of its own
+        // (FaceMends). Each picture is read and scanned once a stitch, by its name (SideHoles).
+        String[] names = new String[FaceMends.LAST - 1];
+        for (int face = 2; face <= FaceMends.LAST; face++) names[face - 2] = ModelFaces.faceName(block, face);
+        out.want(block, meta, names, false, holes);
     }
 
-    /**
-     * Whether any pixel of a texture's first frame is less than opaque.
-     *
-     * <p>
-     * The first frame only: an animated texture is a column of frames, and the frames below the first
-     * are not what a still side draws. Square is assumed, as everything in this pipeline assumes, so
-     * the frame is the width.
-     */
-    private static boolean hasHoles(java.awt.image.BufferedImage image) {
-        if (image == null) return false;
-        int width = image.getWidth();
-        int height = Math.min(width, image.getHeight());
-        if (width <= 0 || height <= 0) return false;
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (((image.getRGB(x, y) >>> 24) & 0xFF) < 255) return true;
-            }
-        }
-        return false;
+    /** Whether any pixel of a texture's first frame is less than opaque: SideHoles.hasHoles, as every edition asks it. */
+    static boolean hasHoles(java.awt.image.BufferedImage image) {
+        return SideHoles.hasHoles(image);
     }
 
     /**
      * The covered blocks that draw themselves and cut their own side away, collected rather than
      * registered so they are priced before anything is planned, in the order the registration loop
-     * used to walk them. A state is filed once, as registerMendedSide's own check does.
+     * used to walk them. A state is filed once, as registerMendedSide's own check does. With them, the
+     * flanks that draw a picture of their own and want a mend of their own (FaceMends).
      */
-    private static StateFiling.Builder<Block, Boolean> mendedSidesWanted(ResourceManager manager,
+    private static FaceMends.Wanted<Block> mendedSidesWanted(final ResourceManager manager,
         List<SurfaceRegistry.SurfaceState> surfaces) {
-        StateFiling.Builder<Block, Boolean> out = StateFiling.<Block, Boolean>builder();
+        FaceMends.Wanted<Block> out = new FaceMends.Wanted<Block>();
+        if (manager == null) return out;
+        // One for this walk, so each picture is read and scanned once a stitch (1.0.1 W2b).
+        SideHoles holes = new SideHoles(new SideHoles.Reader() {
+
+            @Override
+            public java.awt.image.BufferedImage read(String name) {
+                return WearPatterns.readIcon(manager, name);
+            }
+        });
         for (SurfaceRegistry.SurfaceState state : surfaces) {
             for (int meta : metasOf(state.block)) {
                 SurfaceFamily family = SurfaceRegistry.familyOf(state.block);
-                if (!wantsMendedSide(manager, state.block, family)) continue;
-                out.file(state.block, meta, Boolean.TRUE);
+                wantsMendedSide(out, holes, state.block, meta, family);
             }
         }
         return out;
@@ -3654,12 +3856,13 @@ public final class WearTextures {
         return out;
     }
 
+    /** Plans one state's mended side, made from the picture its flank {@code face} draws (1.0.1 W2b). */
     private static void registerMendedSide(Registrar into, StateFiling.Builder<Block, WearSprite> out, Block block,
-        int meta, SurfaceFamily family, int edge) {
+        int meta, SurfaceFamily family, int edge, int face) {
         if (out.has(block, meta)) return;
 
         ResourceLocation name = spriteNamed("mend_" + (sideSpritesNamed++));
-        WearSprite sprite = new WearSprite(name, block, meta, family, family, 0, 1, 0, edge, true);
+        WearSprite sprite = new WearSprite(name, block, meta, family, family, 0, 1, 0, edge, true).madeFromFace(face);
         claim(sprite);
         out.file(block, meta, sprite);
     }
@@ -3782,8 +3985,18 @@ public final class WearTextures {
      * The covered block's own side with the pass underneath baked in, or null when it needs none.
      */
     public static TextureAtlasSprite mendedSide(Block origin, int originMeta) {
+        return mendedSide(origin, originMeta, 2);
+    }
+
+    /**
+     * The mended side a flank draws: the state's own, made from face 2, on every flank drawing face 2's picture, and on a
+     * flank drawing a picture of its own the mend made from that, or null where that picture wants none (1.0.1 W2b,
+     * FaceMends).
+     */
+    public static TextureAtlasSprite mendedSide(Block origin, int originMeta, int side) {
         if (origin == null) return null;
-        TextureAtlasSprite icon = lookup.mended.get(origin, originMeta);
+        Lookup current = lookup;
+        TextureAtlasSprite icon = current.faceMends.pick(origin, originMeta, side, current.mended.get(origin, originMeta));
         return usable(icon) ? icon : null;
     }
 
@@ -3794,6 +4007,12 @@ public final class WearTextures {
      */
     public static boolean mendWanted(Block origin, int originMeta) {
         return origin != null && Boolean.TRUE.equals(wantedMends.get(origin, originMeta));
+    }
+
+    /** The same for one flank: a flank drawing a picture of its own asks whether that one wanted a mend (1.0.1 W2b). */
+    public static boolean mendWanted(Block origin, int originMeta, int side) {
+        return origin != null
+            && Boolean.TRUE.equals(wantedFaceMends.pick(origin, originMeta, side, wantedMends.get(origin, originMeta)));
     }
 
     private static void register(Registrar into, SpritePlan plan) {

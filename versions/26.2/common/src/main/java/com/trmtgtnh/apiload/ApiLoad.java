@@ -1,12 +1,18 @@
 package com.trmtgtnh.apiload;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 import com.trmtgtnh.Trmt;
 import com.trmtgtnh.api.Trmtr;
@@ -69,6 +75,15 @@ public final class ApiLoad {
 
     /** The class every copy of the API carries, as a jar holds it. */
     static final String API_CLASS = "com/trmtgtnh/api/TrmtrApi.class";
+
+    /** trmtr-api's own mod id, as its Fabric jar gives it (D43, 1.0.1; tools/api/build_api.py, FABRIC_ID). */
+    static final String API_MOD_ID = "trmtr-api";
+
+    /** What every jar of trmtr-api's own says it is, in its manifest's Implementation-Title (D43, 1.0.1). */
+    static final String API_TITLE = "trmtr-api";
+
+    /** Where a jar or a class folder keeps its manifest. */
+    static final String MANIFEST = "META-INF/MANIFEST.MF";
 
     private static boolean started;
 
@@ -135,26 +150,115 @@ public final class ApiLoad {
     static void checkShading() {
         File own = locate(Trmt.class);
         File api = locate(TrmtrApi.class);
-        if (own != null && api != null && !own.equals(api)) {
-            HOST.sayOnce(
-                "shaded|loaded",
-                PluginHost.PREFIX + "trmtr-api was loaded from "
-                    + api.getName()
-                    + ", not from TRMTR's own "
-                    + own.getName()
-                    + ": that file carries a shaded copy of the API, which must not be - report this to that mod");
-        }
+        if (own != null && api != null && !own.equals(api)) HOST.sayOnce("shaded|loaded", loadedLine(api, own));
         for (DataFiles.ModFile mod : DataLoad.modFiles()) {
             if (mod.modIds.contains(Trmt.MODID)) continue;
             if (!carriesApi(mod)) continue;
-            HOST.sayOnce(
-                "shaded|" + mod.name,
-                PluginHost.PREFIX + mod.name
-                    + " (mod "
-                    + mod.modIds.get(0)
-                    + ") carries its own copy of trmtr-api; TRMTR provides the API and a mod must not shade it - report"
-                    + " this to that mod");
+            HOST.sayOnce("shaded|" + mod.name, carrierLine(mod));
         }
+    }
+
+    /**
+     * What is said when the API's classes came from another file than TRMTR's own: trmtr-api's own jar is named as
+     * itself (D43, 1.0.1), any other file as a mod that shaded the API. On Fabric, where every mod is on one class
+     * path, trmtr-api's jar beside TRMTR may be the copy that loads first; it is the same classes.
+     */
+    static String loadedLine(File api, File own) {
+        if (isApiJar(api)) {
+            return PluginHost.PREFIX + "trmtr-api was loaded from "
+                + api.getName()
+                + ", trmtr-api's own jar for mod developers, rather than from TRMTR's own "
+                + own.getName()
+                + ": TRMTR already includes the API, so that file is not needed and can be removed";
+        }
+        return PluginHost.PREFIX + "trmtr-api was loaded from "
+            + api.getName()
+            + ", not from TRMTR's own "
+            + own.getName()
+            + ": that file carries a shaded copy of the API, which must not be - report this to that mod";
+    }
+
+    /**
+     * What is said of a mod file other than TRMTR's that carries the API: trmtr-api's own jar, which a player may have
+     * put beside TRMTR from its Modrinth page, is named as itself, for mod developers and safe to remove, and never as a
+     * mod to report (D43, 1.0.1); any other file as a mod that shaded the API.
+     */
+    static String carrierLine(DataFiles.ModFile mod) {
+        if (isApiJar(mod)) {
+            return PluginHost.PREFIX + mod.name
+                + " is trmtr-api's own jar, for mod developers to compile against: TRMTR already includes the API, so"
+                + " the file is not needed and can be removed";
+        }
+        return PluginHost.PREFIX + mod.name
+            + " (mod "
+            + mod.modIds.get(0)
+            + ") carries its own copy of trmtr-api; TRMTR provides the API and a mod must not shade it - report"
+            + " this to that mod";
+    }
+
+    /**
+     * Whether a mod file is trmtr-api's own jar: on Fabric by its mod id, trmtr-api, and wherever its loader lists it
+     * by its manifest, whose {@code Implementation-Title} is trmtr-api in every jar trmtr-api builds
+     * ({@code tools/api/build_api.py}). Forge and NeoForge load its jars as libraries, never as mods, so their lists
+     * do not hold it; the manifest is what would name it there.
+     */
+    static boolean isApiJar(DataFiles.ModFile mod) {
+        if (mod.modIds.contains(API_MOD_ID)) return true;
+        for (Path root : mod.roots) {
+            try {
+                if (root == null) continue;
+                Path at = root.resolve(MANIFEST);
+                if (!Files.isRegularFile(at)) continue;
+                try (InputStream in = Files.newInputStream(at)) {
+                    if (titled(new Manifest(in))) return true;
+                }
+            } catch (IOException | RuntimeException unreadable) {
+                // A root that cannot be read says nothing of what it is.
+            }
+        }
+        if (mod.contents != null) {
+            boolean[] found = new boolean[1];
+            try {
+                mod.contents.visit("META-INF", (path, open) -> {
+                    if (!MANIFEST.equals(path)) return;
+                    try (InputStream in = open.open()) {
+                        if (titled(new Manifest(in))) found[0] = true;
+                    } catch (IOException | RuntimeException unreadable) {
+                        // A manifest that cannot be read says nothing of what the file is.
+                    }
+                });
+            } catch (RuntimeException unreadable) {
+                // Nor do contents that cannot be asked.
+            }
+            if (found[0]) return true;
+        }
+        return false;
+    }
+
+    /** Whether a jar or a class folder is trmtr-api's own, by its manifest (see above). */
+    static boolean isApiJar(File file) {
+        if (file == null) return false;
+        try {
+            if (file.isDirectory()) {
+                File manifest = new File(file, MANIFEST);
+                if (!manifest.isFile()) return false;
+                try (InputStream in = new FileInputStream(manifest)) {
+                    return titled(new Manifest(in));
+                }
+            }
+            if (!file.isFile()) return false;
+            try (JarFile jar = new JarFile(file)) {
+                return titled(jar.getManifest());
+            }
+        } catch (IOException | RuntimeException unreadable) {
+            return false;
+        }
+    }
+
+    private static boolean titled(Manifest manifest) {
+        return manifest != null && API_TITLE.equals(
+            manifest.getMainAttributes()
+                .getValue(Attributes.Name.IMPLEMENTATION_TITLE));
     }
 
     /** Whether a mod's file (a jar, or a development run's folders) holds the API's entry class at any root. */

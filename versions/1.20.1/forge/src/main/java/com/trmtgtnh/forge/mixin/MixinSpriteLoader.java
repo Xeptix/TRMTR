@@ -14,8 +14,10 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.trmtgtnh.client.texture.WearTextures;
@@ -43,6 +45,15 @@ import com.trmtgtnh.client.texture.WearTextures;
  * it there is no wear at all.
  *
  * <p>
+ * <strong>Planned in the background from 1.0.1</strong> (W3: the freeze; D25). The head of {@code loadAndStitch} runs
+ * on the render thread, and until 1.0.1 the whole plan and every picture's compose ran there, holding the window still
+ * for as long as they took - on the rig's Prominence copy, minutes at every resource pack switch. Now the head keeps
+ * only what the render thread alone may read ({@code WearTextures.beforeBlockStitch}) and the atlas's own executor is
+ * handed over with the plan put in front of its first task, the listing of the sources, which needs the plan done and
+ * runs on the atlas's background stage ({@code WearTextures.planningFirst}). Both at the head, from the method's own
+ * arguments, so no other mod's change to its body can move them.
+ *
+ * <p>
  * It lives in this module for the reason the other method-naming mixins do: common's annotation processor writes a
  * refmap in Fabric's intermediary names, which Forge refuses. Only the block atlas: the game builds several, and none
  * of the others is this mod's business.
@@ -54,13 +65,28 @@ public abstract class MixinSpriteLoader {
     @Final
     private ResourceLocation location;
 
+    /** This stitch's resource manager and atlas file, for the plan its background stage runs. */
+    @Unique
+    private ResourceManager trmt$manager;
+
+    @Unique
+    private ResourceLocation trmt$atlasInfo;
+
     @Inject(method = "loadAndStitch", at = @At("HEAD"))
     private void trmt$planWearSprites(ResourceManager manager, ResourceLocation atlasInfo, int mipLevel,
         Executor executor, CallbackInfoReturnable<CompletableFuture<SpriteLoader.Preparations>> callback) {
         if (!TextureAtlas.LOCATION_BLOCKS.equals(location)) return;
-        WearTextures.beginBlockStitch(
-            manager,
-            ((SpriteResourceLoaderSources) SpriteResourceLoader.load(manager, atlasInfo)).trmt$sources());
+        trmt$manager = manager;
+        trmt$atlasInfo = atlasInfo;
+        WearTextures.beforeBlockStitch();
+    }
+
+    @ModifyVariable(method = "loadAndStitch", at = @At("HEAD"), argsOnly = true)
+    private Executor trmt$planInTheBackground(Executor executor) {
+        if (!TextureAtlas.LOCATION_BLOCKS.equals(location)) return executor;
+        return WearTextures.planningFirst(executor, () -> WearTextures.beginBlockStitch(
+            trmt$manager,
+            ((SpriteResourceLoaderSources) SpriteResourceLoader.load(trmt$manager, trmt$atlasInfo)).trmt$sources()));
     }
 
     @Inject(require = 0, method = "stitch", at = @At("HEAD"))

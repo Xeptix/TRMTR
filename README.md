@@ -457,6 +457,18 @@ The sprites are generated at the one moment every block's own pixels exist - aft
 atlas has loaded everything and before it starts throwing pixel data away. Changing stage counts,
 looks or texture settings triggers that rebuild for you; there is nothing to press.
 
+**The pictures already made are kept**, so a resource pack switch makes again only the pictures of the blocks the
+pack changed, and a second start makes almost none. They are kept in memory, at most 192 MB with the least recently
+used let go, and in the `trmtr-cache` folder in the game folder, at most 512 MB with the oldest let go first. Each
+picture is filed under everything it is made from - the block's own pixels, its look, the gradation, rotation and
+turn, every setting, and this mod's version - so a changed block, look or setting makes its pictures afresh. A
+picture with a moving layer behind it is never kept. A file in the folder that is cut short or damaged is passed
+over and its picture made again; one game writes the folder at a time, and a second game run from the same folder
+keeps its pictures in memory alone. Deleting the folder is always safe, with the game running or not: it costs one
+round of making the pictures again. `client.wearPictureCache` is on as the mod ships; off, every picture is made
+afresh at every resource reload and the folder is neither read nor written, and what it already holds stays until
+it is deleted. It takes effect on the next resource reload.
+
 The tables the wear is filed in are keyed by the block itself rather than by its id, because Forge
 renumbers modded blocks when a world is loaded or a server joined and a table filed under the old
 numbering would draw one block's wear with another's pictures.
@@ -1342,8 +1354,8 @@ clientrules {
 - **`/trmt clientrules`** changes the list live, for operators: `list`, `set <setting> <value> force|suggest`,
   `clear <setting>`, `clearall`, and `copy`, which asks your own game for its current settings and makes them the
   list, `copy force` to force them. Each change is written to the file and sent to everyone online.
-- A player on a release older than 1.0.0 keeps their own settings, and a single-player or LAN host's own game is
-  never held to its list: the list is what its guests are sent.
+- A player on a release from before servers could set players' settings keeps their own settings, and a
+  single-player or LAN host's own game is never held to its list: the list is what its guests are sent.
 
 `general.enabled` is a master switch that stops accumulation and clears every client's overlay
 while leaving the stored data alone. `general.familyEditorOperatorsOnly` defaults **on**,
@@ -1522,7 +1534,7 @@ they are told that both mods wear grass, and that `families.grass.enabled` set t
 
 ## For mod and pack authors
 
-**trmtr-api 1.0.0** lets another mod, a resource pack or a data pack tell this one about its own blocks, in every
+**trmtr-api 1.0.1** lets another mod, a resource pack or a data pack tell this one about its own blocks, in every
 edition.
 
 - **Data files**, format 1, no code: a block's family (or none), how hard it wears, what mends it, whether it is cover
@@ -1531,9 +1543,11 @@ edition.
   read from mod jars, resource packs (looks only) and `config/trmtr/` in every edition, and from data packs from
   1.16.5; again on `/trmt reload`, and from 1.16.5 on `/reload`. A pack's files and a mod's own describe the blocks the
   same way, so a pack maker can correct a mod without waiting for it.
-- **The Java API**, `com.trmtgtnh:trmtr-api:1.0.0`: one compile-only jar, the same for every edition and loader, never
+- **The Java API**, `com.trmtgtnh:trmtr-api:1.0.1`: one compile-only jar, the same for every edition and loader, never
   shaded. Listeners before and after wear, rules for ground and for wearers, questions about any square, actions on one,
-  and a hook for drawing a mod's own worn blocks. A hook that throws is switched off and its mod named in the log.
+  and a hook for drawing a mod's own worn blocks. A hook that throws is switched off and its mod named in the log. It
+  is also on Modrinth as one version for each of Fabric, Forge and NeoForge, as `maven.modrinth:trmtr-api:1.0.1`.
+  Players do not need it: this mod already includes it.
 - **Its own versioning.** The API is numbered apart from the mod, keeps format 1 and its 1.0 surface under a written
   deprecation policy, and is MIT-licensed, where the mod is CC BY-NC 4.0. An example mod and an example pack for every
   edition show every part of it.
@@ -1657,7 +1671,8 @@ is older is told so in one line in the chat.
 Delete the jar and every block is the block it always was. There are no eroded blocks in the save
 to go missing, and the wear tag inside each chunk becomes an unrecognised key that Forge ignores.
 The world's `trmtgtnh` folder, which holds the [wear backups](#wear-backups), is read by nothing else
-and can be deleted with it.
+and can be deleted with it, and so can the game folder's `trmtr-cache` folder, which holds only the
+[worn pictures already made](#wear-textures-built-from-each-blocks-own-pixels).
 
 **Five settings are the exception**, and each says so in its own help text:
 

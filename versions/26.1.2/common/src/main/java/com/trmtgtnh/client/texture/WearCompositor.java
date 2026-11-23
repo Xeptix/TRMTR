@@ -1400,6 +1400,121 @@ public final class WearCompositor {
         return out;
     }
 
+    /**
+     * The brown a wall is filled with where neither the block's own dirt nor plain dirt could be read: vanilla dirt's
+     * mean color, opaque.
+     */
+    static final int EARTH = 0xFF866043;
+
+    /**
+     * A lawn's wall made solid: every pixel less than fully opaque, top to bottom, laid over the earth at the same
+     * place, so the wall is never see-through whatever the pack or mod (1.0.1 W2, decision D27, "Always a solid wall").
+     *
+     * <p>
+     * R1: a pack whose grass side is clear below its green edge left the walls beside a sunk worn lawn drawn as nothing
+     * under the fringe, because {@link #degreenTopEdge} fills only a cap a quarter deep and a mended side lays a pass
+     * underneath that may be just as clear. A pixel already opaque is kept exactly, so a side with no hole is drawn as
+     * it always was; a half-clear one is blended over the earth rather than replaced by it.
+     *
+     * @param earth the block's own dirt with its own holes already filled ({@link #earthUnder}), or null, which fills
+     *              from {@link #EARTH}
+     */
+    public static int[] solidWall(int[] side, int[] earth, int size) {
+        if (side == null) return null;
+        int[] out = side.clone();
+        int pixels = Math.min(size * size, out.length);
+        for (int i = 0; i < pixels; i++) {
+            int alpha = (side[i] >>> 24) & 0xFF;
+            if (alpha == 0xFF) continue;
+            int under = earth != null && i < earth.length && ((earth[i] >>> 24) & 0xFF) == 0xFF ? earth[i] : EARTH;
+            int inverse = 255 - alpha;
+            int red = (((side[i] >> 16) & 0xFF) * alpha + ((under >> 16) & 0xFF) * inverse) / 255;
+            int green = (((side[i] >> 8) & 0xFF) * alpha + ((under >> 8) & 0xFF) * inverse) / 255;
+            int blue = ((side[i] & 0xFF) * alpha + (under & 0xFF) * inverse) / 255;
+            out[i] = 0xFF000000 | (red << 16) | (green << 8) | blue;
+        }
+        return out;
+    }
+
+    /**
+     * What a lawn's wall is filled from: the block's own dirt, its underside, with any hole of its own filled from
+     * plain dirt; plain dirt where the block has none; null where neither could be read, which {@link #solidWall}
+     * fills from {@link #EARTH}.
+     */
+    public static int[] earthUnder(int[] own, int[] plain, int size) {
+        int[] fill = plain == null ? null : solidWall(plain, null, size);
+        return own == null ? fill : solidWall(own, fill, size);
+    }
+
+    /**
+     * The lip a wall takes where neither the block's own dirt nor plain dirt could be read: vanilla grass side's own,
+     * the darkest shade of vanilla dirt.
+     */
+    static final int LIP = 0xFF593D29;
+
+    /**
+     * A worn lawn's earth wall: the side made solid from its earth ({@link #solidWall}), the dark lip a grass side has
+     * just under its green edge put back where the side is see-through there, and then the edge de-greened
+     * ({@link #degreenTopEdge}), in that order.
+     *
+     * <p>
+     * Filled before it is de-greened (t13, Xep 2026-11-22): the de-greening reads the first earth pixel below the
+     * green edge, and a side clear below its edge has none until the fill gives it one, so the pack's own untinted
+     * edge was left on the wall. And the lip (t13b, Xep 2026-11-22, "that's not what the side of a worn grass block
+     * usually looks like"): vanilla's grass side has, under its green edge, a pixel of its dirt's darkest shade, which
+     * the de-greening carries up into the dark band every worn lawn's wall shows. A side clear below its edge has no
+     * lip, and filled from the earth alone the de-greening streaked whatever dirt lay there up the wall. So the pixel
+     * just under each column's green edge, where the side leaves it less than opaque, takes the earth's darkest shade,
+     * and the wall comes out as the wall of the side whole. A column whose green runs deeper than the de-greening
+     * reaches gets no lip, as it gets no de-greening; an opaque side is drawn exactly as before.
+     *
+     * @param earth the block's own dirt with its own holes already filled ({@link #earthUnder}), or null, which fills
+     *              from {@link #EARTH} with the lip {@link #LIP}
+     */
+    public static int[] earthWall(int[] side, int[] earth, int size) {
+        int[] solid = solidWall(side, earth, size);
+        if (solid == null) return null;
+        int lip = darkestOf(earth, size);
+        int cap = Math.max(1, size / 4);
+        for (int x = 0; x < size; x++) {
+            int lowest = -1;
+            for (int y = 0; y < size && y * size + x < side.length; y++) {
+                int pixel = side[y * size + x];
+                if (((pixel >>> 24) & 0xFF) != 0 && isGreen(pixel)) lowest = y;
+            }
+            int under = lowest + 1;
+            if (lowest < 0 || under > cap || under * size + x >= side.length) continue;
+            if (((side[under * size + x] >>> 24) & 0xFF) < 0xFF) solid[under * size + x] = lip;
+        }
+        return degreenTopEdge(solid, size);
+    }
+
+    /** The darkest opaque pixel of a picture, or {@link #LIP} where it has none. */
+    private static int darkestOf(int[] picture, int size) {
+        if (picture == null) return LIP;
+        int darkest = LIP;
+        int least = Integer.MAX_VALUE;
+        int pixels = Math.min(size * size, picture.length);
+        for (int i = 0; i < pixels; i++) {
+            int pixel = picture[i];
+            if (((pixel >>> 24) & 0xFF) != 0xFF) continue;
+            int light = ((pixel >> 16) & 0xFF) * 299 + ((pixel >> 8) & 0xFF) * 587 + (pixel & 0xFF) * 114;
+            if (light < least) {
+                least = light;
+                darkest = pixel;
+            }
+        }
+        return darkest;
+    }
+
+    /** Green-biased, whatever its alpha: the grassy top edge's color. */
+    private static boolean isGreen(int pixel) {
+        int r = (pixel >>> 16) & 0xFF;
+        int g = (pixel >>> 8) & 0xFF;
+        int b = pixel & 0xFF;
+        return g > r + 12 && g > b + 12;
+    }
+
     /** Opaque and not green-biased: an earth pixel rather than the grassy top edge or a hole. */
     private static boolean isCleanEarth(int pixel) {
         if (((pixel >>> 24) & 0xFF) < 250) return false; // a cut-away hole

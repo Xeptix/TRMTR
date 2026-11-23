@@ -124,6 +124,18 @@ public class WearSprite {
     private final boolean wallDegreen;
 
     /**
+     * The flank a mended side is made from: 2 for a state's own mend, and 3 to 5 for a flank drawing a picture of its
+     * own (1.0.1 W2b, FaceMends). Every other sprite reads face 2 for its wall, as it always did.
+     */
+    private int mendFace = 2;
+
+    /** This mended side, made from the picture its flank {@code face} draws (1.0.1 W2b); any other sprite is unchanged. */
+    WearSprite madeFromFace(int face) {
+        if (mendSide) mendFace = face;
+        return this;
+    }
+
+    /**
      * True when this sprite is the glow overlay of a wear picture rather than the picture itself: the pixels of it that
      * glow, in the color the picture draws them in, everything else clear (0.9.228, real glow). It is composed from the
      * same source as the picture it goes with, and drawn over it as a second quad at a baked light, so the pixels shine
@@ -475,15 +487,20 @@ public class WearSprite {
         if (size <= 0) return Source.unreadable();
 
         if (wallDegreen || mendSide) {
-            int[] side = read(faces, 2);
+            int[] side = read(faces, mendFace);
             if (side == null) return Source.unreadable();
             boolean scaled = edgeOf(side) != size;
             side = rescale(side, size);
+            // What any see-through pixel of the wall is filled from, top to bottom (1.0.1 W2, D27): the block's own
+            // dirt, its underside, and plain dirt where it has none. Carried as the source's bottom, which neither of
+            // these pictures read for anything else, and read without counting it as improvised: the side is the
+            // picture, and the log's word on it is the side's.
+            int[] earth = earthOf(faces, manager, size);
             if (wallDegreen) {
                 return new Source(
                     size,
                     side,
-                    side,
+                    earth,
                     null,
                     null,
                     "",
@@ -505,7 +522,7 @@ public class WearSprite {
             return new Source(
                 size,
                 side,
-                side,
+                earth,
                 under,
                 null,
                 "",
@@ -709,6 +726,18 @@ public class WearSprite {
         return face.pixels;
     }
 
+    /**
+     * A lawn wall's earth at this edge: the block's own underside with any hole of its own filled from plain dirt, or
+     * plain dirt, or null where neither reads (WearCompositor.earthUnder). For a wall with no block, the family's own
+     * underside, which for grass is plain dirt.
+     */
+    private int[] earthOf(FaceSource faces, ResourceManager manager, int size) {
+        int[] own = faces.read(origin, originMeta, 0, originFamily, appearance).pixels;
+        BufferedImage dirt = WearPatterns.readIcon(manager, "dirt");
+        int[] plain = dirt == null ? null : WearPatterns.toPixels(dirt, size);
+        return WearCompositor.earthUnder(own == null ? null : rescale(own, size), plain, size);
+    }
+
     /** Stands for "there is nothing to lay under this", so that null can go on meaning "not a mend". */
     private static final int[] NOTHING_UNDER = new int[0];
 
@@ -727,13 +756,18 @@ public class WearSprite {
         int size = source.edge;
         if (size <= 0) return null;
         if (glow) return composeGlow(source, size);
-        if (wallDegreen) return WearCompositor.degreenTopEdge(source.top, size);
+        // A lawn's wall is never see-through (1.0.1 W2, D27, "Always a solid wall"): the earth wall's de-greening fills
+        // only its top quarter, and a mend's pass underneath may be as clear as the side, so whatever either leaves
+        // less than opaque is filled from the block's own dirt, top to bottom. solidWall returns a new picture, so
+        // nothing here hands back the Source's own array, which one Source feeds to every gradation and rotation.
+        if (wallDegreen) {
+            // Filled, its lip put back, then de-greened (t13 and t13b, Xep 2026-11-22): see WearCompositor.earthWall.
+            return WearCompositor.earthWall(source.top, source.bottom, size);
+        }
         if (source.mendUnder != null) {
-            // Cloned rather than handed back. One Source feeds every gradation and rotation of a
-            // surface, and vanilla's mipmap generator keeps level zero by reference, so a sprite
-            // whose pixels ARE its Source's array would share one upload with all of them.
-            if (source.mendUnder.length == 0) return source.top.clone();
-            return WearCompositor.over(source.mendUnder, source.top, size);
+            int[] mended = source.mendUnder.length == 0 ? source.top
+                : WearCompositor.over(source.mendUnder, source.top, size);
+            return WearCompositor.solidWall(mended, source.bottom, size);
         }
         if (source.authored != null) {
             // A looks file's own pictures (W3 T5) in place of the generated ones, the gradations spread across them
@@ -876,6 +910,46 @@ public class WearSprite {
         usable = true;
         adoptLayer(source, worn, wanted, still);
         return strip(still, wanted);
+    }
+
+    /**
+     * Whether a picture of this sprite from this source may come out of the cache of pictures already made (1.0.1, W3:
+     * {@link WearPictureCache}): every one but a picture with a moving layer behind it, whose install keeps the shell
+     * and the frames for the atlas to animate, which a stored picture does not carry.
+     */
+    boolean cacheable(Source source) {
+        return source != null && !source.isUnreadable() && source.layerFrames == null;
+    }
+
+    /**
+     * Everything of this sprite's own that {@link #compose} reads, into a picture's key: the kind of picture, the
+     * flank a mended side is made from (1.0.1 W2b), the gradation and how many there are, the rotation and the edge. Which block it is for is not among them: two
+     * sprites composed from the same source at the same of these are the same picture.
+     */
+    void addTo(WearPictureCache.Key key) {
+        key.add("WearSprite")
+            .add(glow)
+            .add(wallDegreen)
+            .add(mendSide)
+            .add(mendFace)
+            .add(stage)
+            .add(stageCount)
+            .add(rotation)
+            .add(edge);
+    }
+
+    /**
+     * What {@link #install} leaves on this sprite, for a picture that came out of the cache rather than being composed:
+     * usable, with the source's mark, and a glow overlay's light level. Nothing is kept for a moving layer, because
+     * such a picture is never cached ({@link #cacheable}).
+     *
+     * @param glowLevel the light level a glow overlay was composed with
+     */
+    void installCached(Source source, int glowLevel) {
+        pendingShell = null;
+        improvised = source != null && source.improvised;
+        usable = true;
+        if (glow) this.glowLevel = glowLevel;
     }
 
     /**
@@ -1069,7 +1143,8 @@ public class WearSprite {
             + (originFamily == null ? "-" : originFamily.key())
             + "/"
             + (appearance == null ? "-" : appearance.key())
-            + (mendSide ? "/m" : "")
+            // A flank's own mend reads its own face, so it never shares face 2's source (1.0.1 W2b).
+            + (mendSide ? (mendFace == 2 ? "/m" : "/m" + mendFace) : "")
             + (wallDegreen ? "/w" : "")
             + "@"
             + edge;

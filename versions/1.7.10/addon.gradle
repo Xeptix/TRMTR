@@ -211,3 +211,6 @@ if (file('api/example').isDirectory()) {
         }
     }
 }
+
+// The build stamp the wear picture cache keys a development build by (t14).
+apply from: "gradle/trmtr-build-stamp.gradle"

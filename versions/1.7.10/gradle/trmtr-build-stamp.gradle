@@ -1,0 +1,44 @@
+// The build's stamp, which the wear picture cache keeps a development build's pictures under (t14, Xep 2026-11-22:
+// "Fix that so it's based off version + snapshot when indev"). The same file in every edition, applied to the project
+// whose resources go into the jar.
+//
+// A build stamped with its name through VERSION - a snapshot's jars, a release's - writes an empty stamp: its version
+// already says which build it is, and its jar stays the same for the same source. Any other build is a development
+// build, and writes "dev." and the first twelve hex digits of a SHA-256 over every file of the tree's main sources
+// (each project's src/main), path and bytes, so any change to what the jar is made from, committed or not, is another
+// stamp. WearPictureCache.keyedVersion reads it from com/trmtgtnh/client/texture/build-stamp.txt; BuildStampTest holds
+// the build to writing it, and the_picture_cache_keys_a_development_build_by_its_stamp in tools/check_tools.py holds
+// every edition to applying this file.
+
+def stampOutput = layout.buildDirectory.dir('generated/trmtr-build-stamp')
+def stampSources = files(rootProject.allprojects.collect { it.file('src/main') }.findAll { it.isDirectory() })
+def stampNamed = providers.environmentVariable('VERSION').map { it.trim() }.getOrElse('')
+def stampRoot = rootDir.absolutePath
+
+def trmtrBuildStamp = tasks.register('trmtrBuildStamp') {
+    inputs.files(stampSources).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName('mainSources')
+    inputs.property('named', stampNamed)
+    outputs.dir(stampOutput)
+    doLast {
+        File out = stampOutput.get().file('com/trmtgtnh/client/texture/build-stamp.txt').asFile
+        out.parentFile.mkdirs()
+        String stamp = ''
+        if (stampNamed.isEmpty()) {
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+            def named = stampSources.asFileTree.files.collect { File each ->
+                String path = each.absolutePath.substring(stampRoot.length() + 1)
+                [path.split(java.util.regex.Pattern.quote(File.separator)).join('/'), each]
+            }
+            named.sort { it[0] }.each { pair ->
+                digest.update(pair[0].getBytes('UTF-8'))
+                digest.update((byte) 0)
+                digest.update(pair[1].bytes)
+                digest.update((byte) 0)
+            }
+            stamp = 'dev.' + digest.digest().encodeHex().toString().substring(0, 12)
+        }
+        out.setText(stamp + '\n', 'UTF-8')
+    }
+}
+
+sourceSets.main.resources.srcDir(trmtrBuildStamp)

@@ -474,7 +474,7 @@ trmtgtnh.weareditor.classicNone=No classic look here
 trmtgtnh.setting.client.glowingWear=Glowing wear
 trmtgtnh.setting.client.glowingWear.summary=Worn end stone's purple cracks, netherrack's ash and sculk's last glints glow in the dark.
 
-# --- the settings screen's words: written by tools/settings_words.py from the 1.7.10 tree's tools/settings_*.tsv - edit those, never these lines (sha256 79df408e0cbfb52f) ---
+# --- the settings screen's words: written by tools/settings_words.py from the 1.7.10 tree's tools/settings_*.tsv - edit those, never these lines (sha256 9978094082a2a147) ---
 trmtgtnh.config.own.tab.presets=Presets
 trmtgtnh.config.own.tab.client=Client
 trmtgtnh.config.own.tab.general=General
@@ -1045,6 +1045,8 @@ trmtgtnh.setting.client.wearTurns=Worn block turning
 trmtgtnh.setting.client.wearTurns.summary=Whether worn blocks turn from block to block, so paths do not look tiled.
 trmtgtnh.setting.client.wearTurnStart=When worn blocks start turning
 trmtgtnh.setting.client.wearTurnStart.summary=Whether lightly worn blocks keep the game's own turn or turn from the first stage.
+trmtgtnh.setting.client.wearPictureCache=Keep the worn pictures made
+trmtgtnh.setting.client.wearPictureCache.summary=Pictures nothing has changed are not made again at a pack switch or the next start.
 trmtgtnh.setting.client.maxWearSprites=Most worn-ground pictures
 trmtgtnh.setting.client.maxWearSprites.summary=A ceiling on worn-ground pictures in the texture atlas; lower it to save video memory.
 trmtgtnh.setting.client.largerAtlas=Use more video memory for wear

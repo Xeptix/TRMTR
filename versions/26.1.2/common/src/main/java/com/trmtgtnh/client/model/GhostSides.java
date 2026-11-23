@@ -202,9 +202,17 @@ public final class GhostSides {
             // holes anyway - as the 1.7.10 edition draws it, and the composer's report says how many it could
             // not install. Until 0.9.223 the block's own side was drawn, holes and all (spec GS15).
             if (flank) {
-                TextureAtlasSprite mended = WearTextures.mendedSide(block, meta);
+                // Each flank asks for its own (1.0.1 W2b): one drawing a picture other than face 2's takes the mend made
+                // from that picture, or none, never face 2's (FaceMends).
+                TextureAtlasSprite mended = WearTextures.mendedSide(block, meta, side);
                 if (mended != null) return new Face(mended, false, fringe);
-                if (WearTextures.mendWanted(block, meta)) return new Face(atlasSprite(sprite("grass_side")), false, fringe);
+                if (WearTextures.mendWanted(block, meta, side)) {
+                    // Vanilla grass's own side, mended itself where a pack leaves that one with holes too (1.0.1 W2,
+                    // D27, the 1.7.10 edition's GhostRendering), so the fallback is never a see-through wall either.
+                    Block grass = net.minecraft.world.level.block.Blocks.GRASS_BLOCK;
+                    TextureAtlasSprite vanillaMend = WearTextures.mendedSide(grass, metaOf(grass, grass.defaultBlockState()), side);
+                    return new Face(vanillaMend != null ? vanillaMend : atlasSprite(sprite("grass_side")), false, fringe);
+                }
             }
             return new Face(faceSprite(block, meta, side, originFamily, appearance), false, fringe);
         }

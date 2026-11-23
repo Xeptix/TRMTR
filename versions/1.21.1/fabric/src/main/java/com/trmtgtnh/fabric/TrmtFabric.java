@@ -132,6 +132,15 @@ public final class TrmtFabric implements ModInitializer {
         ModPotions.register((name, effect) -> Registry.register(net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT, name, effect));
 
         com.trmtgtnh.item.ModItems.register((name, item) -> Registry.register(net.minecraft.core.registries.BuiltInRegistries.ITEM, name, item));
+        // The mod's items in the vanilla creative tabs, asked as each tab is built (1.0.1, D24): from 1.19.3 an item
+        // names no tab and the loader is asked. Forge's and NeoForge's registration asked from the first and this
+        // module never did, so on Fabric no item of the mod was in the creative menu. Fabric API opens the tabs' keys.
+        creativeTab(net.minecraft.world.item.CreativeModeTabs.TOOLS_AND_UTILITIES,
+            com.trmtgtnh.item.CreativeTabs.Tab.TOOLS_AND_UTILITIES);
+        creativeTab(net.minecraft.world.item.CreativeModeTabs.SPAWN_EGGS, com.trmtgtnh.item.CreativeTabs.Tab.SPAWN_EGGS);
+        creativeTab(net.minecraft.world.item.CreativeModeTabs.FOOD_AND_DRINKS,
+            com.trmtgtnh.item.CreativeTabs.Tab.FOOD_AND_DRINKS);
+        creativeTab(net.minecraft.world.item.CreativeModeTabs.INGREDIENTS, com.trmtgtnh.item.CreativeTabs.Tab.INGREDIENTS);
         // No enchantments to register: from 1.21 they are data, read from data/trmtgtnh/enchantment as a world loads
         // (see TamperEnchantment).
 
@@ -193,6 +202,13 @@ public final class TrmtFabric implements ModInitializer {
         // line said 1.16.5, the edition it was carried from, until 0.9.226 (StartLineNamesItsGameTest).
         Trmt.LOG.info("{} on Fabric, Minecraft {}", Trmt.NAME, net.minecraft.SharedConstants.getCurrentVersion()
             .getName());
+    }
+
+    /** One vanilla tab's share of the mod's items, from CreativeTabs, as Fabric API builds the tab. */
+    private static void creativeTab(net.minecraft.resources.ResourceKey<net.minecraft.world.item.CreativeModeTab> key,
+        com.trmtgtnh.item.CreativeTabs.Tab tab) {
+        net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents.modifyEntriesEvent(key)
+            .register(entries -> com.trmtgtnh.item.CreativeTabs.into(tab, entries::accept));
     }
 
     /**

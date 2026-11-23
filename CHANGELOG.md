@@ -1,8 +1,90 @@
 # TRMT: Reimagined - changelog
 
-One version number across every edition. 1.0.0 is the same release on Minecraft 1.7.10, 1.12.2,
+One version number across every edition. 1.0.1 is the same release on Minecraft 1.7.10, 1.12.2,
 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3, and later releases will carry whatever editions exist then. A change in one edition
 moves the number for all of them, so an edition's entry saying nothing changed is saying something true.
+
+## 1.0.1 - 2026-11-23
+
+**A resource pack switch no longer stops the game for minutes.** The worn ground's pictures are made once at a switch,
+where 1.0.0 made them twice and showed two loading screens; they are made in the game's loading work rather than on
+the thread that draws the window, so the loading screen keeps moving; and each picture is written out with one
+compressor a thread, where every picture had made and freed its own, which a large modpack's memory had made several
+times slower after a reload than at startup. In the Prominence II modpack on 1.20.1 Fabric a switch is back in play in
+30 to 40 seconds, where 1.0.0 took 388 to 499.
+
+*Changes: 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Worn pictures already made are kept, so a pack switch or a second start makes only what changed.** They are kept in
+memory and in the `trmtr-cache` folder in the game folder, at most 512 MB with the oldest let go first, each filed
+under everything it is made from and this mod's version, so a changed block, look or setting makes its pictures
+afresh. A damaged file in the folder is passed over, deleting the folder is always safe, and `client.wearPictureCache`
+turns it off.
+
+*Changes: 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Sunk worn grass no longer shows see-through walls.** With a resource pack or mod whose grass side is clear below its
+green edge, the walls of a path sunk through grass were drawn as nothing under the green fringe, and the sky or black
+showed through them, with shaders or without. Each see-through pixel of the walls this mod draws there is now filled
+from that block's own dirt, or from plain dirt where it has none, from the top of the wall to the bottom, and the
+pack's own green edge on those walls is earth too, with the dark band of a worn grass wall,
+under the mod's fringe colored for the biome. An unworn grass block's own side, a snowed side and a wall the block
+atlas had no room for are drawn from the pack as before, and a pack whose grass side has no clear pixel is drawn
+exactly as before.
+
+*Changes: 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**No see-through band under a worn block.** Worn ground with a block on top is drawn and stood on at full height,
+but where that block was itself worn ground whose top had worn down, the ground under it kept its own depth. That
+left an open slot under the block, which showed at the top of the wall as a see-through band. Ground with any solid
+block on top, worn or not, now stands full, and its rut comes back when the block is taken away.
+
+*Changes: every edition.*
+
+**On Fabric the mod's items are in the creative menu.** No Fabric jar from 1.20.1 put any of them there. The
+tampers, the dev and snapshot tools and the guide books are now in Tools & Utilities, the golem's egg in Spawn Eggs,
+the draughts in Food & Drinks and the golem's upgrades in Ingredients, where the Forge and NeoForge jars already put
+them.
+
+*Changes: 1.20.1 Fabric, 1.21.1 Fabric, 26.1.2 Fabric, 26.2 Fabric and 26.3 Fabric.*
+
+**Copper tampers on 1.20.1 Fabric.** The Fabric jar names vanilla's metals for the mod's material lists itself, and
+copper was left out, so the copper tamper and the copper chunk tamper had no recipe and no place in the creative menu.
+They have both now, as on Forge.
+
+*Changes: 1.20.1 Fabric.*
+
+**The Wear Table dims the world behind it on 1.21.1, 26.1.2, 26.2 and 26.3.** Over a world it now draws the same dark
+gradient as the mod's other screens and as every other edition, where it drew the game's blur and a light veil that
+left the world showing through the table.
+
+*Changes: 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**Opening a world The Roads More Travelled made no longer fills the log.** The conversion's line for every chunk it
+converts, every block state it rewrites and every chunk's records placed is a debug line now, so `latest.log` keeps the
+one line that says the world was converted and not a line per chunk.
+
+*Changes: 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**trmtr-api's own jar is named as itself in the log.** With trmtr-api's jar beside this mod, the log said the file
+carried its own copy of trmtr-api and asked for it to be reported to that mod. It now says the file is trmtr-api's own
+jar, for mod developers, and can be removed, since this mod already includes the API. A mod that copies the API into
+its own jar is still named, and still to be reported.
+
+*Changes: 1.7.10, 1.12.2, 1.16.5, 1.20.1, 1.21.1, 26.1.2, 26.2 and 26.3.*
+
+**On 1.7.10 and 1.12.2 the log no longer names this mod's own jar as a mod that copied trmtr-api.** Every start gave
+a warning that this mod's jar carried its own copy of trmtr-api and asked for it to be reported to that mod: the check
+could not tell where its own classes came from under the game's class loader, so it did not know its own jar. It now
+knows its jar by its mod id, as every later edition does, and reads where its classes came from.
+
+*Changes: 1.7.10 and 1.12.2.*
+
+**trmtr-api 1.0.1.** Every jar carries trmtr-api 1.0.1, a patch that changes nothing a mod can see. Beside its GitHub
+Maven, the API goes to Modrinth as one version for each of Fabric, Forge and NeoForge, so
+`maven.modrinth:trmtr-api:1.0.1` resolves. Players do not need it: this mod already includes it.
+
+*Changes: every edition.*
 
 ## 1.0.0 - 2026-11-20
 

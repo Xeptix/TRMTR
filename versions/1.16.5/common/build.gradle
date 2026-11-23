@@ -117,3 +117,6 @@ if (sibling.exists()) {
         }
     }
 }
+
+// The build stamp the wear picture cache keys a development build by (t14).
+apply from: rootProject.file("gradle/trmtr-build-stamp.gradle")

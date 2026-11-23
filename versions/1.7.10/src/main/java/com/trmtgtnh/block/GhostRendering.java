@@ -403,10 +403,25 @@ public final class GhostRendering {
             && !revealsEarth
             && origin != null
             && origin.getRenderType() != 0) {
-            IIcon mended = WearTextures.mendedSide(origin, originMeta);
+            IIcon mended = WearTextures.mendedSide(origin, originMeta, side);
             if (mended != null) return asGrassSide(mended);
-            // Nothing mended for this block, so vanilla's own side rather than a hole.
-            return Blocks.grass.getIcon(2, 0);
+            // Nothing mended for this block, so vanilla's own side rather than a hole - mended itself where a pack
+            // leaves that one with holes too (1.0.1 W2, D27).
+            IIcon vanilla = WearTextures.mendedSide(Blocks.grass, 0, side);
+            return vanilla != null ? asGrassSide(vanilla) : Blocks.grass.getIcon(2, 0);
+        }
+
+        // A lawn whose own side has any pixel less than opaque, on a block that draws in the ordinary pass, is mended
+        // too, and the mend filled solid from its own dirt (1.0.1 W2, D27, "Always a solid wall"). R1: a pack whose
+        // grass side is clear below its green edge left the wall beside a sunk worn lawn drawn as nothing under the
+        // fringe. WearTextures.wantsMendedSide asks the picture for the hole, as each port does, so a block whose
+        // side is opaque has no mend and is drawn as before. Under grass's name only where its own side is grass's,
+        // so the fringe is drawn over it exactly where it was before and nowhere new.
+        // Each flank asks for its own (1.0.1 W2b): a flank drawing a picture other than face 2's takes the mend made
+        // from that picture, or none, never face 2's (WearTextures.mendedSide, FaceMends).
+        if (side >= 2 && ghost.appearance() == SurfaceFamily.GRASS && !revealsEarth && origin != null) {
+            IIcon mended = WearTextures.mendedSide(origin, originMeta, side);
+            if (mended != null) return drawsGrassSide(origin, originMeta, side) ? asGrassSide(mended) : mended;
         }
 
         if (origin != null) {
@@ -1147,6 +1162,19 @@ public final class GhostRendering {
             if (top == null || flank == null) return false;
             return !top.getIconName()
                 .equals(flank.getIconName());
+        } catch (RuntimeException awkwardBlock) {
+            return false;
+        }
+    }
+
+    /**
+     * Whether a covered block's own picture on this face is vanilla grass's side, which is what the renderer draws the
+     * tinted fringe over (1.0.1 W2): its mend is handed back under that name so the fringe is drawn where it was.
+     */
+    private static boolean drawsGrassSide(Block origin, int originMeta, int side) {
+        try {
+            IIcon own = FaceSource.faceIcon(origin, originMeta, side);
+            return own != null && "grass_side".equals(own.getIconName());
         } catch (RuntimeException awkwardBlock) {
             return false;
         }

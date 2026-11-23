@@ -1,8 +1,6 @@
 package com.trmtgtnh.client.texture;
 
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -13,10 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
-
-import javax.imageio.ImageIO;
-import javax.imageio.stream.ImageOutputStream;
-import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.SharedConstants;
@@ -105,6 +99,11 @@ public final class GeneratedPack implements PackResources {
         public Sheet encoded() throws IOException {
             if (png != null) return this;
             return new Sheet(null, width, height, mcmeta, encode(this));
+        }
+
+        /** A picture already encoded, as the cache of pictures already made keeps it (1.0.1, W3). */
+        static Sheet ofPng(int width, int height, String mcmeta, byte[] png) {
+            return new Sheet(null, width, height, mcmeta, png);
         }
     }
 
@@ -345,41 +344,21 @@ public final class GeneratedPack implements PackResources {
     }
 
     /**
-     * ARGB pixels to the bytes of a PNG.
+     * ARGB pixels to the bytes of a PNG, through {@link PngWriter}.
      *
      * <p>
-     * Through {@code BufferedImage} and {@code ImageIO}, which are in every JDK and take an
-     * {@code int[]} of ARGB directly - which is exactly what the compositor has been producing in
-     * both older editions all along. {@code NativeImage} would do it too and is what the atlas
-     * decodes into, but going through it here would mean composing into one and the compositor is
-     * portable code that names nothing from the game.
-     *
-     * <p>
-     * <strong>Written through a stream held in memory, never the one ImageIO picks.</strong> Handed an
-     * {@code OutputStream}, ImageIO wraps it in a {@code FileCacheImageOutputStream} wherever the
-     * temporary folder is writable - a file created in it, written, read back and deleted, for every
-     * picture. Until 0.9.220 that was every wear picture of every stitch: measured on 2026-10-08, the
-     * encoding took ninety seconds of thread time across the atlas's six loading threads, where the
-     * composing took two, and a pool of eight encoding it was no faster, because what it was waiting
-     * on was the disk. The writer, the
-     * image and the bytes it writes are the same either way - only where the writer keeps them while
-     * it goes back to fill in each chunk's length differs - which {@code PoolComposesWhatOneThreadDoesTest}
-     * holds against the old route byte for byte. The JDK's own switch for this, {@code ImageIO.setUseCache},
-     * is global to the game and every other mod in it, so it is left alone.
+     * Until 1.0.1 this went through {@code BufferedImage} and {@code ImageIO}, written through a stream held in memory
+     * (until 0.9.220 through the one ImageIO picks, a temporary file for every picture: ninety seconds of thread time a
+     * stitch, measured on 2026-10-08). ImageIO's PNG writer makes zlib's state afresh for every picture from the
+     * process's native heap, and after a reload in a large pack that heap is crowded enough to make the same encoding
+     * five to sixty times as slow (1.0.1, W3: the freeze); {@link PngWriter} keeps one compressor a thread. The pixels a
+     * reader gets back are the same, which {@code PngWriterTest} holds against ImageIO's reader and writer.
      */
     static byte[] encode(Sheet sheet) throws IOException {
-        BufferedImage image = new BufferedImage(sheet.width, sheet.height, BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0, 0, sheet.width, sheet.height, sheet.pixels, 0, sheet.width);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ImageOutputStream stream = new MemoryCacheImageOutputStream(out);
         try {
-            if (!ImageIO.write(image, "PNG", stream)) {
-                throw new IOException("no PNG writer, which no JDK should be without");
-            }
-        } finally {
-            // Flushes what the cache still holds into the bytes, and leaves them open; there is nothing to close.
-            stream.close();
+            return PngWriter.encode(sheet.pixels, sheet.width, sheet.height);
+        } catch (IllegalArgumentException wrongSize) {
+            throw new IOException(wrongSize.getMessage(), wrongSize);
         }
-        return out.toByteArray();
     }
 }

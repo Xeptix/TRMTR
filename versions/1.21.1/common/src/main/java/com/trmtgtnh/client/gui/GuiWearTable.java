@@ -206,7 +206,9 @@ public class GuiWearTable extends Screen {
     public void render(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partial) {
         // Held for the length of this frame; see the field.
         this.graphics = graphics;
-        super.renderBackground(graphics, mouseX, mouseY, partial);
+        // Over the world, the world dimmed as in 1.7.10, not the game's blur and quarter-dark texture (ScreenBackdrop;
+        // from 1.0.1, D21, as the other panel screens did from 1.0.0).
+        ScreenBackdrop.behind(this, graphics, () -> super.renderBackground(graphics, mouseX, mouseY, partial));
         WearTableLayout at = layout();
         clampScroll(at);
         int left = at.panelLeft;

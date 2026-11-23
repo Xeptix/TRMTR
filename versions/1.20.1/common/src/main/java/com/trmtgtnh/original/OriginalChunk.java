@@ -136,7 +136,9 @@ public final class OriginalChunk {
         unrecordedSquares.addAndGet(result.squares.size());
         long chunks = convertedChunks.incrementAndGet();
         long squares = convertedSquares.addAndGet(result.squares.size());
-        Trmt.LOG.info("[S1] Converted chunk {},{}: {} worn squares, {} us; {} chunks and {} squares so far.", chunkX, chunkZ,
+        // The [S1] lines are debug from 1.0.1 (D21): one for every chunk and palette entry converted is the
+        // harness's to read (its original part raises this logger first), not a line in a player's log.
+        Trmt.LOG.debug("[S1] Converted chunk {},{}: {} worn squares, {} us; {} chunks and {} squares so far.", chunkX, chunkZ,
             result.squares.size(), micros, chunks, squares);
         return result.squares;
     }
@@ -191,7 +193,7 @@ public final class OriginalChunk {
         long chunks = fastChunks.incrementAndGet();
         long total = fastNanos.addAndGet(nanos);
         if (chunks % FAST_REPORT == 0) {
-            Trmt.LOG.info("[S1] Conversion fast path: {} chunks, {} us each on average.", chunks, total / 1000L / chunks);
+            Trmt.LOG.debug("[S1] Conversion fast path: {} chunks, {} us each on average.", chunks, total / 1000L / chunks);
         }
     }
 
@@ -268,7 +270,7 @@ public final class OriginalChunk {
                 }
                 // A palette entry's few properties, made one bounded string here rather than handed to the log whole.
                 String became = entry.name + entry.properties;
-                Trmt.LOG.info("[S1] Chunk {},{} section {} palette {}: {} became {}", chunkX, chunkZ, section.y, p, was,
+                Trmt.LOG.debug("[S1] Chunk {},{} section {} palette {}: {} became {}", chunkX, chunkZ, section.y, p, was,
                     became);
             }
         }

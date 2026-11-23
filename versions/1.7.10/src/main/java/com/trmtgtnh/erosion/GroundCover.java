@@ -75,8 +75,10 @@ public final class GroundCover {
      *
      * <p>
      * A solid block is an opaque cube. On a client a worn square above is a ghost, which stands in for the block the
-     * server has there: that block decides, and a square above whose own top is sunk is no roof on either side - the
-     * client draws it as a sunken ghost and the server stands it hollow.
+     * server has there: that block decides, whether or not its own top has sunk, because a block whose top is worn down
+     * still rests on the square under it (1.0.1, R1's third image). Until 1.0.1 a square above whose own top had sunk
+     * was no roof on either side, so the square under it was drawn and stood at its own depth: an open slot under the
+     * block above, which from the side was a band at the top of the wall with the world showing through it.
      */
     public static boolean roofedAt(net.minecraft.world.IBlockAccess world, int x, int y, int z) {
         if (world == null || y < 0 || y + 1 > 255) return false;
@@ -84,12 +86,9 @@ public final class GroundCover {
         if (above == null) return false;
         if (above instanceof com.trmtgtnh.block.GhostBlock) {
             Block origin = com.trmtgtnh.Trmt.proxy.originBlockAt(x, y + 1, z);
-            return origin != null && origin.isOpaqueCube() && !((com.trmtgtnh.block.GhostBlock) above).isSunken();
+            return origin != null && origin.isOpaqueCube();
         }
-        if (!above.isOpaqueCube()) return false;
-        if (world instanceof World && !((World) world).isRemote)
-            return PhysicalDecay.sinkAt((World) world, x, y + 1, z) == 0;
-        return true;
+        return above.isOpaqueCube();
     }
 
     /**
